@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mantia — Guía visual por rol</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --bg: #f4f1ea;
+        --panel: #ffffff;
+        --border: #e2ddd3;
+        --text: #17191f;
+        --muted: #6b6e76;
+        --accent: #2f53e0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #15161b;
+          --panel: #1d1f26;
+          --border: #2c2f38;
+          --text: #eef0f4;
+          --muted: #9aa0ac;
+          --accent: #7c9bff;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      header {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 48px 24px 24px;
+      }
+      header h1 {
+        font-size: 28px;
+        margin: 0 0 6px;
+      }
+      header p {
+        color: var(--muted);
+        margin: 0;
+      }
+
+      nav {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 0 24px 32px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      nav a {
+        padding: 8px 16px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+
+      section {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 0 24px 56px;
+      }
+      section h2 {
+        font-size: 20px;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 12px;
+        margin-bottom: 24px;
+      }
+      .role-tag {
+        display: inline-block;
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        padding: 3px 10px;
+        border-radius: 999px;
+        margin-left: 10px;
+        vertical-align: middle;
+      }
+      .tag-user {
+        background: #dde3f8;
+        color: #2f53e0;
+      }
+      .tag-technician {
+        background: #d7f0ec;
+        color: #0f766e;
+      }
+      .tag-admin {
+        background: #e2dcf3;
+        color: #5b3eb8;
+      }
+      @media (prefers-color-scheme: dark) {
+        .tag-user {
+          background: #22305e;
+          color: #a9bcf5;
+        }
+        .tag-technician {
+          background: #163330;
+          color: #7fd6c8;
+        }
+        .tag-admin {
+          background: #2e2350;
+          color: #c6b3ef;
+        }
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 24px;
+      }
+      .card h3 {
+        margin: 0 0 4px;
+        font-size: 15px;
+      }
+      .card .desc {
+        color: var(--muted);
+        font-size: 13.5px;
+        margin: 0 0 14px;
+        line-height: 1.5;
+      }
+      .card img {
+        display: block;
+        width: 100%;
+        max-width: 720px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Mantia — Guía visual por rol</h1>
+      <p>
+        Capturas de cada pantalla y acción disponible, organizadas por lo que ve cada tipo de
+        cuenta.
+      </p>
+    </header>
+
+    <nav>
+      <a href="#login">Login</a>
+      <a href="#user">Usuario</a>
+      <a href="#technician">Técnico</a>
+      <a href="#admin">Admin</a>
+    </nav>
+
+    <section id="login">
+      <h2>Login</h2>
+      <div class="card">
+        <h3>Pantalla de ingreso</h3>
+        <p class="desc">Landing con branding y formulario de login. Cualquier rol entra por acá.</p>
+        <img src="00-login/login.jpg" alt="Pantalla de login" />
+      </div>
+    </section>
+
+    <section id="user">
+      <h2>Usuario <span class="role-tag tag-user">reporta fallas</span></h2>
+
+      <div class="card">
+        <h3>Equipos — lista</h3>
+        <p class="desc">
+          Estado en tiempo real de todos los equipos, agrupados por ubicación. Contadores de
+          funcionando/en espera/en reparación arriba.
+        </p>
+        <img src="user/01-equipos-lista.jpg" alt="Lista de equipos, vista usuario" />
+      </div>
+
+      <div class="card">
+        <h3>Detalle de equipo — Información</h3>
+        <p class="desc">Ubicación, tipo y fallas activas del equipo puntual.</p>
+        <img src="user/02-equipo-detalle-info.jpg" alt="Detalle de equipo, tab información" />
+      </div>
+
+      <div class="card">
+        <h3>Detalle de equipo — Historial</h3>
+        <p class="desc">
+          Timeline completo: quién reportó, quién asignó, quién inició y quién resolvió cada falla,
+          con fecha.
+        </p>
+        <img src="user/03-equipo-detalle-historial.jpg" alt="Timeline de historial del equipo" />
+      </div>
+
+      <div class="card">
+        <h3>Reportar falla</h3>
+        <p class="desc">
+          Modal para cargar una falla nueva: descripción, urgencia (baja/media/alta) y foto
+          opcional.
+        </p>
+        <img src="user/04-reportar-falla-modal.jpg" alt="Modal reportar falla" />
+      </div>
+
+      <div class="card">
+        <h3>Mis solicitudes</h3>
+        <p class="desc">
+          Seguimiento de todas las fallas que reportó este usuario, con estado y técnico asignado.
+        </p>
+        <img src="user/05-mis-solicitudes.jpg" alt="Mis solicitudes" />
+      </div>
+
+      <div class="card">
+        <h3>Configuración</h3>
+        <p class="desc">Datos de cuenta, rol/área/estado, cambio de contraseña y cerrar sesión.</p>
+        <img src="user/06-configuracion.jpg" alt="Configuración de cuenta, usuario" />
+      </div>
+    </section>
+
+    <section id="technician">
+      <h2>Técnico <span class="role-tag tag-technician">resuelve fallas</span></h2>
+
+      <div class="card">
+        <h3>Equipos — lista</h3>
+        <p class="desc">
+          Misma vista que usuario, pero con "Cola de trabajo" en vez de "Mis solicitudes" en el
+          menú.
+        </p>
+        <img src="technician/01-equipos-lista.jpg" alt="Lista de equipos, vista técnico" />
+      </div>
+
+      <div class="card">
+        <h3>Cola de trabajo</h3>
+        <p class="desc">
+          Todas las fallas asignadas y sin asignar, con filtros por urgencia. Acá vive el flujo de
+          trabajo diario.
+        </p>
+        <img src="technician/02-cola-de-trabajo.jpg" alt="Cola de trabajo" />
+      </div>
+
+      <div class="card">
+        <h3>Falla sin asignar</h3>
+        <p class="desc">
+          Filtro "Sin asignar" — botón "Asignarme" toma la falla para el técnico logueado.
+        </p>
+        <img src="technician/03-cola-sin-asignar.jpg" alt="Falla sin asignar con botón asignarme" />
+      </div>
+
+      <div class="card">
+        <h3>Falla asignada — iniciar trabajo</h3>
+        <p class="desc">
+          Filtro "Mías" — la falla recién asignada muestra "Iniciar trabajo" para pasarla a en
+          curso.
+        </p>
+        <img
+          src="technician/04-cola-mias-asignada.jpg"
+          alt="Falla asignada, botón iniciar trabajo"
+        />
+      </div>
+
+      <div class="card">
+        <h3>Falla en curso — marcar resuelta</h3>
+        <p class="desc">
+          Una vez iniciada, el botón cambia a "Marcar resuelta" para cerrar el ciclo.
+        </p>
+        <img src="technician/05-cola-en-curso.jpg" alt="Falla en curso, botón marcar resuelta" />
+      </div>
+
+      <div class="card">
+        <h3>Falla resuelta</h3>
+        <p class="desc">
+          Estado final del ciclo completo: reportada → asignada → en curso → resuelta.
+        </p>
+        <img src="technician/06-cola-resuelta.jpg" alt="Falla resuelta" />
+      </div>
+
+      <div class="card">
+        <h3>Configuración</h3>
+        <p class="desc">Misma pantalla de cuenta que usuario, mostrando rol Técnico.</p>
+        <img src="technician/07-configuracion.jpg" alt="Configuración de cuenta, técnico" />
+      </div>
+    </section>
+
+    <section id="admin">
+      <h2>Admin <span class="role-tag tag-admin">gestiona todo</span></h2>
+
+      <div class="card">
+        <h3>Equipos — lista</h3>
+        <p class="desc">
+          Igual que los otros roles, pero con botón "Agregar equipo" además de "Reportar falla".
+        </p>
+        <img src="admin/01-equipos-lista.jpg" alt="Lista de equipos, vista admin" />
+      </div>
+
+      <div class="card">
+        <h3>Agregar equipo</h3>
+        <p class="desc">
+          Alta de equipo nuevo: código, nombre, tipo y ubicación. Nace "Funcionando" — el estado
+          después es automático según fallas activas.
+        </p>
+        <img src="admin/02-agregar-equipo-modal.jpg" alt="Modal agregar equipo" />
+      </div>
+
+      <div class="card">
+        <h3>Detalle de equipo — vista admin</h3>
+        <p class="desc">
+          Con botones extra "Editar equipo" y "Eliminar equipo" que los otros roles no ven.
+        </p>
+        <img src="admin/03-equipo-detalle-admin.jpg" alt="Detalle de equipo, vista admin" />
+      </div>
+
+      <div class="card">
+        <h3>Editar equipo</h3>
+        <p class="desc">
+          Código, nombre, tipo, ubicación editables. El estado queda de solo lectura ("Automático,
+          según fallas activas").
+        </p>
+        <img src="admin/04-editar-equipo-modal.jpg" alt="Modal editar equipo" />
+      </div>
+
+      <div class="card">
+        <h3>Usuarios y roles</h3>
+        <p class="desc">
+          Listado de todas las personas con su área, rol (Admin/Técnico/Usuario) y estado.
+        </p>
+        <img src="admin/05-usuarios-lista.jpg" alt="Lista de usuarios y roles" />
+      </div>
+
+      <div class="card">
+        <h3>Invitar persona</h3>
+        <p class="desc">
+          Alta de cuenta nueva ya activa: email, nombre, área, contraseña y rol inicial.
+        </p>
+        <img src="admin/06-invitar-persona-modal.jpg" alt="Modal invitar persona" />
+      </div>
+
+      <div class="card">
+        <h3>Editar persona</h3>
+        <p class="desc">
+          Cambiar nombre/área/rol, activar o desactivar cuenta, o eliminar la persona.
+        </p>
+        <img src="admin/07-editar-usuario-modal.jpg" alt="Modal editar persona" />
+      </div>
+
+      <div class="card">
+        <h3>Solicitudes — toda la organización</h3>
+        <p class="desc">
+          A diferencia de "Mis solicitudes" (usuario) o "Cola de trabajo" (técnico), el admin ve
+          todas las fallas reportadas por todos.
+        </p>
+        <img src="admin/08-solicitudes-org.jpg" alt="Solicitudes de toda la organización" />
+      </div>
+
+      <div class="card">
+        <h3>Configuración</h3>
+        <p class="desc">Misma pantalla de cuenta, mostrando rol Administrador.</p>
+        <img src="admin/09-configuracion.jpg" alt="Configuración de cuenta, admin" />
+      </div>
+    </section>
+  </body>
+</html>
