@@ -23,16 +23,9 @@ import {
 } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
+import type { ThemeColors } from "../../../lib/theme";
+import { useTheme } from "../../../lib/ThemeContext";
 import type { Equipment, Fault, HistoryEntry, Profile } from "../../../types/database";
-
-const STATUS_META: Record<
-  Equipment["status"],
-  { label: string; bg: string; fg: string; dot: string }
-> = {
-  operational: { label: "Funcionando", bg: "#e4f3ea", fg: "#1e7f47", dot: "#22a45d" },
-  waiting: { label: "En espera", bg: "#f7ecd6", fg: "#9a6512", dot: "#d9962a" },
-  repair: { label: "En reparación", bg: "#f8e3e3", fg: "#b23636", dot: "#d24141" },
-};
 
 const URGENCY_LABEL: Record<Fault["urgency"], string> = {
   low: "Baja",
@@ -47,17 +40,6 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-// Same palette as the fault-status badges (RequestList/Queue) — so
-// "En curso" in Historial reads the same everywhere, instead of a
-// standalone red that looks like an error.
-const HISTORY_TYPE_COLOR: Record<string, { dot: string; bg: string; fg: string }> = {
-  Reporte: { dot: "#5b3eb8", bg: "#e2dcf3", fg: "#5b3eb8" },
-  Asignada: { dot: "#2f53e0", bg: "#dde3f8", fg: "#2f53e0" },
-  "En curso": { dot: "#0f766e", bg: "#d7f0ec", fg: "#0f766e" },
-  Resuelta: { dot: "#1e7f47", bg: "#d2ecdb", fg: "#1e7f47" },
-  Preventivo: { dot: "#1e7f47", bg: "#d2ecdb", fg: "#1e7f47" },
-};
-
 export default function EquipmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [equipment, setEquipment] = useState<Equipment | null>(null);
@@ -70,6 +52,24 @@ export default function EquipmentDetail() {
   const [tab, setTab] = useState<TabKey>("info");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
+
+  const statusMeta: Record<Equipment["status"], { label: string; bg: string; fg: string; dot: string }> = {
+    operational: { label: "Funcionando", ...colors.eqOperational },
+    waiting: { label: "En espera", ...colors.eqWaiting },
+    repair: { label: "En reparación", ...colors.eqRepair },
+  };
+
+  // Maps history type strings to theme palette (same colors as fault-status badges
+  // so "En curso" in Historial reads the same everywhere).
+  const historyTypeColor: Record<string, { dot: string; bg: string; fg: string }> = {
+    Reporte: colors.histReporte,
+    Asignada: colors.histAsignada,
+    "En curso": colors.histEnCurso,
+    Resuelta: colors.histResuelta,
+    Preventivo: colors.histResuelta,
+  };
 
   const loadEquipmentData = useCallback(async () => {
     if (!id) return;
@@ -155,7 +155,7 @@ export default function EquipmentDetail() {
     );
   }
 
-  const statusMeta = STATUS_META[equipment.status];
+  const sm = statusMeta[equipment.status];
 
   return (
     <>
@@ -173,6 +173,7 @@ export default function EquipmentDetail() {
                 <Pressable style={styles.editButton} onPress={() => setEditModalVisible(true)}>
                   <Text style={styles.editButtonText}>Editar equipo</Text>
                 </Pressable>
+
                 <Pressable style={styles.deleteButton} onPress={handleDelete} disabled={deleting}>
                   <Text style={styles.deleteButtonText}>
                     {deleting ? "Eliminando…" : "Eliminar equipo"}
@@ -190,9 +191,9 @@ export default function EquipmentDetail() {
         <View style={styles.card}>
           <View style={styles.badgeRow}>
             <Text style={styles.code}>{equipment.code}</Text>
-            <View style={[styles.badge, { backgroundColor: statusMeta.bg }]}>
-              <View style={[styles.badgeDot, { backgroundColor: statusMeta.dot }]} />
-              <Text style={[styles.badgeText, { color: statusMeta.fg }]}>{statusMeta.label}</Text>
+            <View style={[styles.badge, { backgroundColor: sm.bg }]}>
+              <View style={[styles.badgeDot, { backgroundColor: sm.dot }]} />
+              <Text style={[styles.badgeText, { color: sm.fg }]}>{sm.label}</Text>
             </View>
           </View>
 
@@ -218,11 +219,11 @@ export default function EquipmentDetail() {
           <View>
             <Text style={styles.sectionTitle}>Fallas activas</Text>
             {faults.length === 0 ? (
-              <View style={styles.emptyRow}>
-                <View style={styles.emptyIconWrap}>
-                  <CheckIcon size={16} color="#1e7f47" />
+              <View style={[styles.emptyRow, { backgroundColor: colors.eqOperational.bg, borderColor: colors.eqOperational.bg }]}>
+                <View style={[styles.emptyIconWrap, { backgroundColor: colors.eqOperational.bg }]}>
+                  <CheckIcon size={16} color={colors.eqOperational.fg} />
                 </View>
-                <Text style={styles.emptyText}>
+                <Text style={[styles.emptyText, { color: colors.eqOperational.fg }]}>
                   Sin fallas activas. El equipo opera con normalidad.
                 </Text>
               </View>
@@ -232,8 +233,8 @@ export default function EquipmentDetail() {
                   {f.photo_url ? (
                     <Image source={{ uri: f.photo_url }} style={styles.faultPhoto} />
                   ) : (
-                    <View style={styles.faultIconWrap}>
-                      <WarningIcon size={16} color="#c0392b" />
+                    <View style={[styles.faultIconWrap, { backgroundColor: colors.eqRepair.bg }]}>
+                      <WarningIcon size={16} color={colors.eqRepair.fg} />
                     </View>
                   )}
 
@@ -256,7 +257,7 @@ export default function EquipmentDetail() {
               <Text style={styles.emptyMuted}>Sin eventos registrados.</Text>
             )}
             {history.map((h, i) => {
-              const c = HISTORY_TYPE_COLOR[h.type] ?? HISTORY_TYPE_COLOR.Reporte;
+              const c = historyTypeColor[h.type] ?? historyTypeColor.Reporte;
               return (
                 <View key={h.id} style={styles.timelineRow}>
                   {i < history.length - 1 && <View style={styles.timelineLine} />}
@@ -307,192 +308,186 @@ export default function EquipmentDetail() {
 }
 
 function MetaCell({ label, value }: { label: string; value: string }) {
+  const { colors } = useTheme();
   return (
-    <View style={styles.metaCell}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={styles.metaValue}>{value}</Text>
+    <View style={{ flexGrow: 1, minWidth: 150, backgroundColor: colors.bgNested, padding: 14 }}>
+      <Text style={{ fontSize: 11.5, color: colors.textMuted, fontWeight: "500" }}>{label}</Text>
+      <Text style={{ marginTop: 4, fontSize: 14, fontWeight: "600", color: colors.text }}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { backgroundColor: "#eeeae2" },
-  content: { padding: 20, maxWidth: 900 },
-  center: { flex: 1 },
-  error: { padding: 16, color: "#c0392b" },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 18,
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  backLink: { flexDirection: "row", alignItems: "center", gap: 7 },
-  backText: { color: "#6c6f78", fontSize: 13.5 },
-  reportButton: {
-    backgroundColor: "#2f53e0",
-    paddingHorizontal: 14,
-    height: 38,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reportButtonText: { color: "#fff", fontWeight: "600", fontSize: 13 },
-  topBarActions: {
-    flexDirection: "row",
-    gap: 10,
-    flexWrap: "wrap",
-    flexShrink: 1,
-    maxWidth: "100%",
-  },
-  deleteButton: {
-    borderWidth: 1,
-    borderColor: "#c0392b",
-    paddingHorizontal: 14,
-    height: 38,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  deleteButtonText: { color: "#c0392b", fontWeight: "600", fontSize: 13 },
-  editButton: {
-    borderWidth: 1,
-    borderColor: "#2f53e0",
-    paddingHorizontal: 14,
-    height: 38,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  editButtonText: { color: "#2f53e0", fontWeight: "600", fontSize: 13 },
-  card: {
-    backgroundColor: "#f8f6f1",
-    borderWidth: 1,
-    borderColor: "#e2ddd3",
-    borderRadius: 16,
-    padding: 24,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-    marginBottom: 8,
-  },
-  code: { fontFamily: "monospace", fontSize: 13, color: "#8a8d95" },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 11,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  badgeDot: { width: 7, height: 7, borderRadius: 4 },
-  badgeText: { fontSize: 12, fontWeight: "600" },
-  title: { fontSize: 26, fontWeight: "600", color: "#17191f" },
-  subtitle: { fontSize: 14, color: "#7b7e86", marginTop: 4 },
-  metaGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 22,
-    gap: 1,
-    backgroundColor: "#e7e2d8",
-    borderWidth: 1,
-    borderColor: "#e7e2d8",
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  metaCell: { flexGrow: 1, minWidth: 150, backgroundColor: "#fcfbf8", padding: 14 },
-  metaLabel: { fontSize: 11.5, color: "#9a9da6", fontWeight: "500" },
-  metaValue: { marginTop: 4, fontSize: 14, fontWeight: "600", color: "#2c2f36" },
-  tabsRow: {
-    flexDirection: "row",
-    gap: 4,
-    marginTop: 22,
-    marginBottom: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ded9cf",
-  },
-  tabItem: { paddingVertical: 11, paddingHorizontal: 4, marginRight: 20 },
-  tabText: { fontSize: 14, fontWeight: "600", color: "#8a8d95" },
-  tabTextActive: { color: "#2f53e0" },
-  tabUnderline: { height: 2.5, backgroundColor: "#2f53e0", marginTop: 9, borderRadius: 2 },
-  sectionTitle: { fontSize: 16, fontWeight: "600", marginBottom: 12, color: "#17191f" },
-  emptyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#edf6f0",
-    borderWidth: 1,
-    borderColor: "#d5e9dc",
-    borderRadius: 12,
-    padding: 16,
-  },
-  emptyIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: "#d2ecdb",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyText: { fontSize: 14, color: "#2c6b45", fontWeight: "500", flex: 1 },
-  emptyMuted: { color: "#8a8d95", fontSize: 13.5 },
-  faultCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    backgroundColor: "#fbf1f1",
-    borderWidth: 1,
-    borderColor: "#f0dada",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-  },
-  faultIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: "#f5dcdc",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  faultPhoto: { width: 30, height: 30, borderRadius: 8, backgroundColor: "#efebe3" },
-  faultText: { fontWeight: "600", fontSize: 14, color: "#17191f" },
-  faultMeta: { fontSize: 12.5, color: "#9a6a6a", marginTop: 2 },
-  timeline: { paddingLeft: 4 },
-  // position:"relative" + paddingBottom is what separates the cards. The
-  // line is a position:"absolute" child of the ROW (not the rail) with its
-  // own top/bottom — that's what lets it cross that padding and reach the
-  // next dot intact, instead of stopping at the card's edge.
-  timelineRow: { position: "relative", flexDirection: "row", gap: 16, paddingBottom: 20 },
-  // bottom:-18 (not 0) because the next dot is also shifted 18px down
-  // within ITS OWN row (timelineRail.marginTop) — without this the line
-  // stopped at this row's edge, short of reaching the next dot.
-  timelineLine: {
-    position: "absolute",
-    top: 26,
-    bottom: -18,
-    left: 5.5,
-    width: 2,
-    backgroundColor: "#ded9cf",
-  },
-  timelineRail: { alignItems: "center", width: 13, marginTop: 18 },
-  timelineDot: { width: 8, height: 8, borderRadius: 4 },
-  timelineCard: {
-    flex: 1,
-    backgroundColor: "#f8f6f1",
-    borderWidth: 1,
-    borderColor: "#e2ddd3",
-    borderRadius: 12,
-    padding: 14,
-  },
-  timelineHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  tag: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6 },
-  tagText: { fontSize: 11.5, fontWeight: "600" },
-  timelineDate: { fontSize: 12, color: "#9a9da6", fontFamily: "monospace" },
-  timelineNote: { marginTop: 9, fontSize: 14, color: "#3a3d44", lineHeight: 20 },
-  timelineAuthor: { marginTop: 6, fontSize: 12, color: "#9a9da6" },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: { backgroundColor: c.bg },
+    content: { padding: 20, maxWidth: 900 },
+    center: { flex: 1 },
+    error: { padding: 16, color: c.destructive },
+    topBar: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 18,
+      flexWrap: "wrap",
+      gap: 12,
+    },
+    backLink: { flexDirection: "row", alignItems: "center", gap: 7 },
+    backText: { color: c.textLabel, fontSize: 13.5 },
+    reportButton: {
+      backgroundColor: c.accent,
+      paddingHorizontal: 14,
+      height: 38,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    reportButtonText: { color: "#fff", fontWeight: "600", fontSize: 13 },
+    topBarActions: {
+      flexDirection: "row",
+      gap: 10,
+      flexWrap: "wrap",
+      flexShrink: 1,
+      maxWidth: "100%",
+    },
+    deleteButton: {
+      borderWidth: 1,
+      borderColor: c.destructive,
+      paddingHorizontal: 14,
+      height: 38,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    deleteButtonText: { color: c.destructive, fontWeight: "600", fontSize: 13 },
+    editButton: {
+      borderWidth: 1,
+      borderColor: c.accent,
+      paddingHorizontal: 14,
+      height: 38,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    editButtonText: { color: c.accent, fontWeight: "600", fontSize: 13 },
+    card: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 16,
+      padding: 24,
+    },
+    badgeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      flexWrap: "wrap",
+      marginBottom: 8,
+    },
+    code: { fontFamily: "monospace", fontSize: 13, color: c.textMuted },
+    badge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 11,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    badgeDot: { width: 7, height: 7, borderRadius: 4 },
+    badgeText: { fontSize: 12, fontWeight: "600" },
+    title: { fontSize: 26, fontWeight: "600", color: c.text },
+    subtitle: { fontSize: 14, color: c.textSecondary, marginTop: 4 },
+    metaGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginTop: 22,
+      gap: 1,
+      backgroundColor: c.bgMetaGrid,
+      borderWidth: 1,
+      borderColor: c.bgMetaGrid,
+      borderRadius: 12,
+      overflow: "hidden",
+    },
+    tabsRow: {
+      flexDirection: "row",
+      gap: 4,
+      marginTop: 22,
+      marginBottom: 18,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borderBottom,
+    },
+    tabItem: { paddingVertical: 11, paddingHorizontal: 4, marginRight: 20 },
+    tabText: { fontSize: 14, fontWeight: "600", color: c.textMuted },
+    tabTextActive: { color: c.accent },
+    tabUnderline: { height: 2.5, backgroundColor: c.accent, marginTop: 9, borderRadius: 2 },
+    sectionTitle: { fontSize: 16, fontWeight: "600", marginBottom: 12, color: c.text },
+    emptyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 16,
+    },
+    emptyIconWrap: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    emptyText: { fontSize: 14, fontWeight: "500", flex: 1 },
+    emptyMuted: { color: c.textMuted, fontSize: 13.5 },
+    faultCard: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+      backgroundColor: c.eqRepair.bg,
+      borderWidth: 1,
+      borderColor: c.eqRepair.bg,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 10,
+    },
+    faultIconWrap: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    faultPhoto: { width: 30, height: 30, borderRadius: 8, backgroundColor: c.bgNested },
+    faultText: { fontWeight: "600", fontSize: 14, color: c.text },
+    faultMeta: { fontSize: 12.5, color: c.eqRepair.fg, marginTop: 2 },
+    timeline: { paddingLeft: 4 },
+    // position:"relative" + paddingBottom separates the cards. The line is a
+    // position:"absolute" child of the ROW (not the rail) so it can cross that
+    // padding and reach the next dot, instead of stopping at the card's edge.
+    timelineRow: { position: "relative", flexDirection: "row", gap: 16, paddingBottom: 20 },
+    // bottom:-18 because the next dot is also shifted 18px down within ITS OWN
+    // row (timelineRail.marginTop) — without this the line stops short of the next dot.
+    timelineLine: {
+      position: "absolute",
+      top: 26,
+      bottom: -18,
+      left: 5.5,
+      width: 2,
+      backgroundColor: c.borderBottom,
+    },
+    timelineRail: { alignItems: "center", width: 13, marginTop: 18 },
+    timelineDot: { width: 8, height: 8, borderRadius: 4 },
+    timelineCard: {
+      flex: 1,
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 12,
+      padding: 14,
+    },
+    timelineHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    tag: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6 },
+    tagText: { fontSize: 11.5, fontWeight: "600" },
+    timelineDate: { fontSize: 12, color: c.textMuted, fontFamily: "monospace" },
+    timelineNote: { marginTop: 9, fontSize: 14, color: c.textSecondary, lineHeight: 20 },
+    timelineAuthor: { marginTop: 6, fontSize: 12, color: c.textMuted },
+  });
+}

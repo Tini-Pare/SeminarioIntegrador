@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Stack, router, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
+import { ThemeProvider } from "../lib/ThemeContext";
 
 export default function RootLayout() {
   const [checked, setChecked] = useState(false);
@@ -25,8 +26,10 @@ export default function RootLayout() {
 
   if (!checked) return null;
   return (
-    <SafeAreaProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-    </SafeAreaProvider>
+    <ThemeProvider>
+      <SafeAreaProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }

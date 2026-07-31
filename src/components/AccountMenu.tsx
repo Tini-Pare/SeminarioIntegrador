@@ -1,4 +1,6 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useTheme } from "../lib/ThemeContext";
+import type { ThemeColors } from "../lib/theme";
 
 export function AccountMenu({
   onSettings,
@@ -7,6 +9,9 @@ export function AccountMenu({
   onSettings: () => void;
   onLogout: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
+
   return (
     <View style={styles.menu}>
       <Pressable style={styles.item} onPress={onSettings}>
@@ -22,17 +27,19 @@ export function AccountMenu({
   );
 }
 
-const styles = StyleSheet.create({
-  menu: {
-    minWidth: 180,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#e2ddd3",
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  item: { paddingHorizontal: 14, paddingVertical: 12 },
-  itemText: { fontSize: 13.5, fontWeight: "600", color: "#17191f" },
-  divider: { height: 1, backgroundColor: "#ebe6dc" },
-  logoutText: { color: "#c0392b" },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    menu: {
+      minWidth: 180,
+      backgroundColor: c.bgModal,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 10,
+      overflow: "hidden",
+    },
+    item: { paddingHorizontal: 14, paddingVertical: 12 },
+    itemText: { fontSize: 13.5, fontWeight: "600", color: c.text },
+    divider: { height: 1, backgroundColor: c.borderRow },
+    logoutText: { color: c.destructive },
+  });
+}

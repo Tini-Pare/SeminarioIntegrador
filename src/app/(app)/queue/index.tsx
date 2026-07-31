@@ -16,6 +16,8 @@ import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { LocationIcon, WarningIcon } from "../../../components/icons";
+import type { ThemeColors } from "../../../lib/theme";
+import { useTheme } from "../../../lib/ThemeContext";
 import type { Fault, Equipment } from "../../../types/database";
 
 type Item = Fault & {
@@ -32,15 +34,6 @@ const STATUS_LABELS: Record<Fault["status"], string> = {
   in_progress: "En curso",
   resolved: "Resuelta",
 };
-// Same palette as RequestList.tsx — deliberately distinct from
-// equipment.status (green/orange/red) so a fault's color is never
-// mistaken for the equipment's status.
-const STATUS_COLORS: Record<Fault["status"], { bg: string; fg: string }> = {
-  new: { bg: "#e2dcf3", fg: "#5b3eb8" },
-  assigned: { bg: "#dde3f8", fg: "#2f53e0" },
-  in_progress: { bg: "#d7f0ec", fg: "#0f766e" },
-  resolved: { bg: "#d2ecdb", fg: "#1e7f47" },
-};
 const STATUS_ORDER: Record<Fault["status"], number> = {
   new: 0,
   assigned: 1,
@@ -51,11 +44,6 @@ const URGENCY_LABELS: Record<Fault["urgency"], string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
-};
-const URGENCY_COLORS: Record<Fault["urgency"], { bg: string; fg: string }> = {
-  low: { bg: "#ecEae4", fg: "#4b5563" },
-  medium: { bg: "#f7ecd6", fg: "#9a6512" },
-  high: { bg: "#f8e3e3", fg: "#b23636" },
 };
 const SCOPE_OPTIONS: { key: Scope; label: string }[] = [
   { key: "mine", label: "Mías" },
@@ -73,6 +61,8 @@ export default function QueueScreen() {
   const [actingOn, setActingOn] = useState<string | null>(null);
   const [scope, setScope] = useState<Scope>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>("all");
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
 
   const load = useCallback(async () => {
     setError(null);
@@ -161,6 +151,18 @@ export default function QueueScreen() {
     });
   }, [items, scope, urgencyFilter, userId]);
 
+  const statusColors: Record<Fault["status"], { bg: string; fg: string }> = {
+    new: colors.faultNew,
+    assigned: colors.faultAssigned,
+    in_progress: colors.faultInProgress,
+    resolved: colors.faultResolved,
+  };
+  const urgencyColors: Record<Fault["urgency"], { bg: string; fg: string }> = {
+    low: colors.urgencyLow,
+    medium: colors.urgencyMedium,
+    high: colors.urgencyHigh,
+  };
+
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
@@ -175,6 +177,7 @@ export default function QueueScreen() {
           <Text style={styles.subtitle}>Órdenes asignadas y fallas sin asignar</Text>
         </View>
       </View>
+
       {error && <Text style={styles.error}>{error}</Text>}
 
       <View style={styles.filtersRow}>
@@ -195,15 +198,15 @@ export default function QueueScreen() {
         <View style={styles.urgencyChips}>
           {URGENCY_OPTIONS.map((u) => {
             const active = urgencyFilter === u;
-            const meta = u === "all" ? null : URGENCY_COLORS[u];
+            const meta = u === "all" ? null : urgencyColors[u];
             return (
               <Pressable
                 key={u}
                 style={[
                   styles.urgencyChip,
                   active && {
-                    backgroundColor: meta?.bg ?? "#e2ddd3",
-                    borderColor: meta?.fg ?? "#8a8d95",
+                    backgroundColor: meta?.bg ?? colors.bgToggle,
+                    borderColor: meta?.fg ?? colors.textMuted,
                   },
                 ]}
                 onPress={() => setUrgencyFilter(u)}
@@ -211,7 +214,7 @@ export default function QueueScreen() {
                 <Text
                   style={[
                     styles.urgencyChipText,
-                    active && { color: meta?.fg ?? "#4b4e56", fontWeight: "700" },
+                    active && { color: meta?.fg ?? colors.text, fontWeight: "700" },
                   ]}
                 >
                   {u === "all" ? "Toda urgencia" : URGENCY_LABELS[u]}
@@ -229,8 +232,8 @@ export default function QueueScreen() {
       ) : (
         visibleItems.map((item) => {
           const label = actionLabel(item);
-          const st = STATUS_COLORS[item.status];
-          const urg = URGENCY_COLORS[item.urgency];
+          const st = statusColors[item.status];
+          const urg = urgencyColors[item.urgency];
           const locColor = locationColors.get(item.equipment.location) ?? "#6b7280";
           return (
             <View key={item.id} style={styles.card}>
@@ -255,6 +258,7 @@ export default function QueueScreen() {
                         {STATUS_LABELS[item.status]}
                       </Text>
                     </View>
+
                     <View style={[styles.badge, { backgroundColor: urg.bg }]}>
                       <Text style={[styles.badgeText, { color: urg.fg }]}>
                         Urgencia {URGENCY_LABELS[item.urgency]}
@@ -304,95 +308,97 @@ export default function QueueScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { backgroundColor: "#eeeae2" },
-  content: { padding: 20, maxWidth: 920 },
-  center: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 20,
-  },
-  title: { fontSize: 22, fontWeight: "600", color: "#17191f" },
-  subtitle: { marginTop: 3, fontSize: 13.5, color: "#7b7e86" },
-  error: { color: "#c0392b", marginBottom: 12 },
-  empty: { padding: 40, textAlign: "center", color: "#8a8d95" },
-  filtersRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 18,
-  },
-  scopeToggle: {
-    flexDirection: "row",
-    backgroundColor: "#e9e4da",
-    borderRadius: 9,
-    padding: 3,
-    gap: 2,
-  },
-  scopeOption: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 7 },
-  scopeOptionActive: { backgroundColor: "#fff" },
-  scopeText: { fontSize: 12.5, fontWeight: "600", color: "#8a8d95" },
-  scopeTextActive: { color: "#17191f" },
-  urgencyChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  urgencyChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#dcd7cd",
-    backgroundColor: "#f7f5f0",
-  },
-  urgencyChipText: { fontSize: 12.5, fontWeight: "600", color: "#6c6f78" },
-  card: {
-    backgroundColor: "#f8f6f1",
-    borderWidth: 1,
-    borderColor: "#e2ddd3",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  cardTop: { flexDirection: "row", gap: 12 },
-  cardMain: { flex: 1, minWidth: 0, gap: 6 },
-  photo: { width: 48, height: 48, borderRadius: 10, backgroundColor: "#efebe3" },
-  photoPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  row: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  equipmentName: { fontWeight: "600", fontSize: 15, color: "#17191f" },
-  equipmentCode: { fontFamily: "monospace", fontSize: 12, color: "#9a9da6" },
-  badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
-  badgeText: { fontSize: 11.5, fontWeight: "600" },
-  desc: { marginTop: 12, fontSize: 13.5, color: "#4b4e56", lineHeight: 19 },
-  metaRow: {
-    marginTop: 10,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  locationRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  locationDot: { width: 7, height: 7, borderRadius: 4 },
-  locationText: { fontSize: 12.5, color: "#5b5e66", fontWeight: "500" },
-  meta: { fontSize: 12.5, color: "#9a9da6" },
-  actionButton: {
-    marginTop: 14,
-    height: 40,
-    borderRadius: 9,
-    backgroundColor: "#2f53e0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionText: { color: "#fff", fontSize: 13.5, fontWeight: "600" },
-  doneRow: { marginTop: 14, flexDirection: "row", alignItems: "center" },
-  doneText: { color: "#1e7f47", fontSize: 13.5, fontWeight: "600" },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: { backgroundColor: c.bg },
+    content: { padding: 20, maxWidth: 920 },
+    center: { flex: 1 },
+    header: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 12,
+      marginBottom: 20,
+    },
+    title: { fontSize: 22, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    error: { color: c.destructive, marginBottom: 12 },
+    empty: { padding: 40, textAlign: "center", color: c.textMuted },
+    filtersRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 18,
+    },
+    scopeToggle: {
+      flexDirection: "row",
+      backgroundColor: c.bgToggle,
+      borderRadius: 9,
+      padding: 3,
+      gap: 2,
+    },
+    scopeOption: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 7 },
+    scopeOptionActive: { backgroundColor: c.bgToggleActive },
+    scopeText: { fontSize: 12.5, fontWeight: "600", color: c.textMuted },
+    scopeTextActive: { color: c.text },
+    urgencyChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    urgencyChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      backgroundColor: c.bgStatCard,
+    },
+    urgencyChipText: { fontSize: 12.5, fontWeight: "600", color: c.textLabel },
+    card: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+    },
+    cardTop: { flexDirection: "row", gap: 12 },
+    cardMain: { flex: 1, minWidth: 0, gap: 6 },
+    photo: { width: 48, height: 48, borderRadius: 10, backgroundColor: c.bgNested },
+    photoPlaceholder: {
+      width: 48,
+      height: 48,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    row: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+    equipmentName: { fontWeight: "600", fontSize: 15, color: c.text },
+    equipmentCode: { fontFamily: "monospace", fontSize: 12, color: c.textMuted },
+    badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
+    badgeText: { fontSize: 11.5, fontWeight: "600" },
+    desc: { marginTop: 12, fontSize: 13.5, color: c.textLabel, lineHeight: 19 },
+    metaRow: {
+      marginTop: 10,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+    },
+    locationRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    locationDot: { width: 7, height: 7, borderRadius: 4 },
+    locationText: { fontSize: 12.5, color: c.textLabel, fontWeight: "500" },
+    meta: { fontSize: 12.5, color: c.textMuted },
+    actionButton: {
+      marginTop: 14,
+      height: 40,
+      borderRadius: 9,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    actionText: { color: "#fff", fontSize: 13.5, fontWeight: "600" },
+    doneRow: { marginTop: 14, flexDirection: "row", alignItems: "center" },
+    doneText: { color: c.success, fontSize: 13.5, fontWeight: "600" },
+  });
+}

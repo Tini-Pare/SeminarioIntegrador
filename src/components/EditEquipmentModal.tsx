@@ -3,12 +3,8 @@ import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-nativ
 import { listEquipment, updateEquipment } from "../lib/queries/equipment";
 import { AutocompleteInput } from "./AutocompleteInput";
 import type { Equipment } from "../types/database";
-
-const STATUS_META: Record<Equipment["status"], { label: string; bg: string; fg: string }> = {
-  operational: { label: "Funcionando", bg: "#e4f3ea", fg: "#1e7f47" },
-  waiting: { label: "En espera", bg: "#f7ecd6", fg: "#9a6512" },
-  repair: { label: "En reparación", bg: "#f8e3e3", fg: "#b23636" },
-};
+import { useTheme } from "../lib/ThemeContext";
+import type { ThemeColors } from "../lib/theme";
 
 export function EditEquipmentModal({
   visible,
@@ -28,6 +24,21 @@ export function EditEquipmentModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<Equipment[]>([]);
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
+
+  const statusMeta =
+    equipment.status === "operational"
+      ? colors.eqOperational
+      : equipment.status === "waiting"
+        ? colors.eqWaiting
+        : colors.eqRepair;
+  const statusLabel =
+    equipment.status === "operational"
+      ? "Funcionando"
+      : equipment.status === "waiting"
+        ? "En espera"
+        : "En reparación";
 
   useEffect(() => {
     if (!visible) return;
@@ -69,7 +80,7 @@ export function EditEquipmentModal({
           <TextInput
             style={styles.input}
             placeholder="Ej: AC-015"
-            placeholderTextColor="#9a9da6"
+            placeholderTextColor={colors.textMuted}
             value={code}
             onChangeText={setCode}
           />
@@ -78,7 +89,7 @@ export function EditEquipmentModal({
           <TextInput
             style={styles.input}
             placeholder="Ej: Aire Acondicionado"
-            placeholderTextColor="#9a9da6"
+            placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
           />
@@ -101,12 +112,8 @@ export function EditEquipmentModal({
 
           <Text style={styles.label}>Estado</Text>
           <View style={styles.statusRow}>
-            <View
-              style={[styles.statusBadge, { backgroundColor: STATUS_META[equipment.status].bg }]}
-            >
-              <Text style={[styles.statusBadgeText, { color: STATUS_META[equipment.status].fg }]}>
-                {STATUS_META[equipment.status].label}
-              </Text>
+            <View style={[styles.statusBadge, { backgroundColor: statusMeta.bg }]}>
+              <Text style={[styles.statusBadgeText, { color: statusMeta.fg }]}>{statusLabel}</Text>
             </View>
 
             <Text style={styles.statusNote}>Automático, según fallas activas</Text>
@@ -129,54 +136,53 @@ export function EditEquipmentModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 },
-  sheet: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    width: "100%",
-    maxWidth: 480,
-    alignSelf: "center",
-  },
-  title: { fontSize: 19, fontWeight: "600", color: "#17191f", marginBottom: 8 },
-  label: { fontSize: 12.5, fontWeight: "600", color: "#4b4e56", marginTop: 14, marginBottom: 6 },
-  input: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-    borderRadius: 10,
-    fontSize: 14,
-  },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  statusBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  statusBadgeText: { fontSize: 12.5, fontWeight: "600" },
-  statusNote: { fontSize: 12, color: "#9a9da6" },
-  error: { color: "#c0392b", marginTop: 14, fontSize: 13 },
-  actions: { flexDirection: "row", gap: 10, marginTop: 22 },
-  cancelButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelText: { color: "#4b4e56", fontWeight: "600" },
-  saveButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#2f53e0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveText: { color: "#fff", fontWeight: "600" },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    sheet: {
+      backgroundColor: c.bgModal,
+      borderRadius: 16,
+      padding: 24,
+      width: "100%",
+      maxWidth: 480,
+      alignSelf: "center",
+    },
+    title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 8 },
+    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 14, marginBottom: 6 },
+    input: {
+      height: 44,
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 10,
+      fontSize: 14,
+      backgroundColor: c.bgInput,
+      color: c.text,
+    },
+    statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+    statusBadge: { alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999 },
+    statusBadgeText: { fontSize: 12.5, fontWeight: "600" },
+    statusNote: { fontSize: 12, color: c.textMuted },
+    error: { color: c.destructive, marginTop: 14, fontSize: 13 },
+    actions: { flexDirection: "row", gap: 10, marginTop: 22 },
+    cancelButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cancelText: { color: c.textLabel, fontWeight: "600" },
+    saveButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    saveText: { color: "#fff", fontWeight: "600" },
+  });
+}

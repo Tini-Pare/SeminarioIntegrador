@@ -14,6 +14,8 @@ import { listProfiles, updateProfile } from "../lib/queries/profiles";
 import { supabase } from "../lib/supabase";
 import { AutocompleteInput } from "./AutocompleteInput";
 import type { Profile } from "../types/database";
+import { useTheme } from "../lib/ThemeContext";
+import type { ThemeColors } from "../lib/theme";
 
 const ROLES: Profile["role"][] = ["user", "technician", "admin"];
 const ROLE_LABELS: Record<Profile["role"], string> = {
@@ -43,6 +45,8 @@ export function EditUserModal({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingProfiles, setExistingProfiles] = useState<Profile[]>([]);
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
 
   useEffect(() => {
     if (!visible) return;
@@ -132,7 +136,7 @@ export function EditUserModal({
             value={name}
             onChangeText={setName}
             placeholder="Nombre"
-            placeholderTextColor="#9a9da6"
+            placeholderTextColor={colors.textMuted}
           />
 
           <Text style={styles.label}>Área</Text>
@@ -148,7 +152,10 @@ export function EditUserModal({
             {ROLES.map((r) => (
               <Pressable
                 key={r}
-                style={[styles.chip, role === r && styles.chipActive]}
+                style={[
+                  styles.chip,
+                  role === r && { backgroundColor: colors.accent, borderColor: colors.accent },
+                ]}
                 onPress={() => !isSelf && setRole(r)}
                 disabled={isSelf}
               >
@@ -193,77 +200,79 @@ export function EditUserModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 },
-  sheet: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    width: "100%",
-    maxWidth: 440,
-    alignSelf: "center",
-  },
-  title: { fontSize: 18, fontWeight: "600", color: "#17191f" },
-  subtitle: { marginTop: 2, fontSize: 13, color: "#8a8d95" },
-  label: { fontSize: 12.5, fontWeight: "600", color: "#4b4e56", marginTop: 18, marginBottom: 8 },
-  input: {
-    height: 42,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#dcd7cd",
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    fontSize: 14,
-    color: "#17191f",
-  },
-  chipsRow: { flexDirection: "row", gap: 8 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-  },
-  chipActive: { backgroundColor: "#2f53e0", borderColor: "#2f53e0" },
-  chipText: { fontSize: 13, color: "#4b4e56", fontWeight: "600" },
-  chipTextActive: { color: "#fff" },
-  disabled: { opacity: 0.45 },
-  selfNote: { marginTop: 10, fontSize: 12.5, color: "#8a8d95" },
-  switchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  error: { color: "#c0392b", marginTop: 12, fontSize: 13 },
-  actions: { flexDirection: "row", gap: 10, marginTop: 24 },
-  cancelButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelText: { color: "#4b4e56", fontWeight: "600" },
-  saveButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#2f53e0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveText: { color: "#fff", fontWeight: "600" },
-  deleteButton: {
-    marginTop: 12,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#c0392b",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  deleteText: { color: "#c0392b", fontWeight: "600", fontSize: 14 },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    sheet: {
+      backgroundColor: c.bgModal,
+      borderRadius: 16,
+      padding: 24,
+      width: "100%",
+      maxWidth: 440,
+      alignSelf: "center",
+    },
+    title: { fontSize: 18, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
+    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 18, marginBottom: 8 },
+    input: {
+      height: 42,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 10,
+      backgroundColor: c.bgInput,
+      fontSize: 14,
+      color: c.text,
+    },
+    chipsRow: { flexDirection: "row", gap: 8 },
+    chip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      backgroundColor: c.bgInput,
+    },
+    chipText: { fontSize: 13, color: c.textLabel, fontWeight: "600" },
+    chipTextActive: { color: "#fff" },
+    disabled: { opacity: 0.45 },
+    selfNote: { marginTop: 10, fontSize: 12.5, color: c.textMuted },
+    switchRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: 4,
+    },
+    error: { color: c.destructive, marginTop: 12, fontSize: 13 },
+    actions: { flexDirection: "row", gap: 10, marginTop: 24 },
+    cancelButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cancelText: { color: c.textLabel, fontWeight: "600" },
+    saveButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    saveText: { color: "#fff", fontWeight: "600" },
+    deleteButton: {
+      marginTop: 12,
+      height: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.destructive,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    deleteText: { color: c.destructive, fontWeight: "600", fontSize: 14 },
+  });
+}

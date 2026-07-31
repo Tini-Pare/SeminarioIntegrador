@@ -1,19 +1,22 @@
 import { View, Text, StyleSheet } from "react-native";
 import type { Equipment } from "../types/database";
+import { useTheme } from "../lib/ThemeContext";
 
 const LABELS: Record<Equipment["status"], string> = {
   operational: "Funcionando",
   waiting: "En espera",
   repair: "En reparación",
 };
-const COLORS: Record<Equipment["status"], { bg: string; fg: string; dot: string }> = {
-  operational: { bg: "#d2ecdb", fg: "#1e7f47", dot: "#22a45d" },
-  waiting: { bg: "#f5e6cf", fg: "#8a5a15", dot: "#d9962a" },
-  repair: { bg: "#f5dcdc", fg: "#c0392b", dot: "#d24141" },
-};
 
 export function StatusBadge({ status }: { status: Equipment["status"] }) {
-  const c = COLORS[status];
+  const { colors } = useTheme();
+  const c =
+    status === "operational"
+      ? colors.eqOperational
+      : status === "waiting"
+        ? colors.eqWaiting
+        : colors.eqRepair;
+
   return (
     <View style={[styles.badge, { backgroundColor: c.bg }]}>
       <View style={[styles.dot, { backgroundColor: c.dot }]} />

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { ScrollView, View, Text, Pressable, TextInput, StyleSheet } from "react-native";
+import { ScrollView, View, Text, Pressable, TextInput, StyleSheet, Switch } from "react-native";
 import { router } from "expo-router";
 import { changePassword, getProfile, signOut } from "../../../lib/auth";
 import { BackIcon } from "../../../components/icons";
+import type { ThemeColors } from "../../../lib/theme";
+import { useTheme } from "../../../lib/ThemeContext";
 import type { Profile } from "../../../types/database";
 
 const ROLE_LABELS: Record<Profile["role"], string> = {
@@ -27,6 +29,8 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const { colors, isDark, toggleTheme } = useTheme();
+  const styles = makeStyles(colors);
 
   useEffect(() => {
     getProfile().then(setProfile);
@@ -74,6 +78,7 @@ export default function SettingsScreen() {
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials(profile.name)}</Text>
           </View>
+
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.name}>{profile.name}</Text>
             <Text style={styles.email}>{profile.email}</Text>
@@ -88,13 +93,32 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.card}>
+        <View style={styles.themeRow}>
+          <View>
+            <Text style={styles.sectionTitle}>Tema oscuro</Text>
+            <Text style={styles.themeSubtitle}>
+              {isDark ? "Activado" : "Desactivado"}
+            </Text>
+          </View>
+
+          <Switch
+            value={isDark}
+            onValueChange={toggleTheme}
+            trackColor={{ false: colors.bgToggle, true: colors.accent }}
+            thumbColor={colors.bgToggleActive}
+          />
+        </View>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.sectionTitle}>Cambiar contraseña</Text>
+
         <TextInput
           style={styles.input}
           value={newPassword}
           onChangeText={setNewPassword}
           placeholder="Nueva contraseña"
-          placeholderTextColor="#9a9da6"
+          placeholderTextColor={colors.textMuted}
           secureTextEntry
         />
 
@@ -103,11 +127,13 @@ export default function SettingsScreen() {
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           placeholder="Confirmar contraseña"
-          placeholderTextColor="#9a9da6"
+          placeholderTextColor={colors.textMuted}
           secureTextEntry
         />
+
         {error && <Text style={styles.error}>{error}</Text>}
         {success && <Text style={styles.success}>Contraseña actualizada.</Text>}
+
         <Pressable
           style={styles.changePasswordButton}
           onPress={handleChangePassword}
@@ -127,85 +153,91 @@ export default function SettingsScreen() {
 }
 
 function MetaCell({ label, value }: { label: string; value: string }) {
+  const { colors } = useTheme();
   return (
-    <View style={styles.metaCell}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={styles.metaValue}>{value}</Text>
+    <View style={{ flexGrow: 1, minWidth: 100, backgroundColor: colors.bgNested, padding: 12 }}>
+      <Text style={{ fontSize: 11, color: colors.textMuted, fontWeight: "500" }}>{label}</Text>
+      <Text style={{ marginTop: 3, fontSize: 13.5, fontWeight: "600", color: colors.text }}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { backgroundColor: "#eeeae2" },
-  content: { padding: 20, maxWidth: 560 },
-  backLink: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 18 },
-  backText: { color: "#6c6f78", fontSize: 13.5 },
-  title: { fontSize: 22, fontWeight: "600", color: "#17191f" },
-  subtitle: { marginTop: 3, fontSize: 13.5, color: "#7b7e86", marginBottom: 20 },
-  card: {
-    backgroundColor: "#f8f6f1",
-    borderWidth: 1,
-    borderColor: "#e2ddd3",
-    borderRadius: 14,
-    padding: 20,
-    marginBottom: 16,
-  },
-  header: { flexDirection: "row", alignItems: "center", gap: 14 },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: "#e2dcf3",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { color: "#5b3eb8", fontWeight: "700", fontSize: 16 },
-  name: { fontSize: 17, fontWeight: "600", color: "#17191f" },
-  email: { fontSize: 13, color: "#8a8d95", marginTop: 2 },
-  metaGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 18,
-    gap: 1,
-    backgroundColor: "#e7e2d8",
-    borderWidth: 1,
-    borderColor: "#e7e2d8",
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  metaCell: { flexGrow: 1, minWidth: 100, backgroundColor: "#fcfbf8", padding: 12 },
-  metaLabel: { fontSize: 11, color: "#9a9da6", fontWeight: "500" },
-  metaValue: { marginTop: 3, fontSize: 13.5, fontWeight: "600", color: "#2c2f36" },
-  sectionTitle: { fontSize: 12.5, fontWeight: "600", color: "#4b4e56", marginBottom: 10 },
-  input: {
-    height: 42,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#dcd7cd",
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    fontSize: 14,
-    color: "#17191f",
-  },
-  error: { color: "#c0392b", marginTop: 10, fontSize: 13 },
-  success: { color: "#1e7f47", marginTop: 10, fontSize: 13 },
-  changePasswordButton: {
-    marginTop: 12,
-    height: 42,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#2f53e0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  changePasswordText: { color: "#2f53e0", fontWeight: "600", fontSize: 13.5 },
-  logoutButton: {
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#c0392b",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoutText: { color: "#c0392b", fontWeight: "600" },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: { backgroundColor: c.bg },
+    content: { padding: 20, maxWidth: 560 },
+    backLink: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 18 },
+    backText: { color: c.textLabel, fontSize: 13.5 },
+    title: { fontSize: 22, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary, marginBottom: 20 },
+    card: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      padding: 20,
+      marginBottom: 16,
+    },
+    header: { flexDirection: "row", alignItems: "center", gap: 14 },
+    avatar: {
+      width: 46,
+      height: 46,
+      borderRadius: 12,
+      backgroundColor: c.avatarBg,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarText: { color: c.avatarFg, fontWeight: "700", fontSize: 16 },
+    name: { fontSize: 17, fontWeight: "600", color: c.text },
+    email: { fontSize: 13, color: c.textMuted, marginTop: 2 },
+    metaGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginTop: 18,
+      gap: 1,
+      backgroundColor: c.bgMetaGrid,
+      borderWidth: 1,
+      borderColor: c.bgMetaGrid,
+      borderRadius: 12,
+      overflow: "hidden",
+    },
+    themeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    sectionTitle: { fontSize: 14, fontWeight: "600", color: c.text, marginBottom: 4 },
+    themeSubtitle: { fontSize: 12.5, color: c.textMuted },
+    input: {
+      height: 42,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 10,
+      backgroundColor: c.bgInput,
+      fontSize: 14,
+      color: c.text,
+    },
+    error: { color: c.destructive, marginTop: 10, fontSize: 13 },
+    success: { color: c.success, marginTop: 10, fontSize: 13 },
+    changePasswordButton: {
+      marginTop: 12,
+      height: 42,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    changePasswordText: { color: c.accent, fontWeight: "600", fontSize: 13.5 },
+    logoutButton: {
+      height: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.destructive,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    logoutText: { color: c.destructive, fontWeight: "600" },
+  });
+}

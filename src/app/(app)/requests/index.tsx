@@ -13,6 +13,8 @@ import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { RequestList } from "../../../components/RequestList";
 import { supabase } from "../../../lib/supabase";
+import type { ThemeColors } from "../../../lib/theme";
+import { useTheme } from "../../../lib/ThemeContext";
 import type { Fault, Equipment } from "../../../types/database";
 
 type Item = Fault & {
@@ -27,6 +29,8 @@ export default function RequestsScreen() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
 
   const load = useCallback(async () => {
     setError(null);
@@ -100,19 +104,21 @@ export default function RequestsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { backgroundColor: "#eeeae2" },
-  content: { padding: 20, maxWidth: 920 },
-  center: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 20,
-  },
-  title: { fontSize: 22, fontWeight: "600", color: "#17191f" },
-  subtitle: { marginTop: 3, fontSize: 13.5, color: "#7b7e86" },
-  error: { color: "#c0392b", marginBottom: 12 },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: { backgroundColor: c.bg },
+    content: { padding: 20, maxWidth: 920 },
+    center: { flex: 1 },
+    header: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 12,
+      marginBottom: 20,
+    },
+    title: { fontSize: 22, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    error: { color: c.destructive, marginBottom: 12 },
+  });
+}

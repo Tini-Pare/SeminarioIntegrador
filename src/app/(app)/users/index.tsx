@@ -14,13 +14,9 @@ import { InvitePersonModal } from "../../../components/InvitePersonModal";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import { listProfiles } from "../../../lib/queries/profiles";
+import type { ThemeColors } from "../../../lib/theme";
+import { useTheme } from "../../../lib/ThemeContext";
 import type { Profile } from "../../../types/database";
-
-const ROLE_META: Record<Profile["role"], { label: string; bg: string; fg: string }> = {
-  admin: { label: "Admin", bg: "#e2dcf3", fg: "#5b3eb8" },
-  technician: { label: "Técnico", bg: "#d8ece0", fg: "#1e7f47" },
-  user: { label: "Usuario", bg: "#dce7f8", fg: "#2f53e0" },
-};
 
 function initials(name: string) {
   return name
@@ -41,6 +37,14 @@ export default function UsersScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { width } = useWindowDimensions();
   const isMobile = width >= BREAKPOINT.mobile;
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
+
+  const roleMeta: Record<Profile["role"], { label: string; bg: string; fg: string }> = {
+    admin: { label: "Admin", ...colors.roleAdmin },
+    technician: { label: "Técnico", ...colors.roleTechnician },
+    user: { label: "Usuario", ...colors.roleUser },
+  };
 
   useEffect(() => {
     getProfile().then((p) => setCurrentUserId(p?.id ?? null));
@@ -83,6 +87,7 @@ export default function UsersScreen() {
           <Text style={styles.inviteButtonText}>+ Invitar persona</Text>
         </Pressable>
       </View>
+
       {error && <Text style={styles.error}>{error}</Text>}
 
       {isMobile ? (
@@ -93,8 +98,9 @@ export default function UsersScreen() {
             <Text style={[styles.headerCell, { flex: 1.1 }]}>ROL</Text>
             <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
           </View>
+
           {profiles.map((p) => {
-            const rm = ROLE_META[p.role];
+            const rm = roleMeta[p.role];
             return (
               <Pressable key={p.id} style={styles.row} onPress={() => setEditing(p)}>
                 <View
@@ -106,6 +112,7 @@ export default function UsersScreen() {
                   <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
                     <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
                   </View>
+
                   <View style={{ minWidth: 0 }}>
                     <Text style={styles.name} numberOfLines={1}>
                       {p.name}
@@ -117,7 +124,7 @@ export default function UsersScreen() {
                 </View>
 
                 <View style={{ flex: 1.4, justifyContent: "center" }}>
-                  <Text style={{ fontSize: 13.5, color: "#5b5e66" }} numberOfLines={1}>
+                  <Text style={styles.areaText} numberOfLines={1}>
                     {p.area}
                   </Text>
                 </View>
@@ -132,13 +139,13 @@ export default function UsersScreen() {
                   <View
                     style={[
                       styles.statusDot,
-                      { backgroundColor: p.active ? "#1e7f47" : "#9a9da6" },
+                      { backgroundColor: p.active ? colors.success : colors.textMuted },
                     ]}
                   />
                   <Text
                     style={{
                       fontSize: 13,
-                      color: p.active ? "#1e7f47" : "#9a9da6",
+                      color: p.active ? colors.success : colors.textMuted,
                       fontWeight: "500",
                     }}
                   >
@@ -152,13 +159,14 @@ export default function UsersScreen() {
       ) : (
         <View style={styles.cardList}>
           {profiles.map((p) => {
-            const rm = ROLE_META[p.role];
+            const rm = roleMeta[p.role];
             return (
               <Pressable key={p.id} style={styles.personCard} onPress={() => setEditing(p)}>
                 <View style={styles.personCardHeader}>
                   <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
                     <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
                   </View>
+
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.name} numberOfLines={1}>
                       {p.name}
@@ -186,13 +194,13 @@ export default function UsersScreen() {
                     <View
                       style={[
                         styles.statusDot,
-                        { backgroundColor: p.active ? "#1e7f47" : "#9a9da6" },
+                        { backgroundColor: p.active ? colors.success : colors.textMuted },
                       ]}
                     />
                     <Text
                       style={{
                         fontSize: 12.5,
-                        color: p.active ? "#1e7f47" : "#9a9da6",
+                        color: p.active ? colors.success : colors.textMuted,
                         fontWeight: "500",
                       }}
                     >
@@ -221,94 +229,97 @@ export default function UsersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { backgroundColor: "#eeeae2" },
-  center: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 20,
-  },
-  title: { fontSize: 22, fontWeight: "600", color: "#17191f" },
-  subtitle: { marginTop: 3, fontSize: 13.5, color: "#7b7e86" },
-  inviteButton: {
-    backgroundColor: "#2f53e0",
-    paddingHorizontal: 18,
-    height: 42,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  inviteButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  error: { color: "#c0392b", marginBottom: 12 },
-  table: {
-    backgroundColor: "#f8f6f1",
-    borderWidth: 1,
-    borderColor: "#e2ddd3",
-    borderRadius: 14,
-    overflow: "hidden",
-    maxWidth: 900,
-  },
-  tableHeader: {
-    flexDirection: "row",
-    padding: 14,
-    backgroundColor: "#efebe3",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2ddd3",
-  },
-  headerCell: {
-    fontSize: 11,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    color: "#8a8d95",
-    fontFamily: "monospace",
-  },
-  row: {
-    flexDirection: "row",
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ebe6dc",
-  },
-  cell: {},
-  cardList: { gap: 10 },
-  personCard: {
-    backgroundColor: "#f8f6f1",
-    borderWidth: 1,
-    borderColor: "#e2ddd3",
-    borderRadius: 14,
-    padding: 14,
-  },
-  personCardHeader: { flexDirection: "row", alignItems: "center", gap: 11 },
-  personCardChips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 12,
-  },
-  areaChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: "#efebe3",
-    maxWidth: 160,
-  },
-  areaChipText: { fontSize: 12, color: "#5b5e66", fontWeight: "500" },
-  statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontWeight: "600", fontSize: 13 },
-  name: { fontWeight: "600", fontSize: 14, color: "#17191f" },
-  email: { fontSize: 12, color: "#9a9da6" },
-  badge: { alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 3, borderRadius: 999 },
-  badgeText: { fontSize: 12, fontWeight: "600" },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: { backgroundColor: c.bg },
+    center: { flex: 1 },
+    header: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 12,
+      marginBottom: 20,
+    },
+    title: { fontSize: 22, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    inviteButton: {
+      backgroundColor: c.accent,
+      paddingHorizontal: 18,
+      height: 42,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    inviteButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+    error: { color: c.destructive, marginBottom: 12 },
+    table: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      overflow: "hidden",
+      maxWidth: 900,
+    },
+    tableHeader: {
+      flexDirection: "row",
+      padding: 14,
+      backgroundColor: c.bgTableHeader,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    headerCell: {
+      fontSize: 11,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: c.textMuted,
+      fontFamily: "monospace",
+    },
+    row: {
+      flexDirection: "row",
+      padding: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borderRow,
+    },
+    cell: {},
+    areaText: { fontSize: 13.5, color: c.textLabel },
+    cardList: { gap: 10 },
+    personCard: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      padding: 14,
+    },
+    personCardHeader: { flexDirection: "row", alignItems: "center", gap: 11 },
+    personCardChips: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 12,
+    },
+    areaChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 999,
+      backgroundColor: c.bgAreaChip,
+      maxWidth: 160,
+    },
+    areaChipText: { fontSize: 12, color: c.textLabel, fontWeight: "500" },
+    statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
+    avatar: {
+      width: 34,
+      height: 34,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarText: { fontWeight: "600", fontSize: 13 },
+    name: { fontWeight: "600", fontSize: 14, color: c.text },
+    email: { fontSize: 12, color: c.textMuted },
+    badge: { alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 3, borderRadius: 999 },
+    badgeText: { fontSize: 12, fontWeight: "600" },
+    statusDot: { width: 7, height: 7, borderRadius: 4 },
+  });
+}

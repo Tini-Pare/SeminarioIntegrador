@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { createEquipment, listEquipment } from "../lib/queries/equipment";
-import { AutocompleteInput } from "./AutocompleteInput";
 import type { Equipment } from "../types/database";
+import { AutocompleteInput } from "./AutocompleteInput";
+import { useTheme } from "../lib/ThemeContext";
+import type { ThemeColors } from "../lib/theme";
 
 export function AddEquipmentModal({
   visible,
@@ -20,6 +22,8 @@ export function AddEquipmentModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<Equipment[]>([]);
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
 
   useEffect(() => {
     if (!visible) return;
@@ -69,7 +73,7 @@ export function AddEquipmentModal({
           <TextInput
             style={styles.input}
             placeholder="Ej: AC-015"
-            placeholderTextColor="#9a9da6"
+            placeholderTextColor={colors.textMuted}
             value={code}
             onChangeText={setCode}
           />
@@ -78,7 +82,7 @@ export function AddEquipmentModal({
           <TextInput
             style={styles.input}
             placeholder="Ej: Aire Acondicionado"
-            placeholderTextColor="#9a9da6"
+            placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
           />
@@ -116,46 +120,50 @@ export function AddEquipmentModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 },
-  sheet: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    width: "100%",
-    maxWidth: 480,
-    alignSelf: "center",
-  },
-  title: { fontSize: 19, fontWeight: "600", color: "#17191f", marginBottom: 4 },
-  subtitle: { fontSize: 12.5, color: "#8a8d95", marginBottom: 8 },
-  label: { fontSize: 12.5, fontWeight: "600", color: "#4b4e56", marginTop: 14, marginBottom: 6 },
-  input: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-    borderRadius: 10,
-    fontSize: 14,
-  },
-  error: { color: "#c0392b", marginTop: 14, fontSize: 13 },
-  actions: { flexDirection: "row", gap: 10, marginTop: 22 },
-  cancelButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelText: { color: "#4b4e56", fontWeight: "600" },
-  saveButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#2f53e0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveText: { color: "#fff", fontWeight: "600" },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    sheet: {
+      backgroundColor: c.bgModal,
+      borderRadius: 16,
+      padding: 24,
+      width: "100%",
+      maxWidth: 480,
+      alignSelf: "center",
+    },
+    title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 4 },
+    subtitle: { fontSize: 12.5, color: c.textMuted, marginBottom: 8 },
+    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 14, marginBottom: 6 },
+    input: {
+      height: 44,
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 10,
+      fontSize: 14,
+      backgroundColor: c.bgInput,
+      color: c.text,
+    },
+    error: { color: c.destructive, marginTop: 14, fontSize: 13 },
+    actions: { flexDirection: "row", gap: 10, marginTop: 22 },
+    cancelButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cancelText: { color: c.textLabel, fontWeight: "600" },
+    saveButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    saveText: { color: "#fff", fontWeight: "600" },
+  });
+}

@@ -1,6 +1,8 @@
 import { View, Text, Image, StyleSheet } from "react-native";
 import type { Fault, Equipment } from "../types/database";
 import { WarningIcon } from "./icons";
+import { useTheme } from "../lib/ThemeContext";
+import type { ThemeColors } from "../lib/theme";
 
 type Item = Fault & {
   equipment: Pick<Equipment, "code" | "name">;
@@ -14,23 +16,24 @@ const STATUS_LABELS: Record<Fault["status"], string> = {
   in_progress: "En curso",
   resolved: "Resuelta",
 };
-// Deliberately distinct from equipment.status's palette (green/orange/red
-// = equipment health): "Nueva" (red) and "En curso" (orange) used to get
-// confused with the equipment's "En reparación"/"En espera". Violet/blue/teal
-// here so a fault's color never reads as the equipment's status.
-const STATUS_COLORS: Record<Fault["status"], { bg: string; fg: string }> = {
-  new: { bg: "#e2dcf3", fg: "#5b3eb8" },
-  assigned: { bg: "#dde3f8", fg: "#2f53e0" },
-  in_progress: { bg: "#d7f0ec", fg: "#0f766e" },
-  resolved: { bg: "#d2ecdb", fg: "#1e7f47" },
-};
-const URGENCY_COLORS: Record<Fault["urgency"], { bg: string; fg: string }> = {
-  low: { bg: "#ecEae4", fg: "#4b5563" },
-  medium: { bg: "#f7ecd6", fg: "#9a6512" },
-  high: { bg: "#f8e3e3", fg: "#b23636" },
-};
 
 export function RequestList({ items }: { items: Item[] }) {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
+
+  const faultStatus = {
+    new: colors.faultNew,
+    assigned: colors.faultAssigned,
+    in_progress: colors.faultInProgress,
+    resolved: colors.faultResolved,
+  };
+
+  const urgency = {
+    low: colors.urgencyLow,
+    medium: colors.urgencyMedium,
+    high: colors.urgencyHigh,
+  };
+
   if (items.length === 0) {
     return (
       <View style={styles.empty}>
@@ -44,8 +47,8 @@ export function RequestList({ items }: { items: Item[] }) {
   return (
     <View style={styles.list}>
       {items.map((item) => {
-        const st = STATUS_COLORS[item.status];
-        const urg = URGENCY_COLORS[item.urgency];
+        const st = faultStatus[item.status];
+        const urg = urgency[item.urgency];
         return (
           <View key={item.id} style={styles.card}>
             {item.photo_url ? (
@@ -85,40 +88,36 @@ export function RequestList({ items }: { items: Item[] }) {
   );
 }
 
-const styles = StyleSheet.create({
-  list: { gap: 12 },
-  empty: {
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: "#d8d3c9",
-    borderRadius: 14,
-    padding: 40,
-    alignItems: "center",
-  },
-  emptyText: { color: "#8a8d95", fontSize: 14, textAlign: "center" },
-  card: {
-    flexDirection: "row",
-    gap: 16,
-    backgroundColor: "#f8f6f1",
-    borderWidth: 1,
-    borderColor: "#e2ddd3",
-    borderRadius: 14,
-    padding: 18,
-  },
-  iconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photo: { width: 42, height: 42, borderRadius: 10, backgroundColor: "#efebe3" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  equipmentName: { fontWeight: "600", fontSize: 15, color: "#17191f" },
-  equipmentCode: { fontFamily: "monospace", fontSize: 12, color: "#9a9da6" },
-  badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
-  badgeText: { fontSize: 11.5, fontWeight: "600" },
-  desc: { marginTop: 6, fontSize: 13.5, color: "#4b4e56", lineHeight: 19 },
-  metaRow: { marginTop: 8, flexDirection: "row", gap: 16, flexWrap: "wrap" },
-  meta: { fontSize: 12.5, color: "#8a8d95" },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    list: { gap: 12 },
+    empty: {
+      borderWidth: 1,
+      borderStyle: "dashed",
+      borderColor: c.borderInput,
+      borderRadius: 14,
+      padding: 40,
+      alignItems: "center",
+    },
+    emptyText: { color: c.textMuted, fontSize: 14, textAlign: "center" },
+    card: {
+      flexDirection: "row",
+      gap: 16,
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      padding: 18,
+    },
+    iconWrap: { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    photo: { width: 42, height: 42, borderRadius: 10, backgroundColor: c.bgNested },
+    row: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
+    equipmentName: { fontWeight: "600", fontSize: 15, color: c.text },
+    equipmentCode: { fontFamily: "monospace", fontSize: 12, color: c.textMuted },
+    badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
+    badgeText: { fontSize: 11.5, fontWeight: "600" },
+    desc: { marginTop: 6, fontSize: 13.5, color: c.textLabel, lineHeight: 19 },
+    metaRow: { marginTop: 8, flexDirection: "row", gap: 16, flexWrap: "wrap" },
+    meta: { fontSize: 12.5, color: c.textMuted },
+  });
+}

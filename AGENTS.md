@@ -30,6 +30,6 @@ this has to be done by hand whenever writing or editing JSX. Example:
 Code comments are always in English, no exceptions — matches the codebase's
 existing convention (tables/columns/functions/variables/types in English).
 The only things that are Spanish: what actually renders in the UI (labels,
-placeholders, messages) and `README.md`. A comment can still *quote* a
+placeholders, messages) and `README.md`. A comment can still _quote_ a
 Spanish UI string when explaining it (e.g. `// equipment showed "En
 reparación"`), that's fine — the prose around it stays English.

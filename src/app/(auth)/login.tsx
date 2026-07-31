@@ -12,6 +12,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BREAKPOINT } from "../../constants";
 import { signIn } from "../../lib/auth";
+import { useTheme } from "../../lib/ThemeContext";
+import type { ThemeColors } from "../../lib/theme";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -22,6 +24,8 @@ export default function Login() {
   const isTablet = width >= BREAKPOINT.tablet;
   const insets = useSafeAreaInsets();
   const passwordRef = useRef<TextInput>(null);
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
 
   async function handleSubmit() {
     setLoading(true);
@@ -47,7 +51,7 @@ export default function Login() {
             <TextInput
               style={styles.input}
               placeholder="usuario@empresa.com"
-              placeholderTextColor="#9a9da6"
+              placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               keyboardType="email-address"
               returnKeyType="next"
@@ -64,7 +68,7 @@ export default function Login() {
               ref={passwordRef}
               style={styles.input}
               placeholder="••••••••"
-              placeholderTextColor="#9a9da6"
+              placeholderTextColor={colors.textMuted}
               secureTextEntry
               returnKeyType="go"
               value={password}
@@ -123,17 +127,17 @@ export default function Login() {
 
         <View style={styles.legend}>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#22a45d" }]} />
+            <View style={[styles.legendDot, { backgroundColor: colors.eqOperational.dot }]} />
             <Text style={styles.legendText}>Funcionando</Text>
           </View>
 
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#d9962a" }]} />
+            <View style={[styles.legendDot, { backgroundColor: colors.eqWaiting.dot }]} />
             <Text style={styles.legendText}>En espera</Text>
           </View>
 
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#d24141" }]} />
+            <View style={[styles.legendDot, { backgroundColor: colors.eqRepair.dot }]} />
             <Text style={styles.legendText}>En reparación</Text>
           </View>
         </View>
@@ -144,74 +148,70 @@ export default function Login() {
   );
 }
 
-const styles = StyleSheet.create({
-  wideContainer: { flex: 1, flexDirection: "row" },
-  brandPanel: {
-    flex: 1.05,
-    backgroundColor: "#191c22",
-    padding: 56,
-    justifyContent: "space-between",
-  },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  brandRowNarrow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 32 },
-  logo: {
-    width: 38,
-    height: 38,
-    borderRadius: 9,
-    backgroundColor: "#2f53e0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoText: { color: "#fff", fontWeight: "700", fontSize: 20 },
-  brandName: { color: "#edebe6", fontWeight: "600", fontSize: 20 },
-  brandNameDark: { color: "#17191f", fontWeight: "600", fontSize: 20 },
-  brandCopy: { maxWidth: 400 },
-  eyebrow: {
-    color: "#2f53e0",
-    fontSize: 12,
-    letterSpacing: 2,
-    marginBottom: 18,
-    fontWeight: "600",
-  },
-  headline: { color: "#edebe6", fontWeight: "600", fontSize: 40, lineHeight: 44 },
-  tagline: { color: "#a6a9b1", fontSize: 15.5, lineHeight: 24, marginTop: 20 },
-  legend: { flexDirection: "row", gap: 22 },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
-  legendDot: { width: 9, height: 9, borderRadius: 5 },
-  legendText: { color: "#8c8f98", fontSize: 13 },
-  formPanel: {
-    flex: 1,
-    backgroundColor: "#f3f0ea",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 40,
-  },
-  formPanelNarrow: { width: "100%", alignItems: "center", marginTop: 48 },
-  formInner: { width: "100%", maxWidth: 400 },
-  narrowContainer: { flex: 1, backgroundColor: "#f3f0ea" },
-  narrowContent: { flexGrow: 1, padding: 24 },
-  title: { fontSize: 26, fontWeight: "600", color: "#17191f" },
-  subtitle: { marginTop: 8, color: "#6c6f78", fontSize: 14.5 },
-  fields: { marginTop: 26, gap: 14 },
-  label: { fontSize: 12.5, fontWeight: "600", color: "#4b4e56", marginBottom: 6 },
-  input: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    fontSize: 14.5,
-    color: "#17191f",
-  },
-  error: { color: "#c0392b", marginTop: 12, fontSize: 13.5 },
-  button: {
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#2f53e0",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 24,
-  },
-  buttonText: { color: "#fff", fontWeight: "600", fontSize: 14.5 },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    wideContainer: { flex: 1, flexDirection: "row" },
+    brandPanel: {
+      flex: 1.05,
+      backgroundColor: c.bgSidebar,
+      padding: 56,
+      justifyContent: "space-between",
+    },
+    brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    brandRowNarrow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 32 },
+    logo: {
+      width: 38,
+      height: 38,
+      borderRadius: 9,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    logoText: { color: "#fff", fontWeight: "700", fontSize: 20 },
+    brandName: { color: c.textSidebar, fontWeight: "600", fontSize: 20 },
+    brandNameDark: { color: c.text, fontWeight: "600", fontSize: 20 },
+    brandCopy: { maxWidth: 400 },
+    eyebrow: { color: c.accent, fontSize: 12, letterSpacing: 2, marginBottom: 18, fontWeight: "600" },
+    headline: { color: c.textSidebar, fontWeight: "600", fontSize: 40, lineHeight: 44 },
+    tagline: { color: c.textNavInactive, fontSize: 15.5, lineHeight: 24, marginTop: 20 },
+    legend: { flexDirection: "row", gap: 22 },
+    legendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
+    legendDot: { width: 9, height: 9, borderRadius: 5 },
+    legendText: { color: c.textNavInactive, fontSize: 13 },
+    formPanel: {
+      flex: 1,
+      backgroundColor: c.bgLoginPanel,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 40,
+    },
+    formPanelNarrow: { width: "100%", alignItems: "center", marginTop: 48 },
+    formInner: { width: "100%", maxWidth: 400 },
+    narrowContainer: { flex: 1, backgroundColor: c.bgLoginPanel },
+    narrowContent: { flexGrow: 1, padding: 24 },
+    title: { fontSize: 26, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 8, color: c.textSecondary, fontSize: 14.5 },
+    fields: { marginTop: 26, gap: 14 },
+    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginBottom: 6 },
+    input: {
+      height: 44,
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 10,
+      backgroundColor: c.bgInput,
+      fontSize: 14.5,
+      color: c.text,
+    },
+    error: { color: c.destructive, marginTop: 12, fontSize: 13.5 },
+    button: {
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 24,
+    },
+    buttonText: { color: "#fff", fontWeight: "600", fontSize: 14.5 },
+  });
+}

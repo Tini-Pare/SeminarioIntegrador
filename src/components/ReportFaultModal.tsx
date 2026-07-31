@@ -19,6 +19,8 @@ import {
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
 import type { Equipment, Fault } from "../types/database";
+import { useTheme } from "../lib/ThemeContext";
+import type { ThemeColors } from "../lib/theme";
 
 type EquipmentOption = Pick<Equipment, "id" | "code" | "name">;
 
@@ -49,6 +51,8 @@ export function ReportFaultModal({
   const [processingPhoto, setProcessingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
 
   const effectiveEquipmentId = equipment?.id ?? selectedId;
 
@@ -119,7 +123,10 @@ export function ReportFaultModal({
                 {equipmentOptions.map((e) => (
                   <Pressable
                     key={e.id}
-                    style={[styles.pickerRow, selectedId === e.id && styles.pickerRowSelected]}
+                    style={[
+                      styles.pickerRow,
+                      selectedId === e.id && { borderColor: colors.accent, backgroundColor: colors.bgNested },
+                    ]}
                     onPress={() => setSelectedId(e.id)}
                   >
                     <Text style={styles.pickerText}>
@@ -144,7 +151,7 @@ export function ReportFaultModal({
               value={description}
               onChangeText={setDescription}
               placeholder="¿Qué está pasando?"
-              placeholderTextColor="#9a9da6"
+              placeholderTextColor={colors.textMuted}
             />
 
             <Text style={styles.label}>Urgencia</Text>
@@ -152,7 +159,10 @@ export function ReportFaultModal({
               {URGENCIES.map((u) => (
                 <Pressable
                   key={u}
-                  style={[styles.chip, urgency === u && styles.chipSelected]}
+                  style={[
+                    styles.chip,
+                    urgency === u && { backgroundColor: colors.accent, borderColor: colors.accent },
+                  ]}
                   onPress={() => setUrgency(u)}
                 >
                   <Text style={[styles.chipText, urgency === u && styles.chipTextSelected]}>
@@ -212,81 +222,85 @@ export function ReportFaultModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 20 },
-  sheet: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    maxHeight: "80%",
-    width: "100%",
-    maxWidth: 480,
-    alignSelf: "center",
-  },
-  title: { fontSize: 20, fontWeight: "600", color: "#17191f", marginBottom: 16 },
-  label: { fontSize: 12.5, fontWeight: "600", color: "#4b4e56", marginBottom: 6, marginTop: 12 },
-  fixedEquipment: { fontSize: 14, color: "#17191f", fontWeight: "600" },
-  pickerWrap: { marginBottom: 4 },
-  pickerRow: {
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e2ddd3",
-    marginBottom: 6,
-  },
-  pickerRowSelected: { borderColor: "#2f53e0", backgroundColor: "#eef1fc" },
-  pickerText: { fontSize: 13.5, color: "#17191f" },
-  textarea: {
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 14,
-    minHeight: 90,
-    textAlignVertical: "top",
-  },
-  chipsRow: { flexDirection: "row", gap: 8 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-  },
-  chipSelected: { backgroundColor: "#2f53e0", borderColor: "#2f53e0" },
-  chipText: { fontSize: 13, color: "#4b4e56" },
-  chipTextSelected: { color: "#fff", fontWeight: "600" },
-  error: { color: "#c0392b", marginTop: 12 },
-  photoButtonsRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  photoButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-  },
-  photoButtonText: { fontSize: 13, fontWeight: "600", color: "#4b4e56" },
-  photoPreviewWrap: { flexDirection: "row", alignItems: "center", gap: 12 },
-  photoPreview: { width: 72, height: 72, borderRadius: 10, backgroundColor: "#efebe3" },
-  photoRemoveButton: { paddingVertical: 6 },
-  photoRemoveText: { color: "#c0392b", fontSize: 13, fontWeight: "600" },
-  actions: { flexDirection: "row", gap: 10, marginTop: 20 },
-  cancelButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#d8d3c9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelText: { color: "#4b4e56", fontWeight: "600" },
-  submitButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#2f53e0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  submitText: { color: "#fff", fontWeight: "600" },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    sheet: {
+      backgroundColor: c.bgModal,
+      borderRadius: 16,
+      maxHeight: "80%",
+      width: "100%",
+      maxWidth: 480,
+      alignSelf: "center",
+    },
+    title: { fontSize: 20, fontWeight: "600", color: c.text, marginBottom: 16 },
+    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginBottom: 6, marginTop: 12 },
+    fixedEquipment: { fontSize: 14, color: c.text, fontWeight: "600" },
+    pickerWrap: { marginBottom: 4 },
+    pickerRow: {
+      padding: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      marginBottom: 6,
+      backgroundColor: c.bgInput,
+    },
+    pickerText: { fontSize: 13.5, color: c.text },
+    textarea: {
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 10,
+      padding: 12,
+      fontSize: 14,
+      minHeight: 90,
+      textAlignVertical: "top",
+      backgroundColor: c.bgInput,
+      color: c.text,
+    },
+    chipsRow: { flexDirection: "row", gap: 8 },
+    chip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      backgroundColor: c.bgInput,
+    },
+    chipText: { fontSize: 13, color: c.textLabel },
+    chipTextSelected: { color: "#fff", fontWeight: "600" },
+    error: { color: c.destructive, marginTop: 12 },
+    photoButtonsRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+    photoButton: {
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+    },
+    photoButtonText: { fontSize: 13, fontWeight: "600", color: c.textLabel },
+    photoPreviewWrap: { flexDirection: "row", alignItems: "center", gap: 12 },
+    photoPreview: { width: 72, height: 72, borderRadius: 10, backgroundColor: c.bgNested },
+    photoRemoveButton: { paddingVertical: 6 },
+    photoRemoveText: { color: c.destructive, fontSize: 13, fontWeight: "600" },
+    actions: { flexDirection: "row", gap: 10, marginTop: 20 },
+    cancelButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cancelText: { color: c.textLabel, fontWeight: "600" },
+    submitButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    submitText: { color: "#fff", fontWeight: "600" },
+  });
+}
