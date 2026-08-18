@@ -1,14 +1,25 @@
 import { supabase } from "../supabase";
 import type { Equipment, Fault, HistoryEntry } from "../../types/database";
 
+const EQUIPMENT_SELECT = "*, location:locations(name)";
+
+// equipment.location_id is a FK to locations — the rest of the app still
+// wants a plain location name string (see Equipment in types/database.ts),
+// so every read here embeds the join and flattens it back to that shape.
+function flattenLocation(row: Record<string, unknown>): Equipment {
+  const { location, ...rest } = row;
+  const name = (location as { name: string } | null)?.name ?? "";
+  return { ...rest, location: name } as Equipment;
+}
+
 export async function listEquipment(): Promise<Equipment[]> {
   const { data, error } = await supabase
     .from("equipment")
-    .select("*")
-    .order("location")
+    .select(EQUIPMENT_SELECT)
+    .order("name", { foreignTable: "locations" })
     .order("code");
   if (error) throw new Error(error.message);
-  return data as Equipment[];
+  return (data as Record<string, unknown>[]).map(flattenLocation);
 }
 
 // status isn't passed here on purpose: it's born 'operational' (the
@@ -20,11 +31,15 @@ export async function createEquipment(input: {
   code: string;
   name: string;
   type: string;
-  location: string;
+  location_id: string;
 }): Promise<Equipment> {
-  const { data, error } = await supabase.from("equipment").insert(input).select().single();
+  const { data, error } = await supabase
+    .from("equipment")
+    .insert(input)
+    .select(EQUIPMENT_SELECT)
+    .single();
   if (error) throw new Error(error.message);
-  return data as Equipment;
+  return flattenLocation(data as Record<string, unknown>);
 }
 
 export async function updateEquipment(
@@ -33,7 +48,7 @@ export async function updateEquipment(
     code: string;
     name: string;
     type: string;
-    location: string;
+    location_id: string;
   },
 ): Promise<void> {
   const { error } = await supabase.from("equipment").update(changes).eq("id", id);
@@ -46,12 +61,16 @@ export async function deleteEquipment(id: string): Promise<void> {
 }
 
 export async function getEquipmentById(id: string): Promise<Equipment | null> {
-  const { data, error } = await supabase.from("equipment").select("*").eq("id", id).single();
+  const { data, error } = await supabase
+    .from("equipment")
+    .select(EQUIPMENT_SELECT)
+    .eq("id", id)
+    .single();
   if (error) {
     if (error.code === "PGRST116") return null;
     throw new Error(error.message);
   }
-  return data as Equipment;
+  return flattenLocation(data as Record<string, unknown>);
 }
 
 // Active only — the equipment detail's "Fallas activas" tab is the only

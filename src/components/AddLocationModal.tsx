@@ -1,13 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { createEquipment, listEquipment } from "../lib/queries/equipment";
-import { listLocations } from "../lib/queries/locations";
-import type { Equipment, Location } from "../types/database";
-import { AutocompleteInput } from "./AutocompleteInput";
+import { createLocation } from "../lib/queries/locations";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
-export function AddEquipmentModal({
+export function AddLocationModal({
   visible,
   onClose,
   onCreated,
@@ -16,53 +13,22 @@ export function AddEquipmentModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState("");
-  const [location, setLocation] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existing, setExisting] = useState<Equipment[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
-    listEquipment()
-      .then(setExisting)
-      .catch(() => {});
-    listLocations()
-      .then(setLocations)
-      .catch(() => {});
-  }, [visible]);
-
   async function handleSubmit() {
-    if (!code.trim() || !name.trim() || !type.trim() || !location.trim()) {
-      setError("Completá código, nombre, tipo y ubicación.");
-      return;
-    }
-    const matchedLocation = locations.find(
-      (l) => l.name.trim().toLowerCase() === location.trim().toLowerCase(),
-    );
-    if (!matchedLocation) {
-      setError("Elegí un lugar existente de la lista (o creá uno nuevo en Lugares).");
+    if (!name.trim()) {
+      setError("Completá el nombre del lugar.");
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      await createEquipment({
-        code: code.trim(),
-        name: name.trim(),
-        type: type.trim(),
-        location_id: matchedLocation.id,
-      });
-
-      setCode("");
+      await createLocation(name.trim());
       setName("");
-      setType("");
-      setLocation("");
       onCreated();
       onClose();
     } catch (e) {
@@ -76,47 +42,16 @@ export function AddEquipmentModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Agregar equipo</Text>
-          <Text style={styles.subtitle}>
-            Nace "Funcionando" — el estado se recalcula solo según las fallas activas.
-          </Text>
-
-          <Text style={styles.label}>Código</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: AC-015"
-            placeholderTextColor={colors.textMuted}
-            value={code}
-            onChangeText={setCode}
-          />
+          <Text style={styles.title}>Agregar lugar</Text>
 
           <Text style={styles.label}>Nombre</Text>
           <TextInput
             style={styles.input}
-            placeholder="Ej: Aire Acondicionado"
+            placeholder="Ej: Planta A · Sala de Servidores"
             placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
           />
-
-          <Text style={styles.label}>Tipo</Text>
-          <AutocompleteInput
-            value={type}
-            onChangeText={setType}
-            options={existing.map((e) => e.type)}
-            placeholder="Ej: Climatización"
-          />
-
-          <Text style={styles.label}>Ubicación</Text>
-          <AutocompleteInput
-            value={location}
-            onChangeText={setLocation}
-            options={locations.map((l) => l.name)}
-            placeholder="Ej: Planta A · Sala de Servidores"
-          />
-          {locations.length === 0 && (
-            <Text style={styles.hint}>No hay lugares cargados — creá uno primero en Lugares.</Text>
-          )}
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -146,8 +81,7 @@ function makeStyles(c: ThemeColors) {
       maxWidth: 480,
       alignSelf: "center",
     },
-    title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 4 },
-    subtitle: { fontSize: 12.5, color: c.textMuted, marginBottom: 8 },
+    title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 8 },
     label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 14, marginBottom: 6 },
     input: {
       height: 44,
@@ -159,7 +93,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       color: c.text,
     },
-    hint: { color: c.textMuted, marginTop: 6, fontSize: 12 },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 22 },
     cancelButton: {

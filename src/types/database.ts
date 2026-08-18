@@ -52,7 +52,7 @@ export type Database = {
           code: string;
           name: string;
           type: string;
-          location: string;
+          location_id: string;
           status: "operational" | "waiting" | "repair";
           last_maintenance: string | null;
           next_maintenance: string | null;
@@ -63,7 +63,7 @@ export type Database = {
           code: string;
           name: string;
           type: string;
-          location: string;
+          location_id: string;
           status?: "operational" | "waiting" | "repair";
           last_maintenance?: string | null;
           next_maintenance?: string | null;
@@ -74,10 +74,28 @@ export type Database = {
           code?: string;
           name?: string;
           type?: string;
-          location?: string;
+          location_id?: string;
           status?: "operational" | "waiting" | "repair";
           last_maintenance?: string | null;
           next_maintenance?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      locations: {
+        Row: {
+          id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
           created_at?: string;
         };
         Relationships: [];
@@ -174,7 +192,10 @@ export type Database = {
 };
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-export type Equipment = Database["public"]["Tables"]["equipment"]["Row"];
+// location is resolved from locations.name at query time (see lib/queries/equipment.ts)
+// so the rest of the app can keep treating it as a plain string, not a join.
+export type Equipment = Database["public"]["Tables"]["equipment"]["Row"] & { location: string };
 export type Fault = Database["public"]["Tables"]["faults"]["Row"];
 export type HistoryEntry = Database["public"]["Tables"]["history"]["Row"];
 export type MaintenanceTask = Database["public"]["Tables"]["maintenance_plan"]["Row"];
+export type Location = Database["public"]["Tables"]["locations"]["Row"];

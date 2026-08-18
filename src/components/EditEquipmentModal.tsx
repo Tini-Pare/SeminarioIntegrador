@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { listEquipment, updateEquipment } from "../lib/queries/equipment";
+import { listLocations } from "../lib/queries/locations";
 import { AutocompleteInput } from "./AutocompleteInput";
-import type { Equipment } from "../types/database";
+import type { Equipment, Location } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
@@ -24,6 +25,7 @@ export function EditEquipmentModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<Equipment[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -45,11 +47,21 @@ export function EditEquipmentModal({
     listEquipment()
       .then(setExisting)
       .catch(() => {});
+    listLocations()
+      .then(setLocations)
+      .catch(() => {});
   }, [visible]);
 
   async function handleSubmit() {
     if (!code.trim() || !name.trim() || !type.trim() || !location.trim()) {
       setError("Completá código, nombre, tipo y ubicación.");
+      return;
+    }
+    const matchedLocation = locations.find(
+      (l) => l.name.trim().toLowerCase() === location.trim().toLowerCase(),
+    );
+    if (!matchedLocation) {
+      setError("Elegí un lugar existente de la lista (o creá uno nuevo en Lugares).");
       return;
     }
     setSaving(true);
@@ -59,7 +71,7 @@ export function EditEquipmentModal({
         code: code.trim(),
         name: name.trim(),
         type: type.trim(),
-        location: location.trim(),
+        location_id: matchedLocation.id,
       });
       onSaved();
       onClose();
@@ -106,9 +118,12 @@ export function EditEquipmentModal({
           <AutocompleteInput
             value={location}
             onChangeText={setLocation}
-            options={existing.map((e) => e.location)}
+            options={locations.map((l) => l.name)}
             placeholder="Ej: Planta A · Sala de Servidores"
           />
+          {locations.length === 0 && (
+            <Text style={styles.hint}>No hay lugares cargados — creá uno primero en Lugares.</Text>
+          )}
 
           <Text style={styles.label}>Estado</Text>
           <View style={styles.statusRow}>
@@ -163,6 +178,7 @@ function makeStyles(c: ThemeColors) {
     statusBadge: { alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999 },
     statusBadgeText: { fontSize: 12.5, fontWeight: "600" },
     statusNote: { fontSize: 12, color: c.textMuted },
+    hint: { color: c.textMuted, marginTop: 6, fontSize: 12 },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 22 },
     cancelButton: {

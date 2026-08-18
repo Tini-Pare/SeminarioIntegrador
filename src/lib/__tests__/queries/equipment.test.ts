@@ -8,9 +8,17 @@ import { getEquipmentById, listEquipment } from "../../queries/equipment";
 import { supabase } from "../../supabase";
 
 describe("listEquipment", () => {
-  it("returns equipment ordered by location then code", async () => {
+  it("returns equipment ordered by location name then code, with location flattened to a string", async () => {
     const orderByCode = jest.fn().mockResolvedValue({
-      data: [{ id: "1", code: "AC-014", name: "Aire Acondicionado" }],
+      data: [
+        {
+          id: "1",
+          code: "AC-014",
+          name: "Aire Acondicionado",
+          location_id: "loc-1",
+          location: { name: "Planta A" },
+        },
+      ],
       error: null,
     });
     const orderByLocation = jest.fn().mockReturnValue({ order: orderByCode });
@@ -20,10 +28,18 @@ describe("listEquipment", () => {
     const result = await listEquipment();
 
     expect(supabase.from).toHaveBeenCalledWith("equipment");
-    expect(select).toHaveBeenCalledWith("*");
-    expect(orderByLocation).toHaveBeenCalledWith("location");
+    expect(select).toHaveBeenCalledWith("*, location:locations(name)");
+    expect(orderByLocation).toHaveBeenCalledWith("name", { foreignTable: "locations" });
     expect(orderByCode).toHaveBeenCalledWith("code");
-    expect(result).toEqual([{ id: "1", code: "AC-014", name: "Aire Acondicionado" }]);
+    expect(result).toEqual([
+      {
+        id: "1",
+        code: "AC-014",
+        name: "Aire Acondicionado",
+        location_id: "loc-1",
+        location: "Planta A",
+      },
+    ]);
   });
 
   it("throws when Supabase returns an error", async () => {
@@ -37,16 +53,20 @@ describe("listEquipment", () => {
 });
 
 describe("getEquipmentById", () => {
-  it("returns a single equipment row by id", async () => {
-    const single = jest.fn().mockResolvedValue({ data: { id: "1", code: "AC-014" }, error: null });
+  it("returns a single equipment row by id, with location flattened to a string", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: { id: "1", code: "AC-014", location_id: "loc-1", location: { name: "Planta A" } },
+      error: null,
+    });
     const eq = jest.fn().mockReturnValue({ single });
     const select = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ select });
 
     const result = await getEquipmentById("1");
 
+    expect(select).toHaveBeenCalledWith("*, location:locations(name)");
     expect(eq).toHaveBeenCalledWith("id", "1");
-    expect(result).toEqual({ id: "1", code: "AC-014" });
+    expect(result).toEqual({ id: "1", code: "AC-014", location_id: "loc-1", location: "Planta A" });
   });
 
   it("returns null when not found", async () => {

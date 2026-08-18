@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountMenu } from "../../components/AccountMenu";
-import { EquipmentIcon, RequestsIcon, UsersIcon } from "../../components/icons";
+import { EquipmentIcon, LocationIcon, RequestsIcon, UsersIcon } from "../../components/icons";
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signOut } from "../../lib/auth";
 import { useTheme } from "../../lib/ThemeContext";
@@ -68,7 +68,10 @@ export default function AppLayout() {
 
   const navItems: NavItem[] = [
     ...(role === "admin"
-      ? [{ key: "users", label: "Usuarios", href: "/users", Icon: UsersIcon }]
+      ? [
+          { key: "users", label: "Usuarios", href: "/users", Icon: UsersIcon },
+          { key: "locations", label: "Lugares", href: "/locations", Icon: LocationIcon },
+        ]
       : []),
     { key: "equipment", label: "Equipos", href: "/equipment", Icon: EquipmentIcon },
     ...(role === "admin" || role === "user"
