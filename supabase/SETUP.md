@@ -11,13 +11,27 @@ Supabase dashboard → New project. Name it, pick a region, set a database
 password (save it somewhere safe — it's the Postgres superuser password,
 not used day-to-day but needed for direct DB access).
 
-## 2. Run the schema migration
+## 2. Run the schema migrations
 
-SQL Editor → paste the full contents of `migrations/0001_init.sql` → Run.
-One file, creates everything: tables, enums, grants, RLS policies, the
-`sync_equipment_status` function, the `fault-photos` storage bucket, and
-Realtime on `equipment`/`faults`. Nothing else needs to be run manually.
-(With the Supabase CLI linked instead: `supabase db push`.)
+SQL Editor → run, in order:
+
+1. `migrations/0001_init.sql` — base tables, the `fault-photos` storage
+   bucket, and `current_role_name()` (still used by 0003's RLS policies).
+2. `migrations/0003_reemplazo_gestion_mantenimiento.sql` — replaces
+   0001's `equipment`/`faults`/`history`/`maintenance_plan` with the
+   maintenance-management model (equipo, lugares, tipos_de_equipos,
+   solicitudes, orden_de_trabajo, historial, plus the rest of the schema
+   with no UI yet). Creates the `sync_equipo_estado` function, its RLS
+   policies, and Realtime on `equipo`/`solicitudes`/`orden_de_trabajo`.
+
+Do **not** run `migrations/0002_gestion_mantenimiento.sql` — it's the raw
+reference model 0003 was adapted from (no RLS, no Supabase Auth wiring,
+no `eq_codigo`/`sol_urgencia`/etc.), not meant to run on its own. Running
+it before 0003 would fail anyway (0003 creates several of the same table
+names). This also means `supabase db push` with a linked CLI can't be
+used as-is — it would try to run 0002 too — so stick to the manual SQL
+Editor steps above (0001, then 0003) until 0002 is removed from the
+migrations folder or CLI-linking is possible from your environment.
 
 ## 3. Get the API keys
 
@@ -97,4 +111,6 @@ values ('<uid-from-step-2>', 'Your Name', 'your@email.com', 'admin', true);
 
 That's the full rebuild. No other manual Supabase configuration is
 required — RLS, grants, and both Edge Functions are the only
-project-specific state, and all three are captured above.
+project-specific state, and all three are captured above (see 0003's
+comments for what's schema-complete-but-no-UI-yet: proveedores, compras,
+repuestos, planes de mantenimiento preventivo, catálogo de fallas).

@@ -1,6 +1,6 @@
 import { Pressable, View, Text, StyleSheet } from "react-native";
 import { router } from "expo-router";
-import type { Equipment } from "../types/database";
+import type { Equipo } from "../types/database";
 import { StatusBadge } from "./StatusBadge";
 import { LocationIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
@@ -10,7 +10,7 @@ export function EquipmentCard({
   equipment,
   locationColor,
 }: {
-  equipment: Equipment;
+  equipment: Equipo;
   locationColor: string;
 }) {
   const { colors } = useTheme();

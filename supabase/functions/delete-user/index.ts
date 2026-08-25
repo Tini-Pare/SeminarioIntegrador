@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
   if (deleteError) {
     const message =
       deleteError.message.includes("foreign key") || deleteError.message.includes("violates")
-        ? "No se puede eliminar: tiene fallas o historial de mantenimiento asociado. Desactivalo en su lugar."
+        ? "No se puede eliminar: tiene solicitudes, órdenes de trabajo o historial asociado. Desactivalo en su lugar."
         : deleteError.message;
     return json({ error: message }, 500);
   }

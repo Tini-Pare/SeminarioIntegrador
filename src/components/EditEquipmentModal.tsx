@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { listEquipment, updateEquipment } from "../lib/queries/equipment";
 import { AutocompleteInput } from "./AutocompleteInput";
-import type { Equipment } from "../types/database";
+import type { Equipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
@@ -15,7 +15,7 @@ export function EditEquipmentModal({
   visible: boolean;
   onClose: () => void;
   onSaved: () => void;
-  equipment: Equipment;
+  equipment: Equipo;
 }) {
   const [code, setCode] = useState(equipment.code);
   const [name, setName] = useState(equipment.name);
@@ -23,7 +23,7 @@ export function EditEquipmentModal({
   const [location, setLocation] = useState(equipment.location);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existing, setExisting] = useState<Equipment[]>([]);
+  const [existing, setExisting] = useState<Equipo[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 

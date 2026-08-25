@@ -18,14 +18,14 @@ import {
   compressToWebp,
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
-import type { Equipment, Fault } from "../types/database";
+import type { Equipo, Solicitud } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
-type EquipmentOption = Pick<Equipment, "id" | "code" | "name">;
+type EquipmentOption = Pick<Equipo, "id" | "code" | "name">;
 
-const URGENCIES: Fault["urgency"][] = ["low", "medium", "high"];
-const URGENCY_LABELS: Record<Fault["urgency"], string> = {
+const URGENCIES: Solicitud["urgency"][] = ["low", "medium", "high"];
+const URGENCY_LABELS: Record<Solicitud["urgency"], string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
@@ -44,9 +44,9 @@ export function ReportFaultModal({
   equipment?: EquipmentOption;
   equipmentOptions?: EquipmentOption[];
 }) {
-  const [selectedId, setSelectedId] = useState<string | undefined>(equipment?.id);
+  const [selectedId, setSelectedId] = useState<number | undefined>(equipment?.id);
   const [description, setDescription] = useState("");
-  const [urgency, setUrgency] = useState<Fault["urgency"]>("medium");
+  const [urgency, setUrgency] = useState<Solicitud["urgency"]>("medium");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [processingPhoto, setProcessingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);

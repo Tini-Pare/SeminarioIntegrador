@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { createEquipment, listEquipment } from "../lib/queries/equipment";
-import type { Equipment } from "../types/database";
+import type { Equipo } from "../types/database";
 import { AutocompleteInput } from "./AutocompleteInput";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -21,7 +21,7 @@ export function AddEquipmentModal({
   const [location, setLocation] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existing, setExisting] = useState<Equipment[]>([]);
+  const [existing, setExisting] = useState<Equipo[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 

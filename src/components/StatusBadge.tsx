@@ -1,14 +1,14 @@
 import { View, Text, StyleSheet } from "react-native";
-import type { Equipment } from "../types/database";
+import type { Equipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 
-const LABELS: Record<Equipment["status"], string> = {
+const LABELS: Record<Equipo["status"], string> = {
   operational: "Funcionando",
   waiting: "En espera",
   repair: "En reparación",
 };
 
-export function StatusBadge({ status }: { status: Equipment["status"] }) {
+export function StatusBadge({ status }: { status: Equipo["status"] }) {
   const { colors } = useTheme();
   const c =
     status === "operational"

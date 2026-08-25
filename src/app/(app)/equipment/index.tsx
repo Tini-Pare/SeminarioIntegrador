@@ -18,9 +18,9 @@ import { listEquipment } from "../../../lib/queries/equipment";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Equipment, Profile } from "../../../types/database";
+import type { Equipo, Profile } from "../../../types/database";
 
-type Filter = "all" | Equipment["status"];
+type Filter = "all" | Equipo["status"];
 type SortBy = "location" | "code";
 
 const SORT_OPTIONS: { key: SortBy; label: string }[] = [
@@ -29,7 +29,7 @@ const SORT_OPTIONS: { key: SortBy; label: string }[] = [
 ];
 
 export default function EquipmentScreen() {
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [equipment, setEquipment] = useState<Equipo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -67,7 +67,7 @@ export default function EquipmentScreen() {
   useEffect(() => {
     const channel = supabase
       .channel(`equipment-list-changes-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "equipment" }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "equipo" }, reload)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -119,7 +119,7 @@ export default function EquipmentScreen() {
 
   const groupedByLocation = useMemo(() => {
     if (sortBy !== "location") return null;
-    const groups: { location: string; items: Equipment[] }[] = [];
+    const groups: { location: string; items: Equipo[] }[] = [];
     for (const item of equipmentView) {
       const last = groups[groups.length - 1];
       if (last && last.location === item.location) last.items.push(item);

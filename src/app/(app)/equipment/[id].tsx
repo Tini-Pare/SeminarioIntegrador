@@ -25,9 +25,9 @@ import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Equipment, Fault, HistoryEntry, Profile } from "../../../types/database";
+import type { Equipo, Solicitud, HistorialEntry, Profile } from "../../../types/database";
 
-const URGENCY_LABEL: Record<Fault["urgency"], string> = {
+const URGENCY_LABEL: Record<Solicitud["urgency"], string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
@@ -42,9 +42,10 @@ type TabKey = (typeof TABS)[number]["key"];
 
 export default function EquipmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [equipment, setEquipment] = useState<Equipment | null>(null);
-  const [faults, setFaults] = useState<Fault[]>([]);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const equipoId = id ? Number(id) : NaN;
+  const [equipment, setEquipment] = useState<Equipo | null>(null);
+  const [faults, setFaults] = useState<Solicitud[]>([]);
+  const [history, setHistory] = useState<HistorialEntry[]>([]);
   const [authorNames, setAuthorNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -55,7 +56,7 @@ export default function EquipmentDetail() {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  const statusMeta: Record<Equipment["status"], { label: string; bg: string; fg: string; dot: string }> = {
+  const statusMeta: Record<Equipo["status"], { label: string; bg: string; fg: string; dot: string }> = {
     operational: { label: "Funcionando", ...colors.eqOperational },
     waiting: { label: "En espera", ...colors.eqWaiting },
     repair: { label: "En reparación", ...colors.eqRepair },
@@ -72,18 +73,18 @@ export default function EquipmentDetail() {
   };
 
   const loadEquipmentData = useCallback(async () => {
-    if (!id) return;
+    if (!id || Number.isNaN(equipoId)) return;
     const [e, f, h, profiles] = await Promise.all([
-      getEquipmentById(id),
-      listFaultsByEquipment(id),
-      listHistoryByEquipment(id),
+      getEquipmentById(equipoId),
+      listFaultsByEquipment(equipoId),
+      listHistoryByEquipment(equipoId),
       listProfiles(),
     ]);
     setEquipment(e);
     setFaults(f);
     setHistory(h);
     setAuthorNames(new Map(profiles.map((p) => [p.id, p.name])));
-  }, [id]);
+  }, [id, equipoId]);
 
   useEffect(() => {
     loadEquipmentData().finally(() => setLoading(false));
@@ -91,30 +92,35 @@ export default function EquipmentDetail() {
   }, [loadEquipmentData]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || Number.isNaN(equipoId)) return;
     const channel = supabase
       .channel(`equipment-detail-${id}-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "equipment", filter: `id=eq.${id}` },
+        { event: "*", schema: "public", table: "equipo", filter: `eq_id_equipo=eq.${equipoId}` },
         loadEquipmentData,
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "faults", filter: `equipment_id=eq.${id}` },
+        { event: "*", schema: "public", table: "solicitudes", filter: `eq_id_equipo=eq.${equipoId}` },
+        loadEquipmentData,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orden_de_trabajo", filter: `eq_id_equipo=eq.${equipoId}` },
         loadEquipmentData,
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, loadEquipmentData]);
+  }, [id, equipoId, loadEquipmentData]);
 
   async function doDelete() {
-    if (!id) return;
+    if (!id || Number.isNaN(equipoId)) return;
     setDeleting(true);
     try {
-      await deleteEquipment(id);
+      await deleteEquipment(equipoId);
       router.replace("/equipment");
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

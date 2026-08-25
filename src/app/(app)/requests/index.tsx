@@ -15,10 +15,10 @@ import { RequestList } from "../../../components/RequestList";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Fault, Equipment } from "../../../types/database";
+import type { Solicitud, Equipo } from "../../../types/database";
 
-type Item = Fault & {
-  equipment: Pick<Equipment, "code" | "name">;
+type Item = Solicitud & {
+  equipment: Pick<Equipo, "code" | "name">;
   reporterName: string;
   technicianName: string | null;
 };
@@ -65,7 +65,8 @@ export default function RequestsScreen() {
   useEffect(() => {
     const channel = supabase
       .channel(`requests-faults-changes-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "faults" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orden_de_trabajo" }, load)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);

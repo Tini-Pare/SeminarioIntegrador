@@ -1,16 +1,16 @@
 import { View, Text, Image, StyleSheet } from "react-native";
-import type { Fault, Equipment } from "../types/database";
+import type { Solicitud, Equipo } from "../types/database";
 import { WarningIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
-type Item = Fault & {
-  equipment: Pick<Equipment, "code" | "name">;
+type Item = Solicitud & {
+  equipment: Pick<Equipo, "code" | "name">;
   reporterName: string;
   technicianName: string | null;
 };
 
-const STATUS_LABELS: Record<Fault["status"], string> = {
+const STATUS_LABELS: Record<Solicitud["status"], string> = {
   new: "Nueva",
   assigned: "Asignada",
   in_progress: "En curso",

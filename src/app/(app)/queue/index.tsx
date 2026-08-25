@@ -18,29 +18,29 @@ import { buildLocationColorMap } from "../../../lib/locationColor";
 import { LocationIcon, WarningIcon } from "../../../components/icons";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Fault, Equipment } from "../../../types/database";
+import type { Solicitud, Equipo } from "../../../types/database";
 
-type Item = Fault & {
-  equipment: Pick<Equipment, "code" | "name" | "location">;
+type Item = Solicitud & {
+  equipment: Pick<Equipo, "code" | "name" | "location">;
   reporterName: string;
 };
 
 type Scope = "all" | "mine" | "unassigned";
-type UrgencyFilter = "all" | Fault["urgency"];
+type UrgencyFilter = "all" | Solicitud["urgency"];
 
-const STATUS_LABELS: Record<Fault["status"], string> = {
+const STATUS_LABELS: Record<Solicitud["status"], string> = {
   new: "Nueva",
   assigned: "Asignada",
   in_progress: "En curso",
   resolved: "Resuelta",
 };
-const STATUS_ORDER: Record<Fault["status"], number> = {
+const STATUS_ORDER: Record<Solicitud["status"], number> = {
   new: 0,
   assigned: 1,
   in_progress: 2,
   resolved: 3,
 };
-const URGENCY_LABELS: Record<Fault["urgency"], string> = {
+const URGENCY_LABELS: Record<Solicitud["urgency"], string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
@@ -58,7 +58,7 @@ export default function QueueScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [actingOn, setActingOn] = useState<string | null>(null);
+  const [actingOn, setActingOn] = useState<number | null>(null);
   const [scope, setScope] = useState<Scope>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>("all");
   const { colors } = useTheme();
@@ -101,7 +101,8 @@ export default function QueueScreen() {
   useEffect(() => {
     const channel = supabase
       .channel(`queue-faults-changes-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "faults" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orden_de_trabajo" }, load)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -151,13 +152,13 @@ export default function QueueScreen() {
     });
   }, [items, scope, urgencyFilter, userId]);
 
-  const statusColors: Record<Fault["status"], { bg: string; fg: string }> = {
+  const statusColors: Record<Solicitud["status"], { bg: string; fg: string }> = {
     new: colors.faultNew,
     assigned: colors.faultAssigned,
     in_progress: colors.faultInProgress,
     resolved: colors.faultResolved,
   };
-  const urgencyColors: Record<Fault["urgency"], { bg: string; fg: string }> = {
+  const urgencyColors: Record<Solicitud["urgency"], { bg: string; fg: string }> = {
     low: colors.urgencyLow,
     medium: colors.urgencyMedium,
     high: colors.urgencyHigh,
