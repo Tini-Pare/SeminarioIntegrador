@@ -16,6 +16,7 @@ describe("listEquipment", () => {
           eq_codigo: "AC-014",
           eq_nombre: "Aire Acondicionado",
           eq_estado: "operational",
+          eq_fecha_instalacion: "2026-01-15",
           lugares: { lu_nombre_sector: "Planta A" },
           tipos_de_equipos: { te_nombre: "Climatización" },
         },
@@ -40,6 +41,7 @@ describe("listEquipment", () => {
         type: "Climatización",
         location: "Planta A",
         status: "operational",
+        purchaseDate: "2026-01-15",
       },
     ]);
   });
@@ -62,6 +64,7 @@ describe("getEquipmentById", () => {
         eq_codigo: "AC-014",
         eq_nombre: "Aire Acondicionado",
         eq_estado: "operational",
+        eq_fecha_instalacion: null,
         lugares: { lu_nombre_sector: "Planta A" },
         tipos_de_equipos: { te_nombre: "Climatización" },
       },
@@ -81,6 +84,7 @@ describe("getEquipmentById", () => {
       type: "Climatización",
       location: "Planta A",
       status: "operational",
+      purchaseDate: null,
     });
   });
 

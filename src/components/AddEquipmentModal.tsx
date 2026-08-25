@@ -5,6 +5,7 @@ import type { Equipo } from "../types/database";
 import { AutocompleteInput } from "./AutocompleteInput";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { CustomDatePicker, isValidDateString, toDbDate } from "./CustomDatePicker";
 
 export function AddEquipmentModal({
   visible,
@@ -19,6 +20,7 @@ export function AddEquipmentModal({
   const [name, setName] = useState("");
   const [type, setType] = useState("");
   const [location, setLocation] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<Equipo[]>([]);
@@ -33,8 +35,12 @@ export function AddEquipmentModal({
   }, [visible]);
 
   async function handleSubmit() {
-    if (!code.trim() || !name.trim() || !type.trim() || !location.trim()) {
-      setError("Completá código, nombre, tipo y ubicación.");
+    if (!code.trim() || !name.trim() || !type.trim() || !location.trim() || !purchaseDate.trim()) {
+      setError("Completá todos los campos, incluyendo la fecha de compra.");
+      return;
+    }
+    if (!isValidDateString(purchaseDate.trim())) {
+      setError("Ingresá una fecha válida en formato dd/mm/aaaa.");
       return;
     }
     setSaving(true);
@@ -45,12 +51,14 @@ export function AddEquipmentModal({
         name: name.trim(),
         type: type.trim(),
         location: location.trim(),
+        purchaseDate: toDbDate(purchaseDate.trim()),
       });
 
       setCode("");
       setName("");
       setType("");
       setLocation("");
+      setPurchaseDate("");
       onCreated();
       onClose();
     } catch (e) {
@@ -96,11 +104,19 @@ export function AddEquipmentModal({
           />
 
           <Text style={styles.label}>Ubicación</Text>
+
           <AutocompleteInput
             value={location}
             onChangeText={setLocation}
             options={existing.map((e) => e.location)}
             placeholder="Ej: Planta A · Sala de Servidores"
+          />
+
+          <Text style={styles.label}>Fecha de compra</Text>
+
+          <CustomDatePicker
+            value={purchaseDate}
+            onChange={setPurchaseDate}
           />
 
           {error && <Text style={styles.error}>{error}</Text>}

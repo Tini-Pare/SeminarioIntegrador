@@ -120,3 +120,23 @@ export function RequestsIcon({ size = 18, color = "currentColor" }: IconProps) {
     </Svg>
   );
 }
+
+export function CalendarIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M19 4H5c-1.11 0-2 .89-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.11-.9-2-2-2z" />
+      <Path d="M16 2v4" />
+      <Path d="M8 2v4" />
+      <Path d="M3 10h18" />
+    </Svg>
+  );
+}

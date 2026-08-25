@@ -278,6 +278,7 @@ export type Equipo = {
   type: string;
   location: string;
   status: "operational" | "waiting" | "repair";
+  purchaseDate: string | null;
 };
 
 export type Solicitud = {

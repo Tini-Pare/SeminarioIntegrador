@@ -15,6 +15,7 @@ function mapEquipo(row: EquipoRow): Equipo {
     type: row.tipos_de_equipos?.te_nombre ?? "",
     location: row.lugares?.lu_nombre_sector ?? "",
     status: row.eq_estado,
+    purchaseDate: row.eq_fecha_instalacion,
   };
 }
 
@@ -80,6 +81,7 @@ export async function createEquipment(input: {
   name: string;
   type: string;
   location: string;
+  purchaseDate: string | null;
 }): Promise<Equipo> {
   const [teId, luCodigo] = await Promise.all([
     getOrCreateTipoEquipo(input.type),
@@ -87,7 +89,13 @@ export async function createEquipment(input: {
   ]);
   const { data, error } = await supabase
     .from("equipo")
-    .insert({ eq_codigo: input.code, eq_nombre: input.name, te_id: teId, lu_codigo: luCodigo })
+    .insert({
+      eq_codigo: input.code,
+      eq_nombre: input.name,
+      te_id: teId,
+      lu_codigo: luCodigo,
+      eq_fecha_instalacion: input.purchaseDate,
+    })
     .select("*, lugares(*), tipos_de_equipos(*)")
     .single();
   if (error) throw new Error(error.message);
@@ -101,6 +109,7 @@ export async function updateEquipment(
     name: string;
     type: string;
     location: string;
+    purchaseDate: string | null;
   },
 ): Promise<void> {
   const [teId, luCodigo] = await Promise.all([
@@ -109,7 +118,13 @@ export async function updateEquipment(
   ]);
   const { error } = await supabase
     .from("equipo")
-    .update({ eq_codigo: changes.code, eq_nombre: changes.name, te_id: teId, lu_codigo: luCodigo })
+    .update({
+      eq_codigo: changes.code,
+      eq_nombre: changes.name,
+      te_id: teId,
+      lu_codigo: luCodigo,
+      eq_fecha_instalacion: changes.purchaseDate,
+    })
     .eq("eq_id_equipo", id);
   if (error) throw new Error(error.message);
 }

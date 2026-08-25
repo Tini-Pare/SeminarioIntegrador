@@ -36,7 +36,8 @@
           "photosPermission": "Mantia necesita acceso a tus fotos para adjuntar imágenes de fallas.",
           "cameraPermission": "Mantia necesita acceso a la cámara para sacar fotos de fallas."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

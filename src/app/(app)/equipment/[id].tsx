@@ -208,7 +208,17 @@ export default function EquipmentDetail() {
 
           <View style={styles.metaGrid}>
             <MetaCell label="Ubicación" value={equipment.location} />
+
             <MetaCell label="Tipo" value={equipment.type} />
+
+            <MetaCell
+              label="Fecha de compra"
+              value={
+                equipment.purchaseDate
+                  ? new Date(equipment.purchaseDate + "T00:00:00").toLocaleDateString("es-AR")
+                  : "No registrada"
+              }
+            />
           </View>
         </View>
 
