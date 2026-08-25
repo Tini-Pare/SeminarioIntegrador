@@ -308,7 +308,6 @@ export function CustomDatePicker({
     </View>
   );
 }
-
 function makeStyles(c: ThemeColors, flipVertical: boolean) {
   return StyleSheet.create({
     container: {
@@ -363,39 +362,33 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       bottom: flipVertical ? 48 : undefined,
       left: 0,
       right: 0,
-      maxHeight: 240,
       backgroundColor: c.bgModal,
       borderWidth: 1,
       borderColor: c.borderInput,
       borderRadius: 12,
-      padding: 8,
+      padding: 6,
       zIndex: 60,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
       shadowRadius: 5,
       elevation: 5,
-      ...(Platform.OS === "web"
-        ? {
-            boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)",
-            overflowY: "auto",
-          }
-        : {}),
+      ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)" } : {}),
     },
     header: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginBottom: 6,
+      marginBottom: 4,
     },
     headerTitle: {
-      fontSize: 12,
+      fontSize: 11.5,
       fontWeight: "600",
       color: c.text,
     },
     navButton: {
-      width: 22,
-      height: 22,
+      width: 20,
+      height: 20,
       alignItems: "center",
       justifyContent: "center",
       borderRadius: 4,
@@ -404,18 +397,18 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       backgroundColor: c.bgInput,
     },
     navButtonText: {
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: "600",
       color: c.textLabel,
     },
     weekdaysRow: {
       flexDirection: "row",
-      marginBottom: 3,
+      marginBottom: 2,
     },
     weekdayText: {
       width: "14.28%",
       textAlign: "center",
-      fontSize: 9,
+      fontSize: 8.5,
       fontWeight: "600",
       color: c.textMuted,
     },
@@ -425,15 +418,15 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
     },
     dayCell: {
       width: "14.28%",
-      height: 24,
+      height: 22,
       alignItems: "center",
       justifyContent: "center",
       borderRadius: 4,
-      marginVertical: 0.5,
+      marginVertical: 0,
     },
     dayCellEmpty: {
       width: "14.28%",
-      height: 24,
+      height: 22,
     },
     dayCellToday: {
       borderWidth: 1,
@@ -446,7 +439,7 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       opacity: 0.3,
     },
     dayText: {
-      fontSize: 10.5,
+      fontSize: 10,
       color: c.text,
     },
     dayTextToday: {
