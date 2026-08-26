@@ -261,7 +261,7 @@ export default function AppLayout() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  wideContainer: { flex: 1, flexDirection: "row" },
+  wideContainer: { flex: 1, flexDirection: "row", minHeight: 0 },
   sidebar: { width: 250, padding: 16, paddingTop: 20 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 8 },
   logo: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
@@ -284,8 +284,8 @@ const styles = StyleSheet.create({
   avatarText: { fontWeight: "600", fontSize: 14 },
   userName: { fontSize: 13.5, fontWeight: "600" },
   userRole: { color: "#7c808b", fontSize: 11.5 },
-  content: { flex: 1 },
-  narrowContainer: { flex: 1 },
+  content: { flex: 1, minHeight: 0 },
+  narrowContainer: { flex: 1, minHeight: 0 },
   narrowTopBar: {
     flexDirection: "row",
     alignItems: "center",
