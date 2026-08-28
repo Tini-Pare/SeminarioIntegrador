@@ -52,6 +52,7 @@ export default function AppLayout() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const { width } = useWindowDimensions();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
@@ -118,14 +119,31 @@ export default function AppLayout() {
       : []),
   ];
 
+  const mobilePrimaryKeys =
+    role === "admin"
+      ? ["equipment", "requests", "users"]
+      : ["equipment", role === "technician" ? "queue" : "requests"];
+  const mobilePrimaryItems = mobilePrimaryKeys
+    .map((key) => navItems.find((item) => item.key === key))
+    .filter((item): item is NavItem => !!item);
+  const mobileMoreItems = navItems.filter((item) => !mobilePrimaryKeys.includes(item.key));
+  const mobileMoreActive = mobileMoreItems.some((item) => pathname.startsWith(item.href));
+
   function goToSettings() {
     setMenuOpen(false);
+    setMoreOpen(false);
     router.push("/settings");
   }
 
   function handleLogout() {
     setMenuOpen(false);
+    setMoreOpen(false);
     signOut();
+  }
+
+  function navigateTo(href: string) {
+    setMoreOpen(false);
+    router.push(href as never);
   }
 
   if (isWide) {
@@ -219,7 +237,13 @@ export default function AppLayout() {
         </View>
 
         <View style={{ position: "relative" }}>
-          <Pressable style={styles.narrowUserRow} onPress={() => setMenuOpen((v) => !v)}>
+          <Pressable
+            style={styles.narrowUserRow}
+            onPress={() => {
+              setMoreOpen(false);
+              setMenuOpen((v) => !v);
+            }}
+          >
             <View style={[styles.narrowAvatar, { backgroundColor: colors.avatarBg }]}>
               <Text style={[styles.narrowAvatarText, { color: colors.avatarFg }]}>
                 {initials(profile?.name)}
@@ -251,6 +275,35 @@ export default function AppLayout() {
 
       {menuOpen && <Pressable style={styles.backdrop} onPress={() => setMenuOpen(false)} />}
 
+      {moreOpen && <Pressable style={styles.moreBackdrop} onPress={() => setMoreOpen(false)} />}
+
+      {moreOpen && (
+        <View
+          style={[
+            styles.moreMenu,
+            { bottom: 58 + insets.bottom, backgroundColor: colors.bgBottomBar },
+          ]}
+        >
+          {mobileMoreItems.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Pressable
+                key={item.key}
+                style={[styles.moreItem, active && { backgroundColor: colors.bgNavActive }]}
+                onPress={() => navigateTo(item.href)}
+              >
+                <item.Icon size={18} color={active ? colors.accent : colors.textMuted} />
+                <Text
+                  style={[styles.moreItemText, { color: active ? colors.accent : colors.text }]}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
       <View
         style={[
           styles.bottomBar,
@@ -261,13 +314,13 @@ export default function AppLayout() {
           },
         ]}
       >
-        {navItems.map((item) => {
+        {mobilePrimaryItems.map((item) => {
           const active = pathname.startsWith(item.href);
           return (
             <Pressable
               key={item.key}
               style={styles.bottomItem}
-              onPress={() => router.push(item.href as never)}
+              onPress={() => navigateTo(item.href)}
             >
               <item.Icon size={19} color={active ? colors.accent : colors.textMuted} />
               <Text
@@ -282,6 +335,47 @@ export default function AppLayout() {
             </Pressable>
           );
         })}
+
+        {mobileMoreItems.length > 0 && (
+          <Pressable
+            accessibilityLabel="Ver más opciones"
+            accessibilityRole="button"
+            style={styles.bottomItem}
+            onPress={() => {
+              setMenuOpen(false);
+              setMoreOpen((current) => !current);
+            }}
+          >
+            <View
+              style={[
+                styles.moreIcon,
+                { borderColor: colors.textMuted },
+                mobileMoreActive && {
+                  backgroundColor: colors.accent,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.moreIconText,
+                  { color: mobileMoreActive ? "#fff" : colors.textMuted },
+                ]}
+              >
+                +
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.bottomItemText,
+                {
+                  color: mobileMoreActive ? colors.accent : colors.textMuted,
+                },
+              ]}
+            >
+              Más
+            </Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -345,11 +439,42 @@ const styles = StyleSheet.create({
   narrowAvatarText: { fontWeight: "700", fontSize: 11 },
   narrowUserName: { fontSize: 12.5, fontWeight: "600" },
   narrowUserRole: { fontSize: 10.5, marginTop: 1 },
-  bottomBar: { flexDirection: "row", borderTopWidth: 1 },
+  bottomBar: { flexDirection: "row", borderTopWidth: 1, zIndex: 60, elevation: 20 },
   bottomItem: { flex: 1, alignItems: "center", gap: 3, paddingVertical: 12 },
   bottomItemText: { fontSize: 11.5, fontWeight: "500" },
+  moreIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#7c808b",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moreIconText: { color: "#fff", fontSize: 20, lineHeight: 21, fontWeight: "400" },
   elevated: { zIndex: 50 },
   backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 40 },
+  moreBackdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 45 },
+  moreMenu: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#3a3e4c",
+    borderRadius: 14,
+    zIndex: 55,
+    elevation: 20,
+  },
+  moreItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: 9,
+  },
+  moreItemText: { fontSize: 14, fontWeight: "500" },
   menuAnchorUp: { position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: 8 },
   menuAnchorDown: { position: "absolute", top: "100%", right: 0, marginTop: 8 },
 });
