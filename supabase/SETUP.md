@@ -43,7 +43,7 @@ Project Settings → API Keys → "Publishable and secret API keys" tab:
 
 ## 4. Set the app's environment variables
 
-In `mantia/.env` (create it from `.env.example` if it doesn't exist):
+In `.env` at the repo root (create it if it doesn't exist):
 
 ```
 EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co

@@ -10,7 +10,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountMenu } from "../../components/AccountMenu";
-import { EquipmentIcon, LocationIcon, RequestsIcon, UsersIcon } from "../../components/icons";
+import {
+  EquipmentIcon,
+  EquipmentTypeIcon,
+  GeneralTaskIcon,
+  LocationIcon,
+  RequestsIcon,
+  UsersIcon,
+  WarningIcon,
+} from "../../components/icons";
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signOut } from "../../lib/auth";
 import { useTheme } from "../../lib/ThemeContext";
@@ -71,6 +79,24 @@ export default function AppLayout() {
       ? [
           { key: "users", label: "Usuarios", href: "/users", Icon: UsersIcon },
           { key: "locations", label: "Ubicaciones", href: "/locations", Icon: LocationIcon },
+          {
+            key: "equipment-types",
+            label: "Tipos de equipo",
+            href: "/equipment-types",
+            Icon: EquipmentTypeIcon,
+          },
+          {
+            key: "general-tasks",
+            label: "Tareas generales",
+            href: "/general-tasks",
+            Icon: GeneralTaskIcon,
+          },
+          {
+            key: "fault-types",
+            label: "Fallas genéricas",
+            href: "/fault-types",
+            Icon: WarningIcon,
+          },
         ]
       : []),
     { key: "equipment", label: "Equipos", href: "/equipment", Icon: EquipmentIcon },
@@ -118,14 +144,11 @@ export default function AppLayout() {
 
           <View style={styles.navList}>
             {navItems.map((item) => {
-              const active = pathname.startsWith(item.href);
+              const active = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Pressable
                   key={item.key}
-                  style={[
-                    styles.navItem,
-                    active && { backgroundColor: colors.bgNavActive },
-                  ]}
+                  style={[styles.navItem, active && { backgroundColor: colors.bgNavActive }]}
                   onPress={() => router.push(item.href as never)}
                 >
                   <item.Icon size={17} color={active ? "#fff" : colors.textNavInactive} />
@@ -143,12 +166,7 @@ export default function AppLayout() {
             })}
           </View>
 
-          <View
-            style={[
-              styles.sidebarFooter,
-              { borderTopColor: colors.borderSidebar },
-            ]}
-          >
+          <View style={[styles.sidebarFooter, { borderTopColor: colors.borderSidebar }]}>
             <View style={{ position: "relative" }}>
               <Pressable style={styles.userRow} onPress={() => setMenuOpen((v) => !v)}>
                 <View style={[styles.avatar, { backgroundColor: colors.avatarBg }]}>
@@ -205,7 +223,10 @@ export default function AppLayout() {
               </Text>
             </View>
             <View style={{ flexShrink: 1, minWidth: 0 }}>
-              <Text style={[styles.narrowUserName, { color: colors.textSidebar }]} numberOfLines={1}>
+              <Text
+                style={[styles.narrowUserName, { color: colors.textSidebar }]}
+                numberOfLines={1}
+              >
                 {profile?.name}
               </Text>
               <Text style={[styles.narrowUserRole, { color: colors.textNavInactive }]}>
@@ -230,11 +251,15 @@ export default function AppLayout() {
       <View
         style={[
           styles.bottomBar,
-          { paddingBottom: insets.bottom, borderTopColor: colors.borderBottom, backgroundColor: colors.bgBottomBar },
+          {
+            paddingBottom: insets.bottom,
+            borderTopColor: colors.borderBottom,
+            backgroundColor: colors.bgBottomBar,
+          },
         ]}
       >
         {navItems.map((item) => {
-          const active = pathname.startsWith(item.href);
+          const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Pressable
               key={item.key}
@@ -280,7 +305,13 @@ const styles = StyleSheet.create({
   navItemTextActive: { color: "#fff" },
   sidebarFooter: { marginTop: "auto", paddingTop: 16, borderTopWidth: 1 },
   userRow: { flexDirection: "row", alignItems: "center", gap: 11, padding: 8 },
-  avatar: { width: 36, height: 36, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatarText: { fontWeight: "600", fontSize: 14 },
   userName: { fontSize: 13.5, fontWeight: "600" },
   userRole: { color: "#7c808b", fontSize: 11.5 },
@@ -301,7 +332,13 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     minWidth: 0,
   },
-  narrowAvatar: { width: 26, height: 26, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  narrowAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   narrowAvatarText: { fontWeight: "700", fontSize: 11 },
   narrowUserName: { fontSize: 12.5, fontWeight: "600" },
   narrowUserRole: { fontSize: 10.5, marginTop: 1 },

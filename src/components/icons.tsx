@@ -104,6 +104,47 @@ export function EquipmentIcon({ size = 18, color = "currentColor" }: IconProps) 
   );
 }
 
+// Stacked layers — "categories/types that equipment is grouped into".
+export function EquipmentTypeIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M12 3l9 5-9 5-9-5 9-5z" />
+      <Path d="M3 13l9 5 9-5" />
+      <Path d="M3 17.5l9 5 9-5" />
+    </Svg>
+  );
+}
+
+// Clipboard with a checklist — the catalog of standard technical tasks.
+export function GeneralTaskIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M9 4h6a1 1 0 011 1v1H8V5a1 1 0 011-1z" />
+      <Path d="M8 6H6a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V7a1 1 0 00-1-1h-2" />
+      <Path d="M8.5 12.5l1.5 1.5 3-3.5" />
+      <Path d="M15 16.5h-4" />
+    </Svg>
+  );
+}
+
 export function RequestsIcon({ size = 18, color = "currentColor" }: IconProps) {
   return (
     <Svg

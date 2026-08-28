@@ -65,6 +65,45 @@ export type Database = {
         Update: { te_id?: number; te_nombre?: string; te_cantidad?: number | null };
         Relationships: [];
       };
+      tareas_generales: {
+        Row: {
+          tag_id_tarea: number;
+          tag_nombre_tarea: string;
+          tag_descripcion_tarea: string | null;
+        };
+        Insert: {
+          tag_id_tarea?: number;
+          tag_nombre_tarea: string;
+          tag_descripcion_tarea?: string | null;
+        };
+        Update: {
+          tag_id_tarea?: number;
+          tag_nombre_tarea?: string;
+          tag_descripcion_tarea?: string | null;
+        };
+        Relationships: [];
+      };
+      fallo: {
+        Row: {
+          fa_id_fallo: number;
+          fa_nombre: string;
+          fa_desperfecto: string | null;
+          fa_gravedad: string | null;
+        };
+        Insert: {
+          fa_id_fallo?: number;
+          fa_nombre: string;
+          fa_desperfecto?: string | null;
+          fa_gravedad?: string | null;
+        };
+        Update: {
+          fa_id_fallo?: number;
+          fa_nombre?: string;
+          fa_desperfecto?: string | null;
+          fa_gravedad?: string | null;
+        };
+        Relationships: [];
+      };
       equipo: {
         Row: {
           eq_id_equipo: number;
@@ -265,6 +304,8 @@ export type Database = {
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Lugar = Database["public"]["Tables"]["lugares"]["Row"];
 export type TipoEquipo = Database["public"]["Tables"]["tipos_de_equipos"]["Row"];
+export type TareaGeneral = Database["public"]["Tables"]["tareas_generales"]["Row"];
+export type Fallo = Database["public"]["Tables"]["fallo"]["Row"];
 
 // Equipo/Solicitud/HistorialEntry are the query layer's computed/joined
 // view shapes (see src/lib/queries/equipment.ts and faults.ts), not raw
@@ -276,7 +317,9 @@ export type Equipo = {
   code: string;
   name: string;
   type: string;
+  typeId: number;
   location: string;
+  locationId: number;
   status: "operational" | "waiting" | "repair";
   purchaseDate: string | null;
 };

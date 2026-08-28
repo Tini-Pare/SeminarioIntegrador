@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { CalendarIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -51,12 +59,19 @@ export function CustomDatePicker({
   value,
   onChange,
   placeholder = "dd/mm/aaaa",
+  open: openProp,
+  onOpenChange,
 }: {
   value: string;
   onChange: (val: string) => void;
   placeholder?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const controlled = onOpenChange !== undefined;
+  const isOpen = controlled ? !!openProp : openState;
+  const setIsOpen = (v: boolean) => (controlled ? onOpenChange!(v) : setOpenState(v));
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [flipVertical, setFlipVertical] = useState(false);
@@ -180,7 +195,7 @@ export function CustomDatePicker({
   const todayDate = new Date();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, !isOpen && styles.containerClosed]}>
       <View ref={inputRef} style={styles.inputWrapper}>
         <TextInput
           style={styles.input}
@@ -277,6 +292,11 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
       width: "100%",
       zIndex: 50,
     },
+    // When closed the calendar must not sit above sibling dropdowns (Select)
+    // that open on top of this field.
+    containerClosed: {
+      zIndex: 1,
+    },
     inputWrapper: {
       flexDirection: "row",
       alignItems: "center",
@@ -311,8 +331,8 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
     },
     dropdown: {
       position: "absolute",
-      top: showOnRight ? (flipVertical ? undefined : 0) : (flipVertical ? undefined : 48),
-      bottom: showOnRight ? (flipVertical ? 0 : undefined) : (flipVertical ? 48 : undefined),
+      top: showOnRight ? (flipVertical ? undefined : 0) : flipVertical ? undefined : 48,
+      bottom: showOnRight ? (flipVertical ? 0 : undefined) : flipVertical ? 48 : undefined,
       left: showOnRight ? "100%" : 0,
       marginLeft: showOnRight ? 8 : 0,
       width: 250,

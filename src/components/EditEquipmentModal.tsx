@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
-import { listEquipment, updateEquipment } from "../lib/queries/equipment";
-import { AutocompleteInput } from "./AutocompleteInput";
+import { updateEquipment } from "../lib/queries/equipment";
+import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
+import { listLocations } from "../lib/queries/locations";
+import { Select } from "./Select";
 import type { Equipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -20,12 +22,14 @@ export function EditEquipmentModal({
 }) {
   const [code, setCode] = useState(equipment.code);
   const [name, setName] = useState(equipment.name);
-  const [type, setType] = useState(equipment.type);
-  const [location, setLocation] = useState(equipment.location);
+  const [typeId, setTypeId] = useState<number | null>(equipment.typeId);
+  const [locationId, setLocationId] = useState<number | null>(equipment.locationId);
   const [purchaseDate, setPurchaseDate] = useState(fromDbDate(equipment.purchaseDate));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existing, setExisting] = useState<Equipo[]>([]);
+  const [types, setTypes] = useState<{ value: number; label: string }[]>([]);
+  const [locations, setLocations] = useState<{ value: number; label: string }[]>([]);
+  const [openField, setOpenField] = useState<"type" | "location" | "date" | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -46,17 +50,29 @@ export function EditEquipmentModal({
     if (!visible) return;
     setCode(equipment.code);
     setName(equipment.name);
-    setType(equipment.type);
-    setLocation(equipment.location);
+    setTypeId(equipment.typeId);
+    setLocationId(equipment.locationId);
     setPurchaseDate(fromDbDate(equipment.purchaseDate));
-    listEquipment()
-      .then(setExisting)
+    setOpenField(null);
+    setError(null);
+
+    listEquipmentTypes()
+      .then((rows) => setTypes(rows.map((t) => ({ value: t.te_id, label: t.te_nombre }))))
+      .catch(() => {});
+    listLocations()
+      .then((rows) =>
+        setLocations(rows.map((l) => ({ value: l.lu_codigo, label: l.lu_nombre_sector }))),
+      )
       .catch(() => {});
   }, [visible, equipment]);
 
   async function handleSubmit() {
-    if (!code.trim() || !name.trim() || !type.trim() || !location.trim() || !purchaseDate.trim()) {
-      setError("Completá todos los campos, incluyendo la fecha de compra.");
+    if (!code.trim() || !name.trim() || !purchaseDate.trim()) {
+      setError("Completá el código, el nombre y la fecha de compra.");
+      return;
+    }
+    if (typeId == null || locationId == null) {
+      setError("Elegí un tipo y una ubicación.");
       return;
     }
     if (!isValidDateString(purchaseDate.trim())) {
@@ -69,8 +85,8 @@ export function EditEquipmentModal({
       await updateEquipment(equipment.id, {
         code: code.trim(),
         name: name.trim(),
-        type: type.trim(),
-        location: location.trim(),
+        typeId,
+        locationId,
         purchaseDate: toDbDate(purchaseDate.trim()),
       });
       onSaved();
@@ -107,20 +123,23 @@ export function EditEquipmentModal({
           />
 
           <Text style={styles.label}>Tipo</Text>
-          <AutocompleteInput
-            value={type}
-            onChangeText={setType}
-            options={existing.map((e) => e.type)}
-            placeholder="Ej: Climatización"
+          <Select
+            value={typeId}
+            onChange={setTypeId}
+            options={types}
+            placeholder="Elegí un tipo de equipo"
+            open={openField === "type"}
+            onOpenChange={(o) => setOpenField(o ? "type" : null)}
           />
 
           <Text style={styles.label}>Ubicación</Text>
-
-          <AutocompleteInput
-            value={location}
-            onChangeText={setLocation}
-            options={existing.map((e) => e.location)}
-            placeholder="Ej: Planta A · Sala de Servidores"
+          <Select
+            value={locationId}
+            onChange={setLocationId}
+            options={locations}
+            placeholder="Elegí una ubicación"
+            open={openField === "location"}
+            onOpenChange={(o) => setOpenField(o ? "location" : null)}
           />
 
           <Text style={styles.label}>Fecha de compra</Text>
@@ -128,6 +147,8 @@ export function EditEquipmentModal({
           <CustomDatePicker
             value={purchaseDate}
             onChange={setPurchaseDate}
+            open={openField === "date"}
+            onOpenChange={(o) => setOpenField(o ? "date" : null)}
           />
 
           <Text style={styles.label}>Estado</Text>
@@ -158,7 +179,12 @@ export function EditEquipmentModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -168,7 +194,13 @@ function makeStyles(c: ThemeColors) {
       alignSelf: "center",
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 8 },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 14, marginBottom: 6 },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginTop: 14,
+      marginBottom: 6,
+    },
     input: {
       height: 44,
       paddingHorizontal: 14,
@@ -180,7 +212,12 @@ function makeStyles(c: ThemeColors) {
       color: c.text,
     },
     statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-    statusBadge: { alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999 },
+    statusBadge: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 11,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
     statusBadgeText: { fontSize: 12.5, fontWeight: "600" },
     statusNote: { fontSize: 12, color: c.textMuted },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },

@@ -13,52 +13,12 @@ function mapEquipo(row: EquipoRow): Equipo {
     code: row.eq_codigo,
     name: row.eq_nombre,
     type: row.tipos_de_equipos?.te_nombre ?? "",
+    typeId: row.te_id,
     location: row.lugares?.lu_nombre_sector ?? "",
+    locationId: row.lu_codigo,
     status: row.eq_estado,
     purchaseDate: row.eq_fecha_instalacion,
   };
-}
-
-// "Buscar o crear": AddEquipmentModal/EditEquipmentModal still take
-// lugar/tipo as free text with autocomplete suggestions — these reuse an
-// existing row (case-insensitive match) or create one on the fly, so the
-// app doesn't need separate lugares/tipos_de_equipos admin screens.
-async function getOrCreateLugar(nombreSector: string, piso?: string | null): Promise<number> {
-  const nombre = nombreSector.trim();
-  const { data: existing, error: findError } = await supabase
-    .from("lugares")
-    .select("lu_codigo")
-    .ilike("lu_nombre_sector", nombre)
-    .maybeSingle();
-  if (findError) throw new Error(findError.message);
-  if (existing) return existing.lu_codigo;
-
-  const { data, error } = await supabase
-    .from("lugares")
-    .insert({ lu_nombre_sector: nombre, lu_piso: piso ?? null })
-    .select("lu_codigo")
-    .single();
-  if (error) throw new Error(error.message);
-  return data.lu_codigo;
-}
-
-async function getOrCreateTipoEquipo(nombre: string): Promise<number> {
-  const trimmed = nombre.trim();
-  const { data: existing, error: findError } = await supabase
-    .from("tipos_de_equipos")
-    .select("te_id")
-    .ilike("te_nombre", trimmed)
-    .maybeSingle();
-  if (findError) throw new Error(findError.message);
-  if (existing) return existing.te_id;
-
-  const { data, error } = await supabase
-    .from("tipos_de_equipos")
-    .insert({ te_nombre: trimmed })
-    .select("te_id")
-    .single();
-  if (error) throw new Error(error.message);
-  return data.te_id;
 }
 
 export async function listEquipment(): Promise<Equipo[]> {
@@ -79,21 +39,17 @@ export async function listEquipment(): Promise<Equipo[]> {
 export async function createEquipment(input: {
   code: string;
   name: string;
-  type: string;
-  location: string;
+  typeId: number;
+  locationId: number;
   purchaseDate: string | null;
 }): Promise<Equipo> {
-  const [teId, luCodigo] = await Promise.all([
-    getOrCreateTipoEquipo(input.type),
-    getOrCreateLugar(input.location),
-  ]);
   const { data, error } = await supabase
     .from("equipo")
     .insert({
       eq_codigo: input.code,
       eq_nombre: input.name,
-      te_id: teId,
-      lu_codigo: luCodigo,
+      te_id: input.typeId,
+      lu_codigo: input.locationId,
       eq_fecha_instalacion: input.purchaseDate,
     })
     .select("*, lugares(*), tipos_de_equipos(*)")
@@ -107,22 +63,18 @@ export async function updateEquipment(
   changes: {
     code: string;
     name: string;
-    type: string;
-    location: string;
+    typeId: number;
+    locationId: number;
     purchaseDate: string | null;
   },
 ): Promise<void> {
-  const [teId, luCodigo] = await Promise.all([
-    getOrCreateTipoEquipo(changes.type),
-    getOrCreateLugar(changes.location),
-  ]);
   const { error } = await supabase
     .from("equipo")
     .update({
       eq_codigo: changes.code,
       eq_nombre: changes.name,
-      te_id: teId,
-      lu_codigo: luCodigo,
+      te_id: changes.typeId,
+      lu_codigo: changes.locationId,
       eq_fecha_instalacion: changes.purchaseDate,
     })
     .eq("eq_id_equipo", id);
