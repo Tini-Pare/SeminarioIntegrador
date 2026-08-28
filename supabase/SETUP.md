@@ -27,6 +27,8 @@ SQL Editor → run, in order:
    location selectors update when an admin creates or edits a location.
 4. `migrations/0005_tipos_de_equipos.sql` — seeds the equipment type catalog
    and adds `tipos_de_equipos` to Realtime for the type selector.
+5. `migrations/0006_mas_tipos_de_equipos.sql` — adds more options to the
+   equipment type catalog without duplicating existing values.
 
 Do **not** run `migrations/0002_gestion_mantenimiento.sql` — it's the raw
 reference model 0003 was adapted from (no RLS, no Supabase Auth wiring,
