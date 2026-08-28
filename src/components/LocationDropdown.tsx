@@ -76,7 +76,7 @@ export function LocationDropdown({
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     wrap: { position: "relative", zIndex: 1 },
-    wrapOpen: { zIndex: 1000, elevation: 50 },
+    wrapOpen: { zIndex: 10000, elevation: 100 },
     select: {
       height: 44,
       flexDirection: "row",
@@ -103,7 +103,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       overflow: "hidden",
       zIndex: 1001,
-      elevation: 20,
+      elevation: 100,
     },
     backdrop: {
       position: Platform.OS === "web" ? "fixed" : "absolute",

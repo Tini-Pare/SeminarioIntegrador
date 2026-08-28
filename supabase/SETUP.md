@@ -37,6 +37,13 @@ SQL Editor → run, in order:
    `fa_gravedad` column from the generic fault catalog.
 9. `migrations/0010_equipment_purchase_date.sql` — adds the equipment
    purchase date required by the catalog form.
+10. `migrations/0011_repair_catalog_active_columns.sql` — repairs existing
+    projects where the logical active columns were not applied.
+
+If the app reports `column fallo.fa_activo does not exist`, run
+`migrations/0011_repair_catalog_active_columns.sql` in the SQL Editor before
+opening `Fallas genéricas` again. The app cannot add schema columns with its
+public client key.
 
 Do **not** run `migrations/0002_gestion_mantenimiento.sql` — it's the raw
 reference model 0003 was adapted from (no RLS, no Supabase Auth wiring,

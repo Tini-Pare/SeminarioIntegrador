@@ -1,5 +1,13 @@
-import { useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import type { TipoEquipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -14,17 +22,34 @@ export function EquipmentTypeDropdown({
   onChange: (type: TipoEquipo) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(
+    null,
+  );
+  const anchorRef = useRef<View>(null);
   const { colors } = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const styles = makeStyles(colors);
   const dropdownHeight = Math.min(Math.max(types.length * 44 + 2, 46), 280);
 
+  function toggleDropdown() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    setOpen(true);
+    anchorRef.current?.measureInWindow((x, y, width, height) => {
+      setAnchor({ x, y, width, height });
+    });
+  }
+
   return (
-    <View style={[styles.wrap, open && styles.wrapOpen]}>
+    <View ref={anchorRef} style={[styles.wrap, open && styles.wrapOpen]}>
       <Pressable
         accessibilityLabel="Seleccionar tipo de equipo"
         accessibilityRole="button"
         style={styles.select}
-        onPress={() => setOpen((current) => !current)}
+        onPress={toggleDropdown}
       >
         <Text style={[styles.value, !value && styles.placeholder]} numberOfLines={1}>
           {value || "Seleccioná un tipo de equipo"}
@@ -33,35 +58,50 @@ export function EquipmentTypeDropdown({
       </Pressable>
 
       {open && (
-        <>
-          <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
+        <Modal transparent visible animationType="none" onRequestClose={() => setOpen(false)}>
+          <View style={styles.modalLayer}>
+            <Pressable style={styles.modalBackdrop} onPress={() => setOpen(false)} />
 
-          <View style={[styles.dropdown, { height: dropdownHeight }]}>
-            {types.length === 0 ? (
-              <Text style={styles.empty}>No hay tipos de equipo cargados.</Text>
-            ) : (
-              <ScrollView
-                style={styles.optionsScroll}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled
-                showsVerticalScrollIndicator
-              >
-                {types.map((type) => (
-                  <Pressable
-                    key={type.te_id}
-                    style={[styles.option, value === type.te_nombre && styles.optionSelected]}
-                    onPress={() => {
-                      onChange(type);
-                      setOpen(false);
-                    }}
-                  >
-                    <Text style={styles.optionText}>{type.te_nombre}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            )}
+            <View
+              style={[
+                styles.dropdown,
+                {
+                  top: (anchor?.y ?? 60) + (anchor?.height ?? 44) + 4,
+                  left: Math.max(
+                    12,
+                    Math.min(anchor?.x ?? 12, windowWidth - (anchor?.width ?? 260) - 12),
+                  ),
+                  width: Math.min(anchor?.width ?? windowWidth - 24, windowWidth - 24),
+                  height: dropdownHeight,
+                },
+              ]}
+            >
+              {types.length === 0 ? (
+                <Text style={styles.empty}>No hay tipos de equipo cargados.</Text>
+              ) : (
+                <ScrollView
+                  style={styles.optionsScroll}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator
+                >
+                  {types.map((type) => (
+                    <Pressable
+                      key={type.te_id}
+                      style={[styles.option, value === type.te_nombre && styles.optionSelected]}
+                      onPress={() => {
+                        onChange(type);
+                        setOpen(false);
+                      }}
+                    >
+                      <Text style={styles.optionText}>{type.te_nombre}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
           </View>
-        </>
+        </Modal>
       )}
     </View>
   );
@@ -70,7 +110,8 @@ export function EquipmentTypeDropdown({
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     wrap: { position: "relative", zIndex: 1 },
-    wrapOpen: { zIndex: 1000, elevation: 50 },
+    wrapOpen: { zIndex: 10000, elevation: 100 },
+    modalLayer: { flex: 1 },
     select: {
       height: 44,
       flexDirection: "row",
@@ -86,27 +127,23 @@ function makeStyles(c: ThemeColors) {
     value: { flex: 1, color: c.text, fontSize: 14 },
     placeholder: { color: c.textMuted },
     arrow: { color: c.textMuted, fontSize: 15 },
-    backdrop: {
-      position: Platform.OS === "web" ? "fixed" : "absolute",
-      top: Platform.OS === "web" ? 0 : -1000,
-      left: Platform.OS === "web" ? 0 : -1000,
-      right: Platform.OS === "web" ? 0 : -1000,
-      bottom: Platform.OS === "web" ? 0 : -1000,
-      zIndex: 999,
+    modalBackdrop: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
       backgroundColor: "transparent",
     },
     dropdown: {
       position: "absolute",
-      top: 48,
-      left: 0,
-      right: 0,
       backgroundColor: c.bgModal,
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: 10,
       overflow: "hidden",
-      zIndex: 1001,
-      elevation: 20,
+      zIndex: 2,
+      elevation: 100,
     },
     optionsScroll: { flex: 1 },
     option: { paddingHorizontal: 14, paddingVertical: 10 },

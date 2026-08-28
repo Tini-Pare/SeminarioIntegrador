@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { CalendarIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -180,16 +188,18 @@ export function CustomDatePicker({
   const todayDate = new Date();
 
   return (
-    <View style={styles.container}>
-      <View ref={inputRef} style={styles.inputWrapper}>
-        <TextInput
-          style={styles.input}
-          placeholder={placeholder}
-          placeholderTextColor={colors.textMuted}
-          value={value}
-          onChangeText={handleTextChange}
-          keyboardType="numeric"
-        />
+    <View style={[styles.container, isOpen && styles.containerOpen]}>
+      <View style={styles.fieldRow}>
+        <View ref={inputRef} style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            placeholder={placeholder}
+            placeholderTextColor={colors.textMuted}
+            value={value}
+            onChangeText={handleTextChange}
+            keyboardType="numeric"
+          />
+        </View>
 
         <Pressable style={styles.iconButton} onPress={handleToggle}>
           <CalendarIcon size={18} color={colors.textLabel} />
@@ -277,7 +287,18 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
       width: "100%",
       zIndex: 50,
     },
+    containerOpen: {
+      zIndex: 10000,
+      elevation: 100,
+    },
+    fieldRow: {
+      width: "100%",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
     inputWrapper: {
+      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       borderWidth: 1,
@@ -295,8 +316,8 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
       color: c.text,
     },
     iconButton: {
-      paddingHorizontal: 14,
-      height: "100%",
+      width: 34,
+      height: 44,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -311,8 +332,8 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
     },
     dropdown: {
       position: "absolute",
-      top: showOnRight ? (flipVertical ? undefined : 0) : (flipVertical ? undefined : 48),
-      bottom: showOnRight ? (flipVertical ? 0 : undefined) : (flipVertical ? 48 : undefined),
+      top: showOnRight ? (flipVertical ? undefined : 0) : flipVertical ? undefined : 48,
+      bottom: showOnRight ? (flipVertical ? 0 : undefined) : flipVertical ? 48 : undefined,
       left: showOnRight ? "100%" : 0,
       marginLeft: showOnRight ? 8 : 0,
       width: 250,
@@ -327,7 +348,7 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
       shadowRadius: 5,
-      elevation: 5,
+      elevation: 100,
       ...(Platform.OS === "web"
         ? {
             boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)",

@@ -217,7 +217,7 @@ export function EditEquipmentModal({
               </View>
             </View>
 
-            <View style={[styles.formField, styles.locationField]}>
+            <View style={styles.formField}>
               <Text style={styles.label}>Ubicación</Text>
               <LocationDropdown
                 value={location}
@@ -302,10 +302,9 @@ function makeStyles(c: ThemeColors) {
       position: "relative",
       zIndex: 100,
     },
-    locationField: { position: "relative", zIndex: 100 },
-    formRow: { flexDirection: "row", gap: 18, position: "relative", zIndex: 2 },
+    formRow: { flexDirection: "row", gap: 18 },
     formColumn: { flexDirection: "column", gap: 0 },
-    formField: { flex: 1, minWidth: 0, position: "relative", zIndex: 10 },
+    formField: { flex: 1, minWidth: 0 },
     statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
     statusBadge: {
       alignSelf: "flex-start",
