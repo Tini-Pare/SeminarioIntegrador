@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -68,6 +69,12 @@ export function CustomDatePicker({
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [flipVertical, setFlipVertical] = useState(false);
+  const [anchor, setAnchor] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const inputRef = useRef<View>(null);
   const { colors } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -169,23 +176,38 @@ export function CustomDatePicker({
   };
 
   const handleToggle = () => {
-    if (!isOpen) {
-      inputRef.current?.measure((x, y, width, height, pageX, pageY) => {
-        const dropdownHeight = 180;
-        const spaceBelow = windowHeight - pageY - height;
-        if (spaceBelow < dropdownHeight && pageY > dropdownHeight) {
-          setFlipVertical(true);
-        } else {
-          setFlipVertical(false);
-        }
-      });
+    if (isOpen) {
+      setIsOpen(false);
+      return;
     }
-    setIsOpen(!isOpen);
+
+    setIsOpen(true);
+    inputRef.current?.measureInWindow((x, y, width, height) => {
+      setFlipVertical(windowHeight - y - height < 180 && y > 180);
+      setAnchor({ x, y, width, height });
+    });
   };
 
   const calendarDays = getDaysInMonth(currentMonth, currentYear);
   const selectedDateObj = parseDateString(value);
   const todayDate = new Date();
+
+  function getDropdownPosition() {
+    if (!anchor) return { top: 60, left: 12 };
+
+    const left = showOnRight
+      ? Math.min(anchor.x + anchor.width + 8, windowWidth - 250 - 12)
+      : Math.min(Math.max(anchor.x, 12), Math.max(windowWidth - 250 - 12, 12));
+    const top = showOnRight
+      ? flipVertical
+        ? anchor.y + anchor.height - 180
+        : anchor.y
+      : flipVertical
+        ? anchor.y - 180 - 8
+        : anchor.y + anchor.height + 8;
+
+    return { top: Math.max(12, top), left: Math.max(12, left) };
+  }
 
   return (
     <View style={[styles.container, isOpen && styles.containerOpen]}>
@@ -207,74 +229,76 @@ export function CustomDatePicker({
       </View>
 
       {isOpen && (
-        <>
-          <Pressable style={styles.backdrop} onPress={() => setIsOpen(false)} />
+        <Modal transparent visible animationType="none" onRequestClose={() => setIsOpen(false)}>
+          <View style={styles.modalLayer}>
+            <Pressable style={styles.modalBackdrop} onPress={() => setIsOpen(false)} />
 
-          <View style={styles.dropdown}>
-            <View style={styles.header}>
-              <Pressable style={styles.navButton} onPress={() => changeMonth(-1)}>
-                <Text style={styles.navButtonText}>{"<"}</Text>
-              </Pressable>
+            <View style={[styles.dropdown, getDropdownPosition()]}>
+              <View style={styles.header}>
+                <Pressable style={styles.navButton} onPress={() => changeMonth(-1)}>
+                  <Text style={styles.navButtonText}>{"<"}</Text>
+                </Pressable>
 
-              <Text style={styles.headerTitle}>
-                {MONTH_NAMES[currentMonth]} {currentYear}
-              </Text>
-
-              <Pressable style={styles.navButton} onPress={() => changeMonth(1)}>
-                <Text style={styles.navButtonText}>{">"}</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.weekdaysRow}>
-              {WEEK_DAYS.map((day, idx) => (
-                <Text key={idx} style={styles.weekdayText}>
-                  {day}
+                <Text style={styles.headerTitle}>
+                  {MONTH_NAMES[currentMonth]} {currentYear}
                 </Text>
-              ))}
-            </View>
 
-            <View style={styles.daysGrid}>
-              {calendarDays.map((day, idx) => {
-                if (day === null) {
-                  return <View key={`empty-${idx}`} style={styles.dayCellEmpty} />;
-                }
+                <Pressable style={styles.navButton} onPress={() => changeMonth(1)}>
+                  <Text style={styles.navButtonText}>{">"}</Text>
+                </Pressable>
+              </View>
 
-                const isSelected =
-                  selectedDateObj &&
-                  selectedDateObj.getDate() === day.getDate() &&
-                  selectedDateObj.getMonth() === day.getMonth() &&
-                  selectedDateObj.getFullYear() === day.getFullYear();
+              <View style={styles.weekdaysRow}>
+                {WEEK_DAYS.map((day, idx) => (
+                  <Text key={idx} style={styles.weekdayText}>
+                    {day}
+                  </Text>
+                ))}
+              </View>
 
-                const isToday =
-                  todayDate.getDate() === day.getDate() &&
-                  todayDate.getMonth() === day.getMonth() &&
-                  todayDate.getFullYear() === day.getFullYear();
+              <View style={styles.daysGrid}>
+                {calendarDays.map((day, idx) => {
+                  if (day === null) {
+                    return <View key={`empty-${idx}`} style={styles.dayCellEmpty} />;
+                  }
 
-                return (
-                  <Pressable
-                    key={`day-${idx}`}
-                    style={[
-                      styles.dayCell,
-                      isToday && styles.dayCellToday,
-                      isSelected && styles.dayCellSelected,
-                    ]}
-                    onPress={() => handleSelectDay(day)}
-                  >
-                    <Text
+                  const isSelected =
+                    selectedDateObj &&
+                    selectedDateObj.getDate() === day.getDate() &&
+                    selectedDateObj.getMonth() === day.getMonth() &&
+                    selectedDateObj.getFullYear() === day.getFullYear();
+
+                  const isToday =
+                    todayDate.getDate() === day.getDate() &&
+                    todayDate.getMonth() === day.getMonth() &&
+                    todayDate.getFullYear() === day.getFullYear();
+
+                  return (
+                    <Pressable
+                      key={`day-${idx}`}
                       style={[
-                        styles.dayText,
-                        isToday && styles.dayTextToday,
-                        isSelected && styles.dayTextSelected,
+                        styles.dayCell,
+                        isToday && styles.dayCellToday,
+                        isSelected && styles.dayCellSelected,
                       ]}
+                      onPress={() => handleSelectDay(day)}
                     >
-                      {day.getDate()}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.dayText,
+                          isToday && styles.dayTextToday,
+                          isSelected && styles.dayTextSelected,
+                        ]}
+                      >
+                        {day.getDate()}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           </View>
-        </>
+        </Modal>
       )}
     </View>
   );
@@ -291,6 +315,7 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
       zIndex: 10000,
       elevation: 100,
     },
+    modalLayer: { flex: 1 },
     fieldRow: {
       width: "100%",
       flexDirection: "row",
@@ -321,21 +346,16 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
       alignItems: "center",
       justifyContent: "center",
     },
-    backdrop: {
-      position: Platform.OS === "web" ? "fixed" : "absolute",
-      top: Platform.OS === "web" ? 0 : -1000,
-      left: Platform.OS === "web" ? 0 : -1000,
-      right: Platform.OS === "web" ? 0 : -1000,
-      bottom: Platform.OS === "web" ? 0 : -1000,
-      zIndex: 999,
+    modalBackdrop: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
       backgroundColor: "transparent",
     },
     dropdown: {
       position: "absolute",
-      top: showOnRight ? (flipVertical ? undefined : 0) : flipVertical ? undefined : 48,
-      bottom: showOnRight ? (flipVertical ? 0 : undefined) : flipVertical ? 48 : undefined,
-      left: showOnRight ? "100%" : 0,
-      marginLeft: showOnRight ? 8 : 0,
       width: 250,
       maxHeight: 180,
       backgroundColor: c.bgModal,
@@ -343,7 +363,7 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
       borderColor: c.borderInput,
       borderRadius: 12,
       padding: 8,
-      zIndex: 1000,
+      zIndex: 2,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,

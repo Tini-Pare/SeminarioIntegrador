@@ -22,9 +22,12 @@ export function EquipmentTypeDropdown({
   onChange: (type: TipoEquipo) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(
-    null,
-  );
+  const [anchor, setAnchor] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const anchorRef = useRef<View>(null);
   const { colors } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
