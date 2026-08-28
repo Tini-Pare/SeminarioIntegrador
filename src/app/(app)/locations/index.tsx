@@ -12,6 +12,7 @@ import {
 import { LocationModal } from "../../../components/LocationModal";
 import { BREAKPOINT } from "../../../constants";
 import { listLocations } from "../../../lib/queries/locations";
+import { supabase } from "../../../lib/supabase";
 import type { LocationWithCount } from "../../../lib/queries/locations";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
@@ -39,6 +40,17 @@ export default function LocationsScreen() {
 
   useEffect(() => {
     load().finally(() => setLoading(false));
+  }, [load]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`locations-list-changes-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lugares" }, load)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [load]);
 
   async function onRefresh() {

@@ -1,58 +1,60 @@
-import { Stack, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Stack, router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { AddEquipmentModal } from "../../../components/AddEquipmentModal";
-import { EquipmentCard } from "../../../components/EquipmentCard";
+import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
+import { EditIcon, TrashIcon } from "../../../components/icons";
 import { ReportFaultModal } from "../../../components/ReportFaultModal";
+import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
-import { buildLocationColorMap } from "../../../lib/locationColor";
-import { listEquipment } from "../../../lib/queries/equipment";
+import { deleteEquipment, listEquipment } from "../../../lib/queries/equipment";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import type { Equipo, Profile } from "../../../types/database";
 
-type Filter = "all" | Equipo["status"];
-type SortBy = "location" | "code";
-
-const SORT_OPTIONS: { key: SortBy; label: string }[] = [
-  { key: "location", label: "Ubicación" },
-  { key: "code", label: "Código" },
-];
+const STATUS_LABEL: Record<Equipo["status"], string> = {
+  operational: "Funcionando",
+  waiting: "En espera",
+  repair: "En reparación",
+};
 
 export default function EquipmentScreen() {
   const [equipment, setEquipment] = useState<Equipo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [addModalVisible, setAddModalVisible] = useState(false);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [sortBy, setSortBy] = useState<SortBy>("location");
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [editing, setEditing] = useState<Equipo | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [reportingFault, setReportingFault] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const { width } = useWindowDimensions();
+  const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  const hasLoadedOnce = useRef(false);
-
-  function reload() {
-    if (!hasLoadedOnce.current) setLoading(true);
-    listEquipment()
-      .then((data) => {
-        setEquipment(data);
-        hasLoadedOnce.current = true;
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      setEquipment(await listEquipment());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
 
   useEffect(() => {
     getProfile().then(setProfile);
@@ -60,78 +62,61 @@ export default function EquipmentScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      reload();
-    }, []),
+      load().finally(() => setLoading(false));
+    }, [load]),
   );
 
   useEffect(() => {
     const channel = supabase
       .channel(`equipment-list-changes-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "equipo" }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "equipo" }, load)
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [load]);
 
-  const stats = useMemo(
-    () => [
-      {
-        key: "all" as Filter,
-        label: "Equipos totales",
-        value: equipment.length,
-        color: colors.textMuted,
-      },
-      {
-        key: "operational" as Filter,
-        label: "Funcionando",
-        value: equipment.filter((e) => e.status === "operational").length,
-        color: colors.eqOperational.dot,
-      },
-      {
-        key: "waiting" as Filter,
-        label: "En espera",
-        value: equipment.filter((e) => e.status === "waiting").length,
-        color: colors.eqWaiting.dot,
-      },
-      {
-        key: "repair" as Filter,
-        label: "En reparación",
-        value: equipment.filter((e) => e.status === "repair").length,
-        color: colors.eqRepair.dot,
-      },
-    ],
-    [equipment, colors],
-  );
+  const filteredEquipment = equipment.filter((item) => {
+    const query = search.trim().toLowerCase();
+    return (
+      !query ||
+      `${item.code} ${item.name} ${item.type} ${item.location}`.toLowerCase().includes(query)
+    );
+  });
 
-  const equipmentView = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const filtered = equipment.filter((e) => {
-      const matchQ = !q || `${e.name} ${e.code} ${e.location}`.toLowerCase().includes(q);
-      const matchF = filter === "all" || e.status === filter;
-      return matchQ && matchF;
-    });
-    if (sortBy === "code") {
-      return [...filtered].sort((a, b) => a.code.localeCompare(b.code));
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  async function removeEquipment(item: Equipo) {
+    setDeletingId(item.id);
+    try {
+      await deleteEquipment(item.id);
+      await load();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (Platform.OS === "web") window.alert(message);
+      else Alert.alert("No se pudo dar de baja", message);
+    } finally {
+      setDeletingId(null);
     }
-    return filtered;
-  }, [equipment, search, filter, sortBy]);
+  }
 
-  const groupedByLocation = useMemo(() => {
-    if (sortBy !== "location") return null;
-    const groups: { location: string; items: Equipo[] }[] = [];
-    for (const item of equipmentView) {
-      const last = groups[groups.length - 1];
-      if (last && last.location === item.location) last.items.push(item);
-      else groups.push({ location: item.location, items: [item] });
+  function confirmDelete(item: Equipo) {
+    const message = `¿Dar de baja ${item.code} · ${item.name}? Esta acción no se puede deshacer.`;
+    if (Platform.OS === "web") {
+      if (window.confirm(message)) void removeEquipment(item);
+      return;
     }
-    return groups;
-  }, [equipmentView, sortBy]);
 
-  const locationColors = useMemo(
-    () => buildLocationColorMap(equipment.map((e) => e.location)),
-    [equipment],
-  );
+    Alert.alert("Dar de baja equipo", message, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Dar de baja", style: "destructive", onPress: () => void removeEquipment(item) },
+    ]);
+  }
 
   if (loading) {
     return (
@@ -141,168 +126,295 @@ export default function EquipmentScreen() {
       </>
     );
   }
-  if (error) {
-    return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.error}>{error}</Text>
-      </>
-    );
-  }
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <View style={styles.pageHeader}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.header}>
           <View>
             <Text style={styles.title}>Equipos</Text>
-            <Text style={styles.subtitle}>Estado en tiempo real de todos los equipos</Text>
+            <Text style={styles.subtitle}>Alta, baja y modificación de equipos</Text>
           </View>
 
           <View style={styles.headerActions}>
+            <Pressable style={styles.reportButton} onPress={() => setReportingFault(true)}>
+              <Text style={styles.reportButtonText}>+ Reportar falla</Text>
+            </Pressable>
+
             {profile?.role === "admin" && (
-              <Pressable style={styles.addButton} onPress={() => setAddModalVisible(true)}>
+              <Pressable style={styles.addButton} onPress={() => setCreating(true)}>
                 <Text style={styles.addButtonText}>+ Agregar equipo</Text>
               </Pressable>
             )}
-
-            <Pressable style={styles.reportButton} onPress={() => setModalVisible(true)}>
-              <Text style={styles.reportButtonText}>+ Reportar falla</Text>
-            </Pressable>
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          {stats.map((s) => {
-            const active = filter === s.key;
-            return (
-              <Pressable
-                key={s.key}
-                style={[
-                  styles.statCard,
-                  active && { borderColor: s.color, backgroundColor: colors.bgToggleActive },
-                ]}
-                onPress={() => setFilter(active ? "all" : s.key)}
-              >
-                <View style={styles.statLabelRow}>
-                  <View style={[styles.statDot, { backgroundColor: s.color }]} />
-                  <Text style={styles.statLabel}>{s.label}</Text>
-                </View>
-                <Text style={styles.statValue}>{s.value}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.searchRow}>
+        <View style={styles.toolbar}>
           <TextInput
             style={styles.search}
-            placeholder="Buscar por nombre, código o ubicación…"
+            placeholder="Buscar por código, nombre, tipo o ubicación"
             placeholderTextColor={colors.textMuted}
             value={search}
             onChangeText={setSearch}
           />
-
-          <View style={styles.sortToggle}>
-            {SORT_OPTIONS.map((s) => (
-              <Pressable
-                key={s.key}
-                style={[styles.sortOption, sortBy === s.key && styles.sortOptionActive]}
-                onPress={() => setSortBy(s.key)}
-              >
-                <Text
-                  style={[styles.sortOptionText, sortBy === s.key && styles.sortOptionTextActive]}
-                >
-                  {s.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <Text style={styles.count}>
+            {filteredEquipment.length} {filteredEquipment.length === 1 ? "equipo" : "equipos"}
+          </Text>
         </View>
 
-        {groupedByLocation ? (
-          groupedByLocation.map((group) => (
-            <View key={group.location} style={styles.locationGroup}>
-              <View style={styles.locationHeader}>
-                <View
-                  style={[
-                    styles.locationHeaderDot,
-                    { backgroundColor: locationColors.get(group.location) ?? "#6b7280" },
-                  ]}
-                />
-                <Text style={styles.locationHeaderText}>{group.location}</Text>
-                <Text style={styles.locationHeaderCount}>
-                  {group.items.length} {group.items.length === 1 ? "equipo" : "equipos"}
-                </Text>
-              </View>
+        {error && <Text style={styles.error}>{error}</Text>}
 
-              <View style={styles.grid}>
-                {group.items.map((item) => (
-                  <View key={item.id} style={styles.gridItem}>
-                    <EquipmentCard
-                      equipment={item}
-                      locationColor={locationColors.get(item.location) ?? "#6b7280"}
-                    />
-                  </View>
-                ))}
-              </View>
+        {filteredEquipment.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>
+              {search ? "No hay equipos que coincidan" : "Todavía no hay equipos cargados"}
+            </Text>
+            <Text style={styles.emptyText}>
+              {search
+                ? "Probá con otro término de búsqueda."
+                : "Agregá el primer equipo para comenzar."}
+            </Text>
+          </View>
+        ) : isWide ? (
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.headerCell, styles.codeColumn]}>CÓDIGO</Text>
+              <Text style={[styles.headerCell, styles.nameColumn]}>EQUIPO</Text>
+              <Text style={[styles.headerCell, styles.typeColumn]}>TIPO</Text>
+              <Text style={[styles.headerCell, styles.locationColumn]}>UBICACIÓN</Text>
+              <Text style={[styles.headerCell, styles.statusColumn]}>ESTADO</Text>
+              {profile?.role === "admin" && (
+                <Text style={[styles.headerCell, styles.actionsColumn]}>ACCIONES</Text>
+              )}
             </View>
-          ))
-        ) : (
-          <View style={styles.grid}>
-            {equipmentView.map((item) => (
-              <View key={item.id} style={styles.gridItem}>
-                <EquipmentCard
-                  equipment={item}
-                  locationColor={locationColors.get(item.location) ?? "#6b7280"}
-                />
-              </View>
+
+            {filteredEquipment.map((item) => (
+              <EquipmentRow
+                key={item.id}
+                equipment={item}
+                isAdmin={profile?.role === "admin"}
+                deleting={deletingId === item.id}
+                styles={styles}
+                colors={colors}
+                onOpen={() => router.push(`/equipment/${item.id}`)}
+                onEdit={() => setEditing(item)}
+                onDelete={() => confirmDelete(item)}
+              />
             ))}
           </View>
+        ) : (
+          <View style={styles.mobileList}>
+            {filteredEquipment.map((item) => {
+              const status = getStatusColors(item.status, colors);
+              return (
+                <View key={item.id} style={styles.mobileCard}>
+                  <Pressable
+                    style={styles.mobileInfo}
+                    onPress={() => router.push(`/equipment/${item.id}`)}
+                  >
+                    <View style={styles.mobileTitleRow}>
+                      <Text style={styles.code} numberOfLines={1}>
+                        {item.code}
+                      </Text>
+                      <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+                        <View style={[styles.statusDot, { backgroundColor: status.dot }]} />
+                        <Text style={[styles.statusText, { color: status.fg }]}>
+                          {status.label}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.mobileName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.mobileMeta} numberOfLines={1}>
+                      {item.type} · {item.location}
+                    </Text>
+                  </Pressable>
+
+                  {profile?.role === "admin" && (
+                    <View style={styles.mobileActions}>
+                      <ActionButton
+                        label="Editar equipo"
+                        color={colors.accent}
+                        onPress={() => setEditing(item)}
+                      >
+                        <EditIcon size={17} color={colors.accent} />
+                      </ActionButton>
+                      <ActionButton
+                        label="Dar de baja equipo"
+                        color={colors.destructive}
+                        disabled={deletingId === item.id}
+                        onPress={() => confirmDelete(item)}
+                      >
+                        <TrashIcon size={17} color={colors.destructive} />
+                      </ActionButton>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
         )}
-
-        <ReportFaultModal
-          visible={modalVisible}
-          onClose={() => setModalVisible(false)}
-          onSubmitted={() => {}}
-          equipmentOptions={equipment.map(({ id, code, name }) => ({ id, code, name }))}
-        />
-
-        <AddEquipmentModal
-          visible={addModalVisible}
-          onClose={() => setAddModalVisible(false)}
-          onCreated={reload}
-        />
       </ScrollView>
+
+      {editing && (
+        <EditEquipmentModal
+          visible={!!editing}
+          onClose={() => setEditing(null)}
+          onSaved={load}
+          equipment={editing}
+        />
+      )}
+
+      <AddEquipmentModal visible={creating} onClose={() => setCreating(false)} onCreated={load} />
+
+      <ReportFaultModal
+        visible={reportingFault}
+        onClose={() => setReportingFault(false)}
+        onSubmitted={load}
+        equipmentOptions={equipment.map(({ id, code, name }) => ({ id, code, name }))}
+      />
     </>
   );
+}
+
+function EquipmentRow({
+  equipment,
+  isAdmin,
+  deleting,
+  styles,
+  colors,
+  onOpen,
+  onEdit,
+  onDelete,
+}: {
+  equipment: Equipo;
+  isAdmin: boolean;
+  deleting: boolean;
+  styles: ReturnType<typeof makeStyles>;
+  colors: ThemeColors;
+  onOpen: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const status = getStatusColors(equipment.status, colors);
+
+  return (
+    <View style={styles.tableRow}>
+      <Pressable style={[styles.cell, styles.codeColumn]} onPress={onOpen}>
+        <Text style={styles.code} numberOfLines={1}>
+          {equipment.code}
+        </Text>
+      </Pressable>
+
+      <Pressable style={[styles.cell, styles.nameColumn]} onPress={onOpen}>
+        <Text style={styles.name} numberOfLines={1}>
+          {equipment.name}
+        </Text>
+      </Pressable>
+
+      <Text style={[styles.cellText, styles.typeColumn]} numberOfLines={1}>
+        {equipment.type}
+      </Text>
+
+      <Text style={[styles.cellText, styles.locationColumn]} numberOfLines={1}>
+        {equipment.location}
+      </Text>
+
+      <View style={[styles.cell, styles.statusColumn]}>
+        <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+          <View style={[styles.statusDot, { backgroundColor: status.dot }]} />
+          <Text style={[styles.statusText, { color: status.fg }]}>{status.label}</Text>
+        </View>
+      </View>
+
+      {isAdmin && (
+        <View style={[styles.cell, styles.actionsColumn, styles.actionsCell]}>
+          <ActionButton label="Editar equipo" color={colors.accent} onPress={onEdit}>
+            <EditIcon size={17} color={colors.accent} />
+          </ActionButton>
+          <ActionButton
+            label="Dar de baja equipo"
+            color={colors.destructive}
+            disabled={deleting}
+            onPress={onDelete}
+          >
+            <TrashIcon size={17} color={colors.destructive} />
+          </ActionButton>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function ActionButton({
+  children,
+  label,
+  color,
+  disabled,
+  onPress,
+}: {
+  children: React.ReactNode;
+  label: string;
+  color: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      disabled={disabled}
+      hitSlop={8}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 34,
+        height: 34,
+        borderRadius: 8,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: pressed ? `${color}18` : "transparent",
+        opacity: disabled ? 0.45 : 1,
+      })}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+function getStatusColors(status: Equipo["status"], colors: ThemeColors) {
+  const palette =
+    status === "operational"
+      ? colors.eqOperational
+      : status === "waiting"
+        ? colors.eqWaiting
+        : colors.eqRepair;
+  return { ...palette, label: STATUS_LABEL[status] };
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 24, paddingBottom: 48 },
+    content: { padding: 20, paddingBottom: 48 },
     center: { flex: 1 },
-    error: { padding: 16, color: c.destructive },
-    pageHeader: {
+    header: {
       flexDirection: "row",
+      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
-      marginBottom: 20,
       gap: 12,
-      flexWrap: "wrap",
+      marginBottom: 20,
     },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
-    headerActions: {
-      flexDirection: "row",
-      gap: 10,
-      flexWrap: "wrap",
-      flexShrink: 1,
-      maxWidth: "100%",
-    },
-    reportButton: {
+    headerActions: { flexDirection: "row", flexWrap: "wrap", gap: 10, maxWidth: "100%" },
+    addButton: {
       backgroundColor: c.accent,
       paddingHorizontal: 18,
       height: 42,
@@ -310,42 +422,28 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    reportButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-    addButton: {
+    addButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+    reportButton: {
       borderWidth: 1,
       borderColor: c.accent,
-      paddingHorizontal: 18,
+      paddingHorizontal: 16,
       height: 42,
       borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
     },
-    addButtonText: { color: c.accent, fontWeight: "600", fontSize: 14 },
-    statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginBottom: 20 },
-    statCard: {
-      flexGrow: 1,
-      minWidth: 150,
-      backgroundColor: c.bgStatCard,
-      borderWidth: 1.5,
-      borderColor: c.border,
-      borderRadius: 12,
-      padding: 14,
-    },
-    statLabelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-    statDot: { width: 8, height: 8, borderRadius: 4 },
-    statLabel: { fontSize: 12.5, color: c.textSecondary, fontWeight: "500" },
-    statValue: { marginTop: 6, fontSize: 28, fontWeight: "600", color: c.text },
-    searchRow: {
+    reportButtonText: { color: c.accent, fontWeight: "600", fontSize: 14 },
+    toolbar: {
       flexDirection: "row",
-      flexWrap: "wrap",
       alignItems: "center",
+      flexWrap: "wrap",
       gap: 12,
-      marginBottom: 20,
+      marginBottom: 14,
     },
     search: {
       flexGrow: 1,
-      minWidth: 220,
-      maxWidth: 340,
+      minWidth: 240,
+      maxWidth: 480,
       height: 42,
       paddingHorizontal: 14,
       borderWidth: 1,
@@ -355,23 +453,92 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       color: c.text,
     },
-    sortToggle: {
-      flexDirection: "row",
-      backgroundColor: c.bgToggle,
-      borderRadius: 9,
-      padding: 3,
-      gap: 2,
+    count: { fontSize: 13, color: c.textMuted },
+    error: { color: c.destructive, marginBottom: 12 },
+    empty: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      padding: 24,
     },
-    sortOption: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 7 },
-    sortOptionActive: { backgroundColor: c.bgToggleActive },
-    sortOptionText: { fontSize: 12.5, fontWeight: "600", color: c.textMuted },
-    sortOptionTextActive: { color: c.text },
-    locationGroup: { marginBottom: 24 },
-    locationHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-    locationHeaderDot: { width: 9, height: 9, borderRadius: 5 },
-    locationHeaderText: { fontSize: 14.5, fontWeight: "700", color: c.text },
-    locationHeaderCount: { fontSize: 12.5, color: c.textMuted },
-    grid: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
-    gridItem: { flexGrow: 1, minWidth: 310, maxWidth: 420 },
+    emptyTitle: { color: c.text, fontWeight: "600", fontSize: 15 },
+    emptyText: { color: c.textMuted, fontSize: 13, marginTop: 5 },
+    table: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      overflow: "hidden",
+      width: "100%",
+      maxWidth: 1100,
+    },
+    tableHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      backgroundColor: c.bgTableHeader,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    headerCell: {
+      fontSize: 11,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: c.textMuted,
+      fontFamily: "monospace",
+    },
+    tableRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      minHeight: 68,
+      paddingHorizontal: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borderRow,
+    },
+    cell: { justifyContent: "center", paddingVertical: 8 },
+    codeColumn: { flex: 1.1, minWidth: 90 },
+    nameColumn: { flex: 1.8, minWidth: 140 },
+    typeColumn: { flex: 1.3, minWidth: 110, paddingHorizontal: 8 },
+    locationColumn: { flex: 1.7, minWidth: 140, paddingHorizontal: 8 },
+    statusColumn: { flex: 1.4, minWidth: 120, paddingHorizontal: 8 },
+    actionsColumn: { flex: 0.9, minWidth: 76, paddingHorizontal: 4 },
+    actionsCell: { flexDirection: "row", alignItems: "center", gap: 2 },
+    code: { fontFamily: "monospace", fontSize: 12.5, color: c.textMuted },
+    name: { fontWeight: "600", fontSize: 14, color: c.text },
+    cellText: { fontSize: 13, color: c.textLabel },
+    statusBadge: {
+      alignSelf: "flex-start",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
+    statusDot: { width: 7, height: 7, borderRadius: 4 },
+    statusText: { fontSize: 12, fontWeight: "600" },
+    mobileList: { gap: 10 },
+    mobileCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      padding: 14,
+    },
+    mobileInfo: { flex: 1, minWidth: 0 },
+    mobileTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+    },
+    mobileName: { color: c.text, fontSize: 15, fontWeight: "600", marginTop: 8 },
+    mobileMeta: { color: c.textMuted, fontSize: 12.5, marginTop: 3 },
+    mobileActions: { flexDirection: "row", alignItems: "center", gap: 2 },
   });
 }

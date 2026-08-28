@@ -140,3 +140,41 @@ export function CalendarIcon({ size = 16, color = "currentColor" }: IconProps) {
     </Svg>
   );
 }
+
+export function EditIcon({ size = 17, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M12 20h9" />
+      <Path d="M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4L16.5 3.5z" />
+    </Svg>
+  );
+}
+
+export function TrashIcon({ size = 17, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M3 6h18" />
+      <Path d="M8 6V4h8v2" />
+      <Path d="M19 6l-1 14H6L5 6" />
+      <Path d="M10 11v5M14 11v5" />
+    </Svg>
+  );
+}

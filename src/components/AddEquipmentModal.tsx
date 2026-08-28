@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { createEquipment, listEquipment } from "../lib/queries/equipment";
+import { listLocations, type LocationWithCount } from "../lib/queries/locations";
+import { supabase } from "../lib/supabase";
 import type { Equipo } from "../types/database";
 import { AutocompleteInput } from "./AutocompleteInput";
+import { LocationDropdown } from "./LocationDropdown";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 import { CustomDatePicker, isValidDateString, toDbDate } from "./CustomDatePicker";
@@ -24,15 +27,33 @@ export function AddEquipmentModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<Equipo[]>([]);
+  const [locations, setLocations] = useState<LocationWithCount[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
+  const loadOptions = useCallback(async () => {
+    try {
+      const [equipment, locationRows] = await Promise.all([listEquipment(), listLocations()]);
+      setExisting(equipment);
+      setLocations(locationRows);
+    } catch {
+      // The save action reports the error if the options could not be loaded.
+    }
+  }, []);
+
   useEffect(() => {
     if (!visible) return;
-    listEquipment()
-      .then(setExisting)
-      .catch(() => {});
-  }, [visible]);
+    void loadOptions();
+
+    const channel = supabase
+      .channel(`add-equipment-locations-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lugares" }, loadOptions)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [visible, loadOptions]);
 
   async function handleSubmit() {
     if (!code.trim() || !name.trim() || !type.trim() || !location.trim() || !purchaseDate.trim()) {
@@ -105,19 +126,11 @@ export function AddEquipmentModal({
 
           <Text style={styles.label}>Ubicación</Text>
 
-          <AutocompleteInput
-            value={location}
-            onChangeText={setLocation}
-            options={existing.map((e) => e.location)}
-            placeholder="Ej: Planta A · Sala de Servidores"
-          />
+          <LocationDropdown value={location} locations={locations} onChange={setLocation} />
 
           <Text style={styles.label}>Fecha de compra</Text>
 
-          <CustomDatePicker
-            value={purchaseDate}
-            onChange={setPurchaseDate}
-          />
+          <CustomDatePicker value={purchaseDate} onChange={setPurchaseDate} />
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -138,7 +151,12 @@ export function AddEquipmentModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -149,7 +167,13 @@ function makeStyles(c: ThemeColors) {
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 4 },
     subtitle: { fontSize: 12.5, color: c.textMuted, marginBottom: 8 },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 14, marginBottom: 6 },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginTop: 14,
+      marginBottom: 6,
+    },
     input: {
       height: 44,
       paddingHorizontal: 14,

@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { listEquipment, updateEquipment } from "../lib/queries/equipment";
+import { listLocations, type LocationWithCount } from "../lib/queries/locations";
+import { supabase } from "../lib/supabase";
 import { AutocompleteInput } from "./AutocompleteInput";
+import { LocationDropdown } from "./LocationDropdown";
 import type { Equipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -26,6 +29,7 @@ export function EditEquipmentModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<Equipo[]>([]);
+  const [locations, setLocations] = useState<LocationWithCount[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -42,6 +46,16 @@ export function EditEquipmentModal({
         ? "En espera"
         : "En reparación";
 
+  const loadOptions = useCallback(async () => {
+    try {
+      const [equipmentRows, locationRows] = await Promise.all([listEquipment(), listLocations()]);
+      setExisting(equipmentRows);
+      setLocations(locationRows);
+    } catch {
+      // The save action reports the error if the options could not be loaded.
+    }
+  }, []);
+
   useEffect(() => {
     if (!visible) return;
     setCode(equipment.code);
@@ -49,10 +63,17 @@ export function EditEquipmentModal({
     setType(equipment.type);
     setLocation(equipment.location);
     setPurchaseDate(fromDbDate(equipment.purchaseDate));
-    listEquipment()
-      .then(setExisting)
-      .catch(() => {});
-  }, [visible, equipment]);
+    void loadOptions();
+
+    const channel = supabase
+      .channel(`edit-equipment-locations-${equipment.id}-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lugares" }, loadOptions)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [visible, equipment, loadOptions]);
 
   async function handleSubmit() {
     if (!code.trim() || !name.trim() || !type.trim() || !location.trim() || !purchaseDate.trim()) {
@@ -116,19 +137,11 @@ export function EditEquipmentModal({
 
           <Text style={styles.label}>Ubicación</Text>
 
-          <AutocompleteInput
-            value={location}
-            onChangeText={setLocation}
-            options={existing.map((e) => e.location)}
-            placeholder="Ej: Planta A · Sala de Servidores"
-          />
+          <LocationDropdown value={location} locations={locations} onChange={setLocation} />
 
           <Text style={styles.label}>Fecha de compra</Text>
 
-          <CustomDatePicker
-            value={purchaseDate}
-            onChange={setPurchaseDate}
-          />
+          <CustomDatePicker value={purchaseDate} onChange={setPurchaseDate} />
 
           <Text style={styles.label}>Estado</Text>
           <View style={styles.statusRow}>
@@ -158,7 +171,12 @@ export function EditEquipmentModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -168,7 +186,13 @@ function makeStyles(c: ThemeColors) {
       alignSelf: "center",
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 8 },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 14, marginBottom: 6 },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginTop: 14,
+      marginBottom: 6,
+    },
     input: {
       height: 44,
       paddingHorizontal: 14,
@@ -180,7 +204,12 @@ function makeStyles(c: ThemeColors) {
       color: c.text,
     },
     statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-    statusBadge: { alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999 },
+    statusBadge: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 11,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
     statusBadgeText: { fontSize: 12.5, fontWeight: "600" },
     statusNote: { fontSize: 12, color: c.textMuted },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },

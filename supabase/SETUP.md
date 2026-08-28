@@ -23,6 +23,8 @@ SQL Editor → run, in order:
    solicitudes, orden_de_trabajo, historial, plus the rest of the schema
    with no UI yet). Creates the `sync_equipo_estado` function, its RLS
    policies, and Realtime on `equipo`/`solicitudes`/`orden_de_trabajo`.
+3. `migrations/0004_lugares_realtime.sql` — adds `lugares` to Realtime so
+   location selectors update when an admin creates or edits a location.
 
 Do **not** run `migrations/0002_gestion_mantenimiento.sql` — it's the raw
 reference model 0003 was adapted from (no RLS, no Supabase Auth wiring,
