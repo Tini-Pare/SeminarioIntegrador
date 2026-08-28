@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { createEquipment, listEquipment } from "../lib/queries/equipment";
+import { createEquipment, listEquipmentTypes } from "../lib/queries/equipment";
 import { listLocations, type LocationWithCount } from "../lib/queries/locations";
 import { supabase } from "../lib/supabase";
-import type { Equipo } from "../types/database";
-import { AutocompleteInput } from "./AutocompleteInput";
+import type { TipoEquipo } from "../types/database";
+import { EquipmentTypeDropdown } from "./EquipmentTypeDropdown";
 import { LocationDropdown } from "./LocationDropdown";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -26,16 +26,16 @@ export function AddEquipmentModal({
   const [purchaseDate, setPurchaseDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existing, setExisting] = useState<Equipo[]>([]);
   const [locations, setLocations] = useState<LocationWithCount[]>([]);
+  const [equipmentTypes, setEquipmentTypes] = useState<TipoEquipo[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
   const loadOptions = useCallback(async () => {
     try {
-      const [equipment, locationRows] = await Promise.all([listEquipment(), listLocations()]);
-      setExisting(equipment);
+      const [locationRows, typeRows] = await Promise.all([listLocations(), listEquipmentTypes()]);
       setLocations(locationRows);
+      setEquipmentTypes(typeRows);
     } catch {
       // The save action reports the error if the options could not be loaded.
     }
@@ -48,6 +48,11 @@ export function AddEquipmentModal({
     const channel = supabase
       .channel(`add-equipment-locations-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "lugares" }, loadOptions)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tipos_de_equipos" },
+        loadOptions,
+      )
       .subscribe();
 
     return () => {
@@ -117,12 +122,7 @@ export function AddEquipmentModal({
           />
 
           <Text style={styles.label}>Tipo</Text>
-          <AutocompleteInput
-            value={type}
-            onChangeText={setType}
-            options={existing.map((e) => e.type)}
-            placeholder="Ej: Climatización"
-          />
+          <EquipmentTypeDropdown value={type} types={equipmentTypes} onChange={setType} />
 
           <Text style={styles.label}>Ubicación</Text>
 

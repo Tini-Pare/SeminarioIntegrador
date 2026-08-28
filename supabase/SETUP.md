@@ -25,6 +25,8 @@ SQL Editor → run, in order:
    policies, and Realtime on `equipo`/`solicitudes`/`orden_de_trabajo`.
 3. `migrations/0004_lugares_realtime.sql` — adds `lugares` to Realtime so
    location selectors update when an admin creates or edits a location.
+4. `migrations/0005_tipos_de_equipos.sql` — seeds the equipment type catalog
+   and adds `tipos_de_equipos` to Realtime for the type selector.
 
 Do **not** run `migrations/0002_gestion_mantenimiento.sql` — it's the raw
 reference model 0003 was adapted from (no RLS, no Supabase Auth wiring,

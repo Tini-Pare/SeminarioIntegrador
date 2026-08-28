@@ -10,10 +10,12 @@ import {
   View,
 } from "react-native";
 import { EditUserModal } from "../../../components/EditUserModal";
+import { CrudActions } from "../../../components/CrudActions";
+import { DeleteConfirmationModal } from "../../../components/DeleteConfirmationModal";
 import { InvitePersonModal } from "../../../components/InvitePersonModal";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
-import { listProfiles } from "../../../lib/queries/profiles";
+import { deleteProfile, listProfiles } from "../../../lib/queries/profiles";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import type { Profile } from "../../../types/database";
@@ -35,6 +37,8 @@ export default function UsersScreen() {
   const [editing, setEditing] = useState<Profile | null>(null);
   const [inviting, setInviting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { width } = useWindowDimensions();
   const isMobile = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
@@ -69,6 +73,25 @@ export default function UsersScreen() {
     setRefreshing(false);
   }
 
+  async function removeProfile(profile: Profile) {
+    setDeletingId(profile.id);
+    try {
+      await deleteProfile(profile.id);
+      setDeleteTarget(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setDeleteTarget(null);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  function confirmDelete(profile: Profile) {
+    setError(null);
+    setDeleteTarget(profile);
+  }
+
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
@@ -97,17 +120,19 @@ export default function UsersScreen() {
             <Text style={[styles.headerCell, { flex: 1.4 }]}>ÁREA</Text>
             <Text style={[styles.headerCell, { flex: 1.1 }]}>ROL</Text>
             <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
+            <Text style={[styles.headerCell, styles.actionsColumn]}>ACCIONES</Text>
           </View>
 
           {profiles.map((p) => {
             const rm = roleMeta[p.role];
             return (
-              <Pressable key={p.id} style={styles.row} onPress={() => setEditing(p)}>
-                <View
+              <View key={p.id} style={styles.row}>
+                <Pressable
                   style={[
                     styles.cell,
                     { flex: 2.2, flexDirection: "row", alignItems: "center", gap: 11 },
                   ]}
+                  onPress={() => setEditing(p)}
                 >
                   <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
                     <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
@@ -121,7 +146,7 @@ export default function UsersScreen() {
                       {p.email}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
 
                 <View style={{ flex: 1.4, justifyContent: "center" }}>
                   <Text style={styles.areaText} numberOfLines={1}>
@@ -152,7 +177,17 @@ export default function UsersScreen() {
                     {p.active ? "Activo" : "Inactivo"}
                   </Text>
                 </View>
-              </Pressable>
+
+                <View style={styles.actionsColumn}>
+                  <CrudActions
+                    onEdit={() => setEditing(p)}
+                    onDelete={() => confirmDelete(p)}
+                    deleteDisabled={
+                      p.role === "admin" || p.id === currentUserId || deletingId === p.id
+                    }
+                  />
+                </View>
+              </View>
             );
           })}
         </View>
@@ -161,8 +196,8 @@ export default function UsersScreen() {
           {profiles.map((p) => {
             const rm = roleMeta[p.role];
             return (
-              <Pressable key={p.id} style={styles.personCard} onPress={() => setEditing(p)}>
-                <View style={styles.personCardHeader}>
+              <View key={p.id} style={styles.personCard}>
+                <Pressable style={styles.personCardHeader} onPress={() => setEditing(p)}>
                   <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
                     <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
                   </View>
@@ -175,7 +210,7 @@ export default function UsersScreen() {
                       {p.email}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
 
                 <View style={styles.personCardChips}>
                   {!!p.area && (
@@ -208,7 +243,17 @@ export default function UsersScreen() {
                     </Text>
                   </View>
                 </View>
-              </Pressable>
+
+                <View style={styles.personCardActions}>
+                  <CrudActions
+                    onEdit={() => setEditing(p)}
+                    onDelete={() => confirmDelete(p)}
+                    deleteDisabled={
+                      p.role === "admin" || p.id === currentUserId || deletingId === p.id
+                    }
+                  />
+                </View>
+              </View>
             );
           })}
         </View>
@@ -225,6 +270,17 @@ export default function UsersScreen() {
       )}
 
       <InvitePersonModal visible={inviting} onClose={() => setInviting(false)} onInvited={load} />
+
+      {deleteTarget && (
+        <DeleteConfirmationModal
+          visible
+          title="Eliminar persona"
+          message={`¿Querés eliminar la cuenta de ${deleteTarget.name}? Esta acción no se puede deshacer.`}
+          deleting={deletingId === deleteTarget.id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => void removeProfile(deleteTarget)}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -259,7 +315,7 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 900,
+      maxWidth: 1000,
     },
     tableHeader: {
       flexDirection: "row",
@@ -282,6 +338,7 @@ function makeStyles(c: ThemeColors) {
       borderBottomColor: c.borderRow,
     },
     cell: {},
+    actionsColumn: { flex: 0.9, minWidth: 76, justifyContent: "center" },
     areaText: { fontSize: 13.5, color: c.textLabel },
     cardList: { gap: 10 },
     personCard: {
@@ -299,6 +356,7 @@ function makeStyles(c: ThemeColors) {
       gap: 8,
       marginTop: 12,
     },
+    personCardActions: { alignSelf: "flex-end", marginTop: 8 },
     areaChip: {
       paddingHorizontal: 10,
       paddingVertical: 3,
@@ -318,7 +376,12 @@ function makeStyles(c: ThemeColors) {
     avatarText: { fontWeight: "600", fontSize: 13 },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
     email: { fontSize: 12, color: c.textMuted },
-    badge: { alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 3, borderRadius: 999 },
+    badge: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 11,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
     badgeText: { fontSize: 12, fontWeight: "600" },
     statusDot: { width: 7, height: 7, borderRadius: 4 },
   });

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
-import { listEquipment, updateEquipment } from "../lib/queries/equipment";
+import { listEquipmentTypes, updateEquipment } from "../lib/queries/equipment";
 import { listLocations, type LocationWithCount } from "../lib/queries/locations";
 import { supabase } from "../lib/supabase";
-import { AutocompleteInput } from "./AutocompleteInput";
+import { EquipmentTypeDropdown } from "./EquipmentTypeDropdown";
 import { LocationDropdown } from "./LocationDropdown";
-import type { Equipo } from "../types/database";
+import type { Equipo, TipoEquipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 import { CustomDatePicker, isValidDateString, toDbDate, fromDbDate } from "./CustomDatePicker";
@@ -28,8 +28,8 @@ export function EditEquipmentModal({
   const [purchaseDate, setPurchaseDate] = useState(fromDbDate(equipment.purchaseDate));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existing, setExisting] = useState<Equipo[]>([]);
   const [locations, setLocations] = useState<LocationWithCount[]>([]);
+  const [equipmentTypes, setEquipmentTypes] = useState<TipoEquipo[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -48,9 +48,9 @@ export function EditEquipmentModal({
 
   const loadOptions = useCallback(async () => {
     try {
-      const [equipmentRows, locationRows] = await Promise.all([listEquipment(), listLocations()]);
-      setExisting(equipmentRows);
+      const [locationRows, typeRows] = await Promise.all([listLocations(), listEquipmentTypes()]);
       setLocations(locationRows);
+      setEquipmentTypes(typeRows);
     } catch {
       // The save action reports the error if the options could not be loaded.
     }
@@ -68,6 +68,11 @@ export function EditEquipmentModal({
     const channel = supabase
       .channel(`edit-equipment-locations-${equipment.id}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "lugares" }, loadOptions)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tipos_de_equipos" },
+        loadOptions,
+      )
       .subscribe();
 
     return () => {
@@ -128,12 +133,7 @@ export function EditEquipmentModal({
           />
 
           <Text style={styles.label}>Tipo</Text>
-          <AutocompleteInput
-            value={type}
-            onChangeText={setType}
-            options={existing.map((e) => e.type)}
-            placeholder="Ej: Climatización"
-          />
+          <EquipmentTypeDropdown value={type} types={equipmentTypes} onChange={setType} />
 
           <Text style={styles.label}>Ubicación</Text>
 

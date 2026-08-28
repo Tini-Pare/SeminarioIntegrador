@@ -14,3 +14,22 @@ export async function updateProfile(
   const { error } = await supabase.from("profiles").update(changes).eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+export async function deleteProfile(id: string): Promise<void> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error("Sin sesión activa");
+
+  const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-user`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+    },
+    body: JSON.stringify({ id }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error ?? "No se pudo eliminar");
+}

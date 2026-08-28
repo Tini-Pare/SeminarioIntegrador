@@ -1,5 +1,5 @@
 import { supabase } from "../supabase";
-import type { Database, Equipo, HistorialEntry, Solicitud } from "../../types/database";
+import type { Database, Equipo, HistorialEntry, Solicitud, TipoEquipo } from "../../types/database";
 import { mapSolicitudRow, type SolicitudWithOrden } from "./faults";
 
 type EquipoRow = Database["public"]["Tables"]["equipo"]["Row"] & {
@@ -69,6 +69,12 @@ export async function listEquipment(): Promise<Equipo[]> {
     .order("eq_codigo");
   if (error) throw new Error(error.message);
   return (data as EquipoRow[]).map(mapEquipo);
+}
+
+export async function listEquipmentTypes(): Promise<TipoEquipo[]> {
+  const { data, error } = await supabase.from("tipos_de_equipos").select("*").order("te_nombre");
+  if (error) throw new Error(error.message);
+  return data as TipoEquipo[];
 }
 
 // status isn't passed here on purpose: it's born 'operational' (the

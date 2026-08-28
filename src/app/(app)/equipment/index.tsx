@@ -2,7 +2,6 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,8 +12,9 @@ import {
   View,
 } from "react-native";
 import { AddEquipmentModal } from "../../../components/AddEquipmentModal";
+import { CrudActions } from "../../../components/CrudActions";
+import { DeleteConfirmationModal } from "../../../components/DeleteConfirmationModal";
 import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
-import { EditIcon, TrashIcon } from "../../../components/icons";
 import { ReportFaultModal } from "../../../components/ReportFaultModal";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
@@ -232,21 +232,11 @@ export default function EquipmentScreen() {
 
                   {profile?.role === "admin" && (
                     <View style={styles.mobileActions}>
-                      <ActionButton
-                        label="Editar equipo"
-                        color={colors.accent}
-                        onPress={() => setEditing(item)}
-                      >
-                        <EditIcon size={17} color={colors.accent} />
-                      </ActionButton>
-                      <ActionButton
-                        label="Dar de baja equipo"
-                        color={colors.destructive}
-                        disabled={deletingId === item.id}
-                        onPress={() => confirmDelete(item)}
-                      >
-                        <TrashIcon size={17} color={colors.destructive} />
-                      </ActionButton>
+                      <CrudActions
+                        onEdit={() => setEditing(item)}
+                        onDelete={() => confirmDelete(item)}
+                        deleteDisabled={deletingId === item.id}
+                      />
                     </View>
                   )}
                 </View>
@@ -275,9 +265,10 @@ export default function EquipmentScreen() {
       />
 
       {deleteTarget && (
-        <DeleteEquipmentModal
+        <DeleteConfirmationModal
           visible
-          equipment={deleteTarget}
+          title="Eliminar equipo"
+          message={`¿Querés eliminar ${deleteTarget.code} · ${deleteTarget.name}? Esta acción no se puede deshacer.`}
           deleting={deletingId === deleteTarget.id}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => void removeEquipment(deleteTarget)}
@@ -285,87 +276,6 @@ export default function EquipmentScreen() {
       )}
     </>
   );
-}
-
-function DeleteEquipmentModal({
-  visible,
-  equipment,
-  deleting,
-  onCancel,
-  onConfirm,
-}: {
-  visible: boolean;
-  equipment: Equipo;
-  deleting: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const { colors } = useTheme();
-  const styles = makeDeleteStyles(colors);
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <Text style={styles.title}>Eliminar equipo</Text>
-          <Text style={styles.message}>
-            ¿Querés eliminar {equipment.code} · {equipment.name}? Esta acción no se puede deshacer.
-          </Text>
-
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onCancel} disabled={deleting}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable style={styles.deleteButton} onPress={onConfirm} disabled={deleting}>
-              <Text style={styles.deleteText}>{deleting ? "Eliminando…" : "Eliminar"}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function makeDeleteStyles(c: ThemeColors) {
-  return StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.55)",
-      justifyContent: "center",
-      padding: 20,
-    },
-    sheet: {
-      width: "100%",
-      maxWidth: 420,
-      alignSelf: "center",
-      padding: 24,
-      backgroundColor: c.bgModal,
-      borderRadius: 16,
-    },
-    title: { color: c.text, fontSize: 19, fontWeight: "600" },
-    message: { color: c.textSecondary, fontSize: 14, lineHeight: 21, marginTop: 10 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 24 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: c.textLabel, fontWeight: "600" },
-    deleteButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.destructive,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    deleteText: { color: "#fff", fontWeight: "600" },
-  });
 }
 
 function EquipmentRow({
@@ -420,55 +330,10 @@ function EquipmentRow({
 
       {isAdmin && (
         <View style={[styles.cell, styles.actionsColumn, styles.actionsCell]}>
-          <ActionButton label="Editar equipo" color={colors.accent} onPress={onEdit}>
-            <EditIcon size={17} color={colors.accent} />
-          </ActionButton>
-          <ActionButton
-            label="Dar de baja equipo"
-            color={colors.destructive}
-            disabled={deleting}
-            onPress={onDelete}
-          >
-            <TrashIcon size={17} color={colors.destructive} />
-          </ActionButton>
+          <CrudActions onEdit={onEdit} onDelete={onDelete} deleteDisabled={deleting} />
         </View>
       )}
     </View>
-  );
-}
-
-function ActionButton({
-  children,
-  label,
-  color,
-  disabled,
-  onPress,
-}: {
-  children: React.ReactNode;
-  label: string;
-  color: string;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      disabled={disabled}
-      hitSlop={8}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width: 34,
-        height: 34,
-        borderRadius: 8,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: pressed ? `${color}18` : "transparent",
-        opacity: disabled ? 0.45 : 1,
-      })}
-    >
-      {children}
-    </Pressable>
   );
 }
 

@@ -10,10 +10,15 @@ import {
   View,
 } from "react-native";
 import { LocationModal } from "../../../components/LocationModal";
+import { CrudActions } from "../../../components/CrudActions";
+import { DeleteConfirmationModal } from "../../../components/DeleteConfirmationModal";
 import { BREAKPOINT } from "../../../constants";
-import { listLocations } from "../../../lib/queries/locations";
+import {
+  deleteLocation,
+  listLocations,
+  type LocationWithCount,
+} from "../../../lib/queries/locations";
 import { supabase } from "../../../lib/supabase";
-import type { LocationWithCount } from "../../../lib/queries/locations";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 
@@ -24,6 +29,8 @@ export default function LocationsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<LocationWithCount | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<LocationWithCount | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const { width } = useWindowDimensions();
   const isMobile = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
@@ -59,6 +66,20 @@ export default function LocationsScreen() {
     setRefreshing(false);
   }
 
+  async function removeLocation(location: LocationWithCount) {
+    setDeletingId(location.lu_codigo);
+    try {
+      await deleteLocation(location.lu_codigo);
+      setDeleteTarget(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setDeleteTarget(null);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
@@ -90,14 +111,17 @@ export default function LocationsScreen() {
             <Text style={[styles.headerCell, { flex: 2 }]}>SECTOR</Text>
             <Text style={[styles.headerCell, { flex: 1.2 }]}>PISO</Text>
             <Text style={[styles.headerCell, { flex: 1 }]}>EQUIPOS</Text>
+            <Text style={[styles.headerCell, styles.actionsColumn]}>ACCIONES</Text>
           </View>
 
           {locations.map((l) => (
-            <Pressable key={l.lu_codigo} style={styles.row} onPress={() => setEditing(l)}>
+            <View key={l.lu_codigo} style={styles.row}>
               <View style={{ flex: 2, justifyContent: "center" }}>
-                <Text style={styles.name} numberOfLines={1}>
-                  {l.lu_nombre_sector}
-                </Text>
+                <Pressable onPress={() => setEditing(l)}>
+                  <Text style={styles.name} numberOfLines={1}>
+                    {l.lu_nombre_sector}
+                  </Text>
+                </Pressable>
               </View>
 
               <View style={{ flex: 1.2, justifyContent: "center" }}>
@@ -111,28 +135,42 @@ export default function LocationsScreen() {
                   <Text style={styles.countBadgeText}>{l.equipmentCount}</Text>
                 </View>
               </View>
-            </Pressable>
+
+              <View style={[styles.actionsColumn, styles.actionsCell]}>
+                <CrudActions
+                  onEdit={() => setEditing(l)}
+                  onDelete={() => setDeleteTarget(l)}
+                  deleteDisabled={deletingId === l.lu_codigo}
+                />
+              </View>
+            </View>
           ))}
         </View>
       ) : (
         <View style={styles.cardList}>
           {locations.map((l) => (
-            <Pressable key={l.lu_codigo} style={styles.locationCard} onPress={() => setEditing(l)}>
-              <View style={{ flex: 1, minWidth: 0 }}>
+            <View key={l.lu_codigo} style={styles.locationCard}>
+              <Pressable style={{ flex: 1, minWidth: 0 }} onPress={() => setEditing(l)}>
                 <Text style={styles.name} numberOfLines={1}>
                   {l.lu_nombre_sector}
                 </Text>
                 <Text style={styles.floorText} numberOfLines={1}>
                   {l.lu_piso || "Sin piso especificado"}
                 </Text>
-              </View>
+              </Pressable>
 
               <View style={styles.countBadge}>
                 <Text style={styles.countBadgeText}>
                   {l.equipmentCount} equipo{l.equipmentCount === 1 ? "" : "s"}
                 </Text>
               </View>
-            </Pressable>
+
+              <CrudActions
+                onEdit={() => setEditing(l)}
+                onDelete={() => setDeleteTarget(l)}
+                deleteDisabled={deletingId === l.lu_codigo}
+              />
+            </View>
           ))}
         </View>
       )}
@@ -147,6 +185,17 @@ export default function LocationsScreen() {
       )}
 
       <LocationModal visible={creating} onClose={() => setCreating(false)} onSaved={load} />
+
+      {deleteTarget && (
+        <DeleteConfirmationModal
+          visible
+          title="Eliminar ubicación"
+          message={`¿Querés eliminar ${deleteTarget.lu_nombre_sector}? Esta acción no se puede deshacer.`}
+          deleting={deletingId === deleteTarget.lu_codigo}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => void removeLocation(deleteTarget)}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -182,7 +231,7 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 700,
+      maxWidth: 820,
     },
     tableHeader: {
       flexDirection: "row",
@@ -226,5 +275,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgAreaChip,
     },
     countBadgeText: { fontSize: 12.5, fontWeight: "600", color: c.textLabel },
+    actionsColumn: { flex: 1.2, minWidth: 84 },
+    actionsCell: { alignItems: "center", justifyContent: "center" },
   });
 }
