@@ -23,6 +23,11 @@
   `src/app/(app)/_layout.tsx` owns role-filtered navigation.
 - Screens must use functions in `src/lib/queries/` for Supabase access; do not
   call `supabase.from(...)` directly from a screen or component.
+- Every screen's business data must be read from and written to the database:
+  create, edit, inactivate, delete, and list flows must use query functions.
+  React state is only for form values, loading/error UI, filters, and temporary
+  interaction state; after a mutation, reload the authoritative row/list from
+  Supabase instead of treating local state as persisted data.
 - `src/types/database.ts` is a hand-maintained mirror of the SQL actually used
   by the query layer. Update it whenever a queried schema column changes.
 - Edge Functions under `supabase/functions/` run on Deno and are excluded from
