@@ -2,8 +2,7 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Platform,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -41,6 +40,7 @@ export default function EquipmentScreen() {
   const [editing, setEditing] = useState<Equipo | null>(null);
   const [creating, setCreating] = useState(false);
   const [reportingFault, setReportingFault] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Equipo | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.mobile;
@@ -95,27 +95,20 @@ export default function EquipmentScreen() {
     setDeletingId(item.id);
     try {
       await deleteEquipment(item.id);
+      setDeleteTarget(null);
       await load();
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      if (Platform.OS === "web") window.alert(message);
-      else Alert.alert("No se pudo dar de baja", message);
+      setError(message);
+      setDeleteTarget(null);
     } finally {
       setDeletingId(null);
     }
   }
 
   function confirmDelete(item: Equipo) {
-    const message = `¿Dar de baja ${item.code} · ${item.name}? Esta acción no se puede deshacer.`;
-    if (Platform.OS === "web") {
-      if (window.confirm(message)) void removeEquipment(item);
-      return;
-    }
-
-    Alert.alert("Dar de baja equipo", message, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Dar de baja", style: "destructive", onPress: () => void removeEquipment(item) },
-    ]);
+    setError(null);
+    setDeleteTarget(item);
   }
 
   if (loading) {
@@ -148,7 +141,7 @@ export default function EquipmentScreen() {
 
             {profile?.role === "admin" && (
               <Pressable style={styles.addButton} onPress={() => setCreating(true)}>
-                <Text style={styles.addButtonText}>+ Agregar equipo</Text>
+                <Text style={styles.addButtonText}>+ Nuevo equipo</Text>
               </Pressable>
             )}
           </View>
@@ -280,8 +273,99 @@ export default function EquipmentScreen() {
         onSubmitted={load}
         equipmentOptions={equipment.map(({ id, code, name }) => ({ id, code, name }))}
       />
+
+      {deleteTarget && (
+        <DeleteEquipmentModal
+          visible
+          equipment={deleteTarget}
+          deleting={deletingId === deleteTarget.id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => void removeEquipment(deleteTarget)}
+        />
+      )}
     </>
   );
+}
+
+function DeleteEquipmentModal({
+  visible,
+  equipment,
+  deleting,
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  equipment: Equipo;
+  deleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const { colors } = useTheme();
+  const styles = makeDeleteStyles(colors);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={styles.overlay}>
+        <View style={styles.sheet}>
+          <Text style={styles.title}>Eliminar equipo</Text>
+          <Text style={styles.message}>
+            ¿Querés eliminar {equipment.code} · {equipment.name}? Esta acción no se puede deshacer.
+          </Text>
+
+          <View style={styles.actions}>
+            <Pressable style={styles.cancelButton} onPress={onCancel} disabled={deleting}>
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </Pressable>
+
+            <Pressable style={styles.deleteButton} onPress={onConfirm} disabled={deleting}>
+              <Text style={styles.deleteText}>{deleting ? "Eliminando…" : "Eliminar"}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function makeDeleteStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
+    sheet: {
+      width: "100%",
+      maxWidth: 420,
+      alignSelf: "center",
+      padding: 24,
+      backgroundColor: c.bgModal,
+      borderRadius: 16,
+    },
+    title: { color: c.text, fontSize: 19, fontWeight: "600" },
+    message: { color: c.textSecondary, fontSize: 14, lineHeight: 21, marginTop: 10 },
+    actions: { flexDirection: "row", gap: 10, marginTop: 24 },
+    cancelButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cancelText: { color: c.textLabel, fontWeight: "600" },
+    deleteButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: c.destructive,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    deleteText: { color: "#fff", fontWeight: "600" },
+  });
 }
 
 function EquipmentRow({
