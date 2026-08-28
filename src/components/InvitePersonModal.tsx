@@ -6,13 +6,7 @@ import { AutocompleteInput } from "./AutocompleteInput";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
-
-const ROLES: Profile["role"][] = ["user", "technician", "admin"];
-const ROLE_LABELS: Record<Profile["role"], string> = {
-  user: "Usuario",
-  technician: "Técnico",
-  admin: "Admin",
-};
+import { RoleDropdown } from "./RoleDropdown";
 
 export function InvitePersonModal({
   visible,
@@ -139,22 +133,7 @@ export function InvitePersonModal({
           />
 
           <Text style={styles.label}>Rol</Text>
-          <View style={styles.chipsRow}>
-            {ROLES.map((r) => (
-              <Pressable
-                key={r}
-                style={[
-                  styles.chip,
-                  role === r && { backgroundColor: colors.accent, borderColor: colors.accent },
-                ]}
-                onPress={() => setRole(r)}
-              >
-                <Text style={[styles.chipText, role === r && styles.chipTextActive]}>
-                  {ROLE_LABELS[r]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <RoleDropdown value={role} onChange={setRole} />
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -175,7 +154,12 @@ export function InvitePersonModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -186,7 +170,13 @@ function makeStyles(c: ThemeColors) {
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 4 },
     subtitle: { fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 14, marginBottom: 6 },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginTop: 14,
+      marginBottom: 6,
+    },
     input: {
       height: 44,
       paddingHorizontal: 14,

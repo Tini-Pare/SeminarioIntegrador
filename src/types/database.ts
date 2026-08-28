@@ -7,8 +7,8 @@
 //
 // Only tables the app's query layer actually calls `.from()` on are declared
 // here (profiles, lugares, tipos_de_equipos, equipo, solicitudes,
-// orden_de_trabajo, historial) — the rest of the schema (proveedores, compras,
-// repuestos, planes de mantenimiento, catalogo de fallas, etc., see
+// orden_de_trabajo, historial, tareas_generales, fallo) — the rest of the
+// schema (proveedores, compras, repuestos, plans, etc., see
 // supabase/migrations/0003_reemplazo_gestion_mantenimiento.sql) has no UI yet
 // and nothing here queries it.
 export type Database = {
@@ -72,10 +72,12 @@ export type Database = {
           lu_codigo: number;
           eq_codigo: string;
           eq_nombre: string;
+          eq_activo: boolean;
           eq_estado: "operational" | "waiting" | "repair";
           eq_modelo: string | null;
           eq_fecha_garantia: string | null;
           eq_fecha_instalacion: string | null;
+          eq_fecha_compra: string | null;
         };
         Insert: {
           eq_id_equipo?: number;
@@ -83,10 +85,12 @@ export type Database = {
           lu_codigo: number;
           eq_codigo: string;
           eq_nombre: string;
+          eq_activo?: boolean;
           eq_estado?: "operational" | "waiting" | "repair";
           eq_modelo?: string | null;
           eq_fecha_garantia?: string | null;
           eq_fecha_instalacion?: string | null;
+          eq_fecha_compra?: string | null;
         };
         Update: {
           eq_id_equipo?: number;
@@ -94,10 +98,12 @@ export type Database = {
           lu_codigo?: number;
           eq_codigo?: string;
           eq_nombre?: string;
+          eq_activo?: boolean;
           eq_estado?: "operational" | "waiting" | "repair";
           eq_modelo?: string | null;
           eq_fecha_garantia?: string | null;
           eq_fecha_instalacion?: string | null;
+          eq_fecha_compra?: string | null;
         };
         Relationships: [
           {
@@ -115,6 +121,48 @@ export type Database = {
             referencedColumns: ["lu_codigo"];
           },
         ];
+      };
+      tareas_generales: {
+        Row: {
+          tag_id_tarea: number;
+          tag_nombre_tarea: string;
+          tag_descripcion_tarea: string | null;
+          tag_activo: boolean;
+        };
+        Insert: {
+          tag_id_tarea?: number;
+          tag_nombre_tarea: string;
+          tag_descripcion_tarea?: string | null;
+          tag_activo?: boolean;
+        };
+        Update: {
+          tag_id_tarea?: number;
+          tag_nombre_tarea?: string;
+          tag_descripcion_tarea?: string | null;
+          tag_activo?: boolean;
+        };
+        Relationships: [];
+      };
+      fallo: {
+        Row: {
+          fa_id_fallo: number;
+          fa_nombre: string;
+          fa_desperfecto: string | null;
+          fa_activo: boolean;
+        };
+        Insert: {
+          fa_id_fallo?: number;
+          fa_nombre: string;
+          fa_desperfecto?: string | null;
+          fa_activo?: boolean;
+        };
+        Update: {
+          fa_id_fallo?: number;
+          fa_nombre?: string;
+          fa_desperfecto?: string | null;
+          fa_activo?: boolean;
+        };
+        Relationships: [];
       };
       solicitudes: {
         Row: {
@@ -265,6 +313,11 @@ export type Database = {
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Lugar = Database["public"]["Tables"]["lugares"]["Row"];
 export type TipoEquipo = Database["public"]["Tables"]["tipos_de_equipos"]["Row"];
+export type GeneralTask = Database["public"]["Tables"]["tareas_generales"]["Row"];
+export type GenericFault = Pick<
+  Database["public"]["Tables"]["fallo"]["Row"],
+  "fa_id_fallo" | "fa_nombre" | "fa_desperfecto" | "fa_activo"
+>;
 
 // Equipo/Solicitud/HistorialEntry are the query layer's computed/joined
 // view shapes (see src/lib/queries/equipment.ts and faults.ts), not raw
@@ -275,9 +328,15 @@ export type Equipo = {
   id: number;
   code: string;
   name: string;
+  typeId: number;
+  locationId: number;
+  active: boolean;
   type: string;
   location: string;
   status: "operational" | "waiting" | "repair";
+  model: string | null;
+  warrantyDate: string | null;
+  installationDate: string | null;
   purchaseDate: string | null;
 };
 

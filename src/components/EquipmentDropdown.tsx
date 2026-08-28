@@ -1,33 +1,40 @@
 import { useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { LocationWithCount } from "../lib/queries/locations";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 
-export function LocationDropdown({
+export type EquipmentOption = {
+  id: number;
+  code: string;
+  name: string;
+  location: string;
+};
+
+export function EquipmentDropdown({
   value,
-  locations,
+  options,
   onChange,
 }: {
-  value: string;
-  locations: LocationWithCount[];
-  onChange: (location: LocationWithCount) => void;
+  value: number | undefined;
+  options: EquipmentOption[];
+  onChange: (equipment: EquipmentOption) => void;
 }) {
   const [open, setOpen] = useState(false);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
-  const dropdownHeight = Math.min(Math.max(locations.length * 44 + 2, 46), 280);
+  const selected = options.find((equipment) => equipment.id === value);
+  const dropdownHeight = Math.min(Math.max(options.length * 56 + 2, 58), 280);
 
   return (
     <View style={[styles.wrap, open && styles.wrapOpen]}>
       <Pressable
-        accessibilityLabel="Seleccionar ubicación"
+        accessibilityLabel="Seleccionar equipo"
         accessibilityRole="button"
         style={styles.select}
         onPress={() => setOpen((current) => !current)}
       >
-        <Text style={[styles.value, !value && styles.placeholder]} numberOfLines={1}>
-          {value || "Seleccioná una ubicación"}
+        <Text style={[styles.value, !selected && styles.placeholder]} numberOfLines={1}>
+          {selected ? `${selected.code} · ${selected.name}` : "Seleccioná un equipo"}
         </Text>
         <Text style={styles.arrow}>{open ? "▴" : "▾"}</Text>
       </Pressable>
@@ -37,8 +44,8 @@ export function LocationDropdown({
           <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
 
           <View style={[styles.dropdown, { height: dropdownHeight }]}>
-            {locations.length === 0 ? (
-              <Text style={styles.empty}>No hay ubicaciones cargadas.</Text>
+            {options.length === 0 ? (
+              <Text style={styles.empty}>No hay equipos activos.</Text>
             ) : (
               <ScrollView
                 style={styles.optionsScroll}
@@ -46,22 +53,19 @@ export function LocationDropdown({
                 nestedScrollEnabled
                 showsVerticalScrollIndicator
               >
-                {locations.map((location) => (
+                {options.map((equipment) => (
                   <Pressable
-                    key={location.lu_codigo}
-                    style={[
-                      styles.option,
-                      value === location.lu_nombre_sector && styles.optionSelected,
-                    ]}
+                    key={equipment.id}
+                    style={[styles.option, value === equipment.id && styles.optionSelected]}
                     onPress={() => {
-                      onChange(location);
+                      onChange(equipment);
                       setOpen(false);
                     }}
                   >
-                    <Text style={styles.optionName}>{location.lu_nombre_sector}</Text>
-                    {!!location.lu_piso && (
-                      <Text style={styles.optionFloor}>Piso {location.lu_piso}</Text>
-                    )}
+                    <Text style={styles.optionName}>
+                      {equipment.code} · {equipment.name}
+                    </Text>
+                    <Text style={styles.optionLocation}>{equipment.location}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -115,17 +119,10 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: "transparent",
     },
     optionsScroll: { flex: 1 },
-    option: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-    },
+    option: { paddingHorizontal: 14, paddingVertical: 10 },
     optionSelected: { backgroundColor: c.bgToggleActive },
-    optionName: { flex: 1, color: c.text, fontSize: 13.5, fontWeight: "600" },
-    optionFloor: { color: c.textMuted, fontSize: 12, textAlign: "right" },
+    optionName: { color: c.text, fontSize: 13.5, fontWeight: "600" },
+    optionLocation: { color: c.textMuted, fontSize: 12, marginTop: 3 },
     empty: { padding: 14, color: c.textMuted, fontSize: 13 },
   });
 }

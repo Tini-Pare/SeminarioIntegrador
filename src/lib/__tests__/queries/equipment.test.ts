@@ -4,7 +4,12 @@ jest.mock("../../supabase", () => ({
   },
 }));
 
-import { getEquipmentById, listEquipment } from "../../queries/equipment";
+import {
+  createEquipment,
+  getEquipmentById,
+  listEquipment,
+  updateEquipment,
+} from "../../queries/equipment";
 import { supabase } from "../../supabase";
 
 describe("listEquipment", () => {
@@ -13,11 +18,17 @@ describe("listEquipment", () => {
       data: [
         {
           eq_id_equipo: 1,
+          te_id: 2,
+          lu_codigo: 3,
           eq_codigo: "AC-014",
           eq_nombre: "Aire Acondicionado",
+          eq_activo: true,
           eq_estado: "operational",
+          eq_modelo: "M-100",
+          eq_fecha_garantia: "2027-01-15",
           eq_fecha_instalacion: "2026-01-15",
-          lugares: { lu_nombre_sector: "Planta A" },
+          eq_fecha_compra: "2026-01-10",
+          lugares: { lu_codigo: 3, lu_nombre_sector: "Planta A", lu_piso: "1" },
           tipos_de_equipos: { te_nombre: "Climatización" },
         },
       ],
@@ -38,10 +49,16 @@ describe("listEquipment", () => {
         id: 1,
         code: "AC-014",
         name: "Aire Acondicionado",
+        typeId: 2,
+        locationId: 3,
+        active: true,
         type: "Climatización",
         location: "Planta A",
         status: "operational",
-        purchaseDate: "2026-01-15",
+        model: "M-100",
+        warrantyDate: "2027-01-15",
+        installationDate: "2026-01-15",
+        purchaseDate: "2026-01-10",
       },
     ]);
   });
@@ -61,11 +78,17 @@ describe("getEquipmentById", () => {
     const single = jest.fn().mockResolvedValue({
       data: {
         eq_id_equipo: 1,
+        te_id: 2,
+        lu_codigo: 3,
         eq_codigo: "AC-014",
         eq_nombre: "Aire Acondicionado",
+        eq_activo: true,
         eq_estado: "operational",
+        eq_modelo: null,
+        eq_fecha_garantia: null,
         eq_fecha_instalacion: null,
-        lugares: { lu_nombre_sector: "Planta A" },
+        eq_fecha_compra: null,
+        lugares: { lu_codigo: 3, lu_nombre_sector: "Planta A", lu_piso: "1" },
         tipos_de_equipos: { te_nombre: "Climatización" },
       },
       error: null,
@@ -81,9 +104,15 @@ describe("getEquipmentById", () => {
       id: 1,
       code: "AC-014",
       name: "Aire Acondicionado",
+      typeId: 2,
+      locationId: 3,
+      active: true,
       type: "Climatización",
       location: "Planta A",
       status: "operational",
+      model: null,
+      warrantyDate: null,
+      installationDate: null,
       purchaseDate: null,
     });
   });
@@ -99,5 +128,82 @@ describe("getEquipmentById", () => {
     const result = await getEquipmentById(999);
 
     expect(result).toBeNull();
+  });
+});
+
+describe("equipment writes", () => {
+  it("creates equipment with FK ids and separate dates", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: {
+        eq_id_equipo: 5,
+        te_id: 2,
+        lu_codigo: 3,
+        eq_codigo: "AC-015",
+        eq_nombre: "Aire Acondicionado",
+        eq_activo: true,
+        eq_estado: "operational",
+        eq_modelo: "M-200",
+        eq_fecha_garantia: "2028-01-01",
+        eq_fecha_instalacion: "2026-02-01",
+        eq_fecha_compra: "2026-01-01",
+        lugares: { lu_nombre_sector: "Planta A" },
+        tipos_de_equipos: { te_nombre: "Climatización" },
+      },
+      error: null,
+    });
+    const select = jest.fn().mockReturnValue({ single });
+    const insert = jest.fn().mockReturnValue({ select });
+    (supabase.from as jest.Mock).mockReturnValue({ insert });
+
+    await createEquipment({
+      code: "AC-015",
+      name: "Aire Acondicionado",
+      typeId: 2,
+      locationId: 3,
+      model: "M-200",
+      warrantyDate: "2028-01-01",
+      installationDate: "2026-02-01",
+      purchaseDate: "2026-01-01",
+    });
+
+    expect(insert).toHaveBeenCalledWith({
+      eq_codigo: "AC-015",
+      eq_nombre: "Aire Acondicionado",
+      te_id: 2,
+      lu_codigo: 3,
+      eq_modelo: "M-200",
+      eq_fecha_garantia: "2028-01-01",
+      eq_fecha_instalacion: "2026-02-01",
+      eq_fecha_compra: "2026-01-01",
+    });
+  });
+
+  it("updates equipment FKs and dates without creating catalog rows", async () => {
+    const eq = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ update });
+
+    await updateEquipment(5, {
+      code: "AC-015",
+      name: "Aire Acondicionado",
+      typeId: 4,
+      locationId: 8,
+      model: null,
+      warrantyDate: null,
+      installationDate: "2026-03-01",
+      purchaseDate: "2026-02-15",
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      eq_codigo: "AC-015",
+      eq_nombre: "Aire Acondicionado",
+      te_id: 4,
+      lu_codigo: 8,
+      eq_modelo: null,
+      eq_fecha_garantia: null,
+      eq_fecha_instalacion: "2026-03-01",
+      eq_fecha_compra: "2026-02-15",
+    });
+    expect(eq).toHaveBeenCalledWith("eq_id_equipo", 5);
   });
 });

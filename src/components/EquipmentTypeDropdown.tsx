@@ -11,7 +11,7 @@ export function EquipmentTypeDropdown({
 }: {
   value: string;
   types: TipoEquipo[];
-  onChange: (value: string) => void;
+  onChange: (type: TipoEquipo) => void;
 }) {
   const [open, setOpen] = useState(false);
   const { colors } = useTheme();
@@ -51,7 +51,7 @@ export function EquipmentTypeDropdown({
                     key={type.te_id}
                     style={[styles.option, value === type.te_nombre && styles.optionSelected]}
                     onPress={() => {
-                      onChange(type.te_nombre);
+                      onChange(type);
                       setOpen(false);
                     }}
                   >

@@ -97,7 +97,7 @@ export default function LocationsScreen() {
         </View>
 
         <Pressable style={styles.addButton} onPress={() => setCreating(true)}>
-          <Text style={styles.addButtonText}>+ Nueva ubicación</Text>
+          <Text style={styles.addButtonText}>+ Nueva Ubicación</Text>
         </Pressable>
       </View>
 
@@ -231,7 +231,7 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 820,
+      width: "100%",
     },
     tableHeader: {
       flexDirection: "row",

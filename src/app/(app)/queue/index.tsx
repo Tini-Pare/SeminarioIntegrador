@@ -312,7 +312,7 @@ export default function QueueScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
-    content: { padding: 20, maxWidth: 920 },
+    content: { padding: 20 },
     center: { flex: 1 },
     header: {
       flexDirection: "row",

@@ -103,7 +103,8 @@ create table equipo (
     eq_estado            equipment_status_t not null default 'operational',
     eq_modelo            varchar(100),
     eq_fecha_garantia    date,
-    eq_fecha_instalacion date
+    eq_fecha_instalacion date,
+    eq_fecha_compra      date
 );
 
 -- ---------------------------------------------------------------------
@@ -215,8 +216,7 @@ create table prestador_externo (
 create table fallo (
     fa_id_fallo    int generated always as identity primary key,
     fa_nombre      varchar(100) not null,
-    fa_desperfecto varchar(255),
-    fa_gravedad    varchar(50)
+    fa_desperfecto varchar(255)
 );
 
 create table fallo_por_orden (

@@ -18,11 +18,10 @@ import {
   compressToWebp,
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
-import type { Equipo, Solicitud } from "../types/database";
+import type { Solicitud } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
-
-type EquipmentOption = Pick<Equipo, "id" | "code" | "name">;
+import { EquipmentDropdown, type EquipmentOption } from "./EquipmentDropdown";
 
 const URGENCIES: Solicitud["urgency"][] = ["low", "medium", "high"];
 const URGENCY_LABELS: Record<Solicitud["urgency"], string> = {
@@ -120,20 +119,11 @@ export function ReportFaultModal({
             {!equipment && equipmentOptions && (
               <View style={styles.pickerWrap}>
                 <Text style={styles.label}>Equipo</Text>
-                {equipmentOptions.map((e) => (
-                  <Pressable
-                    key={e.id}
-                    style={[
-                      styles.pickerRow,
-                      selectedId === e.id && { borderColor: colors.accent, backgroundColor: colors.bgNested },
-                    ]}
-                    onPress={() => setSelectedId(e.id)}
-                  >
-                    <Text style={styles.pickerText}>
-                      {e.code} · {e.name}
-                    </Text>
-                  </Pressable>
-                ))}
+                <EquipmentDropdown
+                  value={selectedId}
+                  options={equipmentOptions}
+                  onChange={(selected) => setSelectedId(selected.id)}
+                />
               </View>
             )}
 
@@ -224,7 +214,12 @@ export function ReportFaultModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -234,7 +229,13 @@ function makeStyles(c: ThemeColors) {
       alignSelf: "center",
     },
     title: { fontSize: 20, fontWeight: "600", color: c.text, marginBottom: 16 },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginBottom: 6, marginTop: 12 },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginBottom: 6,
+      marginTop: 12,
+    },
     fixedEquipment: { fontSize: 14, color: c.text, fontWeight: "600" },
     pickerWrap: { marginBottom: 4 },
     pickerRow: {

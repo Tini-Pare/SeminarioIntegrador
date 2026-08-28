@@ -6,10 +6,12 @@ export function CrudActions({
   onEdit,
   onDelete,
   deleteDisabled = false,
+  deleteLabel = "Eliminar",
 }: {
   onEdit: () => void;
   onDelete: () => void;
   deleteDisabled?: boolean;
+  deleteLabel?: string;
 }) {
   const { colors } = useTheme();
   const styles = makeStyles();
@@ -30,7 +32,7 @@ export function CrudActions({
       </Pressable>
 
       <Pressable
-        accessibilityLabel="Eliminar"
+        accessibilityLabel={deleteLabel}
         accessibilityRole="button"
         disabled={deleteDisabled}
         hitSlop={8}

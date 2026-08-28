@@ -18,7 +18,7 @@ import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
 import { ReportFaultModal } from "../../../components/ReportFaultModal";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
-import { deleteEquipment, listEquipment } from "../../../lib/queries/equipment";
+import { listEquipment, setEquipmentActive } from "../../../lib/queries/equipment";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
@@ -94,7 +94,7 @@ export default function EquipmentScreen() {
   async function removeEquipment(item: Equipo) {
     setDeletingId(item.id);
     try {
-      await deleteEquipment(item.id);
+      await setEquipmentActive(item.id, false);
       setDeleteTarget(null);
       await load();
     } catch (e) {
@@ -141,7 +141,7 @@ export default function EquipmentScreen() {
 
             {profile?.role === "admin" && (
               <Pressable style={styles.addButton} onPress={() => setCreating(true)}>
-                <Text style={styles.addButtonText}>+ Nuevo equipo</Text>
+                <Text style={styles.addButtonText}>+ Agregar Equipo</Text>
               </Pressable>
             )}
           </View>
@@ -203,7 +203,7 @@ export default function EquipmentScreen() {
         ) : (
           <View style={styles.mobileList}>
             {filteredEquipment.map((item) => {
-              const status = getStatusColors(item.status, colors);
+              const status = getStatusColors(item.status, colors, item.active);
               return (
                 <View key={item.id} style={styles.mobileCard}>
                   <Pressable
@@ -235,7 +235,8 @@ export default function EquipmentScreen() {
                       <CrudActions
                         onEdit={() => setEditing(item)}
                         onDelete={() => confirmDelete(item)}
-                        deleteDisabled={deletingId === item.id}
+                        deleteLabel="Inhabilitar"
+                        deleteDisabled={deletingId === item.id || !item.active}
                       />
                     </View>
                   )}
@@ -261,14 +262,18 @@ export default function EquipmentScreen() {
         visible={reportingFault}
         onClose={() => setReportingFault(false)}
         onSubmitted={load}
-        equipmentOptions={equipment.map(({ id, code, name }) => ({ id, code, name }))}
+        equipmentOptions={equipment
+          .filter((item) => item.active)
+          .map(({ id, code, name, location }) => ({ id, code, name, location }))}
       />
 
       {deleteTarget && (
         <DeleteConfirmationModal
           visible
-          title="Eliminar equipo"
-          message={`¿Querés eliminar ${deleteTarget.code} · ${deleteTarget.name}? Esta acción no se puede deshacer.`}
+          title="Dar de baja equipo"
+          message={`¿Querés inhabilitar ${deleteTarget.code} · ${deleteTarget.name}? El equipo se conservará en el historial.`}
+          confirmLabel="Inhabilitar"
+          loadingLabel="Inhabilitando…"
           deleting={deletingId === deleteTarget.id}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => void removeEquipment(deleteTarget)}
@@ -297,7 +302,7 @@ function EquipmentRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const status = getStatusColors(equipment.status, colors);
+  const status = getStatusColors(equipment.status, colors, equipment.active);
 
   return (
     <View style={styles.tableRow}>
@@ -330,14 +335,27 @@ function EquipmentRow({
 
       {isAdmin && (
         <View style={[styles.cell, styles.actionsColumn, styles.actionsCell]}>
-          <CrudActions onEdit={onEdit} onDelete={onDelete} deleteDisabled={deleting} />
+          <CrudActions
+            onEdit={onEdit}
+            onDelete={onDelete}
+            deleteLabel="Inhabilitar"
+            deleteDisabled={deleting || !equipment.active}
+          />
         </View>
       )}
     </View>
   );
 }
 
-function getStatusColors(status: Equipo["status"], colors: ThemeColors) {
+function getStatusColors(status: Equipo["status"], colors: ThemeColors, active: boolean) {
+  if (!active) {
+    return {
+      bg: colors.bgToggle,
+      fg: colors.textMuted,
+      dot: colors.textMuted,
+      label: "Inhabilitado",
+    };
+  }
   const palette =
     status === "operational"
       ? colors.eqOperational
@@ -420,7 +438,6 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 14,
       overflow: "hidden",
       width: "100%",
-      maxWidth: 1100,
     },
     tableHeader: {
       flexDirection: "row",

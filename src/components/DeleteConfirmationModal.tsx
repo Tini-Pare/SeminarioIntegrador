@@ -6,6 +6,8 @@ export function DeleteConfirmationModal({
   visible,
   title,
   message,
+  confirmLabel = "Eliminar",
+  loadingLabel = "Eliminando…",
   deleting,
   onCancel,
   onConfirm,
@@ -13,6 +15,8 @@ export function DeleteConfirmationModal({
   visible: boolean;
   title: string;
   message: string;
+  confirmLabel?: string;
+  loadingLabel?: string;
   deleting: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -33,7 +37,7 @@ export function DeleteConfirmationModal({
             </Pressable>
 
             <Pressable style={styles.deleteButton} onPress={onConfirm} disabled={deleting}>
-              <Text style={styles.deleteText}>{deleting ? "Eliminando…" : "Eliminar"}</Text>
+              <Text style={styles.deleteText}>{deleting ? loadingLabel : confirmLabel}</Text>
             </Pressable>
           </View>
         </View>

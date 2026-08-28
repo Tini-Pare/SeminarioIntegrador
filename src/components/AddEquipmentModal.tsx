@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { createEquipment, listEquipmentTypes } from "../lib/queries/equipment";
+import {
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import {
+  createEquipment,
+  ensureEquipmentTypes,
+  listEquipmentTypes,
+} from "../lib/queries/equipment";
 import { listLocations, type LocationWithCount } from "../lib/queries/locations";
 import { supabase } from "../lib/supabase";
 import type { TipoEquipo } from "../types/database";
@@ -22,17 +34,25 @@ export function AddEquipmentModal({
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [type, setType] = useState("");
+  const [typeId, setTypeId] = useState<number | null>(null);
   const [location, setLocation] = useState("");
+  const [locationId, setLocationId] = useState<number | null>(null);
+  const [model, setModel] = useState("");
+  const [warrantyDate, setWarrantyDate] = useState("");
+  const [installationDate, setInstallationDate] = useState("");
   const [purchaseDate, setPurchaseDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locations, setLocations] = useState<LocationWithCount[]>([]);
   const [equipmentTypes, setEquipmentTypes] = useState<TipoEquipo[]>([]);
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 600;
   const styles = makeStyles(colors);
 
   const loadOptions = useCallback(async () => {
     try {
+      await ensureEquipmentTypes();
       const [locationRows, typeRows] = await Promise.all([listLocations(), listEquipmentTypes()]);
       setLocations(locationRows);
       setEquipmentTypes(typeRows);
@@ -61,13 +81,15 @@ export function AddEquipmentModal({
   }, [visible, loadOptions]);
 
   async function handleSubmit() {
-    if (!code.trim() || !name.trim() || !type.trim() || !location.trim() || !purchaseDate.trim()) {
-      setError("Completá todos los campos, incluyendo la fecha de compra.");
+    if (!code.trim() || !name.trim() || typeId === null || locationId === null) {
+      setError("Completá nombre, código, tipo y ubicación.");
       return;
     }
-    if (!isValidDateString(purchaseDate.trim())) {
-      setError("Ingresá una fecha válida en formato dd/mm/aaaa.");
-      return;
+    for (const date of [warrantyDate, installationDate, purchaseDate]) {
+      if (date.trim() && !isValidDateString(date.trim())) {
+        setError("Ingresá las fechas válidas en formato dd/mm/aaaa.");
+        return;
+      }
     }
     setSaving(true);
     setError(null);
@@ -75,15 +97,23 @@ export function AddEquipmentModal({
       await createEquipment({
         code: code.trim(),
         name: name.trim(),
-        type: type.trim(),
-        location: location.trim(),
-        purchaseDate: toDbDate(purchaseDate.trim()),
+        typeId,
+        locationId,
+        model: model.trim() || null,
+        warrantyDate: warrantyDate.trim() ? toDbDate(warrantyDate.trim()) : null,
+        installationDate: installationDate.trim() ? toDbDate(installationDate.trim()) : null,
+        purchaseDate: purchaseDate.trim() ? toDbDate(purchaseDate.trim()) : null,
       });
 
       setCode("");
       setName("");
       setType("");
+      setTypeId(null);
       setLocation("");
+      setLocationId(null);
+      setModel("");
+      setWarrantyDate("");
+      setInstallationDate("");
       setPurchaseDate("");
       onCreated();
       onClose();
@@ -103,34 +133,91 @@ export function AddEquipmentModal({
             Nace "Funcionando" — el estado se recalcula solo según las fallas activas.
           </Text>
 
-          <Text style={styles.label}>Código</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: AC-015"
-            placeholderTextColor={colors.textMuted}
-            value={code}
-            onChangeText={setCode}
-          />
+          <View style={[styles.formRow, !isWide && styles.formColumn]}>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Nombre</Text>
+              <TextInput
+                style={[styles.input, styles.nameInput]}
+                placeholder="Ej: Aire Acondicionado"
+                placeholderTextColor={colors.textMuted}
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
 
-          <Text style={styles.label}>Nombre</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: Aire Acondicionado"
-            placeholderTextColor={colors.textMuted}
-            value={name}
-            onChangeText={setName}
-          />
+            <View style={styles.formField}>
+              <Text style={styles.label}>Código</Text>
+              <TextInput
+                style={[styles.input, styles.codeInput]}
+                placeholder="Ej: AC-015"
+                placeholderTextColor={colors.textMuted}
+                value={code}
+                onChangeText={setCode}
+              />
+            </View>
+          </View>
 
-          <Text style={styles.label}>Tipo</Text>
-          <EquipmentTypeDropdown value={type} types={equipmentTypes} onChange={setType} />
+          <View style={[styles.formRow, !isWide && styles.formColumn]}>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Tipo</Text>
+              <EquipmentTypeDropdown
+                value={type}
+                types={equipmentTypes}
+                onChange={(selected) => {
+                  setType(selected.te_nombre);
+                  setTypeId(selected.te_id);
+                }}
+              />
+            </View>
 
-          <Text style={styles.label}>Ubicación</Text>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Modelo</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: Samsung XYZ"
+                placeholderTextColor={colors.textMuted}
+                value={model}
+                onChangeText={setModel}
+              />
+            </View>
+          </View>
 
-          <LocationDropdown value={location} locations={locations} onChange={setLocation} />
+          <View style={[styles.formRow, !isWide && styles.formColumn]}>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Fecha de compra</Text>
+              <View style={styles.shortField}>
+                <CustomDatePicker value={purchaseDate} onChange={setPurchaseDate} />
+              </View>
+            </View>
 
-          <Text style={styles.label}>Fecha de compra</Text>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Fecha de instalación</Text>
+              <View style={styles.shortField}>
+                <CustomDatePicker value={installationDate} onChange={setInstallationDate} />
+              </View>
+            </View>
+          </View>
 
-          <CustomDatePicker value={purchaseDate} onChange={setPurchaseDate} />
+          <View style={[styles.formRow, !isWide && styles.formColumn]}>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Fecha de garantía</Text>
+              <View style={styles.shortField}>
+                <CustomDatePicker value={warrantyDate} onChange={setWarrantyDate} />
+              </View>
+            </View>
+
+            <View style={[styles.formField, styles.locationField]}>
+              <Text style={styles.label}>Ubicación</Text>
+              <LocationDropdown
+                value={location}
+                locations={locations}
+                onChange={(selected) => {
+                  setLocation(selected.lu_nombre_sector);
+                  setLocationId(selected.lu_codigo);
+                }}
+              />
+            </View>
+          </View>
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -162,7 +249,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 16,
       padding: 24,
       width: "100%",
-      maxWidth: 480,
+      maxWidth: 680,
       alignSelf: "center",
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 4 },
@@ -176,6 +263,8 @@ function makeStyles(c: ThemeColors) {
     },
     input: {
       height: 44,
+      width: "100%",
+      maxWidth: 400,
       paddingHorizontal: 14,
       borderWidth: 1,
       borderColor: c.borderInput,
@@ -184,6 +273,20 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       color: c.text,
     },
+    codeInput: { maxWidth: 220 },
+    nameInput: { maxWidth: 320 },
+    shortField: { width: "100%", maxWidth: 220 },
+    wideField: {
+      width: "100%",
+      maxWidth: 420,
+      alignSelf: "flex-start",
+      position: "relative",
+      zIndex: 100,
+    },
+    locationField: { position: "relative", zIndex: 100 },
+    formRow: { flexDirection: "row", gap: 18, position: "relative", zIndex: 2 },
+    formColumn: { flexDirection: "column", gap: 0 },
+    formField: { flex: 1, minWidth: 0, position: "relative", zIndex: 10 },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 22 },
     cancelButton: {

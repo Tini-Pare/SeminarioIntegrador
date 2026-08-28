@@ -16,10 +16,10 @@ import { BackIcon, CheckIcon, WarningIcon } from "../../../components/icons";
 import { ReportFaultModal } from "../../../components/ReportFaultModal";
 import { getProfile } from "../../../lib/auth";
 import {
-  deleteEquipment,
   getEquipmentById,
   listFaultsByEquipment,
   listHistoryByEquipment,
+  setEquipmentActive,
 } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
@@ -56,7 +56,10 @@ export default function EquipmentDetail() {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  const statusMeta: Record<Equipo["status"], { label: string; bg: string; fg: string; dot: string }> = {
+  const statusMeta: Record<
+    Equipo["status"],
+    { label: string; bg: string; fg: string; dot: string }
+  > = {
     operational: { label: "Funcionando", ...colors.eqOperational },
     waiting: { label: "En espera", ...colors.eqWaiting },
     repair: { label: "En reparación", ...colors.eqRepair },
@@ -102,12 +105,22 @@ export default function EquipmentDetail() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "solicitudes", filter: `eq_id_equipo=eq.${equipoId}` },
+        {
+          event: "*",
+          schema: "public",
+          table: "solicitudes",
+          filter: `eq_id_equipo=eq.${equipoId}`,
+        },
         loadEquipmentData,
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "orden_de_trabajo", filter: `eq_id_equipo=eq.${equipoId}` },
+        {
+          event: "*",
+          schema: "public",
+          table: "orden_de_trabajo",
+          filter: `eq_id_equipo=eq.${equipoId}`,
+        },
         loadEquipmentData,
       )
       .subscribe();
@@ -116,31 +129,31 @@ export default function EquipmentDetail() {
     };
   }, [id, equipoId, loadEquipmentData]);
 
-  async function doDelete() {
+  async function doInactivate() {
     if (!id || Number.isNaN(equipoId)) return;
     setDeleting(true);
     try {
-      await deleteEquipment(equipoId);
+      await setEquipmentActive(equipoId, false);
       router.replace("/equipment");
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (Platform.OS === "web") window.alert(message);
-      else Alert.alert("No se pudo eliminar", message);
+      else Alert.alert("No se pudo inhabilitar", message);
     } finally {
       setDeleting(false);
     }
   }
 
-  function handleDelete() {
-    if (!equipment) return;
-    const message = `¿Eliminar ${equipment.code} · ${equipment.name}? Esta acción no se puede deshacer.`;
+  function handleInactivate() {
+    if (!equipment || !equipment.active) return;
+    const message = `¿Inhabilitar ${equipment.code} · ${equipment.name}? El equipo se conservará en el historial.`;
     if (Platform.OS === "web") {
-      if (window.confirm(message)) doDelete();
+      if (window.confirm(message)) doInactivate();
       return;
     }
-    Alert.alert("Eliminar equipo", message, [
+    Alert.alert("Dar de baja equipo", message, [
       { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: doDelete },
+      { text: "Inhabilitar", style: "destructive", onPress: doInactivate },
     ]);
   }
 
@@ -161,7 +174,9 @@ export default function EquipmentDetail() {
     );
   }
 
-  const sm = statusMeta[equipment.status];
+  const sm = equipment.active
+    ? statusMeta[equipment.status]
+    : { label: "Inhabilitado", bg: colors.bgToggle, fg: colors.textMuted, dot: colors.textMuted };
 
   return (
     <>
@@ -180,17 +195,23 @@ export default function EquipmentDetail() {
                   <Text style={styles.editButtonText}>Editar equipo</Text>
                 </Pressable>
 
-                <Pressable style={styles.deleteButton} onPress={handleDelete} disabled={deleting}>
+                <Pressable
+                  style={[styles.deleteButton, !equipment.active && styles.disabledButton]}
+                  onPress={handleInactivate}
+                  disabled={deleting || !equipment.active}
+                >
                   <Text style={styles.deleteButtonText}>
-                    {deleting ? "Eliminando…" : "Eliminar equipo"}
+                    {deleting ? "Inhabilitando…" : "Inhabilitar equipo"}
                   </Text>
                 </Pressable>
               </>
             )}
 
-            <Pressable style={styles.reportButton} onPress={() => setModalVisible(true)}>
-              <Text style={styles.reportButtonText}>+ Reportar falla</Text>
-            </Pressable>
+            {equipment.active && (
+              <Pressable style={styles.reportButton} onPress={() => setModalVisible(true)}>
+                <Text style={styles.reportButtonText}>+ Reportar falla</Text>
+              </Pressable>
+            )}
           </View>
         </View>
 
@@ -210,6 +231,26 @@ export default function EquipmentDetail() {
             <MetaCell label="Ubicación" value={equipment.location} />
 
             <MetaCell label="Tipo" value={equipment.type} />
+
+            <MetaCell label="Modelo" value={equipment.model ?? "No registrado"} />
+
+            <MetaCell
+              label="Fecha de instalación"
+              value={
+                equipment.installationDate
+                  ? new Date(equipment.installationDate + "T00:00:00").toLocaleDateString("es-AR")
+                  : "No registrada"
+              }
+            />
+
+            <MetaCell
+              label="Fecha de garantía"
+              value={
+                equipment.warrantyDate
+                  ? new Date(equipment.warrantyDate + "T00:00:00").toLocaleDateString("es-AR")
+                  : "No registrada"
+              }
+            />
 
             <MetaCell
               label="Fecha de compra"
@@ -235,7 +276,15 @@ export default function EquipmentDetail() {
           <View>
             <Text style={styles.sectionTitle}>Fallas activas</Text>
             {faults.length === 0 ? (
-              <View style={[styles.emptyRow, { backgroundColor: colors.eqOperational.bg, borderColor: colors.eqOperational.bg }]}>
+              <View
+                style={[
+                  styles.emptyRow,
+                  {
+                    backgroundColor: colors.eqOperational.bg,
+                    borderColor: colors.eqOperational.bg,
+                  },
+                ]}
+              >
                 <View style={[styles.emptyIconWrap, { backgroundColor: colors.eqOperational.bg }]}>
                   <CheckIcon size={16} color={colors.eqOperational.fg} />
                 </View>
@@ -309,7 +358,12 @@ export default function EquipmentDetail() {
           visible={modalVisible}
           onClose={() => setModalVisible(false)}
           onSubmitted={loadEquipmentData}
-          equipment={{ id: equipment.id, code: equipment.code, name: equipment.name }}
+          equipment={{
+            id: equipment.id,
+            code: equipment.code,
+            name: equipment.name,
+            location: equipment.location,
+          }}
         />
 
         <EditEquipmentModal
@@ -328,7 +382,9 @@ function MetaCell({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ flexGrow: 1, minWidth: 150, backgroundColor: colors.bgNested, padding: 14 }}>
       <Text style={{ fontSize: 11.5, color: colors.textMuted, fontWeight: "500" }}>{label}</Text>
-      <Text style={{ marginTop: 4, fontSize: 14, fontWeight: "600", color: colors.text }}>{value}</Text>
+      <Text style={{ marginTop: 4, fontSize: 14, fontWeight: "600", color: colors.text }}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -375,6 +431,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     deleteButtonText: { color: c.destructive, fontWeight: "600", fontSize: 13 },
+    disabledButton: { opacity: 0.45 },
     editButton: {
       borderWidth: 1,
       borderColor: c.accent,

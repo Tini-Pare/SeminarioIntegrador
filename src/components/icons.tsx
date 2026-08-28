@@ -121,6 +121,25 @@ export function RequestsIcon({ size = 18, color = "currentColor" }: IconProps) {
   );
 }
 
+export function TaskIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M5 4h14v16H5z" />
+      <Path d="M8 8h8M8 12h5" />
+      <Path d="M8 16l1.5 1.5L12 15" />
+    </Svg>
+  );
+}
+
 export function CalendarIcon({ size = 16, color = "currentColor" }: IconProps) {
   return (
     <Svg

@@ -107,7 +107,7 @@ export default function UsersScreen() {
         </View>
 
         <Pressable style={styles.inviteButton} onPress={() => setInviting(true)}>
-          <Text style={styles.inviteButtonText}>+ Invitar persona</Text>
+          <Text style={styles.inviteButtonText}>+ Invitar Persona</Text>
         </Pressable>
       </View>
 
@@ -315,7 +315,7 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 1000,
+      width: "100%",
     },
     tableHeader: {
       flexDirection: "row",

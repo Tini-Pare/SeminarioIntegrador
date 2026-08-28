@@ -29,6 +29,14 @@ SQL Editor → run, in order:
    and adds `tipos_de_equipos` to Realtime for the type selector.
 5. `migrations/0006_mas_tipos_de_equipos.sql` — adds more options to the
    equipment type catalog without duplicating existing values.
+6. `migrations/0007_catalogs_active.sql` — adds logical active/inactive state
+   to general tasks and generic faults and enables their Realtime channels.
+7. `migrations/0008_equipment_active.sql` — adds logical active/inactive state
+   to equipment so a baja does not remove related history or work orders.
+8. `migrations/0009_remove_fault_severity.sql` — removes the legacy
+   `fa_gravedad` column from the generic fault catalog.
+9. `migrations/0010_equipment_purchase_date.sql` — adds the equipment
+   purchase date required by the catalog form.
 
 Do **not** run `migrations/0002_gestion_mantenimiento.sql` — it's the raw
 reference model 0003 was adapted from (no RLS, no Supabase Auth wiring,
@@ -119,4 +127,4 @@ That's the full rebuild. No other manual Supabase configuration is
 required — RLS, grants, and both Edge Functions are the only
 project-specific state, and all three are captured above (see 0003's
 comments for what's schema-complete-but-no-UI-yet: proveedores, compras,
-repuestos, planes de mantenimiento preventivo, catálogo de fallas).
+repuestos and planes de mantenimiento preventivo).

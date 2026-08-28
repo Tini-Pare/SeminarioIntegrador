@@ -7,58 +7,43 @@ type EquipoRow = Database["public"]["Tables"]["equipo"]["Row"] & {
   tipos_de_equipos: Database["public"]["Tables"]["tipos_de_equipos"]["Row"] | null;
 };
 
+const DEFAULT_EQUIPMENT_TYPES = [
+  "Aire acondicionado",
+  "Bomba",
+  "Caldera",
+  "Climatizacion",
+  "Compresor",
+  "Equipo de medicion",
+  "Extractor",
+  "Generador electrico",
+  "Horno industrial",
+  "Maquina herramienta",
+  "Motor",
+  "Panel electrico",
+  "Refrigeracion",
+  "Soldadora",
+  "Torno",
+  "Transportador",
+  "Valvula",
+  "Ventilador industrial",
+];
+
 function mapEquipo(row: EquipoRow): Equipo {
   return {
     id: row.eq_id_equipo,
     code: row.eq_codigo,
     name: row.eq_nombre,
+    typeId: row.te_id,
+    locationId: row.lu_codigo,
+    active: row.eq_activo ?? true,
     type: row.tipos_de_equipos?.te_nombre ?? "",
     location: row.lugares?.lu_nombre_sector ?? "",
     status: row.eq_estado,
-    purchaseDate: row.eq_fecha_instalacion,
+    model: row.eq_modelo,
+    warrantyDate: row.eq_fecha_garantia,
+    installationDate: row.eq_fecha_instalacion,
+    purchaseDate: row.eq_fecha_compra,
   };
-}
-
-// "Buscar o crear": AddEquipmentModal/EditEquipmentModal still take
-// lugar/tipo as free text with autocomplete suggestions — these reuse an
-// existing row (case-insensitive match) or create one on the fly, so the
-// app doesn't need separate lugares/tipos_de_equipos admin screens.
-async function getOrCreateLugar(nombreSector: string, piso?: string | null): Promise<number> {
-  const nombre = nombreSector.trim();
-  const { data: existing, error: findError } = await supabase
-    .from("lugares")
-    .select("lu_codigo")
-    .ilike("lu_nombre_sector", nombre)
-    .maybeSingle();
-  if (findError) throw new Error(findError.message);
-  if (existing) return existing.lu_codigo;
-
-  const { data, error } = await supabase
-    .from("lugares")
-    .insert({ lu_nombre_sector: nombre, lu_piso: piso ?? null })
-    .select("lu_codigo")
-    .single();
-  if (error) throw new Error(error.message);
-  return data.lu_codigo;
-}
-
-async function getOrCreateTipoEquipo(nombre: string): Promise<number> {
-  const trimmed = nombre.trim();
-  const { data: existing, error: findError } = await supabase
-    .from("tipos_de_equipos")
-    .select("te_id")
-    .ilike("te_nombre", trimmed)
-    .maybeSingle();
-  if (findError) throw new Error(findError.message);
-  if (existing) return existing.te_id;
-
-  const { data, error } = await supabase
-    .from("tipos_de_equipos")
-    .insert({ te_nombre: trimmed })
-    .select("te_id")
-    .single();
-  if (error) throw new Error(error.message);
-  return data.te_id;
 }
 
 export async function listEquipment(): Promise<Equipo[]> {
@@ -77,30 +62,47 @@ export async function listEquipmentTypes(): Promise<TipoEquipo[]> {
   return data as TipoEquipo[];
 }
 
+export async function ensureEquipmentTypes(): Promise<void> {
+  const { data, error } = await supabase.from("tipos_de_equipos").select("te_nombre");
+  if (error) throw new Error(error.message);
+
+  const existing = new Set(
+    (data as { te_nombre: string }[]).map((type) => type.te_nombre.trim().toLowerCase()),
+  );
+  const missing = DEFAULT_EQUIPMENT_TYPES.filter((type) => !existing.has(type.toLowerCase()));
+  if (missing.length === 0) return;
+
+  const { error: insertError } = await supabase
+    .from("tipos_de_equipos")
+    .insert(missing.map((te_nombre) => ({ te_nombre })));
+  if (insertError) throw new Error(insertError.message);
+}
+
 // status isn't passed here on purpose: it's born 'operational' (the
 // column's default) and from then on only sync_equipo_estado changes it
-// based on active solicitudes/ordenes — allowing manual edits created a
-// second writer that clashed with the automatic calculation (equipment
-// showed "En reparación" with "Sin fallas activas" at the same time).
+// based on unresolved solicitudes/ordenes — allowing manual edits created a
+// second writer that clashed with the automatic calculation.
 export async function createEquipment(input: {
   code: string;
   name: string;
-  type: string;
-  location: string;
+  typeId: number;
+  locationId: number;
+  model: string | null;
+  warrantyDate: string | null;
+  installationDate: string | null;
   purchaseDate: string | null;
 }): Promise<Equipo> {
-  const [teId, luCodigo] = await Promise.all([
-    getOrCreateTipoEquipo(input.type),
-    getOrCreateLugar(input.location),
-  ]);
   const { data, error } = await supabase
     .from("equipo")
     .insert({
       eq_codigo: input.code,
       eq_nombre: input.name,
-      te_id: teId,
-      lu_codigo: luCodigo,
-      eq_fecha_instalacion: input.purchaseDate,
+      te_id: input.typeId,
+      lu_codigo: input.locationId,
+      eq_modelo: input.model,
+      eq_fecha_garantia: input.warrantyDate,
+      eq_fecha_instalacion: input.installationDate,
+      eq_fecha_compra: input.purchaseDate,
     })
     .select("*, lugares(*), tipos_de_equipos(*)")
     .single();
@@ -113,30 +115,35 @@ export async function updateEquipment(
   changes: {
     code: string;
     name: string;
-    type: string;
-    location: string;
+    typeId: number;
+    locationId: number;
+    model: string | null;
+    warrantyDate: string | null;
+    installationDate: string | null;
     purchaseDate: string | null;
   },
 ): Promise<void> {
-  const [teId, luCodigo] = await Promise.all([
-    getOrCreateTipoEquipo(changes.type),
-    getOrCreateLugar(changes.location),
-  ]);
   const { error } = await supabase
     .from("equipo")
     .update({
       eq_codigo: changes.code,
       eq_nombre: changes.name,
-      te_id: teId,
-      lu_codigo: luCodigo,
-      eq_fecha_instalacion: changes.purchaseDate,
+      te_id: changes.typeId,
+      lu_codigo: changes.locationId,
+      eq_modelo: changes.model,
+      eq_fecha_garantia: changes.warrantyDate,
+      eq_fecha_instalacion: changes.installationDate,
+      eq_fecha_compra: changes.purchaseDate,
     })
     .eq("eq_id_equipo", id);
   if (error) throw new Error(error.message);
 }
 
-export async function deleteEquipment(id: number): Promise<void> {
-  const { error } = await supabase.from("equipo").delete().eq("eq_id_equipo", id);
+export async function setEquipmentActive(id: number, active: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("equipo")
+    .update({ eq_activo: active })
+    .eq("eq_id_equipo", id);
   if (error) throw new Error(error.message);
 }
 

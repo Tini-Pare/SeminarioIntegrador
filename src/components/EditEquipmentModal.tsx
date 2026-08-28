@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
-import { listEquipmentTypes, updateEquipment } from "../lib/queries/equipment";
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
+import {
+  ensureEquipmentTypes,
+  listEquipmentTypes,
+  updateEquipment,
+} from "../lib/queries/equipment";
 import { listLocations, type LocationWithCount } from "../lib/queries/locations";
 import { supabase } from "../lib/supabase";
 import { EquipmentTypeDropdown } from "./EquipmentTypeDropdown";
@@ -24,13 +36,20 @@ export function EditEquipmentModal({
   const [code, setCode] = useState(equipment.code);
   const [name, setName] = useState(equipment.name);
   const [type, setType] = useState(equipment.type);
+  const [typeId, setTypeId] = useState<number | null>(equipment.typeId);
   const [location, setLocation] = useState(equipment.location);
+  const [locationId, setLocationId] = useState<number | null>(equipment.locationId);
+  const [model, setModel] = useState(equipment.model ?? "");
+  const [warrantyDate, setWarrantyDate] = useState(fromDbDate(equipment.warrantyDate));
+  const [installationDate, setInstallationDate] = useState(fromDbDate(equipment.installationDate));
   const [purchaseDate, setPurchaseDate] = useState(fromDbDate(equipment.purchaseDate));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locations, setLocations] = useState<LocationWithCount[]>([]);
   const [equipmentTypes, setEquipmentTypes] = useState<TipoEquipo[]>([]);
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 600;
   const styles = makeStyles(colors);
 
   const statusMeta =
@@ -48,6 +67,7 @@ export function EditEquipmentModal({
 
   const loadOptions = useCallback(async () => {
     try {
+      await ensureEquipmentTypes();
       const [locationRows, typeRows] = await Promise.all([listLocations(), listEquipmentTypes()]);
       setLocations(locationRows);
       setEquipmentTypes(typeRows);
@@ -61,7 +81,12 @@ export function EditEquipmentModal({
     setCode(equipment.code);
     setName(equipment.name);
     setType(equipment.type);
+    setTypeId(equipment.typeId);
     setLocation(equipment.location);
+    setLocationId(equipment.locationId);
+    setModel(equipment.model ?? "");
+    setWarrantyDate(fromDbDate(equipment.warrantyDate));
+    setInstallationDate(fromDbDate(equipment.installationDate));
     setPurchaseDate(fromDbDate(equipment.purchaseDate));
     void loadOptions();
 
@@ -81,13 +106,15 @@ export function EditEquipmentModal({
   }, [visible, equipment, loadOptions]);
 
   async function handleSubmit() {
-    if (!code.trim() || !name.trim() || !type.trim() || !location.trim() || !purchaseDate.trim()) {
-      setError("Completá todos los campos, incluyendo la fecha de compra.");
+    if (!code.trim() || !name.trim() || typeId === null || locationId === null) {
+      setError("Completá nombre, código, tipo y ubicación.");
       return;
     }
-    if (!isValidDateString(purchaseDate.trim())) {
-      setError("Ingresá una fecha válida en formato dd/mm/aaaa.");
-      return;
+    for (const date of [warrantyDate, installationDate, purchaseDate]) {
+      if (date.trim() && !isValidDateString(date.trim())) {
+        setError("Ingresá las fechas válidas en formato dd/mm/aaaa.");
+        return;
+      }
     }
     setSaving(true);
     setError(null);
@@ -95,9 +122,12 @@ export function EditEquipmentModal({
       await updateEquipment(equipment.id, {
         code: code.trim(),
         name: name.trim(),
-        type: type.trim(),
-        location: location.trim(),
-        purchaseDate: toDbDate(purchaseDate.trim()),
+        typeId,
+        locationId,
+        model: model.trim() || null,
+        warrantyDate: warrantyDate.trim() ? toDbDate(warrantyDate.trim()) : null,
+        installationDate: installationDate.trim() ? toDbDate(installationDate.trim()) : null,
+        purchaseDate: purchaseDate.trim() ? toDbDate(purchaseDate.trim()) : null,
       });
       onSaved();
       onClose();
@@ -114,34 +144,91 @@ export function EditEquipmentModal({
         <View style={styles.sheet}>
           <Text style={styles.title}>Editar equipo</Text>
 
-          <Text style={styles.label}>Código</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: AC-015"
-            placeholderTextColor={colors.textMuted}
-            value={code}
-            onChangeText={setCode}
-          />
+          <View style={[styles.formRow, !isWide && styles.formColumn]}>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Nombre</Text>
+              <TextInput
+                style={[styles.input, styles.nameInput]}
+                placeholder="Ej: Aire Acondicionado"
+                placeholderTextColor={colors.textMuted}
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
 
-          <Text style={styles.label}>Nombre</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: Aire Acondicionado"
-            placeholderTextColor={colors.textMuted}
-            value={name}
-            onChangeText={setName}
-          />
+            <View style={styles.formField}>
+              <Text style={styles.label}>Código</Text>
+              <TextInput
+                style={[styles.input, styles.codeInput]}
+                placeholder="Ej: AC-015"
+                placeholderTextColor={colors.textMuted}
+                value={code}
+                onChangeText={setCode}
+              />
+            </View>
+          </View>
 
-          <Text style={styles.label}>Tipo</Text>
-          <EquipmentTypeDropdown value={type} types={equipmentTypes} onChange={setType} />
+          <View style={[styles.formRow, !isWide && styles.formColumn]}>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Tipo</Text>
+              <EquipmentTypeDropdown
+                value={type}
+                types={equipmentTypes}
+                onChange={(selected) => {
+                  setType(selected.te_nombre);
+                  setTypeId(selected.te_id);
+                }}
+              />
+            </View>
 
-          <Text style={styles.label}>Ubicación</Text>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Modelo</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: Samsung XYZ"
+                placeholderTextColor={colors.textMuted}
+                value={model}
+                onChangeText={setModel}
+              />
+            </View>
+          </View>
 
-          <LocationDropdown value={location} locations={locations} onChange={setLocation} />
+          <View style={[styles.formRow, !isWide && styles.formColumn]}>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Fecha de compra</Text>
+              <View style={styles.shortField}>
+                <CustomDatePicker value={purchaseDate} onChange={setPurchaseDate} />
+              </View>
+            </View>
 
-          <Text style={styles.label}>Fecha de compra</Text>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Fecha de instalación</Text>
+              <View style={styles.shortField}>
+                <CustomDatePicker value={installationDate} onChange={setInstallationDate} />
+              </View>
+            </View>
+          </View>
 
-          <CustomDatePicker value={purchaseDate} onChange={setPurchaseDate} />
+          <View style={[styles.formRow, !isWide && styles.formColumn]}>
+            <View style={styles.formField}>
+              <Text style={styles.label}>Fecha de garantía</Text>
+              <View style={styles.shortField}>
+                <CustomDatePicker value={warrantyDate} onChange={setWarrantyDate} />
+              </View>
+            </View>
+
+            <View style={[styles.formField, styles.locationField]}>
+              <Text style={styles.label}>Ubicación</Text>
+              <LocationDropdown
+                value={location}
+                locations={locations}
+                onChange={(selected) => {
+                  setLocation(selected.lu_nombre_sector);
+                  setLocationId(selected.lu_codigo);
+                }}
+              />
+            </View>
+          </View>
 
           <Text style={styles.label}>Estado</Text>
           <View style={styles.statusRow}>
@@ -182,7 +269,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 16,
       padding: 24,
       width: "100%",
-      maxWidth: 480,
+      maxWidth: 680,
       alignSelf: "center",
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 8 },
@@ -195,6 +282,8 @@ function makeStyles(c: ThemeColors) {
     },
     input: {
       height: 44,
+      width: "100%",
+      maxWidth: 400,
       paddingHorizontal: 14,
       borderWidth: 1,
       borderColor: c.borderInput,
@@ -203,6 +292,20 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       color: c.text,
     },
+    codeInput: { maxWidth: 220 },
+    nameInput: { maxWidth: 320 },
+    shortField: { width: "100%", maxWidth: 220 },
+    wideField: {
+      width: "100%",
+      maxWidth: 420,
+      alignSelf: "flex-start",
+      position: "relative",
+      zIndex: 100,
+    },
+    locationField: { position: "relative", zIndex: 100 },
+    formRow: { flexDirection: "row", gap: 18, position: "relative", zIndex: 2 },
+    formColumn: { flexDirection: "column", gap: 0 },
+    formField: { flex: 1, minWidth: 0, position: "relative", zIndex: 10 },
     statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
     statusBadge: {
       alignSelf: "flex-start",

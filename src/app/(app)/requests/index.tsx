@@ -92,8 +92,8 @@ export default function RequestsScreen() {
           <Text style={styles.title}>{isAdmin ? "Solicitudes" : "Mis solicitudes"}</Text>
           <Text style={styles.subtitle}>
             {isAdmin
-              ? "Todas las fallas reportadas en la organización"
-              : "Seguimiento de las fallas que reportaste"}
+              ? "Solicitudes de fallas reportadas en la organización"
+              : "Seguimiento de las solicitudes que reportaste"}
           </Text>
         </View>
       </View>
@@ -108,7 +108,7 @@ export default function RequestsScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
-    content: { padding: 20, maxWidth: 920 },
+    content: { padding: 20 },
     center: { flex: 1 },
     header: {
       flexDirection: "row",

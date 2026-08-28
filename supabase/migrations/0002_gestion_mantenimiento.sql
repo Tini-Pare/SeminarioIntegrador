@@ -268,8 +268,7 @@ create table orden_de_trabajo (
 create table fallo (
     fa_id_fallo    int primary key,
     fa_nombre      varchar(100) not null,
-    fa_desperfecto varchar(255),
-    fa_gravedad    varchar(50)
+    fa_desperfecto varchar(255)
 );
 
 -- ---------------------------------------------------------------------
