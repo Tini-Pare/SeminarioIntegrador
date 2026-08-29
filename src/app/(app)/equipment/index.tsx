@@ -14,9 +14,9 @@ import { AddEquipmentModal } from "../../../components/AddEquipmentModal";
 import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
 import { ReportFaultModal } from "../../../components/ReportFaultModal";
 import { Pagination } from "../../../components/Pagination";
-import { RowActions } from "../../../components/RowActions";
 import { StatusBadge } from "../../../components/StatusBadge";
-import { LocationIcon } from "../../../components/icons";
+import { Tooltip } from "../../../components/Tooltip";
+import { LocationIcon, EyeIcon, PencilIcon, TrashIcon } from "../../../components/icons";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import { confirmDelete } from "../../../lib/confirm";
@@ -161,15 +161,15 @@ export default function EquipmentScreen() {
           </View>
 
           <View style={styles.headerActions}>
+            <Pressable style={styles.primaryButton} onPress={() => setModalVisible(true)}>
+              <Text style={styles.primaryButtonText}>+ Reportar falla</Text>
+            </Pressable>
+
             {isAdmin && (
               <Pressable style={styles.primaryButton} onPress={() => setAddModalVisible(true)}>
                 <Text style={styles.primaryButtonText}>+ Nuevo equipo</Text>
               </Pressable>
             )}
-
-            <Pressable style={styles.primaryButton} onPress={() => setModalVisible(true)}>
-              <Text style={styles.primaryButtonText}>+ Reportar falla</Text>
-            </Pressable>
           </View>
         </View>
 
@@ -225,20 +225,17 @@ export default function EquipmentScreen() {
               <Text style={[styles.headerCell, { flex: 1.2 }]}>UBICACIÓN</Text>
               <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
               <Text style={[styles.headerCell, { flex: 1 }]}>TIPO</Text>
-              {isAdmin && <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>}
+              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
             </View>
 
             {pageItems.map((e) => (
               <View key={e.id} style={styles.row}>
-                <Pressable
-                  style={styles.rowMain}
-                  onPress={() => router.push(`/equipment/${e.id}`)}
-                  accessibilityLabel={`Abrir ${e.name}`}
-                >
+                <View style={styles.rowMain}>
                   <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
                     <Text style={styles.name} numberOfLines={1}>
                       {e.name}
                     </Text>
+
                     <Text style={styles.code} numberOfLines={1}>
                       {e.code}
                     </Text>
@@ -251,6 +248,7 @@ export default function EquipmentScreen() {
                         { backgroundColor: locationColors.get(e.location) ?? "#6a7b62" },
                       ]}
                     />
+
                     <Text style={styles.locationText} numberOfLines={1}>
                       {e.location || "—"}
                     </Text>
@@ -265,13 +263,48 @@ export default function EquipmentScreen() {
                       {e.type || "—"}
                     </Text>
                   </View>
-                </Pressable>
+                </View>
 
-                {isAdmin && (
-                  <View style={styles.actionsCol}>
-                    <RowActions onEdit={() => setEditing(e)} onDelete={() => handleDelete(e)} />
+                <View style={styles.actionsCol}>
+                  <View style={styles.actionsWrap}>
+                    <Tooltip text="visualizar equipo">
+                      <Pressable
+                        style={styles.actionButton}
+                        onPress={() => router.push(`/equipment/${e.id}`)}
+                        hitSlop={6}
+                        accessibilityLabel="Ver detalle"
+                      >
+                        <EyeIcon size={16} color={colors.accent} />
+                      </Pressable>
+                    </Tooltip>
+
+                    {isAdmin && (
+                      <>
+                        <Tooltip text="editar equipo">
+                          <Pressable
+                            style={styles.actionButton}
+                            onPress={() => setEditing(e)}
+                            hitSlop={6}
+                            accessibilityLabel="Editar"
+                          >
+                            <PencilIcon size={16} color={colors.accent} />
+                          </Pressable>
+                        </Tooltip>
+
+                        <Tooltip text="eliminar equipo">
+                          <Pressable
+                            style={styles.actionButton}
+                            onPress={() => handleDelete(e)}
+                            hitSlop={6}
+                            accessibilityLabel="Eliminar"
+                          >
+                            <TrashIcon size={16} color={colors.destructive} />
+                          </Pressable>
+                        </Tooltip>
+                      </>
+                    )}
                   </View>
-                )}
+                </View>
               </View>
             ))}
           </View>
@@ -279,16 +312,15 @@ export default function EquipmentScreen() {
           <View style={styles.cardList}>
             {pageItems.map((e) => (
               <View key={e.id} style={styles.card}>
-                <Pressable
-                  onPress={() => router.push(`/equipment/${e.id}`)}
-                  accessibilityLabel={`Abrir ${e.name}`}
-                >
+                <View>
                   <View style={styles.cardTopRow}>
                     <Text style={styles.code}>{e.code}</Text>
+
                     <StatusBadge status={e.status} />
                   </View>
 
                   <Text style={styles.cardName}>{e.name}</Text>
+
                   <Text style={styles.typeText}>{e.type}</Text>
 
                   <View style={styles.cardLocationRow}>
@@ -298,16 +330,53 @@ export default function EquipmentScreen() {
                         { backgroundColor: locationColors.get(e.location) ?? "#6a7b62" },
                       ]}
                     />
+
                     <LocationIcon size={14} color={colors.textMuted} />
+
                     <Text style={styles.locationText}>{e.location}</Text>
                   </View>
-                </Pressable>
+                </View>
 
-                {isAdmin && (
-                  <View style={styles.cardActions}>
-                    <RowActions onEdit={() => setEditing(e)} onDelete={() => handleDelete(e)} />
+                <View style={styles.cardActions}>
+                  <View style={styles.actionsWrap}>
+                    <Tooltip text="visualizar equipo">
+                      <Pressable
+                        style={styles.actionButton}
+                        onPress={() => router.push(`/equipment/${e.id}`)}
+                        hitSlop={6}
+                        accessibilityLabel="Ver detalle"
+                      >
+                        <EyeIcon size={16} color={colors.accent} />
+                      </Pressable>
+                    </Tooltip>
+
+                    {isAdmin && (
+                      <>
+                        <Tooltip text="editar equipo">
+                          <Pressable
+                            style={styles.actionButton}
+                            onPress={() => setEditing(e)}
+                            hitSlop={6}
+                            accessibilityLabel="Editar"
+                          >
+                            <PencilIcon size={16} color={colors.accent} />
+                          </Pressable>
+                        </Tooltip>
+
+                        <Tooltip text="eliminar equipo">
+                          <Pressable
+                            style={styles.actionButton}
+                            onPress={() => handleDelete(e)}
+                            hitSlop={6}
+                            accessibilityLabel="Eliminar"
+                          >
+                            <TrashIcon size={16} color={colors.destructive} />
+                          </Pressable>
+                        </Tooltip>
+                      </>
+                    )}
                   </View>
-                )}
+                </View>
               </View>
             ))}
           </View>
@@ -367,13 +436,13 @@ function makeStyles(c: ThemeColors) {
     },
     primaryButton: {
       backgroundColor: c.accent,
-      paddingHorizontal: 18,
-      height: 42,
+      paddingHorizontal: 22,
+      height: 46,
       borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
     },
-    primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+    primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
     searchRow: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -440,7 +509,21 @@ function makeStyles(c: ThemeColors) {
       color: c.textMuted,
       fontFamily: "monospace",
     },
-    actionsCol: { width: 76, flexShrink: 0, alignItems: "flex-start" },
+    actionsCol: { width: 114, flexShrink: 0, alignItems: "flex-start" },
+    actionsWrap: {
+      flexDirection: "row",
+      gap: 6,
+    },
+    actionButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: c.bgNested,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
     row: {
       flexDirection: "row",
       alignItems: "center",

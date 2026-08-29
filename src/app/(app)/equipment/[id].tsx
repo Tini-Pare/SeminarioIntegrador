@@ -2,21 +2,15 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
 import { BackIcon, CheckIcon, WarningIcon } from "../../../components/icons";
-import { ReportFaultModal } from "../../../components/ReportFaultModal";
-import { getProfile } from "../../../lib/auth";
 import {
-  deleteEquipment,
   getEquipmentById,
   listFaultsByEquipment,
   listHistoryByEquipment,
@@ -25,7 +19,7 @@ import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Equipo, Solicitud, HistorialEntry, Profile } from "../../../types/database";
+import type { Equipo, Solicitud, HistorialEntry } from "../../../types/database";
 
 const URGENCY_LABEL: Record<Solicitud["urgency"], string> = {
   low: "Baja",
@@ -53,11 +47,7 @@ export default function EquipmentDetail() {
   const [history, setHistory] = useState<HistorialEntry[]>([]);
   const [authorNames, setAuthorNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editModalVisible, setEditModalVisible] = useState(false);
   const [tab, setTab] = useState<TabKey>("info");
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -96,7 +86,6 @@ export default function EquipmentDetail() {
 
   useEffect(() => {
     loadEquipmentData().finally(() => setLoading(false));
-    getProfile().then(setProfile);
   }, [loadEquipmentData]);
 
   useEffect(() => {
@@ -134,33 +123,7 @@ export default function EquipmentDetail() {
     };
   }, [id, equipoId, loadEquipmentData]);
 
-  async function doDelete() {
-    if (!id || Number.isNaN(equipoId)) return;
-    setDeleting(true);
-    try {
-      await deleteEquipment(equipoId);
-      router.replace("/equipment");
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      if (Platform.OS === "web") window.alert(message);
-      else Alert.alert("No se pudo eliminar", message);
-    } finally {
-      setDeleting(false);
-    }
-  }
 
-  function handleDelete() {
-    if (!equipment) return;
-    const message = `¿Eliminar ${equipment.code} · ${equipment.name}? Esta acción no se puede deshacer.`;
-    if (Platform.OS === "web") {
-      if (window.confirm(message)) doDelete();
-      return;
-    }
-    Alert.alert("Eliminar equipo", message, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: doDelete },
-    ]);
-  }
 
   if (loading) {
     return (
@@ -188,28 +151,9 @@ export default function EquipmentDetail() {
         <View style={styles.topBar}>
           <Pressable style={styles.backLink} onPress={() => router.back()}>
             <BackIcon />
+
             <Text style={styles.backText}>Volver a equipos</Text>
           </Pressable>
-
-          <View style={styles.topBarActions}>
-            {profile?.role === "admin" && (
-              <>
-                <Pressable style={styles.editButton} onPress={() => setEditModalVisible(true)}>
-                  <Text style={styles.editButtonText}>Editar equipo</Text>
-                </Pressable>
-
-                <Pressable style={styles.deleteButton} onPress={handleDelete} disabled={deleting}>
-                  <Text style={styles.deleteButtonText}>
-                    {deleting ? "Eliminando…" : "Eliminar equipo"}
-                  </Text>
-                </Pressable>
-              </>
-            )}
-
-            <Pressable style={styles.reportButton} onPress={() => setModalVisible(true)}>
-              <Text style={styles.reportButtonText}>+ Reportar falla</Text>
-            </Pressable>
-          </View>
         </View>
 
         <View style={styles.card}>
@@ -328,19 +272,7 @@ export default function EquipmentDetail() {
           </View>
         )}
 
-        <ReportFaultModal
-          visible={modalVisible}
-          onClose={() => setModalVisible(false)}
-          onSubmitted={loadEquipmentData}
-          equipment={{ id: equipment.id, code: equipment.code, name: equipment.name }}
-        />
 
-        <EditEquipmentModal
-          visible={editModalVisible}
-          onClose={() => setEditModalVisible(false)}
-          onSaved={loadEquipmentData}
-          equipment={equipment}
-        />
       </ScrollView>
     </>
   );
@@ -374,42 +306,7 @@ function makeStyles(c: ThemeColors) {
     },
     backLink: { flexDirection: "row", alignItems: "center", gap: 7 },
     backText: { color: c.textLabel, fontSize: 13.5 },
-    reportButton: {
-      backgroundColor: c.accent,
-      paddingHorizontal: 14,
-      height: 38,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    reportButtonText: { color: "#fff", fontWeight: "600", fontSize: 13 },
-    topBarActions: {
-      flexDirection: "row",
-      gap: 10,
-      flexWrap: "wrap",
-      flexShrink: 1,
-      maxWidth: "100%",
-    },
-    deleteButton: {
-      borderWidth: 1,
-      borderColor: c.destructive,
-      paddingHorizontal: 14,
-      height: 38,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    deleteButtonText: { color: c.destructive, fontWeight: "600", fontSize: 13 },
-    editButton: {
-      borderWidth: 1,
-      borderColor: c.accent,
-      paddingHorizontal: 14,
-      height: 38,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    editButtonText: { color: c.accent, fontWeight: "600", fontSize: 13 },
+
     card: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
