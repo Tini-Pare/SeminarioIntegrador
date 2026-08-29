@@ -321,7 +321,9 @@ export type Equipo = {
   location: string;
   locationId: number;
   status: "operational" | "waiting" | "repair";
-  purchaseDate: string | null;
+  model: string | null;
+  installDate: string | null;
+  warrantyDate: string | null;
 };
 
 export type Solicitud = {

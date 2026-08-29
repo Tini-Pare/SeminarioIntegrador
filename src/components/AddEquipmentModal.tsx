@@ -3,10 +3,13 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-nativ
 import { createEquipment } from "../lib/queries/equipment";
 import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
 import { listLocations } from "../lib/queries/locations";
+import { DropdownBackdrop } from "./DropdownBackdrop";
 import { Select } from "./Select";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
-import { CustomDatePicker, isValidDateString, toDbDate } from "./CustomDatePicker";
+import { CustomDatePicker, isDateWithinMax, isValidDateString, toDbDate } from "./CustomDatePicker";
+
+type OpenField = "type" | "location" | "install" | "warranty" | null;
 
 export function AddEquipmentModal({
   visible,
@@ -19,14 +22,16 @@ export function AddEquipmentModal({
 }) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [model, setModel] = useState("");
   const [typeId, setTypeId] = useState<number | null>(null);
   const [locationId, setLocationId] = useState<number | null>(null);
-  const [purchaseDate, setPurchaseDate] = useState("");
+  const [installDate, setInstallDate] = useState("");
+  const [warrantyDate, setWarrantyDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [types, setTypes] = useState<{ value: number; label: string }[]>([]);
   const [locations, setLocations] = useState<{ value: number; label: string }[]>([]);
-  const [openField, setOpenField] = useState<"type" | "location" | "date" | null>(null);
+  const [openField, setOpenField] = useState<OpenField>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -34,9 +39,11 @@ export function AddEquipmentModal({
     if (!visible) return;
     setCode("");
     setName("");
+    setModel("");
     setTypeId(null);
     setLocationId(null);
-    setPurchaseDate("");
+    setInstallDate("");
+    setWarrantyDate("");
     setOpenField(null);
     setError(null);
 
@@ -55,16 +62,26 @@ export function AddEquipmentModal({
   const blocked = noTypes || noLocations;
 
   async function handleSubmit() {
-    if (!code.trim() || !name.trim() || !purchaseDate.trim()) {
-      setError("Completá el código, el nombre y la fecha de compra.");
+    if (!code.trim() || !name.trim()) {
+      setError("Completá el código y el nombre.");
       return;
     }
     if (typeId == null || locationId == null) {
       setError("Elegí un tipo y una ubicación.");
       return;
     }
-    if (!isValidDateString(purchaseDate.trim())) {
-      setError("Ingresá una fecha válida en formato dd/mm/aaaa.");
+    if (installDate.trim()) {
+      if (!isValidDateString(installDate.trim())) {
+        setError("Ingresá una fecha de instalación válida (dd/mm/aaaa).");
+        return;
+      }
+      if (!isDateWithinMax(installDate.trim(), new Date())) {
+        setError("La fecha de instalación no puede ser posterior a hoy.");
+        return;
+      }
+    }
+    if (warrantyDate.trim() && !isValidDateString(warrantyDate.trim())) {
+      setError("Ingresá una fecha de garantía válida (dd/mm/aaaa).");
       return;
     }
     setSaving(true);
@@ -75,7 +92,9 @@ export function AddEquipmentModal({
         name: name.trim(),
         typeId,
         locationId,
-        purchaseDate: toDbDate(purchaseDate.trim()),
+        model: model.trim() || null,
+        installDate: installDate.trim() ? toDbDate(installDate.trim()) : null,
+        warrantyDate: warrantyDate.trim() ? toDbDate(warrantyDate.trim()) : null,
       });
 
       onCreated();
@@ -91,19 +110,37 @@ export function AddEquipmentModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Agregar equipo</Text>
+          <DropdownBackdrop open={openField !== null} onPress={() => setOpenField(null)} />
+
+          <Text style={styles.title}>Nuevo equipo</Text>
           <Text style={styles.subtitle}>
             Nace "Funcionando" — el estado se recalcula solo según las fallas activas.
           </Text>
 
-          <Text style={styles.label}>Código</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: AC-015"
-            placeholderTextColor={colors.textMuted}
-            value={code}
-            onChangeText={setCode}
-          />
+          <View style={styles.fieldRow}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Código</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: AC-015"
+                placeholderTextColor={colors.textMuted}
+                value={code}
+                onChangeText={setCode}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Modelo</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: Split 3000F"
+                placeholderTextColor={colors.textMuted}
+                value={model}
+                onChangeText={setModel}
+              />
+            </View>
+          </View>
 
           <Text style={styles.label}>Nombre</Text>
           <TextInput
@@ -136,14 +173,33 @@ export function AddEquipmentModal({
             onOpenChange={(o) => setOpenField(o ? "location" : null)}
           />
 
-          <Text style={styles.label}>Fecha de compra</Text>
+          <View
+            style={[
+              styles.fieldRow,
+              (openField === "install" || openField === "warranty") && styles.dateRowRaised,
+            ]}
+          >
+            <View style={styles.field}>
+              <Text style={styles.label}>Fecha de instalación</Text>
+              <CustomDatePicker
+                value={installDate}
+                onChange={setInstallDate}
+                open={openField === "install"}
+                onOpenChange={(o) => setOpenField(o ? "install" : null)}
+                maxDate={new Date()}
+              />
+            </View>
 
-          <CustomDatePicker
-            value={purchaseDate}
-            onChange={setPurchaseDate}
-            open={openField === "date"}
-            onOpenChange={(o) => setOpenField(o ? "date" : null)}
-          />
+            <View style={styles.field}>
+              <Text style={styles.label}>Fecha de garantía</Text>
+              <CustomDatePicker
+                value={warrantyDate}
+                onChange={setWarrantyDate}
+                open={openField === "warranty"}
+                onOpenChange={(o) => setOpenField(o ? "warranty" : null)}
+              />
+            </View>
+          </View>
 
           {blocked && (
             <Text style={styles.blockedNote}>
@@ -167,7 +223,7 @@ export function AddEquipmentModal({
               onPress={handleSubmit}
               disabled={saving || blocked}
             >
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Agregar"}</Text>
+              <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
             </Pressable>
           </View>
         </View>
@@ -181,8 +237,10 @@ function makeStyles(c: ThemeColors) {
     overlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.55)",
-      justifyContent: "center",
-      padding: 20,
+      justifyContent: "flex-start",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 36,
     },
     sheet: {
       backgroundColor: c.bgModal,
@@ -190,10 +248,14 @@ function makeStyles(c: ThemeColors) {
       padding: 24,
       width: "100%",
       maxWidth: 480,
-      alignSelf: "center",
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 4 },
     subtitle: { fontSize: 12.5, color: c.textMuted, marginBottom: 8 },
+    fieldRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+    field: { flex: 1, minWidth: 140 },
+    // Lifts the date row (and its calendar popup) above the fields and the
+    // action buttons below it while a calendar is open.
+    dateRowRaised: { zIndex: 60 },
     label: {
       fontSize: 12.5,
       fontWeight: "600",

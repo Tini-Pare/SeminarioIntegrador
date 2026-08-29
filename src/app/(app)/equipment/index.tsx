@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect } from "expo-router";
+import { Stack, router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -7,17 +7,25 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { AddEquipmentModal } from "../../../components/AddEquipmentModal";
-import { EquipmentCard } from "../../../components/EquipmentCard";
+import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
 import { ReportFaultModal } from "../../../components/ReportFaultModal";
+import { Pagination } from "../../../components/Pagination";
+import { RowActions } from "../../../components/RowActions";
+import { StatusBadge } from "../../../components/StatusBadge";
+import { LocationIcon } from "../../../components/icons";
+import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
+import { confirmDelete } from "../../../lib/confirm";
 import { buildLocationColorMap } from "../../../lib/locationColor";
-import { listEquipment } from "../../../lib/queries/equipment";
+import { deleteEquipment, listEquipment } from "../../../lib/queries/equipment";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { usePagination } from "../../../lib/usePagination";
 import type { Equipo, Profile } from "../../../types/database";
 
 type Filter = "all" | Equipo["status"];
@@ -28,19 +36,30 @@ const SORT_OPTIONS: { key: SortBy; label: string }[] = [
   { key: "code", label: "Código" },
 ];
 
+const STATUS_FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "Todos" },
+  { key: "operational", label: "Funcionando" },
+  { key: "waiting", label: "En espera" },
+  { key: "repair", label: "En reparación" },
+];
+
 export default function EquipmentScreen() {
   const [equipment, setEquipment] = useState<Equipo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [editing, setEditing] = useState<Equipo | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("location");
   const [profile, setProfile] = useState<Profile | null>(null);
+  const { width } = useWindowDimensions();
+  const isWide = width >= BREAKPOINT.tablet;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
+  const isAdmin = profile?.role === "admin";
   const hasLoadedOnce = useRef(false);
 
   function reload() {
@@ -74,36 +93,6 @@ export default function EquipmentScreen() {
     };
   }, []);
 
-  const stats = useMemo(
-    () => [
-      {
-        key: "all" as Filter,
-        label: "Equipos totales",
-        value: equipment.length,
-        color: colors.textMuted,
-      },
-      {
-        key: "operational" as Filter,
-        label: "Funcionando",
-        value: equipment.filter((e) => e.status === "operational").length,
-        color: colors.eqOperational.dot,
-      },
-      {
-        key: "waiting" as Filter,
-        label: "En espera",
-        value: equipment.filter((e) => e.status === "waiting").length,
-        color: colors.eqWaiting.dot,
-      },
-      {
-        key: "repair" as Filter,
-        label: "En reparación",
-        value: equipment.filter((e) => e.status === "repair").length,
-        color: colors.eqRepair.dot,
-      },
-    ],
-    [equipment, colors],
-  );
-
   const equipmentView = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = equipment.filter((e) => {
@@ -114,24 +103,35 @@ export default function EquipmentScreen() {
     if (sortBy === "code") {
       return [...filtered].sort((a, b) => a.code.localeCompare(b.code));
     }
-    return filtered;
+    return [...filtered].sort(
+      (a, b) => a.location.localeCompare(b.location) || a.code.localeCompare(b.code),
+    );
   }, [equipment, search, filter, sortBy]);
-
-  const groupedByLocation = useMemo(() => {
-    if (sortBy !== "location") return null;
-    const groups: { location: string; items: Equipo[] }[] = [];
-    for (const item of equipmentView) {
-      const last = groups[groups.length - 1];
-      if (last && last.location === item.location) last.items.push(item);
-      else groups.push({ location: item.location, items: [item] });
-    }
-    return groups;
-  }, [equipmentView, sortBy]);
 
   const locationColors = useMemo(
     () => buildLocationColorMap(equipment.map((e) => e.location)),
     [equipment],
   );
+
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    equipmentView,
+    `${search}|${filter}|${sortBy}`,
+  );
+
+  function handleDelete(e: Equipo) {
+    confirmDelete(
+      "Eliminar equipo",
+      `¿Eliminar "${e.name}" (${e.code})? Esta acción no se puede deshacer.`,
+      async () => {
+        try {
+          await deleteEquipment(e.id);
+          reload();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      },
+    );
+  }
 
   if (loading) {
     return (
@@ -155,44 +155,22 @@ export default function EquipmentScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.pageHeader}>
-          <View>
+          <View style={styles.headerText}>
             <Text style={styles.title}>Equipos</Text>
             <Text style={styles.subtitle}>Estado en tiempo real de todos los equipos</Text>
           </View>
 
           <View style={styles.headerActions}>
-            {profile?.role === "admin" && (
-              <Pressable style={styles.addButton} onPress={() => setAddModalVisible(true)}>
-                <Text style={styles.addButtonText}>+ Agregar equipo</Text>
+            {isAdmin && (
+              <Pressable style={styles.primaryButton} onPress={() => setAddModalVisible(true)}>
+                <Text style={styles.primaryButtonText}>+ Nuevo equipo</Text>
               </Pressable>
             )}
 
-            <Pressable style={styles.reportButton} onPress={() => setModalVisible(true)}>
-              <Text style={styles.reportButtonText}>+ Reportar falla</Text>
+            <Pressable style={styles.primaryButton} onPress={() => setModalVisible(true)}>
+              <Text style={styles.primaryButtonText}>+ Reportar falla</Text>
             </Pressable>
           </View>
-        </View>
-
-        <View style={styles.statsRow}>
-          {stats.map((s) => {
-            const active = filter === s.key;
-            return (
-              <Pressable
-                key={s.key}
-                style={[
-                  styles.statCard,
-                  active && { borderColor: s.color, backgroundColor: colors.bgToggleActive },
-                ]}
-                onPress={() => setFilter(active ? "all" : s.key)}
-              >
-                <View style={styles.statLabelRow}>
-                  <View style={[styles.statDot, { backgroundColor: s.color }]} />
-                  <Text style={styles.statLabel}>{s.label}</Text>
-                </View>
-                <Text style={styles.statValue}>{s.value}</Text>
-              </Pressable>
-            );
-          })}
         </View>
 
         <View style={styles.searchRow}>
@@ -221,46 +199,121 @@ export default function EquipmentScreen() {
           </View>
         </View>
 
-        {groupedByLocation ? (
-          groupedByLocation.map((group) => (
-            <View key={group.location} style={styles.locationGroup}>
-              <View style={styles.locationHeader}>
-                <View
-                  style={[
-                    styles.locationHeaderDot,
-                    { backgroundColor: locationColors.get(group.location) ?? "#6b7280" },
-                  ]}
-                />
-                <Text style={styles.locationHeaderText}>{group.location}</Text>
-                <Text style={styles.locationHeaderCount}>
-                  {group.items.length} {group.items.length === 1 ? "equipo" : "equipos"}
+        <View style={styles.filterRow}>
+          {STATUS_FILTERS.map((f) => {
+            const active = filter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => setFilter(f.key)}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  {f.label}
                 </Text>
-              </View>
+              </Pressable>
+            );
+          })}
+        </View>
 
-              <View style={styles.grid}>
-                {group.items.map((item) => (
-                  <View key={item.id} style={styles.gridItem}>
-                    <EquipmentCard
-                      equipment={item}
-                      locationColor={locationColors.get(item.location) ?? "#6b7280"}
-                    />
-                  </View>
-                ))}
-              </View>
+        {equipmentView.length === 0 ? (
+          <Text style={styles.empty}>No hay equipos que coincidan con el filtro.</Text>
+        ) : isWide ? (
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.headerCell, { flex: 1.6 }]}>EQUIPO</Text>
+              <Text style={[styles.headerCell, { flex: 1.2 }]}>UBICACIÓN</Text>
+              <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
+              <Text style={[styles.headerCell, { flex: 1 }]}>TIPO</Text>
+              {isAdmin && <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>}
             </View>
-          ))
+
+            {pageItems.map((e) => (
+              <View key={e.id} style={styles.row}>
+                <Pressable
+                  style={styles.rowMain}
+                  onPress={() => router.push(`/equipment/${e.id}`)}
+                  accessibilityLabel={`Abrir ${e.name}`}
+                >
+                  <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {e.name}
+                    </Text>
+                    <Text style={styles.code} numberOfLines={1}>
+                      {e.code}
+                    </Text>
+                  </View>
+
+                  <View style={styles.locationCell}>
+                    <View
+                      style={[
+                        styles.locationDot,
+                        { backgroundColor: locationColors.get(e.location) ?? "#6a7b62" },
+                      ]}
+                    />
+                    <Text style={styles.locationText} numberOfLines={1}>
+                      {e.location || "—"}
+                    </Text>
+                  </View>
+
+                  <View style={{ flex: 1, justifyContent: "center", alignItems: "flex-start" }}>
+                    <StatusBadge status={e.status} />
+                  </View>
+
+                  <View style={{ flex: 1, justifyContent: "center" }}>
+                    <Text style={styles.typeText} numberOfLines={1}>
+                      {e.type || "—"}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {isAdmin && (
+                  <View style={styles.actionsCol}>
+                    <RowActions onEdit={() => setEditing(e)} onDelete={() => handleDelete(e)} />
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
         ) : (
-          <View style={styles.grid}>
-            {equipmentView.map((item) => (
-              <View key={item.id} style={styles.gridItem}>
-                <EquipmentCard
-                  equipment={item}
-                  locationColor={locationColors.get(item.location) ?? "#6b7280"}
-                />
+          <View style={styles.cardList}>
+            {pageItems.map((e) => (
+              <View key={e.id} style={styles.card}>
+                <Pressable
+                  onPress={() => router.push(`/equipment/${e.id}`)}
+                  accessibilityLabel={`Abrir ${e.name}`}
+                >
+                  <View style={styles.cardTopRow}>
+                    <Text style={styles.code}>{e.code}</Text>
+                    <StatusBadge status={e.status} />
+                  </View>
+
+                  <Text style={styles.cardName}>{e.name}</Text>
+                  <Text style={styles.typeText}>{e.type}</Text>
+
+                  <View style={styles.cardLocationRow}>
+                    <View
+                      style={[
+                        styles.locationDot,
+                        { backgroundColor: locationColors.get(e.location) ?? "#6a7b62" },
+                      ]}
+                    />
+                    <LocationIcon size={14} color={colors.textMuted} />
+                    <Text style={styles.locationText}>{e.location}</Text>
+                  </View>
+                </Pressable>
+
+                {isAdmin && (
+                  <View style={styles.cardActions}>
+                    <RowActions onEdit={() => setEditing(e)} onDelete={() => handleDelete(e)} />
+                  </View>
+                )}
               </View>
             ))}
           </View>
         )}
+
+        <Pagination page={page} pageCount={pageCount} onPage={setPage} />
 
         <ReportFaultModal
           visible={modalVisible}
@@ -274,6 +327,15 @@ export default function EquipmentScreen() {
           onClose={() => setAddModalVisible(false)}
           onCreated={reload}
         />
+
+        {editing && (
+          <EditEquipmentModal
+            visible={!!editing}
+            onClose={() => setEditing(null)}
+            onSaved={reload}
+            equipment={editing}
+          />
+        )}
       </ScrollView>
     </>
   );
@@ -293,6 +355,7 @@ function makeStyles(c: ThemeColors) {
       gap: 12,
       flexWrap: "wrap",
     },
+    headerText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     headerActions: {
@@ -302,7 +365,7 @@ function makeStyles(c: ThemeColors) {
       flexShrink: 1,
       maxWidth: "100%",
     },
-    reportButton: {
+    primaryButton: {
       backgroundColor: c.accent,
       paddingHorizontal: 18,
       height: 42,
@@ -310,38 +373,26 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    reportButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-    addButton: {
-      borderWidth: 1,
-      borderColor: c.accent,
-      paddingHorizontal: 18,
-      height: 42,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    addButtonText: { color: c.accent, fontWeight: "600", fontSize: 14 },
-    statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginBottom: 20 },
-    statCard: {
-      flexGrow: 1,
-      minWidth: 150,
-      backgroundColor: c.bgStatCard,
-      borderWidth: 1.5,
-      borderColor: c.border,
-      borderRadius: 12,
-      padding: 14,
-    },
-    statLabelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-    statDot: { width: 8, height: 8, borderRadius: 4 },
-    statLabel: { fontSize: 12.5, color: c.textSecondary, fontWeight: "500" },
-    statValue: { marginTop: 6, fontSize: 28, fontWeight: "600", color: c.text },
+    primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
     searchRow: {
       flexDirection: "row",
       flexWrap: "wrap",
       alignItems: "center",
       gap: 12,
-      marginBottom: 20,
+      marginBottom: 14,
     },
+    filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },
+    filterChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.bgCard,
+    },
+    filterChipActive: { backgroundColor: c.text, borderColor: c.text },
+    filterChipText: { fontSize: 12.5, fontWeight: "600", color: c.textSecondary },
+    filterChipTextActive: { color: c.bgCard },
     search: {
       flexGrow: 1,
       minWidth: 220,
@@ -366,12 +417,74 @@ function makeStyles(c: ThemeColors) {
     sortOptionActive: { backgroundColor: c.bgToggleActive },
     sortOptionText: { fontSize: 12.5, fontWeight: "600", color: c.textMuted },
     sortOptionTextActive: { color: c.text },
-    locationGroup: { marginBottom: 24 },
-    locationHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-    locationHeaderDot: { width: 9, height: 9, borderRadius: 5 },
-    locationHeaderText: { fontSize: 14.5, fontWeight: "700", color: c.text },
-    locationHeaderCount: { fontSize: 12.5, color: c.textMuted },
-    grid: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
-    gridItem: { flexGrow: 1, minWidth: 310, maxWidth: 420 },
+    empty: { color: c.textMuted, fontSize: 13.5, marginTop: 8 },
+    table: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+    tableHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 14,
+      backgroundColor: c.bgTableHeader,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    headerCell: {
+      fontSize: 11,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: c.textMuted,
+      fontFamily: "monospace",
+    },
+    actionsCol: { width: 76, flexShrink: 0, alignItems: "flex-start" },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borderRow,
+    },
+    rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    name: { fontWeight: "600", fontSize: 14, color: c.text },
+    code: { fontFamily: "monospace", fontSize: 12, color: c.textMuted, marginTop: 2 },
+    locationCell: {
+      flex: 1.2,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 7,
+      paddingRight: 12,
+    },
+    locationDot: { width: 7, height: 7, borderRadius: 4 },
+    locationText: { fontSize: 13, color: c.textLabel, flexShrink: 1 },
+    typeText: { fontSize: 13, color: c.textLabel, marginTop: 2 },
+    cardList: { gap: 12 },
+    card: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      padding: 18,
+    },
+    cardTopRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    cardName: { fontSize: 18, fontWeight: "600", color: c.text },
+    cardLocationRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 13 },
+    cardActions: {
+      marginTop: 14,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+      flexDirection: "row",
+      justifyContent: "flex-end",
+    },
   });
 }

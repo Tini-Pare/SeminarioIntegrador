@@ -55,18 +55,35 @@ export function fromDbDate(dbDate: string | null | undefined): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+// Day-granularity truncation, so time-of-day never makes "today" look like
+// a future date.
+function toDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+export function isDateWithinMax(str: string, maxDate: Date): boolean {
+  if (!isValidDateString(str)) return false;
+  const parts = str.split("/");
+  const date = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+  return toDay(date) <= toDay(maxDate);
+}
+
 export function CustomDatePicker({
   value,
   onChange,
   placeholder = "dd/mm/aaaa",
   open: openProp,
   onOpenChange,
+  maxDate,
+  maxWidth,
 }: {
   value: string;
   onChange: (val: string) => void;
   placeholder?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  maxDate?: Date;
+  maxWidth?: number;
 }) {
   const [openState, setOpenState] = useState(false);
   const controlled = onOpenChange !== undefined;
@@ -77,9 +94,8 @@ export function CustomDatePicker({
   const [flipVertical, setFlipVertical] = useState(false);
   const inputRef = useRef<View>(null);
   const { colors } = useTheme();
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const showOnRight = windowWidth >= 1050;
-  const styles = makeStyles(colors, showOnRight, flipVertical);
+  const { height: windowHeight } = useWindowDimensions();
+  const styles = makeStyles(colors, flipVertical);
 
   const parseDateString = (str: string): Date | null => {
     const parts = str.split("/");
@@ -178,7 +194,7 @@ export function CustomDatePicker({
   const handleToggle = () => {
     if (!isOpen) {
       inputRef.current?.measure((x, y, width, height, pageX, pageY) => {
-        const dropdownHeight = 180;
+        const dropdownHeight = 230;
         const spaceBelow = windowHeight - pageY - height;
         if (spaceBelow < dropdownHeight && pageY > dropdownHeight) {
           setFlipVertical(true);
@@ -193,9 +209,12 @@ export function CustomDatePicker({
   const calendarDays = getDaysInMonth(currentMonth, currentYear);
   const selectedDateObj = parseDateString(value);
   const todayDate = new Date();
+  const maxDay = maxDate ? toDay(maxDate) : null;
 
   return (
-    <View style={[styles.container, !isOpen && styles.containerClosed]}>
+    <View
+      style={[styles.container, !isOpen && styles.containerClosed, maxWidth ? { maxWidth } : null]}
+    >
       <View ref={inputRef} style={styles.inputWrapper}>
         <TextInput
           style={styles.input}
@@ -213,7 +232,7 @@ export function CustomDatePicker({
 
       {isOpen && (
         <>
-          <Pressable style={styles.backdrop} onPress={() => setIsOpen(false)} />
+          {!controlled && <Pressable style={styles.backdrop} onPress={() => setIsOpen(false)} />}
 
           <View style={styles.dropdown}>
             <View style={styles.header}>
@@ -255,6 +274,8 @@ export function CustomDatePicker({
                   todayDate.getMonth() === day.getMonth() &&
                   todayDate.getFullYear() === day.getFullYear();
 
+                const isDisabled = maxDay !== null && day > maxDay;
+
                 return (
                   <Pressable
                     key={`day-${idx}`}
@@ -262,14 +283,17 @@ export function CustomDatePicker({
                       styles.dayCell,
                       isToday && styles.dayCellToday,
                       isSelected && styles.dayCellSelected,
+                      isDisabled && styles.dayCellDisabled,
                     ]}
-                    onPress={() => handleSelectDay(day)}
+                    onPress={() => !isDisabled && handleSelectDay(day)}
+                    disabled={isDisabled}
                   >
                     <Text
                       style={[
                         styles.dayText,
                         isToday && styles.dayTextToday,
                         isSelected && styles.dayTextSelected,
+                        isDisabled && styles.dayTextDisabled,
                       ]}
                     >
                       {day.getDate()}
@@ -285,17 +309,17 @@ export function CustomDatePicker({
   );
 }
 
-function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean) {
+function makeStyles(c: ThemeColors, flipVertical: boolean) {
   return StyleSheet.create({
     container: {
       position: "relative",
       width: "100%",
       zIndex: 50,
     },
-    // When closed the calendar must not sit above sibling dropdowns (Select)
-    // that open on top of this field.
+    // Closed fields stay above the backdrop (30) so a single tap on a
+    // sibling dropdown switches to it.
     containerClosed: {
-      zIndex: 1,
+      zIndex: 40,
     },
     inputWrapper: {
       flexDirection: "row",
@@ -309,13 +333,17 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
     },
     input: {
       flex: 1,
+      minWidth: 0,
       height: "100%",
       paddingHorizontal: 14,
       fontSize: 14,
       color: c.text,
     },
+    // Fixed width so the calendar button never gets squeezed out when the
+    // field is narrowed.
     iconButton: {
-      paddingHorizontal: 14,
+      width: 42,
+      flexShrink: 0,
       height: "100%",
       alignItems: "center",
       justifyContent: "center",
@@ -326,23 +354,22 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
       left: Platform.OS === "web" ? 0 : -1000,
       right: Platform.OS === "web" ? 0 : -1000,
       bottom: Platform.OS === "web" ? 0 : -1000,
-      zIndex: 999,
+      zIndex: 30,
       backgroundColor: "transparent",
     },
     dropdown: {
       position: "absolute",
-      top: showOnRight ? (flipVertical ? undefined : 0) : flipVertical ? undefined : 48,
-      bottom: showOnRight ? (flipVertical ? 0 : undefined) : flipVertical ? 48 : undefined,
-      left: showOnRight ? "100%" : 0,
-      marginLeft: showOnRight ? 8 : 0,
-      width: 250,
-      maxHeight: 180,
+      top: flipVertical ? undefined : 48,
+      bottom: flipVertical ? 48 : undefined,
+      left: 0,
+      right: 0,
+      maxHeight: 240,
       backgroundColor: c.bgModal,
       borderWidth: 1,
       borderColor: c.borderInput,
       borderRadius: 12,
       padding: 8,
-      zIndex: 1000,
+      zIndex: 60,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
@@ -415,6 +442,9 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
     dayCellSelected: {
       backgroundColor: c.accent,
     },
+    dayCellDisabled: {
+      opacity: 0.3,
+    },
     dayText: {
       fontSize: 10.5,
       color: c.text,
@@ -426,6 +456,9 @@ function makeStyles(c: ThemeColors, showOnRight: boolean, flipVertical: boolean)
     dayTextSelected: {
       fontWeight: "700",
       color: "#fff",
+    },
+    dayTextDisabled: {
+      color: c.textMuted,
     },
   });
 }

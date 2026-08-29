@@ -10,11 +10,15 @@ import {
   View,
 } from "react-native";
 import { EquipmentTypeModal } from "../../../components/EquipmentTypeModal";
+import { Pagination } from "../../../components/Pagination";
+import { RowActions } from "../../../components/RowActions";
 import { BREAKPOINT } from "../../../constants";
-import { listEquipmentTypes } from "../../../lib/queries/equipmentTypes";
+import { confirmDelete } from "../../../lib/confirm";
+import { deleteEquipmentType, listEquipmentTypes } from "../../../lib/queries/equipmentTypes";
 import type { EquipmentTypeWithCount } from "../../../lib/queries/equipmentTypes";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { usePagination } from "../../../lib/usePagination";
 
 export default function EquipmentTypesScreen() {
   const [loading, setLoading] = useState(true);
@@ -24,7 +28,7 @@ export default function EquipmentTypesScreen() {
   const [editing, setEditing] = useState<EquipmentTypeWithCount | null>(null);
   const [creating, setCreating] = useState(false);
   const { width } = useWindowDimensions();
-  const isMobile = width >= BREAKPOINT.mobile;
+  const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -47,6 +51,23 @@ export default function EquipmentTypesScreen() {
     setRefreshing(false);
   }
 
+  function handleDelete(t: EquipmentTypeWithCount) {
+    confirmDelete(
+      "Eliminar tipo de equipo",
+      `¿Eliminar "${t.te_nombre}"? Esta acción no se puede deshacer.`,
+      async () => {
+        try {
+          await deleteEquipmentType(t.te_id);
+          await load();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      },
+    );
+  }
+
+  const { pageItems, page, pageCount, setPage } = usePagination(types);
+
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
@@ -56,7 +77,7 @@ export default function EquipmentTypesScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerText}>
           <Text style={styles.title}>Tipos de equipo</Text>
           <Text style={styles.subtitle}>
             Gestioná las categorías con las que se clasifican los equipos
@@ -72,48 +93,77 @@ export default function EquipmentTypesScreen() {
 
       {types.length === 0 ? (
         <Text style={styles.empty}>Todavía no hay tipos de equipo cargados.</Text>
-      ) : isMobile ? (
+      ) : isWide ? (
         <View style={styles.table}>
           <View style={styles.tableHeader}>
             <Text style={[styles.headerCell, { flex: 2 }]}>TIPO</Text>
             <Text style={[styles.headerCell, { flex: 1 }]}>EQUIPOS</Text>
+            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
           </View>
 
-          {types.map((t) => (
-            <Pressable key={t.te_id} style={styles.row} onPress={() => setEditing(t)}>
-              <View style={{ flex: 2, justifyContent: "center" }}>
-                <Text style={styles.name} numberOfLines={1}>
-                  {t.te_nombre}
-                </Text>
-              </View>
-
-              <View style={{ flex: 1, justifyContent: "center" }}>
-                <View style={styles.countBadge}>
-                  <Text style={styles.countBadgeText}>{t.equipmentCount}</Text>
+          {pageItems.map((t) => (
+            <View key={t.te_id} style={styles.row}>
+              <Pressable
+                style={styles.rowMain}
+                onPress={() => setEditing(t)}
+                accessibilityLabel={`Editar ${t.te_nombre}`}
+              >
+                <View style={{ flex: 2, justifyContent: "center" }}>
+                  <Text style={styles.name} numberOfLines={1}>
+                    {t.te_nombre}
+                  </Text>
                 </View>
+
+                <View style={{ flex: 1, justifyContent: "center" }}>
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>{t.equipmentCount}</Text>
+                  </View>
+                </View>
+              </Pressable>
+
+              <View style={styles.actionsCol}>
+                <RowActions
+                  onEdit={() => setEditing(t)}
+                  onDelete={() => handleDelete(t)}
+                  deleteDisabled={t.equipmentCount > 0}
+                />
               </View>
-            </Pressable>
+            </View>
           ))}
         </View>
       ) : (
         <View style={styles.cardList}>
-          {types.map((t) => (
-            <Pressable key={t.te_id} style={styles.typeCard} onPress={() => setEditing(t)}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.name} numberOfLines={1}>
-                  {t.te_nombre}
-                </Text>
-              </View>
+          {pageItems.map((t) => (
+            <View key={t.te_id} style={styles.typeCard}>
+              <Pressable
+                style={styles.cardMain}
+                onPress={() => setEditing(t)}
+                accessibilityLabel={`Editar ${t.te_nombre}`}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.name} numberOfLines={1}>
+                    {t.te_nombre}
+                  </Text>
+                </View>
 
-              <View style={styles.countBadge}>
-                <Text style={styles.countBadgeText}>
-                  {t.equipmentCount} equipo{t.equipmentCount === 1 ? "" : "s"}
-                </Text>
-              </View>
-            </Pressable>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>
+                    {t.equipmentCount} equipo{t.equipmentCount === 1 ? "" : "s"}
+                  </Text>
+                </View>
+              </Pressable>
+
+              <RowActions
+                onEdit={() => setEditing(t)}
+                onDelete={() => handleDelete(t)}
+                deleteDisabled={t.equipmentCount > 0}
+              />
+            </View>
           ))}
         </View>
       )}
+
+      <Pagination page={page} pageCount={pageCount} onPage={setPage} />
 
       {editing && (
         <EquipmentTypeModal
@@ -141,6 +191,7 @@ function makeStyles(c: ThemeColors) {
       gap: 12,
       marginBottom: 20,
     },
+    headerText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     addButton: {
@@ -160,10 +211,11 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 700,
+      maxWidth: 820,
     },
     tableHeader: {
       flexDirection: "row",
+      alignItems: "center",
       padding: 14,
       backgroundColor: c.bgTableHeader,
       borderBottomWidth: 1,
@@ -176,12 +228,16 @@ function makeStyles(c: ThemeColors) {
       color: c.textMuted,
       fontFamily: "monospace",
     },
+    actionsCol: { width: 76, flexShrink: 0, alignItems: "flex-start" },
     row: {
       flexDirection: "row",
-      padding: 14,
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 10,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
+    rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
     cardList: { gap: 10 },
     typeCard: {
@@ -192,8 +248,15 @@ function makeStyles(c: ThemeColors) {
       padding: 16,
       flexDirection: "row",
       alignItems: "center",
+      gap: 12,
+    },
+    cardMain: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
+      minWidth: 0,
     },
     countBadge: {
       alignSelf: "flex-start",

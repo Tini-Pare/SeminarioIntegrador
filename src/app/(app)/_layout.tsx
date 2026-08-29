@@ -14,10 +14,10 @@ import {
   EquipmentIcon,
   EquipmentTypeIcon,
   GeneralTaskIcon,
+  HomeIcon,
   LocationIcon,
   RequestsIcon,
   UsersIcon,
-  WarningIcon,
 } from "../../components/icons";
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signOut } from "../../lib/auth";
@@ -74,46 +74,40 @@ export default function AppLayout() {
   const role = profile?.role;
   const isWide = width >= BREAKPOINT.tablet;
 
-  const navItems: NavItem[] = [
-    ...(role === "admin"
-      ? [
-          { key: "users", label: "Usuarios", href: "/users", Icon: UsersIcon },
-          { key: "locations", label: "Ubicaciones", href: "/locations", Icon: LocationIcon },
-          {
-            key: "equipment-types",
-            label: "Tipos de equipo",
-            href: "/equipment-types",
-            Icon: EquipmentTypeIcon,
-          },
-          {
-            key: "general-tasks",
-            label: "Tareas generales",
-            href: "/general-tasks",
-            Icon: GeneralTaskIcon,
-          },
-          {
-            key: "fault-types",
-            label: "Fallas genéricas",
-            href: "/fault-types",
-            Icon: WarningIcon,
-          },
-        ]
-      : []),
-    { key: "equipment", label: "Equipos", href: "/equipment", Icon: EquipmentIcon },
-    ...(role === "admin" || role === "user"
-      ? [
-          {
-            key: "requests",
-            label: role === "admin" ? "Solicitudes" : "Mis solicitudes",
-            href: "/requests",
-            Icon: RequestsIcon,
-          },
-        ]
-      : []),
-    ...(role === "technician"
-      ? [{ key: "queue", label: "Cola de trabajo", href: "/queue", Icon: RequestsIcon }]
-      : []),
-  ];
+  const equipmentItem: NavItem = {
+    key: "equipment",
+    label: "Equipos",
+    href: "/equipment",
+    Icon: EquipmentIcon,
+  };
+
+  let navItems: NavItem[] = [];
+  if (role === "admin") {
+    navItems = [
+      { key: "dashboard", label: "Inicio", href: "/dashboard", Icon: HomeIcon },
+      { key: "users", label: "Usuarios", href: "/users", Icon: UsersIcon },
+      { key: "locations", label: "Ubicaciones", href: "/locations", Icon: LocationIcon },
+      equipmentItem,
+      {
+        key: "equipment-types",
+        label: "Tipos de equipo",
+        href: "/equipment-types",
+        Icon: EquipmentTypeIcon,
+      },
+      { key: "requests", label: "Solicitudes", href: "/requests", Icon: RequestsIcon },
+      { key: "catalogs", label: "Catálogos", href: "/catalogs", Icon: GeneralTaskIcon },
+    ];
+  } else if (role === "technician") {
+    navItems = [
+      equipmentItem,
+      { key: "queue", label: "Cola de trabajo", href: "/queue", Icon: RequestsIcon },
+    ];
+  } else if (role === "user") {
+    navItems = [
+      equipmentItem,
+      { key: "requests", label: "Mis solicitudes", href: "/requests", Icon: RequestsIcon },
+    ];
+  }
 
   function goToSettings() {
     setMenuOpen(false);
@@ -178,7 +172,9 @@ export default function AppLayout() {
                   <Text style={[styles.userName, { color: colors.textSidebar }]} numberOfLines={1}>
                     {profile?.name}
                   </Text>
-                  <Text style={styles.userRole}>{role ? ROLE_LABELS[role] : ""}</Text>
+                  <Text style={[styles.userRole, { color: colors.textNavInactive }]}>
+                    {role ? ROLE_LABELS[role] : ""}
+                  </Text>
                 </View>
               </Pressable>
               {menuOpen && (
@@ -314,7 +310,7 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontWeight: "600", fontSize: 14 },
   userName: { fontSize: 13.5, fontWeight: "600" },
-  userRole: { color: "#7c808b", fontSize: 11.5 },
+  userRole: { fontSize: 11.5 },
   content: { flex: 1, minHeight: 0 },
   narrowContainer: { flex: 1, minHeight: 0 },
   narrowTopBar: {

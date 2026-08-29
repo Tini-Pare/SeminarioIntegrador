@@ -38,6 +38,11 @@ const TABS = [
   { key: "history", label: "Historial" },
 ] as const;
 
+function formatDate(dbDate: string | null): string {
+  if (!dbDate) return "No registrada";
+  return new Date(dbDate + "T00:00:00").toLocaleDateString("es-AR");
+}
+
 type TabKey = (typeof TABS)[number]["key"];
 
 export default function EquipmentDetail() {
@@ -56,7 +61,10 @@ export default function EquipmentDetail() {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  const statusMeta: Record<Equipo["status"], { label: string; bg: string; fg: string; dot: string }> = {
+  const statusMeta: Record<
+    Equipo["status"],
+    { label: string; bg: string; fg: string; dot: string }
+  > = {
     operational: { label: "Funcionando", ...colors.eqOperational },
     waiting: { label: "En espera", ...colors.eqWaiting },
     repair: { label: "En reparación", ...colors.eqRepair },
@@ -102,12 +110,22 @@ export default function EquipmentDetail() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "solicitudes", filter: `eq_id_equipo=eq.${equipoId}` },
+        {
+          event: "*",
+          schema: "public",
+          table: "solicitudes",
+          filter: `eq_id_equipo=eq.${equipoId}`,
+        },
         loadEquipmentData,
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "orden_de_trabajo", filter: `eq_id_equipo=eq.${equipoId}` },
+        {
+          event: "*",
+          schema: "public",
+          table: "orden_de_trabajo",
+          filter: `eq_id_equipo=eq.${equipoId}`,
+        },
         loadEquipmentData,
       )
       .subscribe();
@@ -211,14 +229,11 @@ export default function EquipmentDetail() {
 
             <MetaCell label="Tipo" value={equipment.type} />
 
-            <MetaCell
-              label="Fecha de compra"
-              value={
-                equipment.purchaseDate
-                  ? new Date(equipment.purchaseDate + "T00:00:00").toLocaleDateString("es-AR")
-                  : "No registrada"
-              }
-            />
+            <MetaCell label="Modelo" value={equipment.model || "No registrado"} />
+
+            <MetaCell label="Fecha de instalación" value={formatDate(equipment.installDate)} />
+
+            <MetaCell label="Fecha de garantía" value={formatDate(equipment.warrantyDate)} />
           </View>
         </View>
 
@@ -235,7 +250,15 @@ export default function EquipmentDetail() {
           <View>
             <Text style={styles.sectionTitle}>Fallas activas</Text>
             {faults.length === 0 ? (
-              <View style={[styles.emptyRow, { backgroundColor: colors.eqOperational.bg, borderColor: colors.eqOperational.bg }]}>
+              <View
+                style={[
+                  styles.emptyRow,
+                  {
+                    backgroundColor: colors.eqOperational.bg,
+                    borderColor: colors.eqOperational.bg,
+                  },
+                ]}
+              >
                 <View style={[styles.emptyIconWrap, { backgroundColor: colors.eqOperational.bg }]}>
                   <CheckIcon size={16} color={colors.eqOperational.fg} />
                 </View>
@@ -328,7 +351,9 @@ function MetaCell({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ flexGrow: 1, minWidth: 150, backgroundColor: colors.bgNested, padding: 14 }}>
       <Text style={{ fontSize: 11.5, color: colors.textMuted, fontWeight: "500" }}>{label}</Text>
-      <Text style={{ marginTop: 4, fontSize: 14, fontWeight: "600", color: colors.text }}>{value}</Text>
+      <Text style={{ marginTop: 4, fontSize: 14, fontWeight: "600", color: colors.text }}>
+        {value}
+      </Text>
     </View>
   );
 }

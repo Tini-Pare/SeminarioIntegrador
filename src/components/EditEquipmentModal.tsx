@@ -1,13 +1,22 @@
 import { useEffect, useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { updateEquipment } from "../lib/queries/equipment";
 import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
 import { listLocations } from "../lib/queries/locations";
+import { DropdownBackdrop } from "./DropdownBackdrop";
 import { Select } from "./Select";
 import type { Equipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
-import { CustomDatePicker, isValidDateString, toDbDate, fromDbDate } from "./CustomDatePicker";
+import {
+  CustomDatePicker,
+  fromDbDate,
+  isDateWithinMax,
+  isValidDateString,
+  toDbDate,
+} from "./CustomDatePicker";
+
+type OpenField = "type" | "location" | "install" | "warranty" | null;
 
 export function EditEquipmentModal({
   visible,
@@ -22,14 +31,16 @@ export function EditEquipmentModal({
 }) {
   const [code, setCode] = useState(equipment.code);
   const [name, setName] = useState(equipment.name);
+  const [model, setModel] = useState(equipment.model ?? "");
   const [typeId, setTypeId] = useState<number | null>(equipment.typeId);
   const [locationId, setLocationId] = useState<number | null>(equipment.locationId);
-  const [purchaseDate, setPurchaseDate] = useState(fromDbDate(equipment.purchaseDate));
+  const [installDate, setInstallDate] = useState(fromDbDate(equipment.installDate));
+  const [warrantyDate, setWarrantyDate] = useState(fromDbDate(equipment.warrantyDate));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [types, setTypes] = useState<{ value: number; label: string }[]>([]);
   const [locations, setLocations] = useState<{ value: number; label: string }[]>([]);
-  const [openField, setOpenField] = useState<"type" | "location" | "date" | null>(null);
+  const [openField, setOpenField] = useState<OpenField>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -50,9 +61,11 @@ export function EditEquipmentModal({
     if (!visible) return;
     setCode(equipment.code);
     setName(equipment.name);
+    setModel(equipment.model ?? "");
     setTypeId(equipment.typeId);
     setLocationId(equipment.locationId);
-    setPurchaseDate(fromDbDate(equipment.purchaseDate));
+    setInstallDate(fromDbDate(equipment.installDate));
+    setWarrantyDate(fromDbDate(equipment.warrantyDate));
     setOpenField(null);
     setError(null);
 
@@ -67,16 +80,26 @@ export function EditEquipmentModal({
   }, [visible, equipment]);
 
   async function handleSubmit() {
-    if (!code.trim() || !name.trim() || !purchaseDate.trim()) {
-      setError("Completá el código, el nombre y la fecha de compra.");
+    if (!code.trim() || !name.trim()) {
+      setError("Completá el código y el nombre.");
       return;
     }
     if (typeId == null || locationId == null) {
       setError("Elegí un tipo y una ubicación.");
       return;
     }
-    if (!isValidDateString(purchaseDate.trim())) {
-      setError("Ingresá una fecha válida en formato dd/mm/aaaa.");
+    if (installDate.trim()) {
+      if (!isValidDateString(installDate.trim())) {
+        setError("Ingresá una fecha de instalación válida (dd/mm/aaaa).");
+        return;
+      }
+      if (!isDateWithinMax(installDate.trim(), new Date())) {
+        setError("La fecha de instalación no puede ser posterior a hoy.");
+        return;
+      }
+    }
+    if (warrantyDate.trim() && !isValidDateString(warrantyDate.trim())) {
+      setError("Ingresá una fecha de garantía válida (dd/mm/aaaa).");
       return;
     }
     setSaving(true);
@@ -87,7 +110,9 @@ export function EditEquipmentModal({
         name: name.trim(),
         typeId,
         locationId,
-        purchaseDate: toDbDate(purchaseDate.trim()),
+        model: model.trim() || null,
+        installDate: installDate.trim() ? toDbDate(installDate.trim()) : null,
+        warrantyDate: warrantyDate.trim() ? toDbDate(warrantyDate.trim()) : null,
       });
       onSaved();
       onClose();
@@ -102,16 +127,34 @@ export function EditEquipmentModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
+          <DropdownBackdrop open={openField !== null} onPress={() => setOpenField(null)} />
+
           <Text style={styles.title}>Editar equipo</Text>
 
-          <Text style={styles.label}>Código</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ej: AC-015"
-            placeholderTextColor={colors.textMuted}
-            value={code}
-            onChangeText={setCode}
-          />
+          <View style={styles.fieldRow}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Código</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: AC-015"
+                placeholderTextColor={colors.textMuted}
+                value={code}
+                onChangeText={setCode}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Modelo</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: Split 3000F"
+                placeholderTextColor={colors.textMuted}
+                value={model}
+                onChangeText={setModel}
+              />
+            </View>
+          </View>
 
           <Text style={styles.label}>Nombre</Text>
           <TextInput
@@ -142,14 +185,33 @@ export function EditEquipmentModal({
             onOpenChange={(o) => setOpenField(o ? "location" : null)}
           />
 
-          <Text style={styles.label}>Fecha de compra</Text>
+          <View
+            style={[
+              styles.fieldRow,
+              (openField === "install" || openField === "warranty") && styles.dateRowRaised,
+            ]}
+          >
+            <View style={styles.field}>
+              <Text style={styles.label}>Fecha de instalación</Text>
+              <CustomDatePicker
+                value={installDate}
+                onChange={setInstallDate}
+                open={openField === "install"}
+                onOpenChange={(o) => setOpenField(o ? "install" : null)}
+                maxDate={new Date()}
+              />
+            </View>
 
-          <CustomDatePicker
-            value={purchaseDate}
-            onChange={setPurchaseDate}
-            open={openField === "date"}
-            onOpenChange={(o) => setOpenField(o ? "date" : null)}
-          />
+            <View style={styles.field}>
+              <Text style={styles.label}>Fecha de garantía</Text>
+              <CustomDatePicker
+                value={warrantyDate}
+                onChange={setWarrantyDate}
+                open={openField === "warranty"}
+                onOpenChange={(o) => setOpenField(o ? "warranty" : null)}
+              />
+            </View>
+          </View>
 
           <Text style={styles.label}>Estado</Text>
           <View style={styles.statusRow}>
@@ -182,8 +244,10 @@ function makeStyles(c: ThemeColors) {
     overlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.55)",
-      justifyContent: "center",
-      padding: 20,
+      justifyContent: "flex-start",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 36,
     },
     sheet: {
       backgroundColor: c.bgModal,
@@ -191,9 +255,11 @@ function makeStyles(c: ThemeColors) {
       padding: 24,
       width: "100%",
       maxWidth: 480,
-      alignSelf: "center",
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 8 },
+    fieldRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+    field: { flex: 1, minWidth: 140 },
+    dateRowRaised: { zIndex: 60 },
     label: {
       fontSize: 12.5,
       fontWeight: "600",

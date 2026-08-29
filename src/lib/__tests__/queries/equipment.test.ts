@@ -23,7 +23,9 @@ describe("listEquipment", () => {
           eq_codigo: "AC-014",
           eq_nombre: "Aire Acondicionado",
           eq_estado: "operational",
+          eq_modelo: "Split 3000F",
           eq_fecha_instalacion: "2026-01-15",
+          eq_fecha_garantia: "2028-01-15",
           lugares: { lu_nombre_sector: "Planta A" },
           tipos_de_equipos: { te_nombre: "Climatización" },
         },
@@ -50,7 +52,9 @@ describe("listEquipment", () => {
         location: "Planta A",
         locationId: 3,
         status: "operational",
-        purchaseDate: "2026-01-15",
+        model: "Split 3000F",
+        installDate: "2026-01-15",
+        warrantyDate: "2028-01-15",
       },
     ]);
   });
@@ -75,7 +79,9 @@ describe("getEquipmentById", () => {
         eq_codigo: "AC-014",
         eq_nombre: "Aire Acondicionado",
         eq_estado: "operational",
+        eq_modelo: null,
         eq_fecha_instalacion: null,
+        eq_fecha_garantia: null,
         lugares: { lu_nombre_sector: "Planta A" },
         tipos_de_equipos: { te_nombre: "Climatización" },
       },
@@ -97,7 +103,9 @@ describe("getEquipmentById", () => {
       location: "Planta A",
       locationId: 3,
       status: "operational",
-      purchaseDate: null,
+      model: null,
+      installDate: null,
+      warrantyDate: null,
     });
   });
 
@@ -125,7 +133,9 @@ describe("createEquipment", () => {
         eq_codigo: "AC-015",
         eq_nombre: "AA Sala",
         eq_estado: "operational",
+        eq_modelo: "Split 3000F",
         eq_fecha_instalacion: "2026-02-01",
+        eq_fecha_garantia: "2028-02-01",
         lugares: { lu_nombre_sector: "Planta A" },
         tipos_de_equipos: { te_nombre: "Climatización" },
       },
@@ -140,7 +150,9 @@ describe("createEquipment", () => {
       name: "AA Sala",
       typeId: 7,
       locationId: 3,
-      purchaseDate: "2026-02-01",
+      model: "Split 3000F",
+      installDate: "2026-02-01",
+      warrantyDate: "2028-02-01",
     });
 
     expect(supabase.from).toHaveBeenCalledWith("equipo");
@@ -149,7 +161,9 @@ describe("createEquipment", () => {
       eq_nombre: "AA Sala",
       te_id: 7,
       lu_codigo: 3,
+      eq_modelo: "Split 3000F",
       eq_fecha_instalacion: "2026-02-01",
+      eq_fecha_garantia: "2028-02-01",
     });
     expect(result.id).toBe(5);
     expect(result.typeId).toBe(7);
@@ -163,7 +177,15 @@ describe("createEquipment", () => {
     (supabase.from as jest.Mock).mockReturnValue({ insert });
 
     await expect(
-      createEquipment({ code: "X", name: "Y", typeId: 1, locationId: 1, purchaseDate: null }),
+      createEquipment({
+        code: "X",
+        name: "Y",
+        typeId: 1,
+        locationId: 1,
+        model: null,
+        installDate: null,
+        warrantyDate: null,
+      }),
     ).rejects.toThrow("insert failed");
   });
 });
@@ -179,7 +201,9 @@ describe("updateEquipment", () => {
       name: "AA Sala",
       typeId: 9,
       locationId: 4,
-      purchaseDate: "2026-02-01",
+      model: "Split 3000F",
+      installDate: "2026-02-01",
+      warrantyDate: "2028-02-01",
     });
 
     expect(supabase.from).toHaveBeenCalledWith("equipo");
@@ -188,7 +212,9 @@ describe("updateEquipment", () => {
       eq_nombre: "AA Sala",
       te_id: 9,
       lu_codigo: 4,
+      eq_modelo: "Split 3000F",
       eq_fecha_instalacion: "2026-02-01",
+      eq_fecha_garantia: "2028-02-01",
     });
     expect(eq).toHaveBeenCalledWith("eq_id_equipo", 5);
   });
@@ -199,7 +225,15 @@ describe("updateEquipment", () => {
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
     await expect(
-      updateEquipment(5, { code: "X", name: "Y", typeId: 1, locationId: 1, purchaseDate: null }),
+      updateEquipment(5, {
+        code: "X",
+        name: "Y",
+        typeId: 1,
+        locationId: 1,
+        model: null,
+        installDate: null,
+        warrantyDate: null,
+      }),
     ).rejects.toThrow("update failed");
   });
 });

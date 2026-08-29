@@ -1,12 +1,12 @@
 const PALETTE = [
-  "#2f53e0",
-  "#1e7f47",
-  "#c9821e",
-  "#8a3ffc",
-  "#c0392b",
-  "#0e7490",
+  "#4a9b74",
+  "#7ba33f",
+  "#2f7d5b",
+  "#8a9a52",
+  "#3f8f7a",
+  "#c99433",
   "#a0522d",
-  "#6b7280",
+  "#6a7b62",
 ];
 
 export function buildLocationColorMap(locations: string[]): Map<string, string> {

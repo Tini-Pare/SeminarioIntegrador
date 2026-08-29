@@ -15,7 +15,9 @@ import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
+import { usePagination } from "../../../lib/usePagination";
 import { LocationIcon, WarningIcon } from "../../../components/icons";
+import { Pagination } from "../../../components/Pagination";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import type { Solicitud, Equipo } from "../../../types/database";
@@ -164,6 +166,11 @@ export default function QueueScreen() {
     high: colors.urgencyHigh,
   };
 
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    visibleItems,
+    `${scope}|${urgencyFilter}`,
+  );
+
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
@@ -231,11 +238,11 @@ export default function QueueScreen() {
           {items.length === 0 ? "No hay órdenes en tu cola." : "Nada coincide con este filtro."}
         </Text>
       ) : (
-        visibleItems.map((item) => {
+        pageItems.map((item) => {
           const label = actionLabel(item);
           const st = statusColors[item.status];
           const urg = urgencyColors[item.urgency];
-          const locColor = locationColors.get(item.equipment.location) ?? "#6b7280";
+          const locColor = locationColors.get(item.equipment.location) ?? "#6a7b62";
           return (
             <View key={item.id} style={styles.card}>
               <View style={styles.cardTop}>
@@ -305,6 +312,8 @@ export default function QueueScreen() {
           );
         })
       )}
+
+      <Pagination page={page} pageCount={pageCount} onPage={setPage} />
     </ScrollView>
   );
 }

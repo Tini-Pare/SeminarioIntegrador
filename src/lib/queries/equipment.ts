@@ -17,7 +17,9 @@ function mapEquipo(row: EquipoRow): Equipo {
     location: row.lugares?.lu_nombre_sector ?? "",
     locationId: row.lu_codigo,
     status: row.eq_estado,
-    purchaseDate: row.eq_fecha_instalacion,
+    model: row.eq_modelo,
+    installDate: row.eq_fecha_instalacion,
+    warrantyDate: row.eq_fecha_garantia,
   };
 }
 
@@ -36,13 +38,17 @@ export async function listEquipment(): Promise<Equipo[]> {
 // based on active solicitudes/ordenes — allowing manual edits created a
 // second writer that clashed with the automatic calculation (equipment
 // showed "En reparación" with "Sin fallas activas" at the same time).
-export async function createEquipment(input: {
+type EquipmentInput = {
   code: string;
   name: string;
   typeId: number;
   locationId: number;
-  purchaseDate: string | null;
-}): Promise<Equipo> {
+  model: string | null;
+  installDate: string | null;
+  warrantyDate: string | null;
+};
+
+export async function createEquipment(input: EquipmentInput): Promise<Equipo> {
   const { data, error } = await supabase
     .from("equipo")
     .insert({
@@ -50,7 +56,9 @@ export async function createEquipment(input: {
       eq_nombre: input.name,
       te_id: input.typeId,
       lu_codigo: input.locationId,
-      eq_fecha_instalacion: input.purchaseDate,
+      eq_modelo: input.model,
+      eq_fecha_instalacion: input.installDate,
+      eq_fecha_garantia: input.warrantyDate,
     })
     .select("*, lugares(*), tipos_de_equipos(*)")
     .single();
@@ -58,16 +66,7 @@ export async function createEquipment(input: {
   return mapEquipo(data as EquipoRow);
 }
 
-export async function updateEquipment(
-  id: number,
-  changes: {
-    code: string;
-    name: string;
-    typeId: number;
-    locationId: number;
-    purchaseDate: string | null;
-  },
-): Promise<void> {
+export async function updateEquipment(id: number, changes: EquipmentInput): Promise<void> {
   const { error } = await supabase
     .from("equipo")
     .update({
@@ -75,7 +74,9 @@ export async function updateEquipment(
       eq_nombre: changes.name,
       te_id: changes.typeId,
       lu_codigo: changes.locationId,
-      eq_fecha_instalacion: changes.purchaseDate,
+      eq_modelo: changes.model,
+      eq_fecha_instalacion: changes.installDate,
+      eq_fecha_garantia: changes.warrantyDate,
     })
     .eq("eq_id_equipo", id);
   if (error) throw new Error(error.message);

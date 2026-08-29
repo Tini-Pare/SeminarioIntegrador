@@ -95,23 +95,29 @@ export function LocationModal({
             {isEditing ? "Editá el sector y el piso." : "Agregá un sector donde ubicar equipos."}
           </Text>
 
-          <Text style={styles.label}>Sector</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Ej: Planta A"
-            placeholderTextColor={colors.textMuted}
-          />
+          <View style={styles.fieldRow}>
+            <View style={styles.fieldWide}>
+              <Text style={styles.label}>Sector</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Ej: Planta A"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
 
-          <Text style={styles.label}>Piso</Text>
-          <TextInput
-            style={styles.input}
-            value={floor}
-            onChangeText={setFloor}
-            placeholder="Ej: 1° piso (opcional)"
-            placeholderTextColor={colors.textMuted}
-          />
+            <View style={styles.fieldNarrow}>
+              <Text style={styles.label}>Piso</Text>
+              <TextInput
+                style={styles.input}
+                value={floor}
+                onChangeText={setFloor}
+                placeholder="Ej: 1° piso"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+          </View>
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -154,7 +160,12 @@ export function LocationModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -165,7 +176,13 @@ function makeStyles(c: ThemeColors) {
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 18, marginBottom: 8 },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginTop: 18,
+      marginBottom: 8,
+    },
     input: {
       height: 42,
       paddingHorizontal: 12,
@@ -176,6 +193,9 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       color: c.text,
     },
+    fieldRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+    fieldWide: { flex: 1.6, minWidth: 150 },
+    fieldNarrow: { flex: 1, minWidth: 110 },
     disabled: { opacity: 0.45 },
     selfNote: { marginTop: 10, fontSize: 12.5, color: c.textMuted },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },

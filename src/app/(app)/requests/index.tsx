@@ -11,10 +11,12 @@ import { getProfile } from "../../../lib/auth";
 import { listMyRequests, listAllRequests } from "../../../lib/queries/faults";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
+import { Pagination } from "../../../components/Pagination";
 import { RequestList } from "../../../components/RequestList";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { usePagination } from "../../../lib/usePagination";
 import type { Solicitud, Equipo } from "../../../types/database";
 
 type Item = Solicitud & {
@@ -79,6 +81,8 @@ export default function RequestsScreen() {
     setRefreshing(false);
   }
 
+  const { pageItems, page, pageCount, setPage } = usePagination(items, isAdmin ? "admin" : "mine");
+
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
@@ -100,7 +104,9 @@ export default function RequestsScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <RequestList items={items} />
+      <RequestList items={pageItems} />
+
+      <Pagination page={page} pageCount={pageCount} onPage={setPage} />
     </ScrollView>
   );
 }

@@ -162,6 +162,63 @@ export function RequestsIcon({ size = 18, color = "currentColor" }: IconProps) {
   );
 }
 
+export function HomeIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M3 10.5L12 3l9 7.5" />
+      <Path d="M5 9.5V20a1 1 0 001 1h12a1 1 0 001-1V9.5" />
+      <Path d="M9.5 21v-6h5v6" />
+    </Svg>
+  );
+}
+
+export function PencilIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M12 20h9" />
+      <Path d="M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4L16.5 3.5z" />
+    </Svg>
+  );
+}
+
+export function TrashIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M3 6h18" />
+      <Path d="M8 6V4h8v2" />
+      <Path d="M19 6l-1 14H6L5 6" />
+      <Path d="M10 11v5M14 11v5" />
+    </Svg>
+  );
+}
+
 export function CalendarIcon({ size = 16, color = "currentColor" }: IconProps) {
   return (
     <Svg

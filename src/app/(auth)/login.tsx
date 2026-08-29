@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BREAKPOINT } from "../../constants";
-import { signIn } from "../../lib/auth";
+import { getProfile, signIn } from "../../lib/auth";
 import { useTheme } from "../../lib/ThemeContext";
 import type { ThemeColors } from "../../lib/theme";
 
@@ -36,7 +36,8 @@ export default function Login() {
       setError(error);
       return;
     }
-    router.replace("/equipment");
+    const profile = await getProfile();
+    router.replace((profile?.role === "admin" ? "/dashboard" : "/equipment") as never);
   }
 
   const form = (
@@ -171,7 +172,13 @@ function makeStyles(c: ThemeColors) {
     brandName: { color: c.textSidebar, fontWeight: "600", fontSize: 20 },
     brandNameDark: { color: c.text, fontWeight: "600", fontSize: 20 },
     brandCopy: { maxWidth: 400 },
-    eyebrow: { color: c.accent, fontSize: 12, letterSpacing: 2, marginBottom: 18, fontWeight: "600" },
+    eyebrow: {
+      color: c.accent,
+      fontSize: 12,
+      letterSpacing: 2,
+      marginBottom: 18,
+      fontWeight: "600",
+    },
     headline: { color: c.textSidebar, fontWeight: "600", fontSize: 40, lineHeight: 44 },
     tagline: { color: c.textNavInactive, fontSize: 15.5, lineHeight: 24, marginTop: 20 },
     legend: { flexDirection: "row", gap: 22 },

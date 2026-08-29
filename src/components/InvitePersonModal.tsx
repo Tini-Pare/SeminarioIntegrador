@@ -94,7 +94,7 @@ export function InvitePersonModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Invitar persona</Text>
+          <Text style={styles.title}>Nueva persona</Text>
           <Text style={styles.subtitle}>
             Se crea la cuenta ya activa con esta contraseña — compartísela a la persona por otro
             medio.
@@ -175,7 +175,12 @@ export function InvitePersonModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -186,7 +191,13 @@ function makeStyles(c: ThemeColors) {
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 4 },
     subtitle: { fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 14, marginBottom: 6 },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginTop: 14,
+      marginBottom: 6,
+    },
     input: {
       height: 44,
       paddingHorizontal: 14,

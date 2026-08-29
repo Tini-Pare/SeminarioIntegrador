@@ -1,17 +1,7 @@
 import { useEffect, useState } from "react";
-import {
-  Alert,
-  Modal,
-  Platform,
-  View,
-  Text,
-  Pressable,
-  Switch,
-  TextInput,
-  StyleSheet,
-} from "react-native";
-import { listProfiles, updateProfile } from "../lib/queries/profiles";
-import { supabase } from "../lib/supabase";
+import { Modal, View, Text, Pressable, Switch, TextInput, StyleSheet } from "react-native";
+import { confirmDelete } from "../lib/confirm";
+import { deleteUser, listProfiles, updateProfile } from "../lib/queries/profiles";
 import { AutocompleteInput } from "./AutocompleteInput";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
@@ -85,23 +75,7 @@ export function EditUserModal({
     setDeleting(true);
     setError(null);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) throw new Error("Sin sesión activa");
-
-      const res = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-user`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-          apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
-        },
-        body: JSON.stringify({ id: profile.id }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "No se pudo eliminar");
-
+      await deleteUser(profile.id);
       onSaved();
       onClose();
     } catch (e) {
@@ -112,15 +86,11 @@ export function EditUserModal({
   }
 
   function handleDelete() {
-    const message = `¿Eliminar la cuenta de ${profile.name}? Esta acción no se puede deshacer.`;
-    if (Platform.OS === "web") {
-      if (window.confirm(message)) doDelete();
-      return;
-    }
-    Alert.alert("Eliminar persona", message, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: doDelete },
-    ]);
+    confirmDelete(
+      "Eliminar persona",
+      `¿Eliminar la cuenta de ${profile.name}? Esta acción no se puede deshacer.`,
+      doDelete,
+    );
   }
 
   return (
@@ -202,7 +172,12 @@ export function EditUserModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -213,7 +188,13 @@ function makeStyles(c: ThemeColors) {
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginTop: 18, marginBottom: 8 },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginTop: 18,
+      marginBottom: 8,
+    },
     input: {
       height: 42,
       paddingHorizontal: 12,

@@ -11,11 +11,15 @@ import {
 } from "react-native";
 import { EditUserModal } from "../../../components/EditUserModal";
 import { InvitePersonModal } from "../../../components/InvitePersonModal";
+import { Pagination } from "../../../components/Pagination";
+import { RowActions } from "../../../components/RowActions";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
-import { listProfiles } from "../../../lib/queries/profiles";
+import { confirmDelete } from "../../../lib/confirm";
+import { deleteUser, listProfiles } from "../../../lib/queries/profiles";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { usePagination } from "../../../lib/usePagination";
 import type { Profile } from "../../../types/database";
 
 function initials(name: string) {
@@ -36,7 +40,7 @@ export default function UsersScreen() {
   const [inviting, setInviting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { width } = useWindowDimensions();
-  const isMobile = width >= BREAKPOINT.mobile;
+  const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -69,7 +73,46 @@ export default function UsersScreen() {
     setRefreshing(false);
   }
 
+  function handleDelete(p: Profile) {
+    confirmDelete(
+      "Eliminar persona",
+      `¿Eliminar la cuenta de ${p.name}? Esta acción no se puede deshacer.`,
+      async () => {
+        try {
+          await deleteUser(p.id);
+          await load();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      },
+    );
+  }
+
+  const { pageItems, page, pageCount, setPage } = usePagination(profiles);
+
   if (loading) return <ActivityIndicator style={styles.center} />;
+
+  function StatusPill({ active }: { active: boolean }) {
+    return (
+      <View style={styles.statusChip}>
+        <View
+          style={[
+            styles.statusDot,
+            { backgroundColor: active ? colors.success : colors.textMuted },
+          ]}
+        />
+        <Text
+          style={{
+            fontSize: 12.5,
+            color: active ? colors.success : colors.textMuted,
+            fontWeight: "500",
+          }}
+        >
+          {active ? "Activo" : "Inactivo"}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -78,141 +121,142 @@ export default function UsersScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerText}>
           <Text style={styles.title}>Usuarios y roles</Text>
           <Text style={styles.subtitle}>Gestioná quién es usuario y quién es técnico</Text>
         </View>
 
-        <Pressable style={styles.inviteButton} onPress={() => setInviting(true)}>
-          <Text style={styles.inviteButtonText}>+ Invitar persona</Text>
+        <Pressable style={styles.addButton} onPress={() => setInviting(true)}>
+          <Text style={styles.addButtonText}>+ Nueva persona</Text>
         </Pressable>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      {isMobile ? (
+      {isWide ? (
         <View style={styles.table}>
           <View style={styles.tableHeader}>
             <Text style={[styles.headerCell, { flex: 2.2 }]}>PERSONA</Text>
             <Text style={[styles.headerCell, { flex: 1.4 }]}>ÁREA</Text>
             <Text style={[styles.headerCell, { flex: 1.1 }]}>ROL</Text>
             <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
+            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
           </View>
 
-          {profiles.map((p) => {
+          {pageItems.map((p) => {
             const rm = roleMeta[p.role];
+            const isSelf = p.id === currentUserId;
             return (
-              <Pressable key={p.id} style={styles.row} onPress={() => setEditing(p)}>
-                <View
-                  style={[
-                    styles.cell,
-                    { flex: 2.2, flexDirection: "row", alignItems: "center", gap: 11 },
-                  ]}
+              <View key={p.id} style={styles.row}>
+                <Pressable
+                  style={styles.rowMain}
+                  onPress={() => setEditing(p)}
+                  accessibilityLabel={`Editar ${p.name}`}
                 >
-                  <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
-                    <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
-                  </View>
-
-                  <View style={{ minWidth: 0 }}>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {p.name}
-                    </Text>
-                    <Text style={styles.email} numberOfLines={1}>
-                      {p.email}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={{ flex: 1.4, justifyContent: "center" }}>
-                  <Text style={styles.areaText} numberOfLines={1}>
-                    {p.area}
-                  </Text>
-                </View>
-
-                <View style={{ flex: 1.1, justifyContent: "center" }}>
-                  <View style={[styles.badge, { backgroundColor: rm.bg }]}>
-                    <Text style={[styles.badgeText, { color: rm.fg }]}>{rm.label}</Text>
-                  </View>
-                </View>
-
-                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <View
-                    style={[
-                      styles.statusDot,
-                      { backgroundColor: p.active ? colors.success : colors.textMuted },
-                    ]}
-                  />
-                  <Text
                     style={{
-                      fontSize: 13,
-                      color: p.active ? colors.success : colors.textMuted,
-                      fontWeight: "500",
+                      flex: 2.2,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 11,
                     }}
                   >
-                    {p.active ? "Activo" : "Inactivo"}
-                  </Text>
+                    <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
+                      <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
+                    </View>
+
+                    <View style={{ minWidth: 0, flexShrink: 1 }}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {p.name}
+                      </Text>
+                      <Text style={styles.email} numberOfLines={1}>
+                        {p.email}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flex: 1.4, justifyContent: "center" }}>
+                    <Text style={styles.areaText} numberOfLines={1}>
+                      {p.area}
+                    </Text>
+                  </View>
+
+                  <View style={{ flex: 1.1, justifyContent: "center" }}>
+                    <View style={[styles.badge, { backgroundColor: rm.bg }]}>
+                      <Text style={[styles.badgeText, { color: rm.fg }]}>{rm.label}</Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flex: 1, justifyContent: "center" }}>
+                    <StatusPill active={p.active} />
+                  </View>
+                </Pressable>
+
+                <View style={styles.actionsCol}>
+                  <RowActions
+                    onEdit={() => setEditing(p)}
+                    onDelete={() => handleDelete(p)}
+                    deleteDisabled={p.role === "admin" || isSelf}
+                  />
                 </View>
-              </Pressable>
+              </View>
             );
           })}
         </View>
       ) : (
         <View style={styles.cardList}>
-          {profiles.map((p) => {
+          {pageItems.map((p) => {
             const rm = roleMeta[p.role];
+            const isSelf = p.id === currentUserId;
             return (
-              <Pressable key={p.id} style={styles.personCard} onPress={() => setEditing(p)}>
-                <View style={styles.personCardHeader}>
-                  <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
-                    <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
-                  </View>
+              <View key={p.id} style={styles.personCard}>
+                <Pressable onPress={() => setEditing(p)} accessibilityLabel={`Editar ${p.name}`}>
+                  <View style={styles.personCardHeader}>
+                    <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
+                      <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
+                    </View>
 
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {p.name}
-                    </Text>
-                    <Text style={styles.email} numberOfLines={1}>
-                      {p.email}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.personCardChips}>
-                  {!!p.area && (
-                    <View style={styles.areaChip}>
-                      <Text style={styles.areaChipText} numberOfLines={1}>
-                        {p.area}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {p.name}
+                      </Text>
+                      <Text style={styles.email} numberOfLines={1}>
+                        {p.email}
                       </Text>
                     </View>
-                  )}
-
-                  <View style={[styles.badge, { backgroundColor: rm.bg }]}>
-                    <Text style={[styles.badgeText, { color: rm.fg }]}>{rm.label}</Text>
                   </View>
 
-                  <View style={styles.statusChip}>
-                    <View
-                      style={[
-                        styles.statusDot,
-                        { backgroundColor: p.active ? colors.success : colors.textMuted },
-                      ]}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 12.5,
-                        color: p.active ? colors.success : colors.textMuted,
-                        fontWeight: "500",
-                      }}
-                    >
-                      {p.active ? "Activo" : "Inactivo"}
-                    </Text>
+                  <View style={styles.personCardChips}>
+                    {!!p.area && (
+                      <View style={styles.areaChip}>
+                        <Text style={styles.areaChipText} numberOfLines={1}>
+                          {p.area}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={[styles.badge, { backgroundColor: rm.bg }]}>
+                      <Text style={[styles.badgeText, { color: rm.fg }]}>{rm.label}</Text>
+                    </View>
+
+                    <StatusPill active={p.active} />
                   </View>
+                </Pressable>
+
+                <View style={styles.cardActions}>
+                  <RowActions
+                    onEdit={() => setEditing(p)}
+                    onDelete={() => handleDelete(p)}
+                    deleteDisabled={p.role === "admin" || isSelf}
+                  />
                 </View>
-              </Pressable>
+              </View>
             );
           })}
         </View>
       )}
+
+      <Pagination page={page} pageCount={pageCount} onPage={setPage} />
 
       {editing && (
         <EditUserModal
@@ -241,9 +285,10 @@ function makeStyles(c: ThemeColors) {
       gap: 12,
       marginBottom: 20,
     },
+    headerText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
-    inviteButton: {
+    addButton: {
       backgroundColor: c.accent,
       paddingHorizontal: 18,
       height: 42,
@@ -251,7 +296,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    inviteButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+    addButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
     error: { color: c.destructive, marginBottom: 12 },
     table: {
       backgroundColor: c.bgCard,
@@ -259,10 +304,11 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 900,
+      maxWidth: 980,
     },
     tableHeader: {
       flexDirection: "row",
+      alignItems: "center",
       padding: 14,
       backgroundColor: c.bgTableHeader,
       borderBottomWidth: 1,
@@ -275,13 +321,16 @@ function makeStyles(c: ThemeColors) {
       color: c.textMuted,
       fontFamily: "monospace",
     },
+    actionsCol: { width: 76, flexShrink: 0, alignItems: "flex-start" },
     row: {
       flexDirection: "row",
-      padding: 14,
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 10,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
-    cell: {},
+    rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     areaText: { fontSize: 13.5, color: c.textLabel },
     cardList: { gap: 10 },
     personCard: {
@@ -298,6 +347,14 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       gap: 8,
       marginTop: 12,
+    },
+    cardActions: {
+      marginTop: 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+      flexDirection: "row",
+      justifyContent: "flex-end",
     },
     areaChip: {
       paddingHorizontal: 10,
@@ -318,7 +375,12 @@ function makeStyles(c: ThemeColors) {
     avatarText: { fontWeight: "600", fontSize: 13 },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
     email: { fontSize: 12, color: c.textMuted },
-    badge: { alignSelf: "flex-start", paddingHorizontal: 11, paddingVertical: 3, borderRadius: 999 },
+    badge: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 11,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
     badgeText: { fontSize: 12, fontWeight: "600" },
     statusDot: { width: 7, height: 7, borderRadius: 4 },
   });
