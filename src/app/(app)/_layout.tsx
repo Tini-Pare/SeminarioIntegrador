@@ -1,7 +1,9 @@
 import { Slot, router, usePathname } from "expo-router";
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Pressable,
   StyleSheet,
   Text,
@@ -9,6 +11,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { AccountMenu } from "../../components/AccountMenu";
 import {
   EquipmentIcon,
@@ -37,6 +40,21 @@ type NavItem = {
   Icon: ComponentType<{ size?: number; color?: string }>;
 };
 
+function BrandDot({ colors }: { colors: [string, string] }) {
+  const [from, to] = colors;
+  return (
+    <Svg width={10} height={10} viewBox="0 0 10 10">
+      <Defs>
+        <LinearGradient id="brandDotGradient" x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor={to} />
+          <Stop offset="1" stopColor={from} />
+        </LinearGradient>
+      </Defs>
+      <Circle cx={5} cy={5} r={5} fill="url(#brandDotGradient)" />
+    </Svg>
+  );
+}
+
 function initials(name?: string | null) {
   if (!name) return "?";
   return name
@@ -51,10 +69,16 @@ export default function AppLayout() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [indicatorHeight, setIndicatorHeight] = useState<number | null>(null);
   const { width } = useWindowDimensions();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const indicatorOffset = useRef(new Animated.Value(0)).current;
+  // Real on-screen y/height per nav item key, filled in as each row lays
+  // out — driving the indicator off these avoids drift from assuming every
+  // row is exactly the same height (bold active text measures differently).
+  const navItemLayouts = useRef<Record<string, { y: number; height: number }>>({});
 
   useEffect(() => {
     getProfile().then((p) => {
@@ -62,14 +86,6 @@ export default function AppLayout() {
       setLoading(false);
     });
   }, []);
-
-  if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.bg }]}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
 
   const role = profile?.role;
   const isWide = width >= BREAKPOINT.tablet;
@@ -109,6 +125,44 @@ export default function AppLayout() {
     ];
   }
 
+  const activeNavIndex = navItems.findIndex(
+    (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
+  );
+  const activeNavKey = navItems[activeNavIndex]?.key;
+
+  function moveIndicatorTo(y: number, height: number, animate: boolean) {
+    setIndicatorHeight(height);
+    if (animate) {
+      Animated.timing(indicatorOffset, {
+        toValue: y,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    } else {
+      indicatorOffset.setValue(y);
+    }
+  }
+
+  function handleNavItemLayout(key: string, y: number, height: number) {
+    navItemLayouts.current[key] = { y, height };
+    if (key === activeNavKey) moveIndicatorTo(y, height, false);
+  }
+
+  useEffect(() => {
+    if (!activeNavKey) return;
+    const layout = navItemLayouts.current[activeNavKey];
+    if (layout) moveIndicatorTo(layout.y, layout.height, true);
+  }, [activeNavKey]);
+
+  if (loading) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
   function goToSettings() {
     setMenuOpen(false);
     router.push("/settings");
@@ -117,6 +171,10 @@ export default function AppLayout() {
   function handleLogout() {
     setMenuOpen(false);
     signOut();
+  }
+
+  function prefetch(href: string) {
+    router.prefetch(href as never);
   }
 
   if (isWide) {
@@ -130,27 +188,44 @@ export default function AppLayout() {
           ]}
         >
           <View style={styles.brandRow}>
-            <View style={[styles.logo, { backgroundColor: colors.accent }]}>
-              <Text style={styles.logoText}>M</Text>
-            </View>
+            <BrandDot colors={colors.heroBlobColors} />
             <Text style={[styles.brandName, { color: colors.textSidebar }]}>Mantia</Text>
           </View>
 
           <View style={styles.navList}>
+            {indicatorHeight != null && activeNavIndex !== -1 && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.navIndicator,
+                  {
+                    height: indicatorHeight,
+                    backgroundColor: colors.bgCard,
+                    transform: [{ translateY: indicatorOffset }],
+                  },
+                ]}
+              />
+            )}
+
             {navItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Pressable
                   key={item.key}
-                  style={[styles.navItem, active && { backgroundColor: colors.bgNavActive }]}
+                  style={styles.navItem}
+                  onLayout={(e) => {
+                    const { y, height } = e.nativeEvent.layout;
+                    handleNavItemLayout(item.key, y, height);
+                  }}
+                  onPressIn={() => prefetch(item.href)}
                   onPress={() => router.push(item.href as never)}
                 >
-                  <item.Icon size={17} color={active ? "#fff" : colors.textNavInactive} />
+                  <item.Icon size={17} color={active ? colors.accent : colors.textNavInactive} />
                   <Text
                     style={[
                       styles.navItemText,
                       { color: colors.textNavInactive },
-                      active && styles.navItemTextActive,
+                      active && [styles.navItemTextActive, { color: colors.text }],
                     ]}
                   >
                     {item.label}
@@ -205,9 +280,7 @@ export default function AppLayout() {
         ]}
       >
         <View style={styles.brandRow}>
-          <View style={[styles.logo, { backgroundColor: colors.accent }]}>
-            <Text style={styles.logoText}>M</Text>
-          </View>
+          <BrandDot colors={colors.heroBlobColors} />
           <Text style={[styles.brandNameLight, { color: colors.textSidebar }]}>Mantia</Text>
         </View>
 
@@ -260,6 +333,7 @@ export default function AppLayout() {
             <Pressable
               key={item.key}
               style={styles.bottomItem}
+              onPressIn={() => prefetch(item.href)}
               onPress={() => router.push(item.href as never)}
             >
               <item.Icon size={19} color={active ? colors.accent : colors.textMuted} />
@@ -285,10 +359,8 @@ const styles = StyleSheet.create({
   wideContainer: { flex: 1, flexDirection: "row", minHeight: 0 },
   sidebar: { width: 250, padding: 16, paddingTop: 20 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 8 },
-  logo: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  logoText: { color: "#fff", fontWeight: "700", fontSize: 17 },
   brandName: { fontWeight: "600", fontSize: 17 },
-  navList: { gap: 3, paddingTop: 16 },
+  navList: { gap: 3, paddingTop: 16, position: "relative" },
   navItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -297,8 +369,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 9,
   },
+  navIndicator: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    borderRadius: 9,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   navItemText: { fontSize: 14, fontWeight: "500" },
-  navItemTextActive: { color: "#fff" },
+  navItemTextActive: { fontWeight: "700" },
   sidebarFooter: { marginTop: "auto", paddingTop: 16, borderTopWidth: 1 },
   userRow: { flexDirection: "row", alignItems: "center", gap: 11, padding: 8 },
   avatar: {

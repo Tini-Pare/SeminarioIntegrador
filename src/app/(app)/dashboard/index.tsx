@@ -2,6 +2,7 @@ import { Redirect, router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { RequestList } from "../../../components/RequestList";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { BREAKPOINT } from "../../../constants";
@@ -26,15 +28,21 @@ type RequestItem = Solicitud & {
   technicianName: string | null;
 };
 
+// Native pixel size of assets/images/dashboard-hero-bg.png — the glow is
+// off-center toward the right, so the image is anchored to the card's
+// top-right corner (not center-cropped) to keep it visible on narrow screens.
+const HERO_BG_ASPECT_RATIO = 1516 / 464;
+
 export default function DashboardScreen() {
   const [role, setRole] = useState<Profile["role"] | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState<Equipo[]>([]);
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [heroSize, setHeroSize] = useState({ width: 0, height: 0 });
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.tablet;
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = makeStyles(colors);
 
   const load = useCallback(async () => {
@@ -90,6 +98,13 @@ export default function DashboardScreen() {
 
   const attention = useMemo(() => equipment.filter((e) => e.status !== "operational"), [equipment]);
 
+  const eyebrowDate = useMemo(() => {
+    const now = new Date();
+    const weekday = now.toLocaleDateString("es-AR", { weekday: "long" }).toUpperCase();
+    const time = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    return `${weekday} ${now.getDate()} · ${time}`;
+  }, []);
+
   const recentRequests = useMemo(
     () =>
       [...requests].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 4),
@@ -125,9 +140,60 @@ export default function DashboardScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <View style={styles.hero}>
+      <View
+        style={styles.hero}
+        onLayout={(e) => setHeroSize(e.nativeEvent.layout)}
+      >
+        {isDark ? (
+          <>
+            <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+              <Defs>
+                <RadialGradient id="heroCardBg" cx="88%" cy="15%" r="90%">
+                  <Stop offset="0" stopColor={colors.heroGradient[0]} stopOpacity={1} />
+                  <Stop offset="0.42" stopColor={colors.heroGradient[1]} stopOpacity={1} />
+                  <Stop offset="0.78" stopColor={colors.heroGradient[2]} stopOpacity={1} />
+                  <Stop offset="1" stopColor={colors.heroGradient[2]} stopOpacity={1} />
+                </RadialGradient>
+              </Defs>
+              <Rect x={0} y={0} width="100%" height="100%" fill="url(#heroCardBg)" />
+            </Svg>
+
+            <View style={styles.heroBlob} pointerEvents="none">
+              <Svg width="100%" height="100%" viewBox="0 0 340 340">
+                <Defs>
+                  <RadialGradient id="heroBlob" cx="36%" cy="32%" r="85%">
+                    <Stop offset="0" stopColor={colors.heroBlobColors[0]} stopOpacity={0.75} />
+                    <Stop offset="0.18" stopColor={colors.heroBlobColors[0]} stopOpacity={0.65} />
+                    <Stop offset="0.34" stopColor={colors.heroBlobColors[1]} stopOpacity={0.5} />
+                    <Stop offset="0.5" stopColor={colors.heroBlobColors[1]} stopOpacity={0.38} />
+                    <Stop offset="0.66" stopColor={colors.heroBlobColors[1]} stopOpacity={0.26} />
+                    <Stop offset="0.8" stopColor={colors.heroBlobColors[1]} stopOpacity={0.14} />
+                    <Stop offset="0.92" stopColor={colors.heroBlobColors[1]} stopOpacity={0.05} />
+                    <Stop offset="1" stopColor={colors.heroBlobColors[1]} stopOpacity={0} />
+                  </RadialGradient>
+                </Defs>
+                <Circle cx={170} cy={170} r={170} fill="url(#heroBlob)" />
+              </Svg>
+            </View>
+          </>
+        ) : (
+          <Image
+            source={require("../../../../assets/images/dashboard-hero-bg.png")}
+            style={[
+              styles.heroBgImage,
+              heroSize.height
+                ? {
+                    width: Math.max(heroSize.width, heroSize.height * HERO_BG_ASPECT_RATIO),
+                    height: heroSize.height,
+                  }
+                : StyleSheet.absoluteFillObject,
+            ]}
+            resizeMode="cover"
+          />
+        )}
+
         <View style={styles.heroText}>
-          <Text style={styles.heroEyebrow}>REQUIEREN ATENCIÓN</Text>
+          <Text style={styles.heroEyebrow}>{eyebrowDate}</Text>
           <Text style={styles.heroValue}>
             {attention.length === 0
               ? "Todo en orden"
@@ -137,16 +203,16 @@ export default function DashboardScreen() {
             {stats.waiting} en espera · {stats.repair} en reparación · {stats.reqNew} solicitudes
             sin asignar
           </Text>
-        </View>
 
-        <View style={styles.heroActions}>
-          <Pressable style={styles.primaryButton} onPress={() => router.push("/equipment")}>
-            <Text style={styles.primaryButtonText}>Ver equipos</Text>
-          </Pressable>
+          <View style={styles.heroActions}>
+            <Pressable style={styles.primaryButton} onPress={() => router.push("/equipment")}>
+              <Text style={styles.primaryButtonText}>Ver equipos</Text>
+            </Pressable>
 
-          <Pressable style={styles.ghostButton} onPress={() => router.push("/requests")}>
-            <Text style={styles.ghostButtonText}>Ver solicitudes</Text>
-          </Pressable>
+            <Pressable style={styles.ghostButton} onPress={() => router.push("/requests")}>
+              <Text style={styles.ghostButtonText}>Ver solicitudes</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -247,41 +313,49 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgStatCard,
       borderWidth: 1,
       borderColor: c.border,
-      borderRadius: 16,
-      padding: 22,
-      flexDirection: "row",
-      flexWrap: "wrap",
-      alignItems: "flex-end",
-      justifyContent: "space-between",
-      gap: 18,
+      borderRadius: 20,
+      padding: 24,
       marginBottom: 20,
+      overflow: "hidden",
     },
-    heroText: { flexShrink: 1, minWidth: 220, gap: 8 },
+    heroBgImage: {
+      position: "absolute",
+      top: 0,
+      right: 0,
+    },
+    heroBlob: {
+      position: "absolute",
+      top: -60,
+      right: -35,
+      width: 340,
+      height: 340,
+      opacity: 0.6,
+    },
+    heroText: { gap: 8, maxWidth: 460 },
     heroEyebrow: {
       fontFamily: "monospace",
-      fontSize: 10.5,
+      fontSize: 11,
       letterSpacing: 1.2,
       color: c.accent,
+      fontWeight: "600",
     },
-    heroValue: { fontSize: 24, fontWeight: "600", color: c.text, letterSpacing: -0.5 },
+    heroValue: { fontSize: 30, fontWeight: "700", color: c.text, letterSpacing: -0.6, lineHeight: 36 },
     heroCopy: { fontSize: 13.5, color: c.textSecondary, lineHeight: 19 },
-    heroActions: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+    heroActions: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 8 },
     primaryButton: {
-      backgroundColor: c.accent,
-      paddingHorizontal: 18,
+      backgroundColor: c.text,
+      paddingHorizontal: 20,
       height: 42,
-      borderRadius: 10,
+      borderRadius: 999,
       alignItems: "center",
       justifyContent: "center",
     },
-    primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+    primaryButtonText: { color: c.bg, fontWeight: "600", fontSize: 14 },
     ghostButton: {
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-      paddingHorizontal: 18,
+      backgroundColor: c.heroSecondaryButtonBg,
+      paddingHorizontal: 20,
       height: 42,
-      borderRadius: 10,
+      borderRadius: 999,
       alignItems: "center",
       justifyContent: "center",
     },
