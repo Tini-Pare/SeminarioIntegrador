@@ -111,7 +111,7 @@ export default function AppLayout() {
         Icon: EquipmentTypeIcon,
       },
       { key: "requests", label: "Solicitudes", href: "/requests", Icon: RequestsIcon },
-      { key: "catalogs", label: "Catálogos", href: "/catalogs", Icon: GeneralTaskIcon },
+      { key: "catalogs", label: "Fallas/Tareas", href: "/catalogs", Icon: GeneralTaskIcon },
     ];
   } else if (role === "technician") {
     navItems = [

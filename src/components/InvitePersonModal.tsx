@@ -28,7 +28,6 @@ export function InvitePersonModal({
   const [role, setRole] = useState<Profile["role"]>("user");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [existingProfiles, setExistingProfiles] = useState<Profile[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -55,7 +54,7 @@ export function InvitePersonModal({
       return;
     }
     if (existingProfiles.some((p) => p.legajo === legajoTrimmed)) {
-      setDuplicateWarning(true);
+      setError(`Ya existe una persona con el legajo ${legajoTrimmed}. Usá otro número.`);
       return;
     }
     setSending(true);
@@ -83,7 +82,7 @@ export function InvitePersonModal({
       const body = await res.json();
       if (!res.ok) {
         if (body.error === "legajo_exists") {
-          setDuplicateWarning(true);
+          setError(`Ya existe una persona con el legajo ${legajoTrimmed}. Usá otro número.`);
           return;
         }
         throw new Error(body.error ?? "No se pudo crear la cuenta");
@@ -172,27 +171,6 @@ export function InvitePersonModal({
           </View>
         </View>
       </View>
-
-      <Modal
-        visible={duplicateWarning}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDuplicateWarning(false)}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.warningSheet}>
-            <Text style={styles.title}>Legajo ya registrado</Text>
-            <Text style={styles.subtitle}>
-              Ya existe una persona con el legajo {legajo.trim()}. Usá otro número o buscá a esa
-              persona en el listado.
-            </Text>
-
-            <Pressable style={styles.sendButton} onPress={() => setDuplicateWarning(false)}>
-              <Text style={styles.sendText}>Entendido</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </Modal>
   );
 }
@@ -212,15 +190,6 @@ function makeStyles(c: ThemeColors) {
       width: "100%",
       maxWidth: 480,
       alignSelf: "center",
-    },
-    warningSheet: {
-      backgroundColor: c.bgModal,
-      borderRadius: 16,
-      padding: 24,
-      width: "100%",
-      maxWidth: 380,
-      alignSelf: "center",
-      gap: 16,
     },
     title: { fontSize: 19, fontWeight: "600", color: c.text, marginBottom: 4 },
     subtitle: { fontSize: 12.5, color: c.textMuted, lineHeight: 17 },

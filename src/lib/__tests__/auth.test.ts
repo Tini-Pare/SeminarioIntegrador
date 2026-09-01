@@ -5,6 +5,7 @@ jest.mock("../supabase", () => ({
       signOut: jest.fn(),
       getSession: jest.fn(),
     },
+    rpc: jest.fn(),
     from: jest.fn(),
   },
 }));
@@ -12,19 +13,46 @@ jest.mock("../supabase", () => ({
 import { getProfile, signIn, signOut } from "../auth";
 import { supabase } from "../supabase";
 
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 describe("signIn", () => {
   it("returns no error on success", async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: "1234@legajo.local", error: null });
     (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({ error: null });
-    const result = await signIn("a@b.com", "pw");
+    const result = await signIn("1234", "pw");
     expect(result.error).toBeNull();
   });
 
-  it("returns the error message on failure", async () => {
+  it("does not process authentication when the legajo is blank", async () => {
+    const result = await signIn("   ", "pw");
+    expect(result.error).toBe("Completá el legajo y la contraseña para ingresar.");
+    expect(supabase.rpc).not.toHaveBeenCalled();
+    expect(supabase.auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("does not process authentication when the password is blank", async () => {
+    const result = await signIn("1234", "");
+    expect(result.error).toBe("Completá el legajo y la contraseña para ingresar.");
+    expect(supabase.rpc).not.toHaveBeenCalled();
+    expect(supabase.auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic error when the legajo has no matching user", async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: null, error: null });
+    const result = await signIn("9999", "pw");
+    expect(result.error).toBe("Legajo o contraseña incorrectos");
+    expect(supabase.auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic error when the password is wrong", async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: "1234@legajo.local", error: null });
     (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
       error: { message: "Invalid login credentials" },
     });
-    const result = await signIn("a@b.com", "wrong");
-    expect(result.error).toBe("Invalid login credentials");
+    const result = await signIn("1234", "wrong");
+    expect(result.error).toBe("Legajo o contraseña incorrectos");
   });
 });
 

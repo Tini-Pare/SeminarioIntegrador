@@ -5,6 +5,12 @@ export async function signIn(
   legajo: string,
   password: string,
 ): Promise<{ error: string | null }> {
+  // Required fields must be present before any auth work happens: a blank
+  // legajo or password is a validation error, not an authentication attempt.
+  if (!legajo.trim() || !password) {
+    return { error: "Completá el legajo y la contraseña para ingresar." };
+  }
+
   // Supabase Auth only ever authenticates by email, so the legajo is
   // resolved to its synthetic auth email first (see 0004_login_por_legajo.sql
   // and the invite-user Edge Function). Both failure paths share one

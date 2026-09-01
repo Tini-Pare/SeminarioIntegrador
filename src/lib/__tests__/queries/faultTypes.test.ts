@@ -85,6 +85,42 @@ describe("createFaultType", () => {
       fa_gravedad: "medium",
     });
   });
+
+  it("maps a 23505 unique violation to the duplicate-name message", async () => {
+    const single = jest
+      .fn()
+      .mockResolvedValue({
+        data: null,
+        error: {
+          code: "23505",
+          message: 'duplicate key value violates unique constraint "fallo_nombre_unico_idx"',
+        },
+      });
+    const select = jest.fn().mockReturnValue({ single });
+    const insert = jest.fn().mockReturnValue({ select });
+    (supabase.from as jest.Mock).mockReturnValue({ insert });
+
+    await expect(
+      createFaultType({ name: "Repetida", desperfecto: null, gravedad: "medium" }),
+    ).rejects.toThrow("Ya existe una falla genérica con ese nombre.");
+  });
+
+  it("rethrows a 23505 primary-key collision as-is (not a duplicate name)", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "fallo_pkey"',
+      },
+    });
+    const select = jest.fn().mockReturnValue({ single });
+    const insert = jest.fn().mockReturnValue({ select });
+    (supabase.from as jest.Mock).mockReturnValue({ insert });
+
+    await expect(
+      createFaultType({ name: "Nueva", desperfecto: null, gravedad: "medium" }),
+    ).rejects.toThrow("fallo_pkey");
+  });
 });
 
 describe("updateFaultType", () => {
@@ -101,6 +137,21 @@ describe("updateFaultType", () => {
       fa_gravedad: "low",
     });
     expect(eq).toHaveBeenCalledWith("fa_id_fallo", 7);
+  });
+
+  it("maps a 23505 unique violation to the duplicate-name message", async () => {
+    const eq = jest.fn().mockResolvedValue({
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "fallo_nombre_unico_idx"',
+      },
+    });
+    const update = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ update });
+
+    await expect(
+      updateFaultType(7, { name: "Repetida", desperfecto: null, gravedad: "low" }),
+    ).rejects.toThrow("Ya existe una falla genérica con ese nombre.");
   });
 });
 

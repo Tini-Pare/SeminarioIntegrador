@@ -18,6 +18,16 @@ export function normalizeGravedad(raw: string | null | undefined): Gravedad {
   return raw === "low" || raw === "high" ? raw : "medium";
 }
 
+// 23505 = Postgres unique_violation. It's also raised by a primary-key
+// collision (fallo_pkey) when the fa_id_fallo identity sequence is behind, so
+// match the specific index name (fallo_nombre_unico_idx, migration 0006) in
+// the error message rather than trusting the code alone.
+const DUPLICATE_NAME_MESSAGE = "Ya existe una falla genérica con ese nombre.";
+
+function isDuplicateNameError(error: { code?: string; message?: string } | null): boolean {
+  return error?.code === "23505" && !!error.message?.includes("fallo_nombre_unico_idx");
+}
+
 export async function listFaultTypes(): Promise<Fallo[]> {
   const { data, error } = await supabase.from("fallo").select("*").order("fa_nombre");
   if (error) throw new Error(error.message);
@@ -38,7 +48,10 @@ export async function createFaultType(input: {
     })
     .select("*")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isDuplicateNameError(error)) throw new Error(DUPLICATE_NAME_MESSAGE);
+    throw new Error(error.message);
+  }
   return data as Fallo;
 }
 
@@ -54,7 +67,10 @@ export async function updateFaultType(
       fa_gravedad: changes.gravedad,
     })
     .eq("fa_id_fallo", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isDuplicateNameError(error)) throw new Error(DUPLICATE_NAME_MESSAGE);
+    throw new Error(error.message);
+  }
 }
 
 // 23503 = Postgres foreign_key_violation — fallo_por_orden references

@@ -248,7 +248,7 @@ export default function CatalogsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.pageHeader}>
-        <Text style={styles.title}>Catálogos</Text>
+        <Text style={styles.title}>Fallas/Tareas</Text>
         <Text style={styles.subtitle}>Tareas generales y fallas genéricas</Text>
       </View>
 
@@ -266,6 +266,7 @@ export default function CatalogsScreen() {
           onClose={() => setEditingTask(null)}
           onSaved={load}
           task={editingTask}
+          existingTasks={tasks}
         />
       )}
 
@@ -273,6 +274,7 @@ export default function CatalogsScreen() {
         visible={creatingTask}
         onClose={() => setCreatingTask(false)}
         onSaved={load}
+        existingTasks={tasks}
       />
 
       {editingFault && (
@@ -281,6 +283,7 @@ export default function CatalogsScreen() {
           onClose={() => setEditingFault(null)}
           onSaved={load}
           fault={editingFault}
+          existingFaults={faults}
         />
       )}
 
@@ -288,6 +291,7 @@ export default function CatalogsScreen() {
         visible={creatingFault}
         onClose={() => setCreatingFault(false)}
         onSaved={load}
+        existingFaults={faults}
       />
     </ScrollView>
   );

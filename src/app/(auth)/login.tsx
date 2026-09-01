@@ -28,9 +28,17 @@ export default function Login() {
   const styles = makeStyles(colors);
 
   async function handleSubmit() {
-    setLoading(true);
     setError(null);
-    const { error } = await signIn(legajo, password);
+
+    // Required-field guard: don't hit the auth endpoint with a blank legajo or
+    // password — treat it as a validation error, not a failed login attempt.
+    if (!legajo.trim() || !password) {
+      setError("Completá el legajo y la contraseña para ingresar.");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await signIn(legajo.trim(), password);
     setLoading(false);
     if (error) {
       setError(error);

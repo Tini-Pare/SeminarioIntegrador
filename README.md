@@ -94,13 +94,20 @@ no se corre.
   el bucket de Storage `fault-photos` y los enums base. Sus tablas en inglés
   (`equipment`/`faults`/`history`/`maintenance_plan`) las reemplaza 0003.
 - **0003** trae el modelo de gestión de mantenimiento con nombres en español.
+- **0004** cambia el login de email a legajo (`email_for_legajo`, `profiles.legajo`).
+- **0005** índice único (case/trim-insensitive) sobre `tareas_generales.tag_nombre_tarea`.
+- **0006** índice único (case/trim-insensitive) sobre `fallo.fa_nombre`.
+- **0007** resync de todas las secuencias `identity` a `MAX(id)` (datos cargados a
+  mano dejaban la secuencia atrás y el siguiente INSERT chocaba en el `*_pkey`).
+- **0008** elimina un `UNIQUE` sobrante en `fallo.fa_gravedad` (agregado a mano en
+  la BD, no en migraciones) que limitaba el catálogo a 3 fallas.
 
 | Tabla                                   | Qué guarda                                                                                                    |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `profiles`                              | Perfil por usuario. `role` (`admin`\|`technician`\|`user`), `area`, `active`.                                 |
 | `lugares`, `tipos_de_equipos`           | Catálogos para clasificar equipos por sector y tipo.                                                          |
-| `tareas_generales`                      | Catálogo de acciones técnicas estándar (ABM Tareas generales: alta/edición/borrado).                         |
-| `fallo`                                 | Catálogo de tipos de falla (`fa_nombre`, `fa_desperfecto`, `fa_gravedad`). ABM Fallas genéricas.             |
+| `tareas_generales`                      | Catálogo de acciones técnicas estándar (ABM Tareas generales: alta/edición/borrado). `tag_nombre_tarea` único (case/trim-insensitive). |
+| `fallo`                                 | Catálogo de tipos de falla (`fa_nombre`, `fa_desperfecto`, `fa_gravedad`). ABM Fallas genéricas. `fa_nombre` único (case/trim-insensitive). |
 | `equipo`                                | `eq_codigo`, `eq_nombre`, tipo, ubicación, `eq_estado` (solo lectura, lo calcula `sync_equipo_estado`).      |
 | `solicitudes`                           | Reporte inicial de falla: equipo, quién reporta, descripción, urgencia, foto, estado.                        |
 | `orden_de_trabajo`                      | Se crea cuando un técnico toma una solicitud. Responsable, tipo, fechas, estado, prioridad.                  |
