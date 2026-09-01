@@ -16,7 +16,7 @@ import { useTheme } from "../../lib/ThemeContext";
 import type { ThemeColors } from "../../lib/theme";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [legajo, setLegajo] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,7 @@ export default function Login() {
   async function handleSubmit() {
     setLoading(true);
     setError(null);
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(legajo, password);
     setLoading(false);
     if (error) {
       setError(error);
@@ -48,16 +48,15 @@ export default function Login() {
 
         <View style={styles.fields}>
           <View>
-            <Text style={styles.label}>Correo</Text>
+            <Text style={styles.label}>Legajo</Text>
             <TextInput
               style={styles.input}
-              placeholder="usuario@empresa.com"
+              placeholder="Ej: 1234"
               placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              keyboardType="email-address"
+              keyboardType="number-pad"
               returnKeyType="next"
-              value={email}
-              onChangeText={setEmail}
+              value={legajo}
+              onChangeText={setLegajo}
               onSubmitEditing={() => passwordRef.current?.focus()}
               blurOnSubmit={false}
             />

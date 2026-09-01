@@ -9,7 +9,13 @@ export async function listProfiles(): Promise<Profile[]> {
 
 export async function updateProfile(
   id: string,
-  changes: { role?: Profile["role"]; active?: boolean; name?: string; area?: string },
+  changes: {
+    role?: Profile["role"];
+    active?: boolean;
+    name?: string;
+    area?: string;
+    legajo?: string | null;
+  },
 ): Promise<void> {
   const { error } = await supabase.from("profiles").update(changes).eq("id", id);
   if (error) throw new Error(error.message);

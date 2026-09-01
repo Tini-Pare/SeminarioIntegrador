@@ -1,9 +1,22 @@
 import type { Profile } from "../types/database";
 import { supabase } from "./supabase";
 
-export async function signIn(email: string, password: string): Promise<{ error: string | null }> {
+export async function signIn(
+  legajo: string,
+  password: string,
+): Promise<{ error: string | null }> {
+  // Supabase Auth only ever authenticates by email, so the legajo is
+  // resolved to its synthetic auth email first (see 0004_login_por_legajo.sql
+  // and the invite-user Edge Function). Both failure paths share one
+  // message so a wrong legajo can't be told apart from a wrong password.
+  const { data: email, error: lookupError } = await supabase.rpc("email_for_legajo", {
+    p_legajo: legajo.trim(),
+  });
+  if (lookupError || !email) {
+    return { error: "Legajo o contraseña incorrectos" };
+  }
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  return { error: error ? error.message : null };
+  return { error: error ? "Legajo o contraseña incorrectos" : null };
 }
 
 export async function signOut(): Promise<void> {

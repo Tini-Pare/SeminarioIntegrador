@@ -113,7 +113,9 @@ no se corre.
 
 **Storage (fotos de falla):** bucket `fault-photos` (lectura pública, escritura autenticada). El flujo comprime a webp y sube en base64 en vez de `blob:` + `fetch` — Safari en iOS devuelve blobs de 0 bytes silenciosamente con ese patrón, así que se evita por completo.
 
-**Edge Functions:** `invite-user` (admin crea cuenta con email+password directo) y `delete-user` (bloqueado para otros admins). Ambas necesitan el secret `SB_SECRET_KEY` y "Verify JWT with legacy secret" desactivado — ver `SETUP.md`.
+**Edge Functions:** `invite-user` (admin crea cuenta con legajo+password directo — el email de `auth.users` se genera solo a partir del legajo, nunca se pide) y `delete-user` (bloqueado para otros admins). Ambas necesitan el secret `SB_SECRET_KEY` y "Verify JWT with legacy secret" desactivado — ver `SETUP.md`.
+
+**Login por legajo:** el ingreso es por número de legajo, no email — `signIn` (`src/lib/auth.ts`) resuelve el legajo al email sintético del usuario vía la función `email_for_legajo` (security definer, ver `0004_login_por_legajo.sql`) antes de llamar a `signInWithPassword`.
 
 ## Roles
 

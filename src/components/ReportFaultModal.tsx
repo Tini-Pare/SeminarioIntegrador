@@ -45,6 +45,7 @@ export function ReportFaultModal({
   equipmentOptions?: EquipmentOption[];
 }) {
   const [selectedId, setSelectedId] = useState<number | undefined>(equipment?.id);
+  const [search, setSearch] = useState("");
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState<Solicitud["urgency"]>("medium");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -55,6 +56,14 @@ export function ReportFaultModal({
   const styles = makeStyles(colors);
 
   const effectiveEquipmentId = equipment?.id ?? selectedId;
+  const selectedOption = equipmentOptions?.find((e) => e.id === selectedId);
+  const query = search.trim().toLowerCase();
+  const filteredOptions =
+    query.length === 0
+      ? []
+      : (equipmentOptions ?? []).filter(
+          (e) => e.code.toLowerCase().includes(query) || e.name.toLowerCase().includes(query)
+        );
 
   async function handlePickPhoto() {
     setError(null);
@@ -100,6 +109,7 @@ export function ReportFaultModal({
       setDescription("");
       setUrgency("medium");
       setSelectedId(equipment?.id);
+      setSearch("");
       setPhotoUri(null);
       onSubmitted();
       onClose();
@@ -120,20 +130,61 @@ export function ReportFaultModal({
             {!equipment && equipmentOptions && (
               <View style={styles.pickerWrap}>
                 <Text style={styles.label}>Equipo</Text>
-                {equipmentOptions.map((e) => (
-                  <Pressable
-                    key={e.id}
-                    style={[
-                      styles.pickerRow,
-                      selectedId === e.id && { borderColor: colors.accent, backgroundColor: colors.bgNested },
-                    ]}
-                    onPress={() => setSelectedId(e.id)}
-                  >
+
+                {selectedOption ? (
+                  <View style={styles.selectedEquipmentRow}>
                     <Text style={styles.pickerText}>
-                      {e.code} · {e.name}
+                      {selectedOption.code} · {selectedOption.name}
                     </Text>
-                  </Pressable>
-                ))}
+
+                    <Pressable
+                      onPress={() => {
+                        setSelectedId(undefined);
+                        setSearch("");
+                      }}
+                    >
+                      <Text style={styles.changeEquipmentText}>Cambiar</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <>
+                    <TextInput
+                      style={styles.searchInput}
+                      value={search}
+                      onChangeText={setSearch}
+                      placeholder="Buscar por código o nombre…"
+                      placeholderTextColor={colors.textMuted}
+                      autoCorrect={false}
+                    />
+
+                    {query.length > 0 && (
+                      <ScrollView
+                        style={styles.resultsList}
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                      >
+                        {filteredOptions.length === 0 ? (
+                          <Text style={styles.noResultsText}>Sin resultados</Text>
+                        ) : (
+                          filteredOptions.map((e) => (
+                            <Pressable
+                              key={e.id}
+                              style={styles.pickerRow}
+                              onPress={() => {
+                                setSelectedId(e.id);
+                                setSearch("");
+                              }}
+                            >
+                              <Text style={styles.pickerText}>
+                                {e.code} · {e.name}
+                              </Text>
+                            </Pressable>
+                          ))
+                        )}
+                      </ScrollView>
+                    )}
+                  </>
+                )}
               </View>
             )}
 
@@ -237,6 +288,28 @@ function makeStyles(c: ThemeColors) {
     label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginBottom: 6, marginTop: 12 },
     fixedEquipment: { fontSize: 14, color: c.text, fontWeight: "600" },
     pickerWrap: { marginBottom: 4 },
+    searchInput: {
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 10,
+      padding: 10,
+      fontSize: 13.5,
+      backgroundColor: c.bgInput,
+      color: c.text,
+    },
+    resultsList: { maxHeight: 160, marginTop: 6 },
+    noResultsText: { fontSize: 13, color: c.textMuted, padding: 10 },
+    selectedEquipmentRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.accent,
+      backgroundColor: c.bgNested,
+    },
+    changeEquipmentText: { fontSize: 12.5, fontWeight: "600", color: c.accent },
     pickerRow: {
       padding: 10,
       borderRadius: 8,
@@ -245,7 +318,7 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 6,
       backgroundColor: c.bgInput,
     },
-    pickerText: { fontSize: 13.5, color: c.text },
+    pickerText: { fontSize: 13.5, color: c.text, flexShrink: 1 },
     textarea: {
       borderWidth: 1,
       borderColor: c.borderInput,

@@ -170,7 +170,7 @@ export default function UsersScreen() {
                         {p.name}
                       </Text>
                       <Text style={styles.email} numberOfLines={1}>
-                        {p.email}
+                        {p.legajo ? `Legajo ${p.legajo}` : "—"}
                       </Text>
                     </View>
                   </View>
@@ -221,7 +221,7 @@ export default function UsersScreen() {
                         {p.name}
                       </Text>
                       <Text style={styles.email} numberOfLines={1}>
-                        {p.email}
+                        {p.legajo ? `Legajo ${p.legajo}` : "—"}
                       </Text>
                     </View>
                   </View>

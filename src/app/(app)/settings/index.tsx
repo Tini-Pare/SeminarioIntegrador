@@ -81,7 +81,7 @@ export default function SettingsScreen() {
 
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.name}>{profile.name}</Text>
-            <Text style={styles.email}>{profile.email}</Text>
+            <Text style={styles.email}>{profile.legajo ? `Legajo ${profile.legajo}` : "—"}</Text>
           </View>
         </View>
 
