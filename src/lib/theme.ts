@@ -5,7 +5,6 @@ export type ThemeColors = {
   bgModal: string;
   bgNested: string;
   bgSidebar: string;
-  bgNavActive: string;
   bgToggle: string;
   bgToggleActive: string;
   bgTableHeader: string;
@@ -23,6 +22,9 @@ export type ThemeColors = {
   textNavInactive: string;
 
   accent: string;
+  heroGradient: [string, string, string];
+  heroBlobColors: [string, string];
+  heroSecondaryButtonBg: string;
 
   border: string;
   borderInput: string;
@@ -63,13 +65,12 @@ export type ThemeColors = {
 // shadows, color reserved for equipment/fault state. Palette mirrors the
 // Mantia web mockups.
 export const light: ThemeColors = {
-  bg: "#eceeea",
+  bg: "#ffffff",
   bgCard: "#fcfdfb",
   bgInput: "#f7f9f5",
   bgModal: "#fcfdfb",
   bgNested: "#f5f7f2",
   bgSidebar: "#f1f4ef",
-  bgNavActive: "#2f7d5b",
   bgToggle: "#e4e9e0",
   bgToggleActive: "#fcfdfb",
   bgTableHeader: "#eef1ea",
@@ -87,6 +88,9 @@ export const light: ThemeColors = {
   textNavInactive: "#67705f",
 
   accent: "#2f7d5b",
+  heroGradient: ["#bfdfc9", "#e3f0e6", "#fafcf8"],
+  heroBlobColors: ["#cbe89f", "#4ea683"],
+  heroSecondaryButtonBg: "rgba(255,255,255,0.75)",
 
   border: "#e6ebe2",
   borderInput: "#dbe2d6",
@@ -130,7 +134,6 @@ export const dark: ThemeColors = {
   bgModal: "#15181f",
   bgNested: "#191d24",
   bgSidebar: "#0c0e13",
-  bgNavActive: "#2f7d5b",
   bgToggle: "#14171d",
   bgToggleActive: "#1e2330",
   bgTableHeader: "#0e1017",
@@ -148,6 +151,9 @@ export const dark: ThemeColors = {
   textNavInactive: "#7b8494",
 
   accent: "#4a9b74",
+  heroGradient: ["rgba(74,155,116,0.22)", "rgba(74,155,116,0.07)", "rgba(74,155,116,0)"],
+  heroBlobColors: ["#8fd4b0", "#2f7d5b"],
+  heroSecondaryButtonBg: "rgba(255,255,255,0.08)",
 
   border: "rgba(255,255,255,0.07)",
   borderInput: "rgba(255,255,255,0.09)",
