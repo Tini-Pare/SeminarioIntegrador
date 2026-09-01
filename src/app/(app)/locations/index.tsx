@@ -170,11 +170,7 @@ export default function LocationsScreen() {
               <View style={styles.cardList}>
                 {pageItems.map((l) => (
                   <View key={l.lu_codigo} style={styles.locationCard}>
-                    <Pressable
-                      style={styles.cardMain}
-                      onPress={() => setEditing(l)}
-                      accessibilityLabel={`Editar ${l.lu_nombre_sector}`}
-                    >
+                    <View style={styles.cardMain}>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.name} numberOfLines={1}>
                           {l.lu_nombre_sector}
@@ -202,7 +198,7 @@ export default function LocationsScreen() {
                           {l.equipmentCount} equipo{l.equipmentCount === 1 ? "" : "s"}
                         </Text>
                       </View>
-                    </Pressable>
+                    </View>
 
                     <RowActions
                       onEdit={() => setEditing(l)}
@@ -275,11 +271,7 @@ function LocationTableRow({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Pressable
-        style={styles.rowMain}
-        onPress={onEdit}
-        accessibilityLabel={`Editar ${location.lu_nombre_sector}`}
-      >
+      <View style={styles.rowMain}>
         <View style={{ flex: 2, justifyContent: "center" }}>
           <Text style={styles.name} numberOfLines={1}>
             {location.lu_nombre_sector}
@@ -311,7 +303,7 @@ function LocationTableRow({
             </Text>
           </View>
         </View>
-      </Pressable>
+      </View>
 
       <View style={styles.actionsCol}>
         <RowActions

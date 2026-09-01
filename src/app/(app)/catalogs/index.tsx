@@ -143,11 +143,7 @@ export default function CatalogsScreen() {
 
           {tasksPage.pageItems.map((t) => (
             <View key={t.tag_id_tarea} style={styles.row}>
-              <Pressable
-                style={styles.rowMain}
-                onPress={() => setEditingTask(t)}
-                accessibilityLabel={`Editar ${t.tag_nombre_tarea}`}
-              >
+              <View style={styles.rowMain}>
                 <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
                   <Text style={styles.name} numberOfLines={1}>
                     {t.tag_nombre_tarea}
@@ -159,7 +155,7 @@ export default function CatalogsScreen() {
                     </Text>
                   )}
                 </View>
-              </Pressable>
+              </View>
 
               <View style={styles.actionsCol}>
                 <RowActions onEdit={() => setEditingTask(t)} onDelete={() => deleteTask(t)} />
@@ -204,11 +200,7 @@ export default function CatalogsScreen() {
 
           {faultsPage.pageItems.map((f) => (
             <View key={f.fa_id_fallo} style={styles.row}>
-              <Pressable
-                style={styles.rowMain}
-                onPress={() => setEditingFault(f)}
-                accessibilityLabel={`Editar ${f.fa_nombre}`}
-              >
+              <View style={styles.rowMain}>
                 <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
                   <Text style={styles.name} numberOfLines={1}>
                     {f.fa_nombre}
@@ -224,7 +216,7 @@ export default function CatalogsScreen() {
                 <View style={{ flex: 1, justifyContent: "center" }}>
                   <GravedadBadge raw={f.fa_gravedad} />
                 </View>
-              </Pressable>
+              </View>
 
               <View style={styles.actionsCol}>
                 <RowActions onEdit={() => setEditingFault(f)} onDelete={() => deleteFault(f)} />

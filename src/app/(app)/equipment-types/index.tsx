@@ -175,11 +175,7 @@ export default function EquipmentTypesScreen() {
               <View style={styles.cardList}>
                 {pageItems.map((t) => (
                   <View key={t.te_id} style={styles.typeCard}>
-                    <Pressable
-                      style={styles.cardMain}
-                      onPress={() => setEditing(t)}
-                      accessibilityLabel={`Editar ${t.te_nombre}`}
-                    >
+                    <View style={styles.cardMain}>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.name} numberOfLines={1}>
                           {t.te_nombre}
@@ -203,7 +199,7 @@ export default function EquipmentTypesScreen() {
                           {t.equipmentCount} equipo{t.equipmentCount === 1 ? "" : "s"}
                         </Text>
                       </View>
-                    </Pressable>
+                    </View>
 
                     <RowActions
                       onEdit={() => setEditing(t)}
@@ -285,11 +281,7 @@ function EquipmentTypeTableRow({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Pressable
-        style={styles.rowMain}
-        onPress={onEdit}
-        accessibilityLabel={`Editar ${type.te_nombre}`}
-      >
+      <View style={styles.rowMain}>
         <View style={{ flex: 2, justifyContent: "center" }}>
           <Text style={styles.name} numberOfLines={1}>
             {type.te_nombre}
@@ -313,7 +305,7 @@ function EquipmentTypeTableRow({
             </Text>
           </View>
         </View>
-      </Pressable>
+      </View>
 
       <View style={styles.actionsCol}>
         <RowActions
