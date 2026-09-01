@@ -15,12 +15,19 @@ import { EquipmentTypeModal } from "../../../components/EquipmentTypeModal";
 import { InfoIcon, SearchIcon } from "../../../components/icons";
 import { RowActions } from "../../../components/RowActions";
 import { BREAKPOINT } from "../../../constants";
-import { confirmDelete } from "../../../lib/confirm";
+import { useConfirm } from "../../../lib/useConfirm";
 import { deleteEquipmentType, listEquipmentTypes } from "../../../lib/queries/equipmentTypes";
 import type { EquipmentTypeWithCount } from "../../../lib/queries/equipmentTypes";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+
+// The row's trash icon is disabled while the record is still in use, so the
+// tooltip carries the reason -- it used to live in the edit modal.
+function deleteTooltipFor(count: number) {
+  if (count === 0) return "Eliminar tipo";
+  return `No se puede eliminar: tiene ${count} equipo${count === 1 ? "" : "s"} de este tipo.`;
+}
 
 export default function EquipmentTypesScreen() {
   const [loading, setLoading] = useState(true);
@@ -34,6 +41,7 @@ export default function EquipmentTypesScreen() {
   const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const { confirm, dialog } = useConfirm();
 
   const load = useCallback(async () => {
     setError(null);
@@ -55,10 +63,10 @@ export default function EquipmentTypesScreen() {
   }
 
   function handleDelete(t: EquipmentTypeWithCount) {
-    confirmDelete(
-      "Eliminar tipo de equipo",
-      `¿Eliminar "${t.te_nombre}"? Esta acción no se puede deshacer.`,
-      async () => {
+    confirm({
+      title: "Eliminar tipo de equipo",
+      message: `¿Eliminar "${t.te_nombre}"? Esta acción no se puede deshacer.`,
+      onConfirm: async () => {
         try {
           await deleteEquipmentType(t.te_id);
           await load();
@@ -66,7 +74,7 @@ export default function EquipmentTypesScreen() {
           setError(e instanceof Error ? e.message : String(e));
         }
       },
-    );
+    });
   }
 
   const filteredTypes = useMemo(() => {
@@ -202,7 +210,7 @@ export default function EquipmentTypesScreen() {
                       onDelete={() => handleDelete(t)}
                       deleteDisabled={t.equipmentCount > 0}
                       editTooltip="Editar tipo"
-                      deleteTooltip="Eliminar tipo"
+                      deleteTooltip={deleteTooltipFor(t.equipmentCount)}
                     />
                   </View>
                 ))}
@@ -242,6 +250,8 @@ export default function EquipmentTypesScreen() {
 
         <EquipmentTypeModal visible={creating} onClose={() => setCreating(false)} onSaved={load} />
       </View>
+
+      {dialog}
     </ScrollView>
   );
 }
@@ -311,7 +321,7 @@ function EquipmentTypeTableRow({
           onDelete={onDelete}
           deleteDisabled={type.equipmentCount > 0}
           editTooltip="Editar tipo"
-          deleteTooltip="Eliminar tipo"
+          deleteTooltip={deleteTooltipFor(type.equipmentCount)}
         />
       </View>
     </View>

@@ -14,7 +14,7 @@ import { GeneralTaskModal } from "../../../components/GeneralTaskModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
 import { BREAKPOINT } from "../../../constants";
-import { confirmDelete } from "../../../lib/confirm";
+import { useConfirm } from "../../../lib/useConfirm";
 import {
   deleteFaultType,
   GRAVEDAD_LABELS,
@@ -43,6 +43,7 @@ export default function CatalogsScreen() {
   const isWide = width >= BREAKPOINT.desktop;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const { confirm, dialog } = useConfirm();
 
   const gravedadColor = {
     low: colors.urgencyLow,
@@ -75,10 +76,10 @@ export default function CatalogsScreen() {
   const faultsPage = usePagination(faults, "", 8);
 
   function deleteTask(t: TareaGeneral) {
-    confirmDelete(
-      "Eliminar tarea",
-      `¿Eliminar "${t.tag_nombre_tarea}"? Esta acción no se puede deshacer.`,
-      async () => {
+    confirm({
+      title: "Eliminar tarea",
+      message: `¿Eliminar "${t.tag_nombre_tarea}"? Esta acción no se puede deshacer.`,
+      onConfirm: async () => {
         try {
           await deleteGeneralTask(t.tag_id_tarea);
           await load();
@@ -86,14 +87,14 @@ export default function CatalogsScreen() {
           setError(e instanceof Error ? e.message : String(e));
         }
       },
-    );
+    });
   }
 
   function deleteFault(f: Fallo) {
-    confirmDelete(
-      "Eliminar falla genérica",
-      `¿Eliminar "${f.fa_nombre}"? Esta acción no se puede deshacer.`,
-      async () => {
+    confirm({
+      title: "Eliminar falla genérica",
+      message: `¿Eliminar "${f.fa_nombre}"? Esta acción no se puede deshacer.`,
+      onConfirm: async () => {
         try {
           await deleteFaultType(f.fa_id_fallo);
           await load();
@@ -101,7 +102,7 @@ export default function CatalogsScreen() {
           setError(e instanceof Error ? e.message : String(e));
         }
       },
-    );
+    });
   }
 
   if (loading) return <ActivityIndicator style={styles.center} />;
@@ -289,6 +290,8 @@ export default function CatalogsScreen() {
         onClose={() => setCreatingFault(false)}
         onSaved={load}
       />
+
+      {dialog}
     </ScrollView>
   );
 }

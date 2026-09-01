@@ -16,12 +16,19 @@ import { LocationModal } from "../../../components/LocationModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
 import { BREAKPOINT } from "../../../constants";
-import { confirmDelete } from "../../../lib/confirm";
+import { useConfirm } from "../../../lib/useConfirm";
 import { deleteLocation, listLocations } from "../../../lib/queries/locations";
 import type { LocationWithCount } from "../../../lib/queries/locations";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+
+// The row's trash icon is disabled while the record is still in use, so the
+// tooltip carries the reason -- it used to live in the edit modal.
+function deleteTooltipFor(count: number) {
+  if (count === 0) return "Eliminar ubicación";
+  return `No se puede eliminar: tiene ${count} equipo${count === 1 ? "" : "s"} asignado${count === 1 ? "" : "s"}.`;
+}
 
 export default function LocationsScreen() {
   const [loading, setLoading] = useState(true);
@@ -35,6 +42,7 @@ export default function LocationsScreen() {
   const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const { confirm, dialog } = useConfirm();
 
   const load = useCallback(async () => {
     setError(null);
@@ -56,10 +64,10 @@ export default function LocationsScreen() {
   }
 
   function handleDelete(l: LocationWithCount) {
-    confirmDelete(
-      "Eliminar ubicación",
-      `¿Eliminar "${l.lu_nombre_sector}"? Esta acción no se puede deshacer.`,
-      async () => {
+    confirm({
+      title: "Eliminar ubicación",
+      message: `¿Eliminar "${l.lu_nombre_sector}"? Esta acción no se puede deshacer.`,
+      onConfirm: async () => {
         try {
           await deleteLocation(l.lu_codigo);
           await load();
@@ -67,7 +75,7 @@ export default function LocationsScreen() {
           setError(e instanceof Error ? e.message : String(e));
         }
       },
-    );
+    });
   }
 
   const filteredLocations = useMemo(() => {
@@ -201,7 +209,7 @@ export default function LocationsScreen() {
                       onDelete={() => handleDelete(l)}
                       deleteDisabled={l.equipmentCount > 0}
                       editTooltip="Editar ubicación"
-                      deleteTooltip="Eliminar ubicación"
+                      deleteTooltip={deleteTooltipFor(l.equipmentCount)}
                     />
                   </View>
                 ))}
@@ -232,6 +240,8 @@ export default function LocationsScreen() {
 
         <LocationModal visible={creating} onClose={() => setCreating(false)} onSaved={load} />
       </View>
+
+      {dialog}
     </ScrollView>
   );
 }
@@ -309,7 +319,7 @@ function LocationTableRow({
           onDelete={onDelete}
           deleteDisabled={location.equipmentCount > 0}
           editTooltip="Editar ubicación"
-          deleteTooltip="Eliminar ubicación"
+          deleteTooltip={deleteTooltipFor(location.equipmentCount)}
         />
       </View>
     </View>
@@ -498,4 +508,3 @@ function makeStyles(c: ThemeColors) {
     },
   });
 }
-
