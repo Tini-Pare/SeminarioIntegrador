@@ -247,90 +247,28 @@ export default function EquipmentScreen() {
           <View style={styles.table}>
             <View style={styles.tableHeader}>
               <Text style={[styles.headerCell, { flex: 1.6 }]}>EQUIPO</Text>
+
               <Text style={[styles.headerCell, { flex: 1.2 }]}>UBICACIÓN</Text>
+
               <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
+
               <Text style={[styles.headerCell, { flex: 1 }]}>TIPO</Text>
+
               <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
             </View>
 
-            {pageItems.map((e) => (
-              <View key={e.id} style={styles.row}>
-                <View style={styles.rowMain}>
-                  <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {e.name}
-                    </Text>
-
-                    <Text style={styles.code} numberOfLines={1}>
-                      {e.code}
-                    </Text>
-                  </View>
-
-                  <View style={styles.locationCell}>
-                    <View
-                      style={[
-                        styles.locationDot,
-                        { backgroundColor: locationColors.get(e.location) ?? "#6a7b62" },
-                      ]}
-                    />
-
-                    <Text style={styles.locationText} numberOfLines={1}>
-                      {e.location || "—"}
-                    </Text>
-                  </View>
-
-                  <View style={{ flex: 1, justifyContent: "center", alignItems: "flex-start" }}>
-                    <StatusBadge status={e.status} />
-                  </View>
-
-                  <View style={{ flex: 1, justifyContent: "center" }}>
-                    <Text style={styles.typeText} numberOfLines={1}>
-                      {e.type || "—"}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.actionsCol}>
-                  <View style={styles.actionsWrap}>
-                    <Tooltip text="visualizar equipo">
-                      <Pressable
-                        style={styles.actionButton}
-                        onPress={() => router.push(`/equipment/${e.id}`)}
-                        hitSlop={6}
-                        accessibilityLabel="Ver detalle"
-                      >
-                        <EyeIcon size={16} color={colors.accent} />
-                      </Pressable>
-                    </Tooltip>
-
-                    {isAdmin && (
-                      <>
-                        <Tooltip text="editar equipo">
-                          <Pressable
-                            style={styles.actionButton}
-                            onPress={() => setEditing(e)}
-                            hitSlop={6}
-                            accessibilityLabel="Editar"
-                          >
-                            <PencilIcon size={16} color={colors.accent} />
-                          </Pressable>
-                        </Tooltip>
-
-                        <Tooltip text="eliminar equipo">
-                          <Pressable
-                            style={styles.actionButton}
-                            onPress={() => handleDelete(e)}
-                            hitSlop={6}
-                            accessibilityLabel="Eliminar"
-                          >
-                            <TrashIcon size={16} color={colors.destructive} />
-                          </Pressable>
-                        </Tooltip>
-                      </>
-                    )}
-                  </View>
-                </View>
-              </View>
+            {pageItems.map((e, index) => (
+              <EquipmentTableRow
+                key={e.id}
+                equipment={e}
+                index={index}
+                isAdmin={isAdmin}
+                locationColor={locationColors.get(e.location) ?? "#6a7b62"}
+                onEdit={() => setEditing(e)}
+                onDelete={() => handleDelete(e)}
+                colors={colors}
+                styles={styles}
+              />
             ))}
           </View>
         ) : (
@@ -363,44 +301,14 @@ export default function EquipmentScreen() {
                 </View>
 
                 <View style={styles.cardActions}>
-                  <View style={styles.actionsWrap}>
-                    <Tooltip text="visualizar equipo">
-                      <Pressable
-                        style={styles.actionButton}
-                        onPress={() => router.push(`/equipment/${e.id}`)}
-                        hitSlop={6}
-                        accessibilityLabel="Ver detalle"
-                      >
-                        <EyeIcon size={16} color={colors.accent} />
-                      </Pressable>
-                    </Tooltip>
-
-                    {isAdmin && (
-                      <>
-                        <Tooltip text="editar equipo">
-                          <Pressable
-                            style={styles.actionButton}
-                            onPress={() => setEditing(e)}
-                            hitSlop={6}
-                            accessibilityLabel="Editar"
-                          >
-                            <PencilIcon size={16} color={colors.accent} />
-                          </Pressable>
-                        </Tooltip>
-
-                        <Tooltip text="eliminar equipo">
-                          <Pressable
-                            style={styles.actionButton}
-                            onPress={() => handleDelete(e)}
-                            hitSlop={6}
-                            accessibilityLabel="Eliminar"
-                          >
-                            <TrashIcon size={16} color={colors.destructive} />
-                          </Pressable>
-                        </Tooltip>
-                      </>
-                    )}
-                  </View>
+                  <EquipmentRowActions
+                    equipment={e}
+                    isAdmin={isAdmin}
+                    onEdit={() => setEditing(e)}
+                    onDelete={() => handleDelete(e)}
+                    colors={colors}
+                    styles={styles}
+                  />
                 </View>
               </View>
             ))}
@@ -474,7 +382,155 @@ export default function EquipmentScreen() {
   );
 }
 
+function EquipmentRowActions({
+  equipment: e,
+  isAdmin,
+  onEdit,
+  onDelete,
+  colors,
+  styles,
+}: {
+  equipment: Equipo;
+  isAdmin: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const [hoverView, setHoverView] = useState(false);
+  const [hoverEdit, setHoverEdit] = useState(false);
+  const [hoverDelete, setHoverDelete] = useState(false);
+
+  return (
+    <View style={styles.actionsWrap}>
+      <Tooltip text="Ver detalle">
+        <Pressable
+          style={[styles.actionButton, hoverView && styles.actionButtonViewHover]}
+          onPress={() => router.push(`/equipment/${e.id}`)}
+          onHoverIn={() => setHoverView(true)}
+          onHoverOut={() => setHoverView(false)}
+          hitSlop={6}
+          accessibilityLabel="Ver detalle"
+        >
+          <EyeIcon size={16} color={colors.accent} />
+        </Pressable>
+      </Tooltip>
+
+      {isAdmin && (
+        <>
+          <Tooltip text="Editar equipo">
+            <Pressable
+              style={[styles.actionButton, hoverEdit && styles.actionButtonEditHover]}
+              onPress={onEdit}
+              onHoverIn={() => setHoverEdit(true)}
+              onHoverOut={() => setHoverEdit(false)}
+              hitSlop={6}
+              accessibilityLabel="Editar equipo"
+            >
+              <PencilIcon size={16} color={colors.accent} />
+            </Pressable>
+          </Tooltip>
+
+          <Tooltip text="Eliminar equipo">
+            <Pressable
+              style={[styles.actionButton, hoverDelete && styles.actionButtonDeleteHover]}
+              onPress={onDelete}
+              onHoverIn={() => setHoverDelete(true)}
+              onHoverOut={() => setHoverDelete(false)}
+              hitSlop={6}
+              accessibilityLabel="Eliminar equipo"
+            >
+              <TrashIcon size={16} color={colors.destructive} />
+            </Pressable>
+          </Tooltip>
+        </>
+      )}
+    </View>
+  );
+}
+
+function EquipmentTableRow({
+  equipment: e,
+  index,
+  isAdmin,
+  locationColor,
+  onEdit,
+  onDelete,
+  colors,
+  styles,
+}: {
+  equipment: Equipo;
+  index: number;
+  isAdmin: boolean;
+  locationColor: string;
+  onEdit: () => void;
+  onDelete: () => void;
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const isZebra = index % 2 === 1;
+
+  const rowBg = hovered
+    ? styles.rowHover.backgroundColor
+    : isZebra
+      ? styles.rowZebra.backgroundColor
+      : styles.rowPlain.backgroundColor;
+
+  return (
+    <View
+      style={[styles.row, { backgroundColor: rowBg }]}
+      // @ts-expect-error onMouseEnter and onMouseLeave are supported on Web
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <View style={styles.rowMain}>
+        <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
+          <Text style={styles.name} numberOfLines={1}>
+            {e.name}
+          </Text>
+
+          <Text style={styles.code} numberOfLines={1}>
+            {e.code}
+          </Text>
+        </View>
+
+        <View style={styles.locationCell}>
+          <View style={[styles.locationDot, { backgroundColor: locationColor }]} />
+
+          <Text style={styles.locationText} numberOfLines={1}>
+            {e.location || "—"}
+          </Text>
+        </View>
+
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "flex-start" }}>
+          <StatusBadge status={e.status} />
+        </View>
+
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          <Text style={styles.typeText} numberOfLines={1}>
+            {e.type || "—"}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.actionsCol}>
+        <EquipmentRowActions
+          equipment={e}
+          isAdmin={isAdmin}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          colors={colors}
+          styles={styles}
+        />
+      </View>
+    </View>
+  );
+}
+
 function makeStyles(c: ThemeColors) {
+  const isLight = c.bg === "#eceeea";
+
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 24, paddingBottom: 48 },
@@ -557,20 +613,24 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
+      maxWidth: 1040,
+      width: "100%",
     },
     tableHeader: {
       flexDirection: "row",
       alignItems: "center",
-      padding: 14,
-      backgroundColor: c.bgTableHeader,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+      backgroundColor: c.accent,
+      borderTopLeftRadius: 13,
+      borderTopRightRadius: 13,
     },
     headerCell: {
-      fontSize: 11,
-      letterSpacing: 0.6,
+      fontSize: 11.5,
+      fontWeight: "600",
+      letterSpacing: 0.7,
       textTransform: "uppercase",
-      color: c.textMuted,
+      color: "#fff",
       fontFamily: "monospace",
     },
     actionsCol: { width: 114, flexShrink: 0, alignItems: "flex-start" },
@@ -579,26 +639,47 @@ function makeStyles(c: ThemeColors) {
       gap: 6,
     },
     actionButton: {
-      width: 34,
-      height: 34,
+      width: 32,
+      height: 32,
       borderRadius: 8,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: c.bgNested,
+      backgroundColor: c.bgCard,
       borderWidth: 1,
       borderColor: c.border,
+    },
+    actionButtonViewHover: {
+      backgroundColor: c.eqOperational.bg,
+      borderColor: c.accent,
+    },
+    actionButtonEditHover: {
+      backgroundColor: c.eqOperational.bg,
+      borderColor: c.accent,
+    },
+    actionButtonDeleteHover: {
+      backgroundColor: c.eqRepair.bg,
+      borderColor: c.destructive,
     },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 15,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
+    rowPlain: {
+      backgroundColor: c.bgCard,
+    },
+    rowZebra: {
+      backgroundColor: isLight ? "#f8f6f0" : "rgba(255, 255, 255, 0.025)",
+    },
+    rowHover: {
+      backgroundColor: isLight ? "#f0ede4" : "rgba(255, 255, 255, 0.05)",
+    },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
-    name: { fontWeight: "600", fontSize: 14, color: c.text },
-    code: { fontFamily: "monospace", fontSize: 12, color: c.textMuted, marginTop: 2 },
+    name: { fontWeight: "600", fontSize: 15, color: c.text },
+    code: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
     locationCell: {
       flex: 1.2,
       flexDirection: "row",
@@ -607,9 +688,9 @@ function makeStyles(c: ThemeColors) {
       paddingRight: 12,
     },
     locationDot: { width: 7, height: 7, borderRadius: 4 },
-    locationText: { fontSize: 13, color: c.textLabel, flexShrink: 1 },
-    typeText: { fontSize: 13, color: c.textLabel, marginTop: 2 },
-    cardList: { gap: 12 },
+    locationText: { fontSize: 13.5, color: c.textSecondary, flexShrink: 1 },
+    typeText: { fontSize: 13.5, color: c.textSecondary },
+    cardList: { gap: 12, maxWidth: 1040, width: "100%" },
     card: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -661,7 +742,7 @@ function makeStyles(c: ThemeColors) {
       flex: 1,
       height: 42,
       borderRadius: 10,
-      backgroundColor: c.destructive,
+      backgroundColor: "#dc2626",
       alignItems: "center",
       justifyContent: "center",
     },

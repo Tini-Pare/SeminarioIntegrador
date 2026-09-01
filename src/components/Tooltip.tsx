@@ -57,10 +57,10 @@ function makeStyles(c: ThemeColors) {
       shadowRadius: 3,
       elevation: 3,
       ...(Platform.OS === "web"
-        ? {
+        ? ({
             width: "max-content",
             whiteSpace: "nowrap",
-          }
+          } as any)
         : {}),
     },
     tooltipText: {

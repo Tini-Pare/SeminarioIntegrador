@@ -11,8 +11,10 @@ import type { ThemeColors } from "../lib/theme";
 import {
   CustomDatePicker,
   fromDbDate,
+  isDateOnOrAfter,
   isDateWithinMax,
   isValidDateString,
+  parseDateString,
   toDbDate,
 } from "./CustomDatePicker";
 
@@ -80,26 +82,32 @@ export function EditEquipmentModal({
   }, [visible, equipment]);
 
   async function handleSubmit() {
-    if (!code.trim() || !name.trim()) {
-      setError("Completá el código y el nombre.");
+    if (
+      !code.trim() ||
+      !model.trim() ||
+      !name.trim() ||
+      typeId == null ||
+      locationId == null ||
+      !installDate.trim() ||
+      !warrantyDate.trim()
+    ) {
+      setError("Todos los campos son obligatorios.");
       return;
     }
-    if (typeId == null || locationId == null) {
-      setError("Elegí un tipo y una ubicación.");
+    if (!isValidDateString(installDate.trim())) {
+      setError("Ingresá una fecha de instalación válida (dd/mm/aaaa).");
       return;
     }
-    if (installDate.trim()) {
-      if (!isValidDateString(installDate.trim())) {
-        setError("Ingresá una fecha de instalación válida (dd/mm/aaaa).");
-        return;
-      }
-      if (!isDateWithinMax(installDate.trim(), new Date())) {
-        setError("La fecha de instalación no puede ser posterior a hoy.");
-        return;
-      }
+    if (!isDateWithinMax(installDate.trim(), new Date())) {
+      setError("La fecha de instalación no puede ser posterior a hoy.");
+      return;
     }
-    if (warrantyDate.trim() && !isValidDateString(warrantyDate.trim())) {
+    if (!isValidDateString(warrantyDate.trim())) {
       setError("Ingresá una fecha de garantía válida (dd/mm/aaaa).");
+      return;
+    }
+    if (!isDateOnOrAfter(warrantyDate.trim(), installDate.trim())) {
+      setError("La fecha de garantía no puede ser anterior a la fecha de instalación.");
       return;
     }
     setSaving(true);
@@ -110,9 +118,9 @@ export function EditEquipmentModal({
         name: name.trim(),
         typeId,
         locationId,
-        model: model.trim() || null,
-        installDate: installDate.trim() ? toDbDate(installDate.trim()) : null,
-        warrantyDate: warrantyDate.trim() ? toDbDate(warrantyDate.trim()) : null,
+        model: model.trim(),
+        installDate: toDbDate(installDate.trim()),
+        warrantyDate: toDbDate(warrantyDate.trim()),
       });
       onSaved();
       onClose();
@@ -209,6 +217,11 @@ export function EditEquipmentModal({
                 onChange={setWarrantyDate}
                 open={openField === "warranty"}
                 onOpenChange={(o) => setOpenField(o ? "warranty" : null)}
+                minDate={
+                  isValidDateString(installDate.trim())
+                    ? (parseDateString(installDate.trim()) ?? undefined)
+                    : undefined
+                }
               />
             </View>
           </View>
@@ -292,12 +305,11 @@ function makeStyles(c: ThemeColors) {
       flex: 1,
       height: 44,
       borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.borderInput,
+      backgroundColor: "#dc2626",
       alignItems: "center",
       justifyContent: "center",
     },
-    cancelText: { color: c.textLabel, fontWeight: "600" },
+    cancelText: { color: "#fff", fontWeight: "600" },
     saveButton: {
       flex: 1,
       height: 44,

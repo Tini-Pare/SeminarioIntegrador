@@ -30,9 +30,31 @@ export async function createLocation(input: {
   name: string;
   floor: string | null;
 }): Promise<Lugar> {
+  const trimmedName = input.name.trim();
+  const trimmedFloor = input.floor?.trim() || null;
+
+  const { data: existing, error: checkError } = await supabase
+    .from("lugares")
+    .select("lu_codigo, lu_nombre_sector, lu_piso")
+    .ilike("lu_nombre_sector", trimmedName);
+
+  if (checkError) throw new Error(checkError.message);
+
+  const isDuplicate = existing?.some((l) => {
+    const lName = l.lu_nombre_sector.trim().toLowerCase();
+    const lFloor = (l.lu_piso ?? "").trim().toLowerCase();
+    const iName = trimmedName.toLowerCase();
+    const iFloor = (trimmedFloor ?? "").toLowerCase();
+    return lName === iName && lFloor === iFloor;
+  });
+
+  if (isDuplicate) {
+    throw new Error("La ubicación ya existe.");
+  }
+
   const { data, error } = await supabase
     .from("lugares")
-    .insert({ lu_nombre_sector: input.name.trim(), lu_piso: input.floor?.trim() || null })
+    .insert({ lu_nombre_sector: trimmedName, lu_piso: trimmedFloor })
     .select("*")
     .single();
   if (error) throw new Error(error.message);
@@ -43,9 +65,32 @@ export async function updateLocation(
   id: number,
   changes: { name: string; floor: string | null },
 ): Promise<void> {
+  const trimmedName = changes.name.trim();
+  const trimmedFloor = changes.floor?.trim() || null;
+
+  const { data: existing, error: checkError } = await supabase
+    .from("lugares")
+    .select("lu_codigo, lu_nombre_sector, lu_piso")
+    .ilike("lu_nombre_sector", trimmedName);
+
+  if (checkError) throw new Error(checkError.message);
+
+  const isDuplicate = existing?.some((l) => {
+    if (l.lu_codigo === id) return false;
+    const lName = l.lu_nombre_sector.trim().toLowerCase();
+    const lFloor = (l.lu_piso ?? "").trim().toLowerCase();
+    const iName = trimmedName.toLowerCase();
+    const iFloor = (trimmedFloor ?? "").toLowerCase();
+    return lName === iName && lFloor === iFloor;
+  });
+
+  if (isDuplicate) {
+    throw new Error("La ubicación ya existe.");
+  }
+
   const { error } = await supabase
     .from("lugares")
-    .update({ lu_nombre_sector: changes.name.trim(), lu_piso: changes.floor?.trim() || null })
+    .update({ lu_nombre_sector: trimmedName, lu_piso: trimmedFloor })
     .eq("lu_codigo", id);
   if (error) throw new Error(error.message);
 }

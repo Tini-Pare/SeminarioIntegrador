@@ -189,6 +189,31 @@ describe("createEquipment", () => {
       }),
     ).rejects.toThrow("insert failed");
   });
+
+  it("translates duplicate eq_codigo unique constraint error to friendly Spanish message", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "equipo_eq_codigo_key"',
+      },
+    });
+    const select = jest.fn().mockReturnValue({ single });
+    const insert = jest.fn().mockReturnValue({ select });
+    (supabase.from as jest.Mock).mockReturnValue({ insert });
+
+    await expect(
+      createEquipment({
+        code: "AC-015",
+        name: "Y",
+        typeId: 1,
+        locationId: 1,
+        model: null,
+        installDate: null,
+        warrantyDate: null,
+      }),
+    ).rejects.toThrow("Ya existe un equipo con el código ingresado. Probá con otro código.");
+  });
 });
 
 describe("updateEquipment", () => {
@@ -236,6 +261,29 @@ describe("updateEquipment", () => {
         warrantyDate: null,
       }),
     ).rejects.toThrow("update failed");
+  });
+
+  it("translates duplicate eq_codigo unique constraint error to friendly Spanish message", async () => {
+    const eq = jest.fn().mockResolvedValue({
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "equipo_eq_codigo_key"',
+      },
+    });
+    const update = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ update });
+
+    await expect(
+      updateEquipment(5, {
+        code: "AC-015",
+        name: "Y",
+        typeId: 1,
+        locationId: 1,
+        model: null,
+        installDate: null,
+        warrantyDate: null,
+      }),
+    ).rejects.toThrow("Ya existe un equipo con el código ingresado. Probá con otro código.");
   });
 });
 

@@ -48,6 +48,9 @@ type EquipmentInput = {
   warrantyDate: string | null;
 };
 
+// 23505 = Postgres unique_violation — eq_codigo has a UNIQUE constraint
+// (equipo_eq_codigo_key). Surface a friendly Spanish message instead of the
+// raw database error.
 export async function createEquipment(input: EquipmentInput): Promise<Equipo> {
   const { data, error } = await supabase
     .from("equipo")
@@ -62,7 +65,12 @@ export async function createEquipment(input: EquipmentInput): Promise<Equipo> {
     })
     .select("*, lugares(*), tipos_de_equipos(*)")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23505" || error.message.includes("equipo_eq_codigo_key")) {
+      throw new Error("Ya existe un equipo con el código ingresado. Probá con otro código.");
+    }
+    throw new Error(error.message);
+  }
   return mapEquipo(data as EquipoRow);
 }
 
@@ -79,7 +87,12 @@ export async function updateEquipment(id: number, changes: EquipmentInput): Prom
       eq_fecha_garantia: changes.warrantyDate,
     })
     .eq("eq_id_equipo", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23505" || error.message.includes("equipo_eq_codigo_key")) {
+      throw new Error("Ya existe un equipo con el código ingresado. Probá con otro código.");
+    }
+    throw new Error(error.message);
+  }
 }
 
 export async function deleteEquipment(id: number): Promise<void> {

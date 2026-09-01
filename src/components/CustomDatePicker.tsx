@@ -57,15 +57,34 @@ export function fromDbDate(dbDate: string | null | undefined): string {
 
 // Day-granularity truncation, so time-of-day never makes "today" look like
 // a future date.
-function toDay(date: Date): Date {
+export function toDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-export function isDateWithinMax(str: string, maxDate: Date): boolean {
-  if (!isValidDateString(str)) return false;
+export function parseDateString(str: string): Date | null {
+  if (!isValidDateString(str)) return null;
   const parts = str.split("/");
-  const date = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+  const d = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const y = parseInt(parts[2], 10);
+  const date = new Date(y, m, d);
+  if (date.getFullYear() === y && date.getMonth() === m && date.getDate() === d) {
+    return toDay(date);
+  }
+  return null;
+}
+
+export function isDateWithinMax(str: string, maxDate: Date): boolean {
+  const date = parseDateString(str);
+  if (!date) return false;
   return toDay(date) <= toDay(maxDate);
+}
+
+export function isDateOnOrAfter(dateStr: string, minDateStr: string): boolean {
+  const d1 = parseDateString(dateStr);
+  const d2 = parseDateString(minDateStr);
+  if (!d1 || !d2) return false;
+  return d1.getTime() >= d2.getTime();
 }
 
 export function CustomDatePicker({
@@ -74,6 +93,7 @@ export function CustomDatePicker({
   placeholder = "dd/mm/aaaa",
   open: openProp,
   onOpenChange,
+  minDate,
   maxDate,
   maxWidth,
 }: {
@@ -82,6 +102,7 @@ export function CustomDatePicker({
   placeholder?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  minDate?: Date;
   maxDate?: Date;
   maxWidth?: number;
 }) {
@@ -96,24 +117,6 @@ export function CustomDatePicker({
   const { colors } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
   const styles = makeStyles(colors, flipVertical);
-
-  const parseDateString = (str: string): Date | null => {
-    const parts = str.split("/");
-    if (parts.length !== 3) return null;
-
-    const d = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10) - 1;
-    const y = parseInt(parts[2], 10);
-
-    if (isNaN(d) || isNaN(m) || isNaN(y)) return null;
-
-    const date = new Date(y, m, d);
-    if (date.getFullYear() === y && date.getMonth() === m && date.getDate() === d) {
-      return date;
-    }
-
-    return null;
-  };
 
   useEffect(() => {
     if (isOpen) {
@@ -209,6 +212,7 @@ export function CustomDatePicker({
   const calendarDays = getDaysInMonth(currentMonth, currentYear);
   const selectedDateObj = parseDateString(value);
   const todayDate = new Date();
+  const minDay = minDate ? toDay(minDate) : null;
   const maxDay = maxDate ? toDay(maxDate) : null;
 
   return (
@@ -274,7 +278,9 @@ export function CustomDatePicker({
                   todayDate.getMonth() === day.getMonth() &&
                   todayDate.getFullYear() === day.getFullYear();
 
-                const isDisabled = maxDay !== null && day > maxDay;
+                const isDisabled =
+                  (maxDay !== null && day > maxDay) ||
+                  (minDay !== null && day < minDay);
 
                 return (
                   <Pressable
