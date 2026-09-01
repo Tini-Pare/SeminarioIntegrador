@@ -1,6 +1,18 @@
 import { supabase } from "../supabase";
 import type { TareaGeneral } from "../../types/database";
 
+// 23505 = Postgres unique_violation. It's also raised by a primary-key
+// collision (tareas_generales_pkey) when the tag_id_tarea identity sequence is
+// behind, so match the specific index name (tareas_generales_nombre_unico_idx,
+// migration 0005) in the error message rather than trusting the code alone.
+const DUPLICATE_NAME_MESSAGE = "Ya existe una tarea general con ese nombre";
+
+function isDuplicateNameError(error: { code?: string; message?: string } | null): boolean {
+  return (
+    error?.code === "23505" && !!error.message?.includes("tareas_generales_nombre_unico_idx")
+  );
+}
+
 export async function listGeneralTasks(): Promise<TareaGeneral[]> {
   const { data, error } = await supabase
     .from("tareas_generales")
@@ -22,7 +34,10 @@ export async function createGeneralTask(input: {
     })
     .select("*")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isDuplicateNameError(error)) throw new Error(DUPLICATE_NAME_MESSAGE);
+    throw new Error(error.message);
+  }
   return data as TareaGeneral;
 }
 
@@ -37,7 +52,10 @@ export async function updateGeneralTask(
       tag_descripcion_tarea: changes.description?.trim() || null,
     })
     .eq("tag_id_tarea", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isDuplicateNameError(error)) throw new Error(DUPLICATE_NAME_MESSAGE);
+    throw new Error(error.message);
+  }
 }
 
 // 23503 = Postgres foreign_key_violation — tarea_prevista_plan and

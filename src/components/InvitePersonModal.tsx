@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { supabase } from "../lib/supabase";
 import { listProfiles } from "../lib/queries/profiles";
-import { AutocompleteInput } from "./AutocompleteInput";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -23,9 +22,8 @@ export function InvitePersonModal({
   onClose: () => void;
   onInvited: () => void;
 }) {
-  const [email, setEmail] = useState("");
+  const [legajo, setLegajo] = useState("");
   const [name, setName] = useState("");
-  const [area, setArea] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Profile["role"]>("user");
   const [sending, setSending] = useState(false);
@@ -42,12 +40,21 @@ export function InvitePersonModal({
   }, [visible]);
 
   async function handleSubmit() {
-    if (!email.trim() || !name.trim() || !password.trim()) {
-      setError("Completá email, nombre y contraseña.");
+    const legajoTrimmed = legajo.trim();
+    if (!legajoTrimmed || !name.trim() || !password.trim()) {
+      setError("Completá legajo, nombre y contraseña.");
+      return;
+    }
+    if (!/^[0-9]+$/.test(legajoTrimmed)) {
+      setError("El legajo solo puede tener números.");
       return;
     }
     if (password.trim().length < 6) {
       setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    if (existingProfiles.some((p) => p.legajo === legajoTrimmed)) {
+      setError(`Ya existe una persona con el legajo ${legajoTrimmed}. Usá otro número.`);
       return;
     }
     setSending(true);
@@ -66,19 +73,23 @@ export function InvitePersonModal({
           apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
         },
         body: JSON.stringify({
-          email: email.trim(),
+          legajo: legajoTrimmed,
           name: name.trim(),
-          area: area.trim(),
           password: password.trim(),
           role,
         }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "No se pudo crear la cuenta");
+      if (!res.ok) {
+        if (body.error === "legajo_exists") {
+          setError(`Ya existe una persona con el legajo ${legajoTrimmed}. Usá otro número.`);
+          return;
+        }
+        throw new Error(body.error ?? "No se pudo crear la cuenta");
+      }
 
-      setEmail("");
+      setLegajo("");
       setName("");
-      setArea("");
       setPassword("");
       setRole("user");
       onInvited();
@@ -100,15 +111,14 @@ export function InvitePersonModal({
             medio.
           </Text>
 
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Legajo</Text>
           <TextInput
             style={styles.input}
-            placeholder="persona@empresa.com"
+            placeholder="Ej: 1234"
             placeholderTextColor={colors.textMuted}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
+            keyboardType="number-pad"
+            value={legajo}
+            onChangeText={setLegajo}
           />
 
           <Text style={styles.label}>Nombre</Text>
@@ -118,14 +128,6 @@ export function InvitePersonModal({
             placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
-          />
-
-          <Text style={styles.label}>Área</Text>
-          <AutocompleteInput
-            value={area}
-            onChangeText={setArea}
-            options={existingProfiles.map((p) => p.area).filter((a): a is string => !!a)}
-            placeholder="Ej: Mantenimiento"
           />
 
           <Text style={styles.label}>Contraseña</Text>
@@ -164,7 +166,7 @@ export function InvitePersonModal({
             </Pressable>
 
             <Pressable style={styles.sendButton} onPress={handleSubmit} disabled={sending}>
-              <Text style={styles.sendText}>{sending ? "Enviando…" : "Invitar"}</Text>
+              <Text style={styles.sendText}>{sending ? "Guardando…" : "Guardar"}</Text>
             </Pressable>
           </View>
         </View>

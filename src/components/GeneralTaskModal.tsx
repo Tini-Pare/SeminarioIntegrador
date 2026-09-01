@@ -10,11 +10,13 @@ export function GeneralTaskModal({
   onClose,
   onSaved,
   task,
+  existingTasks = [],
 }: {
   visible: boolean;
   onClose: () => void;
   onSaved: () => void;
   task?: TareaGeneral | null;
+  existingTasks?: TareaGeneral[];
 }) {
   const isEditing = !!task;
   const [name, setName] = useState(task?.tag_nombre_tarea ?? "");
@@ -32,10 +34,25 @@ export function GeneralTaskModal({
   }, [visible, task]);
 
   async function handleSave() {
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       setError("El nombre de la tarea no puede estar vacío.");
       return;
     }
+
+    // Block duplicate names (case/trim-insensitive), excluding the task being
+    // edited. The DB has a matching unique index as the backstop.
+    const normalized = trimmedName.toLocaleLowerCase();
+    const isDuplicate = existingTasks.some(
+      (t) =>
+        t.tag_id_tarea !== task?.tag_id_tarea &&
+        t.tag_nombre_tarea.trim().toLocaleLowerCase() === normalized,
+    );
+    if (isDuplicate) {
+      setError("Ya existe una tarea general con ese nombre");
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {

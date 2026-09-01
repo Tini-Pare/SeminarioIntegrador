@@ -29,11 +29,13 @@ export function EditUserModal({
 }) {
   const [name, setName] = useState(profile.name);
   const [area, setArea] = useState(profile.area ?? "");
+  const [legajo, setLegajo] = useState(profile.legajo ?? "");
   const [role, setRole] = useState<Profile["role"]>(profile.role);
   const [active, setActive] = useState(profile.active);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [existingProfiles, setExistingProfiles] = useState<Profile[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -50,6 +52,18 @@ export function EditUserModal({
       setError("El nombre no puede estar vacío");
       return;
     }
+    const legajoTrimmed = legajo.trim();
+    if (legajoTrimmed && !/^[0-9]+$/.test(legajoTrimmed)) {
+      setError("El legajo solo puede tener números.");
+      return;
+    }
+    if (
+      legajoTrimmed &&
+      existingProfiles.some((p) => p.id !== profile.id && p.legajo === legajoTrimmed)
+    ) {
+      setDuplicateWarning(true);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -59,13 +73,19 @@ export function EditUserModal({
       await updateProfile(profile.id, {
         name: name.trim(),
         area: area.trim(),
+        legajo: legajoTrimmed || null,
         role: isSelf ? profile.role : role,
         active: isSelf ? profile.active : active,
       });
       onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const message = e instanceof Error ? e.message : String(e);
+      if (message.includes("profiles_legajo")) {
+        setDuplicateWarning(true);
+      } else {
+        setError(message);
+      }
     } finally {
       setSaving(false);
     }
@@ -98,7 +118,6 @@ export function EditUserModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>{profile.name}</Text>
-          <Text style={styles.subtitle}>{profile.email}</Text>
 
           <Text style={styles.label}>Nombre</Text>
           <TextInput
@@ -107,6 +126,16 @@ export function EditUserModal({
             onChangeText={setName}
             placeholder="Nombre"
             placeholderTextColor={colors.textMuted}
+          />
+
+          <Text style={styles.label}>Legajo</Text>
+          <TextInput
+            style={styles.input}
+            value={legajo}
+            onChangeText={setLegajo}
+            placeholder="Ej: 1234"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="number-pad"
           />
 
           <Text style={styles.label}>Área</Text>
@@ -166,6 +195,26 @@ export function EditUserModal({
           )}
         </View>
       </View>
+
+      <Modal
+        visible={duplicateWarning}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDuplicateWarning(false)}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.warningSheet}>
+            <Text style={styles.title}>Legajo ya registrado</Text>
+            <Text style={styles.subtitle}>
+              Ya existe otra persona con el legajo {legajo.trim()}. Usá otro número.
+            </Text>
+
+            <Pressable style={styles.saveButton} onPress={() => setDuplicateWarning(false)}>
+              <Text style={styles.saveText}>Entendido</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -185,6 +234,15 @@ function makeStyles(c: ThemeColors) {
       width: "100%",
       maxWidth: 440,
       alignSelf: "center",
+    },
+    warningSheet: {
+      backgroundColor: c.bgModal,
+      borderRadius: 16,
+      padding: 24,
+      width: "100%",
+      maxWidth: 380,
+      alignSelf: "center",
+      gap: 16,
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },

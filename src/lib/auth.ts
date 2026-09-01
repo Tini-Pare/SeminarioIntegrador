@@ -19,8 +19,29 @@ function formatAuthError(message: string): string {
   return message;
 }
 
-export async function signIn(email: string, password: string): Promise<{ error: string | null }> {
-  const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+export async function signIn(
+  legajo: string,
+  password: string,
+): Promise<{ error: string | null }> {
+  // Required fields must be present before any auth work happens: a blank
+  // legajo or password is a validation error, not an authentication attempt.
+  if (!legajo.trim() || !password) {
+    return { error: "Completá el legajo y la contraseña para ingresar." };
+  }
+
+  // Supabase Auth only ever authenticates by email, so the legajo is
+  // resolved to its synthetic auth email first (see 0004_login_por_legajo.sql
+  // and the invite-user Edge Function). A legajo with no matching user gets
+  // the same generic message as a wrong password so the two can't be told
+  // apart.
+  const { data: email, error: lookupError } = await supabase.rpc("email_for_legajo", {
+    p_legajo: legajo.trim(),
+  });
+  if (lookupError || !email) {
+    return { error: "Legajo o contraseña incorrectos" };
+  }
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     return { error: formatAuthError(error.message) };
   }

@@ -17,11 +17,13 @@ export function FaultTypeModal({
   onClose,
   onSaved,
   fault,
+  existingFaults = [],
 }: {
   visible: boolean;
   onClose: () => void;
   onSaved: () => void;
   fault?: Fallo | null;
+  existingFaults?: Fallo[];
 }) {
   const isEditing = !!fault;
   const [name, setName] = useState(fault?.fa_nombre ?? "");
@@ -41,10 +43,25 @@ export function FaultTypeModal({
   }, [visible, fault]);
 
   async function handleSave() {
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       setError("El nombre de la falla no puede estar vacío.");
       return;
     }
+
+    // Block duplicate names (case/trim-insensitive), excluding the fault being
+    // edited. The DB has a matching unique index as the backstop.
+    const normalized = trimmedName.toLocaleLowerCase();
+    const isDuplicate = existingFaults.some(
+      (f) =>
+        f.fa_id_fallo !== fault?.fa_id_fallo &&
+        f.fa_nombre.trim().toLocaleLowerCase() === normalized,
+    );
+    if (isDuplicate) {
+      setError("Ya existe una falla genérica con ese nombre.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {

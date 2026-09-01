@@ -16,7 +16,7 @@ import { useTheme } from "../../lib/ThemeContext";
 import type { ThemeColors } from "../../lib/theme";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [legajo, setLegajo] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,9 +28,17 @@ export default function Login() {
   const styles = makeStyles(colors);
 
   async function handleSubmit() {
-    setLoading(true);
     setError(null);
-    const { error } = await signIn(email, password);
+
+    // Required-field guard: don't hit the auth endpoint with a blank legajo or
+    // password — treat it as a validation error, not a failed login attempt.
+    if (!legajo.trim() || !password) {
+      setError("Completá el legajo y la contraseña para ingresar.");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await signIn(legajo.trim(), password);
     setLoading(false);
     if (error) {
       setError(error);
@@ -48,16 +56,15 @@ export default function Login() {
 
         <View style={styles.fields}>
           <View>
-            <Text style={styles.label}>Correo</Text>
+            <Text style={styles.label}>Legajo</Text>
             <TextInput
               style={styles.input}
-              placeholder="usuario@empresa.com"
+              placeholder="Ej: 1234"
               placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              keyboardType="email-address"
+              keyboardType="number-pad"
               returnKeyType="next"
-              value={email}
-              onChangeText={setEmail}
+              value={legajo}
+              onChangeText={setLegajo}
               onSubmitEditing={() => passwordRef.current?.focus()}
               blurOnSubmit={false}
             />

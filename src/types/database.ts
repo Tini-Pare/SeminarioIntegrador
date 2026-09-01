@@ -19,6 +19,10 @@ export type Database = {
         Args: { p_eq_id: number };
         Returns: void;
       };
+      email_for_legajo: {
+        Args: { p_legajo: string };
+        Returns: string;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -28,6 +32,7 @@ export type Database = {
           id: string;
           name: string;
           email: string;
+          legajo: string | null;
           area: string | null;
           role: "admin" | "technician" | "user";
           active: boolean;
@@ -37,6 +42,7 @@ export type Database = {
           id?: string;
           name: string;
           email: string;
+          legajo?: string | null;
           area?: string | null;
           role?: "admin" | "technician" | "user";
           active?: boolean;
@@ -46,6 +52,7 @@ export type Database = {
           id?: string;
           name?: string;
           email?: string;
+          legajo?: string | null;
           area?: string | null;
           role?: "admin" | "technician" | "user";
           active?: boolean;

@@ -82,22 +82,29 @@ every fresh project.
 ## 7. Create the first admin account
 
 You need at least one admin to invite everyone else through the app (the
-`/users` screen). `auth.users` rows can't be created directly via SQL, so
-use the dashboard:
+`/users` screen). Since 0004_login_por_legajo.sql, the app logs in by
+`legajo` (employee ID number), not email — `auth.users` still needs an
+email internally, so the first admin gets a synthetic one following the
+same `<legajo>@legajo.mantia.internal` scheme the invite-user Edge Function
+uses for everyone invited afterwards. `auth.users` rows can't be created
+directly via SQL, so use the dashboard:
 
-1. Authentication → Users → **Add user** → enter email + password → check
-   "Auto Confirm User" → Create.
-2. Copy the new user's UID from the users list.
-3. SQL Editor, run (replace the UID, name, email):
+1. Pick a legajo for yourself, e.g. `1`.
+2. Authentication → Users → **Add user** → email `1@legajo.mantia.internal`,
+   any password → check "Auto Confirm User" → Create.
+3. Copy the new user's UID from the users list.
+4. SQL Editor, run (replace the UID and name; keep the email matching what
+   you used in step 2):
 
 ```sql
-insert into profiles (id, name, email, role, active)
-values ('<uid-from-step-2>', 'Your Name', 'your@email.com', 'admin', true);
+insert into profiles (id, name, email, legajo, role, active)
+values ('<uid-from-step-3>', 'Your Name', '1@legajo.mantia.internal', '1', 'admin', true);
 ```
 
-4. Log into the app with that email/password — you're now the first admin
-   and can invite everyone else (technicians, users) from the Usuarios
-   screen, which creates both the login and the profile row in one step.
+5. Log into the app with legajo `1` and that password — you're now the
+   first admin and can invite everyone else (technicians, users) from the
+   Usuarios screen, which creates both the login and the profile row in
+   one step from just a legajo, name, password and role.
 
 ## 8. Verify
 

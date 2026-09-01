@@ -137,7 +137,6 @@ export default function UsersScreen() {
         <View style={styles.table}>
           <View style={styles.tableHeader}>
             <Text style={[styles.headerCell, { flex: 2.2 }]}>PERSONA</Text>
-            <Text style={[styles.headerCell, { flex: 1.4 }]}>ÁREA</Text>
             <Text style={[styles.headerCell, { flex: 1.1 }]}>ROL</Text>
             <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
             <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
@@ -170,15 +169,9 @@ export default function UsersScreen() {
                         {p.name}
                       </Text>
                       <Text style={styles.email} numberOfLines={1}>
-                        {p.email}
+                        {p.legajo ? `Legajo ${p.legajo}` : "—"}
                       </Text>
                     </View>
-                  </View>
-
-                  <View style={{ flex: 1.4, justifyContent: "center" }}>
-                    <Text style={styles.areaText} numberOfLines={1}>
-                      {p.area}
-                    </Text>
                   </View>
 
                   <View style={{ flex: 1.1, justifyContent: "center" }}>
@@ -221,7 +214,7 @@ export default function UsersScreen() {
                         {p.name}
                       </Text>
                       <Text style={styles.email} numberOfLines={1}>
-                        {p.email}
+                        {p.legajo ? `Legajo ${p.legajo}` : "—"}
                       </Text>
                     </View>
                   </View>
@@ -331,7 +324,6 @@ function makeStyles(c: ThemeColors) {
       borderBottomColor: c.borderRow,
     },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
-    areaText: { fontSize: 13.5, color: c.textLabel },
     cardList: { gap: 10 },
     personCard: {
       backgroundColor: c.bgCard,
