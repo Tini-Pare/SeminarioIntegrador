@@ -13,18 +13,57 @@ import { getProfile, signIn, signOut } from "../auth";
 import { supabase } from "../supabase";
 
 describe("signIn", () => {
-  it("returns no error on success", async () => {
+  it("returns no error on success when user is active", async () => {
     (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({ error: null });
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "u1" } } },
+    });
+    const single = jest
+      .fn()
+      .mockResolvedValue({ data: { id: "u1", role: "user", active: true }, error: null });
+    const eq = jest.fn().mockReturnValue({ single });
+    const select = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
     const result = await signIn("a@b.com", "pw");
     expect(result.error).toBeNull();
   });
 
-  it("returns the error message on failure", async () => {
+  it("blocks login and signs out when account is disabled / inactive", async () => {
+    (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({ error: null });
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "u1" } } },
+    });
+    const single = jest
+      .fn()
+      .mockResolvedValue({ data: { id: "u1", role: "user", active: false }, error: null });
+    const eq = jest.fn().mockReturnValue({ single });
+    const select = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const result = await signIn("a@b.com", "pw");
+    expect(supabase.auth.signOut).toHaveBeenCalled();
+    expect(result.error).toBe(
+      "El usuario se encuentra inhabilitado. Comuníquese con el administrador",
+    );
+  });
+
+  it("translates invalid login credentials to Spanish on failure", async () => {
     (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
       error: { message: "Invalid login credentials" },
     });
     const result = await signIn("a@b.com", "wrong");
-    expect(result.error).toBe("Invalid login credentials");
+    expect(result.error).toBe(
+      "El usuario se encuentra inhabilitado. Comuníquese con el administrador",
+    );
+  });
+
+  it("passes through unmapped error messages as-is", async () => {
+    (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
+      error: { message: "Network connection lost" },
+    });
+    const result = await signIn("a@b.com", "pw");
+    expect(result.error).toBe("Network connection lost");
   });
 });
 

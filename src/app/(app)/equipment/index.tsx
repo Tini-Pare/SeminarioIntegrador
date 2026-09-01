@@ -2,6 +2,7 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,7 +20,6 @@ import { Tooltip } from "../../../components/Tooltip";
 import { LocationIcon, EyeIcon, PencilIcon, TrashIcon } from "../../../components/icons";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
-import { confirmDelete } from "../../../lib/confirm";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { deleteEquipment, listEquipment } from "../../../lib/queries/equipment";
 import { supabase } from "../../../lib/supabase";
@@ -50,6 +50,9 @@ export default function EquipmentScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editing, setEditing] = useState<Equipo | null>(null);
+  const [equipmentToDelete, setEquipmentToDelete] = useState<Equipo | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("location");
@@ -119,19 +122,31 @@ export default function EquipmentScreen() {
   );
 
   function handleDelete(e: Equipo) {
-    confirmDelete(
-      "Eliminar equipo",
-      `¿Eliminar "${e.name}" (${e.code})? Esta acción no se puede deshacer.`,
-      async () => {
-        try {
-          await deleteEquipment(e.id);
-          reload();
-        } catch (err) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      },
-    );
+    setEquipmentToDelete(e);
   }
+
+  async function handleConfirmDelete() {
+    if (!equipmentToDelete) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteEquipment(equipmentToDelete.id);
+      setEquipmentToDelete(null);
+      setSuccessMessage("Equipo inhabilitado con éxito");
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setEquipmentToDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(null), 4000);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
 
   if (loading) {
     return (
@@ -172,6 +187,16 @@ export default function EquipmentScreen() {
             )}
           </View>
         </View>
+
+        {successMessage && (
+          <View style={styles.successBanner}>
+            <Text style={styles.successText}>{successMessage}</Text>
+
+            <Pressable onPress={() => setSuccessMessage(null)} hitSlop={8}>
+              <Text style={styles.successClose}>✕</Text>
+            </Pressable>
+          </View>
+        )}
 
         <View style={styles.searchRow}>
           <TextInput
@@ -405,6 +430,45 @@ export default function EquipmentScreen() {
             equipment={editing}
           />
         )}
+
+        <Modal
+          visible={!!equipmentToDelete}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!deleting) setEquipmentToDelete(null);
+          }}
+        >
+          <View style={styles.overlay}>
+            <View style={styles.confirmSheet}>
+              <Text style={styles.confirmTitle}>Eliminar equipo</Text>
+
+              <Text style={styles.confirmMessage}>
+                ¿Desea eliminar el equipo "{equipmentToDelete?.name}" ({equipmentToDelete?.code})?
+              </Text>
+
+              <View style={styles.confirmActions}>
+                <Pressable
+                  style={styles.confirmCancelButton}
+                  onPress={() => setEquipmentToDelete(null)}
+                  disabled={deleting}
+                >
+                  <Text style={styles.confirmCancelText}>CANCELAR</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.confirmAcceptButton}
+                  onPress={handleConfirmDelete}
+                  disabled={deleting}
+                >
+                  <Text style={styles.confirmAcceptText}>
+                    {deleting ? "Procesando…" : "ACEPTAR"}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </>
   );
@@ -569,5 +633,62 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       justifyContent: "flex-end",
     },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.45)",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 20,
+    },
+    confirmSheet: {
+      backgroundColor: c.bgModal,
+      borderRadius: 16,
+      padding: 24,
+      width: "100%",
+      maxWidth: 420,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    confirmTitle: { fontSize: 18, fontWeight: "600", color: c.text, marginBottom: 10 },
+    confirmMessage: {
+      fontSize: 14.5,
+      lineHeight: 21,
+      color: c.textSecondary,
+      marginBottom: 24,
+    },
+    confirmActions: { flexDirection: "row", gap: 12, justifyContent: "flex-end" },
+    confirmCancelButton: {
+      flex: 1,
+      height: 42,
+      borderRadius: 10,
+      backgroundColor: c.destructive,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    confirmCancelText: { color: "#fff", fontWeight: "600", fontSize: 13.5 },
+    confirmAcceptButton: {
+      flex: 1,
+      height: 42,
+      borderRadius: 10,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    confirmAcceptText: { color: "#fff", fontWeight: "600", fontSize: 13.5 },
+    successBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: c.bgCard,
+      borderColor: c.success,
+      borderWidth: 1,
+      borderLeftWidth: 4,
+      borderRadius: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      marginBottom: 18,
+    },
+    successText: { color: c.success, fontWeight: "600", fontSize: 14 },
+    successClose: { color: c.textMuted, fontSize: 14, fontWeight: "600", paddingLeft: 8 },
   });
 }

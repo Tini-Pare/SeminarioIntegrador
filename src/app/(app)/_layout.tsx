@@ -58,6 +58,10 @@ export default function AppLayout() {
 
   useEffect(() => {
     getProfile().then((p) => {
+      if (p && !p.active) {
+        signOut().then(() => router.replace("/login"));
+        return;
+      }
       setProfile(p);
       setLoading(false);
     });

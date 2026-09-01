@@ -6,6 +6,7 @@ jest.mock("../../supabase", () => ({
 
 import {
   createEquipment,
+  deleteEquipment,
   getEquipmentById,
   listEquipment,
   updateEquipment,
@@ -237,3 +238,26 @@ describe("updateEquipment", () => {
     ).rejects.toThrow("update failed");
   });
 });
+
+describe("deleteEquipment", () => {
+  it("deletes equipo by eq_id_equipo", async () => {
+    const eq = jest.fn().mockResolvedValue({ error: null });
+    const deleteFn = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ delete: deleteFn });
+
+    await deleteEquipment(5);
+
+    expect(supabase.from).toHaveBeenCalledWith("equipo");
+    expect(deleteFn).toHaveBeenCalled();
+    expect(eq).toHaveBeenCalledWith("eq_id_equipo", 5);
+  });
+
+  it("throws when Supabase returns an error", async () => {
+    const eq = jest.fn().mockResolvedValue({ error: { message: "delete failed" } });
+    const deleteFn = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ delete: deleteFn });
+
+    await expect(deleteEquipment(5)).rejects.toThrow("delete failed");
+  });
+});
+
