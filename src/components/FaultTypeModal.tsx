@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
-import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   createFaultType,
-  deleteFaultType,
   GRAVEDAD_LABELS,
   GRAVEDAD_OPTIONS,
   normalizeGravedad,
   updateFaultType,
   type Gravedad,
 } from "../lib/queries/faultTypes";
-import type { Fallo } from "../types/database";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import type { Fallo } from "../types/database";
 
 export function FaultTypeModal({
   visible,
@@ -29,7 +28,6 @@ export function FaultTypeModal({
   const [desperfecto, setDesperfecto] = useState(fault?.fa_desperfecto ?? "");
   const [gravedad, setGravedad] = useState<Gravedad>(normalizeGravedad(fault?.fa_gravedad));
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -68,33 +66,7 @@ export function FaultTypeModal({
     }
   }
 
-  async function doDelete() {
-    if (!fault) return;
-    setDeleting(true);
-    setError(null);
-    try {
-      await deleteFaultType(fault.fa_id_fallo);
-      onSaved();
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDeleting(false);
-    }
-  }
 
-  function handleDelete() {
-    if (!fault) return;
-    const message = `¿Eliminar "${fault.fa_nombre}"? Esta acción no se puede deshacer.`;
-    if (Platform.OS === "web") {
-      if (window.confirm(message)) doDelete();
-      return;
-    }
-    Alert.alert("Eliminar falla genérica", message, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: doDelete },
-    ]);
-  }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -158,12 +130,6 @@ export function FaultTypeModal({
               <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
             </Pressable>
           </View>
-
-          {isEditing && (
-            <Pressable style={styles.deleteButton} onPress={handleDelete} disabled={deleting}>
-              <Text style={styles.deleteText}>{deleting ? "Eliminando…" : "Eliminar falla"}</Text>
-            </Pressable>
-          )}
         </View>
       </View>
     </Modal>
@@ -238,15 +204,5 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     saveText: { color: "#fff", fontWeight: "600" },
-    deleteButton: {
-      marginTop: 12,
-      height: 44,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.destructive,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    deleteText: { color: c.destructive, fontWeight: "600", fontSize: 14 },
   });
 }

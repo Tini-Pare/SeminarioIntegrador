@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
-import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import {
-  createGeneralTask,
-  deleteGeneralTask,
-  updateGeneralTask,
-} from "../lib/queries/generalTasks";
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { createGeneralTask, updateGeneralTask } from "../lib/queries/generalTasks";
 import type { TareaGeneral } from "../types/database";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
@@ -24,7 +20,6 @@ export function GeneralTaskModal({
   const [name, setName] = useState(task?.tag_nombre_tarea ?? "");
   const [description, setDescription] = useState(task?.tag_descripcion_tarea ?? "");
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -58,33 +53,7 @@ export function GeneralTaskModal({
     }
   }
 
-  async function doDelete() {
-    if (!task) return;
-    setDeleting(true);
-    setError(null);
-    try {
-      await deleteGeneralTask(task.tag_id_tarea);
-      onSaved();
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDeleting(false);
-    }
-  }
 
-  function handleDelete() {
-    if (!task) return;
-    const message = `¿Eliminar "${task.tag_nombre_tarea}"? Esta acción no se puede deshacer.`;
-    if (Platform.OS === "web") {
-      if (window.confirm(message)) doDelete();
-      return;
-    }
-    Alert.alert("Eliminar tarea general", message, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: doDelete },
-    ]);
-  }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -132,12 +101,6 @@ export function GeneralTaskModal({
               <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
             </Pressable>
           </View>
-
-          {isEditing && (
-            <Pressable style={styles.deleteButton} onPress={handleDelete} disabled={deleting}>
-              <Text style={styles.deleteText}>{deleting ? "Eliminando…" : "Eliminar tarea"}</Text>
-            </Pressable>
-          )}
         </View>
       </View>
     </Modal>
@@ -201,15 +164,5 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     saveText: { color: "#fff", fontWeight: "600" },
-    deleteButton: {
-      marginTop: 12,
-      height: 44,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.destructive,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    deleteText: { color: c.destructive, fontWeight: "600", fontSize: 14 },
   });
 }
