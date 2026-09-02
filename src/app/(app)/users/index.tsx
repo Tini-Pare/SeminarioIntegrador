@@ -190,6 +190,8 @@ export default function UsersScreen() {
                     onEdit={() => setEditing(p)}
                     onDelete={() => handleDelete(p)}
                     deleteDisabled={p.role === "admin" || isSelf}
+                    editTooltip="Editar usuario"
+                    deleteTooltip="Eliminar usuario"
                   />
                 </View>
               </View>
@@ -241,6 +243,8 @@ export default function UsersScreen() {
                     onEdit={() => setEditing(p)}
                     onDelete={() => handleDelete(p)}
                     deleteDisabled={p.role === "admin" || isSelf}
+                    editTooltip="Editar usuario"
+                    deleteTooltip="Eliminar usuario"
                   />
                 </View>
               </View>
@@ -302,23 +306,25 @@ function makeStyles(c: ThemeColors) {
     tableHeader: {
       flexDirection: "row",
       alignItems: "center",
-      padding: 14,
-      backgroundColor: c.bgTableHeader,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+      backgroundColor: c.accent,
+      borderTopLeftRadius: 13,
+      borderTopRightRadius: 13,
     },
     headerCell: {
-      fontSize: 11,
-      letterSpacing: 0.6,
+      fontSize: 11.5,
+      fontWeight: "600",
+      letterSpacing: 0.7,
       textTransform: "uppercase",
-      color: c.textMuted,
+      color: "#fff",
       fontFamily: "monospace",
     },
     actionsCol: { width: 76, flexShrink: 0, alignItems: "flex-start" },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingVertical: 10,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,

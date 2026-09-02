@@ -158,7 +158,12 @@ export default function CatalogsScreen() {
               </View>
 
               <View style={styles.actionsCol}>
-                <RowActions onEdit={() => setEditingTask(t)} onDelete={() => deleteTask(t)} />
+                <RowActions
+                  onEdit={() => setEditingTask(t)}
+                  onDelete={() => deleteTask(t)}
+                  editTooltip="Editar tarea"
+                  deleteTooltip="Eliminar tarea"
+                />
               </View>
             </View>
           ))}
@@ -219,7 +224,12 @@ export default function CatalogsScreen() {
               </View>
 
               <View style={styles.actionsCol}>
-                <RowActions onEdit={() => setEditingFault(f)} onDelete={() => deleteFault(f)} />
+                <RowActions
+                  onEdit={() => setEditingFault(f)}
+                  onDelete={() => deleteFault(f)}
+                  editTooltip="Editar falla"
+                  deleteTooltip="Eliminar falla"
+                />
               </View>
             </View>
           ))}
@@ -333,23 +343,25 @@ function makeStyles(c: ThemeColors) {
     tableHeader: {
       flexDirection: "row",
       alignItems: "center",
-      padding: 14,
-      backgroundColor: c.bgTableHeader,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+      backgroundColor: c.accent,
+      borderTopLeftRadius: 13,
+      borderTopRightRadius: 13,
     },
     headerCell: {
-      fontSize: 11,
-      letterSpacing: 0.6,
+      fontSize: 11.5,
+      fontWeight: "600",
+      letterSpacing: 0.7,
       textTransform: "uppercase",
-      color: c.textMuted,
+      color: "#fff",
       fontFamily: "monospace",
     },
     actionsCol: { width: 76, flexShrink: 0, alignItems: "flex-start" },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
       paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
