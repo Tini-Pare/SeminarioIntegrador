@@ -132,7 +132,7 @@ export default function EquipmentScreen() {
     try {
       await deleteEquipment(equipmentToDelete.id);
       setEquipmentToDelete(null);
-      setSuccessMessage("Equipo inhabilitado con éxito");
+      setSuccessMessage("Equipo eliminado con éxito");
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

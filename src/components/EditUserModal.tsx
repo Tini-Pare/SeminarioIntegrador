@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, View, Text, Pressable, Switch, TextInput, StyleSheet } from "react-native";
-import { confirmDelete } from "../lib/confirm";
-import { deleteUser, listProfiles, updateProfile } from "../lib/queries/profiles";
+import { listProfiles, updateProfile } from "../lib/queries/profiles";
 import { AutocompleteInput } from "./AutocompleteInput";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
@@ -33,7 +32,6 @@ export function EditUserModal({
   const [role, setRole] = useState<Profile["role"]>(profile.role);
   const [active, setActive] = useState(profile.active);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [existingProfiles, setExistingProfiles] = useState<Profile[]>([]);
@@ -89,28 +87,6 @@ export function EditUserModal({
     } finally {
       setSaving(false);
     }
-  }
-
-  async function doDelete() {
-    setDeleting(true);
-    setError(null);
-    try {
-      await deleteUser(profile.id);
-      onSaved();
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  function handleDelete() {
-    confirmDelete(
-      "Eliminar persona",
-      `¿Eliminar la cuenta de ${profile.name}? Esta acción no se puede deshacer.`,
-      doDelete,
-    );
   }
 
   return (
@@ -187,12 +163,6 @@ export function EditUserModal({
               <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
             </Pressable>
           </View>
-
-          {profile.role !== "admin" && (
-            <Pressable style={styles.deleteButton} onPress={handleDelete} disabled={deleting}>
-              <Text style={styles.deleteText}>{deleting ? "Eliminando…" : "Eliminar persona"}</Text>
-            </Pressable>
-          )}
         </View>
       </View>
 
@@ -302,15 +272,5 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     saveText: { color: "#fff", fontWeight: "600" },
-    deleteButton: {
-      marginTop: 12,
-      height: 44,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.destructive,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    deleteText: { color: c.destructive, fontWeight: "600", fontSize: 14 },
   });
 }

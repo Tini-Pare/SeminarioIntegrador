@@ -15,7 +15,7 @@ import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
-import { confirmDelete } from "../../../lib/confirm";
+import { useConfirm } from "../../../lib/useConfirm";
 import { deleteUser, listProfiles } from "../../../lib/queries/profiles";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
@@ -43,6 +43,7 @@ export default function UsersScreen() {
   const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const { confirm, dialog } = useConfirm();
 
   const roleMeta: Record<Profile["role"], { label: string; bg: string; fg: string }> = {
     admin: { label: "Admin", ...colors.roleAdmin },
@@ -74,10 +75,10 @@ export default function UsersScreen() {
   }
 
   function handleDelete(p: Profile) {
-    confirmDelete(
-      "Eliminar persona",
-      `¿Eliminar la cuenta de ${p.name}? Esta acción no se puede deshacer.`,
-      async () => {
+    confirm({
+      title: "Eliminar persona",
+      message: `¿Eliminar la cuenta de ${p.name}? Esta acción no se puede deshacer.`,
+      onConfirm: async () => {
         try {
           await deleteUser(p.id);
           await load();
@@ -85,7 +86,7 @@ export default function UsersScreen() {
           setError(e instanceof Error ? e.message : String(e));
         }
       },
-    );
+    });
   }
 
   const { pageItems, page, pageCount, setPage } = usePagination(profiles);
@@ -147,11 +148,7 @@ export default function UsersScreen() {
             const isSelf = p.id === currentUserId;
             return (
               <View key={p.id} style={styles.row}>
-                <Pressable
-                  style={styles.rowMain}
-                  onPress={() => setEditing(p)}
-                  accessibilityLabel={`Editar ${p.name}`}
-                >
+                <View style={styles.rowMain}>
                   <View
                     style={{
                       flex: 2.2,
@@ -183,7 +180,7 @@ export default function UsersScreen() {
                   <View style={{ flex: 1, justifyContent: "center" }}>
                     <StatusPill active={p.active} />
                   </View>
-                </Pressable>
+                </View>
 
                 <View style={styles.actionsCol}>
                   <RowActions
@@ -205,7 +202,7 @@ export default function UsersScreen() {
             const isSelf = p.id === currentUserId;
             return (
               <View key={p.id} style={styles.personCard}>
-                <Pressable onPress={() => setEditing(p)} accessibilityLabel={`Editar ${p.name}`}>
+                <View>
                   <View style={styles.personCardHeader}>
                     <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
                       <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
@@ -236,7 +233,7 @@ export default function UsersScreen() {
 
                     <StatusPill active={p.active} />
                   </View>
-                </Pressable>
+                </View>
 
                 <View style={styles.cardActions}>
                   <RowActions
@@ -266,6 +263,8 @@ export default function UsersScreen() {
       )}
 
       <InvitePersonModal visible={inviting} onClose={() => setInviting(false)} onInvited={load} />
+
+      {dialog}
     </ScrollView>
   );
 }
