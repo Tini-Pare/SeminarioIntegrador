@@ -158,7 +158,12 @@ export default function CatalogsScreen() {
               </View>
 
               <View style={styles.actionsCol}>
-                <RowActions onEdit={() => setEditingTask(t)} onDelete={() => deleteTask(t)} />
+                <RowActions
+                  onEdit={() => setEditingTask(t)}
+                  onDelete={() => deleteTask(t)}
+                  editTooltip="Editar tarea"
+                  deleteTooltip="Eliminar tarea"
+                />
               </View>
             </View>
           ))}
@@ -219,7 +224,12 @@ export default function CatalogsScreen() {
               </View>
 
               <View style={styles.actionsCol}>
-                <RowActions onEdit={() => setEditingFault(f)} onDelete={() => deleteFault(f)} />
+                <RowActions
+                  onEdit={() => setEditingFault(f)}
+                  onDelete={() => deleteFault(f)}
+                  editTooltip="Editar falla"
+                  deleteTooltip="Eliminar falla"
+                />
               </View>
             </View>
           ))}

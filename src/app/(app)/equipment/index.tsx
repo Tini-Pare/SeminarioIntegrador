@@ -431,7 +431,7 @@ function EquipmentRowActions({
             </Pressable>
           </Tooltip>
 
-          <Tooltip text="Eliminar equipo">
+          <Tooltip text="Eliminar equipo" align="right">
             <Pressable
               style={[styles.actionButton, hoverDelete && styles.actionButtonDeleteHover]}
               onPress={onDelete}

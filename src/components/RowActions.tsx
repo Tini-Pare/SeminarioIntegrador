@@ -40,7 +40,7 @@ export function RowActions({
         </Pressable>
       </Tooltip>
 
-      <Tooltip text={deleteTooltip}>
+      <Tooltip text={deleteTooltip} align="right">
         <Pressable
           style={[
             styles.button,

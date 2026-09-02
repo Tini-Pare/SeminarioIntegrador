@@ -190,6 +190,8 @@ export default function UsersScreen() {
                     onEdit={() => setEditing(p)}
                     onDelete={() => handleDelete(p)}
                     deleteDisabled={p.role === "admin" || isSelf}
+                    editTooltip="Editar usuario"
+                    deleteTooltip="Eliminar usuario"
                   />
                 </View>
               </View>
@@ -241,6 +243,8 @@ export default function UsersScreen() {
                     onEdit={() => setEditing(p)}
                     onDelete={() => handleDelete(p)}
                     deleteDisabled={p.role === "admin" || isSelf}
+                    editTooltip="Editar usuario"
+                    deleteTooltip="Eliminar usuario"
                   />
                 </View>
               </View>

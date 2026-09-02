@@ -1,9 +1,20 @@
 import React, { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
-export function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+export function Tooltip({
+  text,
+  children,
+  align = "center",
+}: {
+  text: string;
+  children: React.ReactNode;
+  // "right" keeps the tooltip from overflowing past a container that clips
+  // overflow (e.g. a table's rounded corners) when the trigger sits at the
+  // right edge, like the last action in a row of buttons.
+  align?: "center" | "right";
+}) {
   const [visible, setVisible] = useState(false);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -13,14 +24,16 @@ export function Tooltip({ text, children }: { text: string; children: React.Reac
   }
 
   return (
-    <View style={styles.container}>
-      <Pressable
-        onHoverIn={() => setVisible(true)}
-        onHoverOut={() => setVisible(false)}
-        style={styles.trigger}
-      >
-        {children}
-      </Pressable>
+    <View
+      style={[styles.container, align === "right" && styles.containerAlignRight]}
+      // @ts-expect-error onMouseEnter and onMouseLeave are supported on Web.
+      // A nested Pressable here (with onHoverIn/onHoverOut) missed hover
+      // events because its bounds exactly overlap the child button's own
+      // Pressable, so only the innermost one reliably fired.
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      {children}
 
       {visible && (
         <View style={styles.tooltip}>
@@ -38,9 +51,8 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    trigger: {
-      alignItems: "center",
-      justifyContent: "center",
+    containerAlignRight: {
+      alignItems: "flex-end",
     },
     tooltip: {
       position: "absolute",
