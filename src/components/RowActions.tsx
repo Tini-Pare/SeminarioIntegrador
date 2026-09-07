@@ -2,31 +2,52 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
-import { PencilIcon, TrashIcon } from "./icons";
+import { EyeIcon, PencilIcon, TrashIcon } from "./icons";
 import { Tooltip } from "./Tooltip";
 
 // Edit / delete buttons shown at the end of every catalog table row, so the
-// two actions are always in the same place and easy to find.
+// two actions are always in the same place and easy to find. An optional
+// view button is prepended when `onView` is given.
 export function RowActions({
+  onView,
   onEdit,
   onDelete,
   deleteDisabled = false,
+  viewTooltip = "Ver detalle",
   editTooltip = "Editar",
   deleteTooltip = "Eliminar",
 }: {
+  onView?: () => void;
   onEdit: () => void;
   onDelete: () => void;
   deleteDisabled?: boolean;
+  viewTooltip?: string;
   editTooltip?: string;
   deleteTooltip?: string;
 }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const [hoverView, setHoverView] = useState(false);
   const [hoverEdit, setHoverEdit] = useState(false);
   const [hoverDelete, setHoverDelete] = useState(false);
 
   return (
     <View style={styles.wrap}>
+      {onView && (
+        <Tooltip text={viewTooltip}>
+          <Pressable
+            style={[styles.button, hoverView && styles.buttonViewHover]}
+            onPress={onView}
+            onHoverIn={() => setHoverView(true)}
+            onHoverOut={() => setHoverView(false)}
+            hitSlop={6}
+            accessibilityLabel={viewTooltip}
+          >
+            <EyeIcon size={16} color={colors.accent} />
+          </Pressable>
+        </Tooltip>
+      )}
+
       <Tooltip text={editTooltip}>
         <Pressable
           style={[styles.button, hoverEdit && styles.buttonEditHover]}
@@ -74,6 +95,10 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1,
       borderColor: c.border,
     },
+    buttonViewHover: {
+      backgroundColor: c.eqOperational.bg,
+      borderColor: c.accent,
+    },
     buttonEditHover: {
       backgroundColor: c.eqOperational.bg,
       borderColor: c.accent,
@@ -85,4 +110,3 @@ function makeStyles(c: ThemeColors) {
     disabled: { opacity: 0.35 },
   });
 }
-

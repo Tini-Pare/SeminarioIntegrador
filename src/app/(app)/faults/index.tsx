@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { DetailModal } from "../../../components/DetailModal";
 import { FaultTypeModal } from "../../../components/FaultTypeModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
@@ -31,6 +32,7 @@ export default function FaultsScreen() {
 
   const [editingFault, setEditingFault] = useState<Fallo | null>(null);
   const [creatingFault, setCreatingFault] = useState(false);
+  const [viewingFault, setViewingFault] = useState<Fallo | null>(null);
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -128,12 +130,6 @@ export default function FaultsScreen() {
                   <Text style={styles.name} numberOfLines={1}>
                     {f.fa_nombre}
                   </Text>
-
-                  {!!f.fa_desperfecto && (
-                    <Text style={styles.desc} numberOfLines={1}>
-                      {f.fa_desperfecto}
-                    </Text>
-                  )}
                 </View>
 
                 <View style={{ flex: 1, justifyContent: "center" }}>
@@ -143,8 +139,10 @@ export default function FaultsScreen() {
 
               <View style={styles.actionsCol}>
                 <RowActions
+                  onView={() => setViewingFault(f)}
                   onEdit={() => setEditingFault(f)}
                   onDelete={() => deleteFault(f)}
+                  viewTooltip="Ver falla"
                   editTooltip="Editar falla"
                   deleteTooltip="Eliminar falla"
                 />
@@ -175,6 +173,13 @@ export default function FaultsScreen() {
         onClose={() => setCreatingFault(false)}
         onSaved={load}
         existingFaults={faults}
+      />
+
+      <DetailModal
+        visible={!!viewingFault}
+        onClose={() => setViewingFault(null)}
+        title={viewingFault?.fa_nombre ?? ""}
+        description={viewingFault?.fa_desperfecto}
       />
 
       {dialog}
@@ -232,7 +237,7 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 76, flexShrink: 0, alignItems: "flex-start" },
+    actionsCol: { width: 114, flexShrink: 0, alignItems: "flex-start" },
     row: {
       flexDirection: "row",
       alignItems: "center",
@@ -244,7 +249,6 @@ function makeStyles(c: ThemeColors) {
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
-    desc: { fontSize: 12.5, color: c.textMuted, marginTop: 3 },
     badge: {
       alignSelf: "flex-start",
       paddingHorizontal: 11,

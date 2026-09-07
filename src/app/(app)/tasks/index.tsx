@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { DetailModal } from "../../../components/DetailModal";
 import { GeneralTaskModal } from "../../../components/GeneralTaskModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
@@ -26,6 +27,7 @@ export default function TasksScreen() {
 
   const [editingTask, setEditingTask] = useState<TareaGeneral | null>(null);
   const [creatingTask, setCreatingTask] = useState(false);
+  const [viewingTask, setViewingTask] = useState<TareaGeneral | null>(null);
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -104,19 +106,15 @@ export default function TasksScreen() {
                   <Text style={styles.name} numberOfLines={1}>
                     {t.tag_nombre_tarea}
                   </Text>
-
-                  {!!t.tag_descripcion_tarea && (
-                    <Text style={styles.desc} numberOfLines={2}>
-                      {t.tag_descripcion_tarea}
-                    </Text>
-                  )}
                 </View>
               </View>
 
               <View style={styles.actionsCol}>
                 <RowActions
+                  onView={() => setViewingTask(t)}
                   onEdit={() => setEditingTask(t)}
                   onDelete={() => deleteTask(t)}
+                  viewTooltip="Ver tarea"
                   editTooltip="Editar tarea"
                   deleteTooltip="Eliminar tarea"
                 />
@@ -147,6 +145,13 @@ export default function TasksScreen() {
         onClose={() => setCreatingTask(false)}
         onSaved={load}
         existingTasks={tasks}
+      />
+
+      <DetailModal
+        visible={!!viewingTask}
+        onClose={() => setViewingTask(null)}
+        title={viewingTask?.tag_nombre_tarea ?? ""}
+        description={viewingTask?.tag_descripcion_tarea}
       />
 
       {dialog}
@@ -204,7 +209,7 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 76, flexShrink: 0, alignItems: "flex-start" },
+    actionsCol: { width: 114, flexShrink: 0, alignItems: "flex-start" },
     row: {
       flexDirection: "row",
       alignItems: "center",
@@ -216,6 +221,5 @@ function makeStyles(c: ThemeColors) {
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
-    desc: { fontSize: 12.5, color: c.textMuted, marginTop: 3 },
   });
 }
