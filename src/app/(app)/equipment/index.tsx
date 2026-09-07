@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { AddEquipmentModal } from "../../../components/AddEquipmentModal";
 import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
-import { ReportFaultModal } from "../../../components/ReportFaultModal";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { Tooltip } from "../../../components/Tooltip";
 import {
@@ -53,7 +52,6 @@ export default function EquipmentScreen() {
   const [equipment, setEquipment] = useState<Equipo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editing, setEditing] = useState<Equipo | null>(null);
   const [equipmentToDelete, setEquipmentToDelete] = useState<Equipo | null>(null);
@@ -184,17 +182,13 @@ export default function EquipmentScreen() {
             <Text style={styles.subtitle}>Estado en tiempo real de todos los equipos</Text>
           </View>
 
-          <View style={styles.headerActions}>
-            <Pressable style={styles.primaryButton} onPress={() => setModalVisible(true)}>
-              <Text style={styles.primaryButtonText}>+ Reportar falla</Text>
-            </Pressable>
-
-            {isAdmin && (
+          {isAdmin && (
+            <View style={styles.headerActions}>
               <Pressable style={styles.primaryButton} onPress={() => setAddModalVisible(true)}>
                 <Text style={styles.primaryButtonText}>+ Nuevo</Text>
               </Pressable>
-            )}
-          </View>
+            </View>
+          )}
         </View>
 
         {successMessage && (
@@ -351,13 +345,6 @@ export default function EquipmentScreen() {
             )}
           </View>
         )}
-
-        <ReportFaultModal
-          visible={modalVisible}
-          onClose={() => setModalVisible(false)}
-          onSubmitted={() => {}}
-          equipmentOptions={equipment.map(({ id, code, name }) => ({ id, code, name }))}
-        />
 
         <AddEquipmentModal
           visible={addModalVisible}

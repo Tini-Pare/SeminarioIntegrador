@@ -38,7 +38,7 @@ export function RequestList({ items }: { items: Item[] }) {
     return (
       <View style={styles.empty}>
         <Text style={styles.emptyText}>
-          No hay solicitudes todavía. Reportá una falla desde la lista de equipos.
+          No hay solicitudes todavía. Reportá una falla con el botón de arriba.
         </Text>
       </View>
     );
@@ -109,7 +109,13 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 14,
       padding: 18,
     },
-    iconWrap: { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+    iconWrap: {
+      width: 42,
+      height: 42,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     photo: { width: 42, height: 42, borderRadius: 10, backgroundColor: c.bgNested },
     row: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
     equipmentName: { fontWeight: "600", fontSize: 15, color: c.text },
