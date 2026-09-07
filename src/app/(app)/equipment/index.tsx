@@ -191,7 +191,7 @@ export default function EquipmentScreen() {
 
             {isAdmin && (
               <Pressable style={styles.primaryButton} onPress={() => setAddModalVisible(true)}>
-                <Text style={styles.primaryButtonText}>+ Nuevo equipo</Text>
+                <Text style={styles.primaryButtonText}>+ Nuevo</Text>
               </Pressable>
             )}
           </View>

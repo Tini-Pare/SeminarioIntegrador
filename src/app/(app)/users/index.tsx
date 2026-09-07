@@ -128,7 +128,7 @@ export default function UsersScreen() {
         </View>
 
         <Pressable style={styles.addButton} onPress={() => setInviting(true)}>
-          <Text style={styles.addButtonText}>+ Nueva persona</Text>
+          <Text style={styles.addButtonText}>+ Nuevo</Text>
         </Pressable>
       </View>
 

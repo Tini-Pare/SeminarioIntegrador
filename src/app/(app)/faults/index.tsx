@@ -105,7 +105,7 @@ export default function FaultsScreen() {
         </View>
 
         <Pressable style={styles.addButton} onPress={() => setCreatingFault(true)}>
-          <Text style={styles.addButtonText}>+ Nueva falla</Text>
+          <Text style={styles.addButtonText}>+ Nuevo</Text>
         </Pressable>
       </View>
 

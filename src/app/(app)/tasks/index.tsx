@@ -82,7 +82,7 @@ export default function TasksScreen() {
         </View>
 
         <Pressable style={styles.addButton} onPress={() => setCreatingTask(true)}>
-          <Text style={styles.addButtonText}>+ Nueva tarea</Text>
+          <Text style={styles.addButtonText}>+ Nuevo</Text>
         </Pressable>
       </View>
 

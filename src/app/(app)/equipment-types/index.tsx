@@ -104,7 +104,7 @@ export default function EquipmentTypesScreen() {
           </View>
 
           <Pressable style={styles.addButton} onPress={() => setCreating(true)}>
-            <Text style={styles.addButtonText}>+ Nuevo tipo</Text>
+            <Text style={styles.addButtonText}>+ Nuevo</Text>
           </Pressable>
         </View>
 
