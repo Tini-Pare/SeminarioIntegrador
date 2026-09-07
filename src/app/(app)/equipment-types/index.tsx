@@ -422,8 +422,6 @@ function TablePagination({
 }
 
 function makeStyles(c: ThemeColors) {
-  const isLight = c.bg === "#eceeea";
-
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
     center: { flex: 1 },
@@ -538,10 +536,10 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgCard,
     },
     rowZebra: {
-      backgroundColor: isLight ? "#f8f6f0" : "rgba(255, 255, 255, 0.025)",
+      backgroundColor: c.bgRowAlt,
     },
     rowHover: {
-      backgroundColor: isLight ? "#f0ede4" : "rgba(255, 255, 255, 0.05)",
+      backgroundColor: c.bgRowHover,
     },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center" },
     name: { fontWeight: "600", fontSize: 15, color: c.text },
@@ -574,7 +572,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     countBadgeZero: {
-      backgroundColor: isLight ? "#eaede6" : "rgba(255, 255, 255, 0.06)",
+      backgroundColor: c.bgNested,
     },
     countBadgeActive: {
       backgroundColor: c.eqOperational.bg,

@@ -14,6 +14,10 @@ export type ThemeColors = {
   bgMetaGrid: string;
   bgBottomBar: string;
 
+  bgRow: string;
+  bgRowAlt: string;
+  bgRowHover: string;
+
   text: string;
   textSecondary: string;
   textMuted: string;
@@ -62,47 +66,52 @@ export type ThemeColors = {
 };
 
 // Green "sobria" variant: flat surfaces with hairline borders instead of
-// shadows, color reserved for equipment/fault state. Palette mirrors the
-// Mantia web mockups.
+// shadows, color reserved for equipment/fault state. Palette follows the
+// Westwing green range — warm cream grounds instead of pure white, sage
+// for the sidebar, olive-forest green as the single action color.
 export const light: ThemeColors = {
-  bg: "#ffffff",
-  bgCard: "#fcfdfb",
-  bgInput: "#f7f9f5",
-  bgModal: "#fcfdfb",
-  bgNested: "#f5f7f2",
-  bgSidebar: "#f1f4ef",
-  bgToggle: "#e4e9e0",
-  bgToggleActive: "#fcfdfb",
-  bgTableHeader: "#eef1ea",
-  bgStatCard: "#f6f8f3",
-  bgAreaChip: "#eef1ea",
-  bgLoginPanel: "#fcfdfb",
-  bgMetaGrid: "#e4e9e0",
-  bgBottomBar: "#fcfdfb",
+  bg: "#e8e4d6",
+  bgCard: "#f3f1e8",
+  bgInput: "#edeadd",
+  bgModal: "#f3f1e8",
+  bgNested: "#e2ded0",
+  bgSidebar: "#d6dbc4",
+  bgToggle: "#d8dbc7",
+  bgToggleActive: "#f3f1e8",
+  bgTableHeader: "#e2e5d2",
+  bgStatCard: "#efede2",
+  bgAreaChip: "#e0e3d1",
+  bgLoginPanel: "#f3f1e8",
+  bgMetaGrid: "#dddfcc",
+  bgBottomBar: "#e2e5d2",
 
-  text: "#101410",
-  textSecondary: "#67705f",
-  textMuted: "#949a90",
-  textLabel: "#414a3f",
-  textSidebar: "#101410",
-  textNavInactive: "#67705f",
+  bgRow: "#f3f1e8",
+  bgRowAlt: "#e7e3d3",
+  bgRowHover: "#dedac7",
 
-  accent: "#2f7d5b",
-  heroGradient: ["#bfdfc9", "#e3f0e6", "#fafcf8"],
-  heroBlobColors: ["#cbe89f", "#4ea683"],
-  heroSecondaryButtonBg: "rgba(255,255,255,0.75)",
+  text: "#212a1e",
+  textSecondary: "#59634e",
+  textMuted: "#899077",
+  textLabel: "#3c4635",
+  textSidebar: "#212a1e",
+  textNavInactive: "#59634e",
 
-  border: "#e6ebe2",
-  borderInput: "#dbe2d6",
-  borderSidebar: "#e4e9e0",
-  borderRow: "#edf0ea",
-  borderBottom: "#e4e9e0",
+  accent: "#4f6340",
+  heroGradient: ["#c7d3b3", "#e2e8d3", "#f3f1e8"],
+  heroBlobColors: ["#9eaf86", "#4f6340"],
+  heroSecondaryButtonBg: "rgba(255,255,255,0.6)",
 
-  avatarBg: "#dcebdf",
-  avatarFg: "#2f7d5b",
+  border: "#d3d1bf",
+  borderInput: "#c6c6b1",
+  borderSidebar: "#c3c8af",
+  borderRow: "#d0cdb8",
+  borderBottom: "#c3c8af",
+
+  avatarBg: "#dce1c9",
+  avatarFg: "#4f6340",
 
   destructive: "#963924",
-  success: "#4a9b74",
+  success: "#4e7b4a",
 
   eqOperational: { bg: "#e5f1e8", fg: "#2c6a4e", dot: "#4a9b74" },
   eqWaiting: { bg: "#f7efdb", fg: "#8a5d12", dot: "#c99433" },
@@ -142,6 +151,10 @@ export const dark: ThemeColors = {
   bgLoginPanel: "#0d0f14",
   bgMetaGrid: "rgba(255,255,255,0.04)",
   bgBottomBar: "#0c0e13",
+
+  bgRow: "#14171d",
+  bgRowAlt: "#191d25",
+  bgRowHover: "rgba(255,255,255,0.055)",
 
   text: "#e8ebf2",
   textSecondary: "#8b94a3",

@@ -143,11 +143,11 @@ export default function UsersScreen() {
             <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
           </View>
 
-          {pageItems.map((p) => {
+          {pageItems.map((p, i) => {
             const rm = roleMeta[p.role];
             const isSelf = p.id === currentUserId;
             return (
-              <View key={p.id} style={styles.row}>
+              <View key={p.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
                 <View style={styles.rowMain}>
                   <View
                     style={{
@@ -328,6 +328,7 @@ function makeStyles(c: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
+    rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     cardList: { gap: 10 },
     personCard: {

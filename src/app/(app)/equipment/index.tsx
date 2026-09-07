@@ -294,12 +294,7 @@ export default function EquipmentScreen() {
             ))}
 
             {pageCount > 1 && (
-              <TablePagination
-                page={page}
-                pageCount={pageCount}
-                onPage={setPage}
-                styles={styles}
-              />
+              <TablePagination page={page} pageCount={pageCount} onPage={setPage} styles={styles} />
             )}
           </View>
         ) : (
@@ -670,8 +665,6 @@ function TablePagination({
 }
 
 function makeStyles(c: ThemeColors) {
-  const isLight = c.bg === "#eceeea";
-
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 24, paddingBottom: 48 },
@@ -838,10 +831,10 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgCard,
     },
     rowZebra: {
-      backgroundColor: isLight ? "#f8f6f0" : "rgba(255, 255, 255, 0.025)",
+      backgroundColor: c.bgRowAlt,
     },
     rowHover: {
-      backgroundColor: isLight ? "#f0ede4" : "rgba(255, 255, 255, 0.05)",
+      backgroundColor: c.bgRowHover,
     },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 15, color: c.text },
@@ -1025,4 +1018,3 @@ function makeStyles(c: ThemeColors) {
     successClose: { color: c.textMuted, fontSize: 14, fontWeight: "600", paddingLeft: 8 },
   });
 }
-

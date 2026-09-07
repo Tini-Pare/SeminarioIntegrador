@@ -97,8 +97,8 @@ export default function TasksScreen() {
             <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
           </View>
 
-          {tasksPage.pageItems.map((t) => (
-            <View key={t.tag_id_tarea} style={styles.row}>
+          {tasksPage.pageItems.map((t, i) => (
+            <View key={t.tag_id_tarea} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
               <View style={styles.rowMain}>
                 <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
                   <Text style={styles.name} numberOfLines={1}>
@@ -213,6 +213,7 @@ function makeStyles(c: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
+    rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
     desc: { fontSize: 12.5, color: c.textMuted, marginTop: 3 },

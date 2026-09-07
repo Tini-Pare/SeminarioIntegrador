@@ -121,8 +121,8 @@ export default function FaultsScreen() {
             <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
           </View>
 
-          {faultsPage.pageItems.map((f) => (
-            <View key={f.fa_id_fallo} style={styles.row}>
+          {faultsPage.pageItems.map((f, i) => (
+            <View key={f.fa_id_fallo} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
               <View style={styles.rowMain}>
                 <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
                   <Text style={styles.name} numberOfLines={1}>
@@ -241,6 +241,7 @@ function makeStyles(c: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
+    rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
     desc: { fontSize: 12.5, color: c.textMuted, marginTop: 3 },
