@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
 import { EquipmentTypeModal } from "../../../components/EquipmentTypeModal";
-import { InfoIcon, SearchIcon } from "../../../components/icons";
+import { InfoIcon } from "../../../components/icons";
 import { RowActions } from "../../../components/RowActions";
+import { SortHeaderCell } from "../../../components/SortHeaderCell";
+import { TableFilterBar } from "../../../components/TableFilterBar";
 import { BREAKPOINT } from "../../../constants";
 import { useConfirm } from "../../../lib/useConfirm";
 import { deleteEquipmentType, listEquipmentTypes } from "../../../lib/queries/equipmentTypes";
@@ -21,6 +21,7 @@ import type { EquipmentTypeWithCount } from "../../../lib/queries/equipmentTypes
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { useTableSort } from "../../../lib/useTableSort";
 
 // The row's trash icon is disabled while the record is still in use, so the
 // tooltip carries the reason -- it used to live in the edit modal.
@@ -34,6 +35,7 @@ export default function EquipmentTypesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [types, setTypes] = useState<EquipmentTypeWithCount[]>([]);
   const [search, setSearch] = useState("");
+  const [equiposFilter, setEquiposFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<EquipmentTypeWithCount | null>(null);
   const [creating, setCreating] = useState(false);
@@ -79,18 +81,33 @@ export default function EquipmentTypesScreen() {
 
   const filteredTypes = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return types;
-    return types.filter((t) => t.te_nombre.toLowerCase().includes(query));
-  }, [types, search]);
+    return types.filter((t) => {
+      const matchSearch = !query || t.te_nombre.toLowerCase().includes(query);
+      const matchEquipos =
+        !equiposFilter ||
+        (equiposFilter === "with" ? t.equipmentCount > 0 : t.equipmentCount === 0);
+      return matchSearch && matchEquipos;
+    });
+  }, [types, search, equiposFilter]);
 
-  const { pageItems, page, pageCount, setPage } = usePagination(filteredTypes, search, 8);
+  const { sorted, field, dir, toggle } = useTableSort<EquipmentTypeWithCount>(
+    filteredTypes,
+    { tipo: (t) => t.te_nombre, equipos: (t) => t.equipmentCount },
+    "tipo",
+  );
+
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    sorted,
+    `${search}|${equiposFilter}|${field}|${dir}`,
+    8,
+  );
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ padding: 20 }}
+      contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.contentWrap}>
@@ -114,39 +131,54 @@ export default function EquipmentTypesScreen() {
           <Text style={styles.empty}>Todavía no hay tipos de equipo cargados.</Text>
         ) : (
           <>
-            <View style={styles.toolbar}>
-              <View style={styles.searchBox}>
-                <SearchIcon size={16} color={colors.textMuted} />
-
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Buscar tipo de equipo..."
-                  placeholderTextColor={colors.textMuted}
-                  value={search}
-                  onChangeText={(text) => {
-                    setSearch(text);
-                    setPage(1);
-                  }}
-                />
-              </View>
-
-              <View style={styles.countBadgePill}>
+            <TableFilterBar
+              searchValue={search}
+              onSearch={setSearch}
+              searchPlaceholder="Buscar tipo de equipo…"
+              filters={[
+                {
+                  key: "equipos",
+                  label: "Equipos",
+                  value: equiposFilter,
+                  onChange: setEquiposFilter,
+                  options: [
+                    { value: "", label: "Todos" },
+                    { value: "with", label: "Con equipos" },
+                    { value: "without", label: "Sin equipos" },
+                  ],
+                },
+              ]}
+              right={
                 <Text style={styles.countBadgePillText}>
-                  {filteredTypes.length} {filteredTypes.length === 1 ? "tipo" : "tipos"}
+                  {sorted.length} {sorted.length === 1 ? "tipo" : "tipos"}
                 </Text>
-              </View>
-            </View>
+              }
+            />
 
-            {filteredTypes.length === 0 ? (
+            {sorted.length === 0 ? (
               <Text style={styles.empty}>
                 No se encontraron tipos de equipo que coincidan con la búsqueda.
               </Text>
             ) : isWide ? (
               <View style={styles.table}>
                 <View style={styles.tableHeader}>
-                  <Text style={[styles.headerCell, { flex: 2 }]}>TIPO</Text>
+                  <SortHeaderCell
+                    label="Tipo"
+                    field="tipo"
+                    activeField={field}
+                    dir={dir}
+                    onSort={toggle}
+                    style={{ flex: 2 }}
+                  />
 
-                  <Text style={[styles.headerCell, { flex: 1 }]}>EQUIPOS</Text>
+                  <SortHeaderCell
+                    label="Equipos"
+                    field="equipos"
+                    activeField={field}
+                    dir={dir}
+                    onSort={toggle}
+                    style={{ flex: 1 }}
+                  />
 
                   <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
                 </View>
@@ -424,11 +456,11 @@ function TablePagination({
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
+    content: { padding: 20 },
     center: { flex: 1 },
     contentWrap: {
-      maxWidth: 980,
       width: "100%",
-      alignSelf: "flex-start",
+      alignSelf: "stretch",
     },
     header: {
       flexDirection: "row",
@@ -436,7 +468,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
-      marginBottom: 20,
+      marginBottom: 16,
     },
     headerText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
@@ -450,46 +482,6 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     addButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-    toolbar: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      flexWrap: "wrap",
-      gap: 12,
-      marginBottom: 16,
-    },
-    searchBox: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      maxWidth: 340,
-      flexGrow: 1,
-      minWidth: 200,
-      height: 40,
-      paddingHorizontal: 12,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      borderRadius: 9,
-      backgroundColor: c.bgCard,
-    },
-    searchInput: {
-      flex: 1,
-      height: "100%",
-      fontSize: 14,
-      color: c.text,
-      padding: 0,
-      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}),
-    },
-    countBadgePill: {
-      height: 40,
-      paddingHorizontal: 14,
-      borderRadius: 9,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgCard,
-      alignItems: "center",
-      justifyContent: "center",
-    },
     countBadgePillText: {
       fontSize: 13,
       fontWeight: "500",
@@ -503,7 +495,6 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 980,
       width: "100%",
     },
     tableHeader: {
@@ -543,7 +534,7 @@ function makeStyles(c: ThemeColors) {
     },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center" },
     name: { fontWeight: "600", fontSize: 15, color: c.text },
-    cardList: { gap: 10, maxWidth: 980, width: "100%" },
+    cardList: { gap: 10, width: "100%" },
     typeCard: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -678,7 +669,6 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       gap: 7,
       marginTop: 14,
-      maxWidth: 980,
     },
     helpText: {
       fontSize: 12.5,

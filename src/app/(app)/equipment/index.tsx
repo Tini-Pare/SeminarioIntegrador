@@ -3,26 +3,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
 import { AddEquipmentModal } from "../../../components/AddEquipmentModal";
 import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
+import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { StatusBadge } from "../../../components/StatusBadge";
+import { TableFilterBar } from "../../../components/TableFilterBar";
 import { Tooltip } from "../../../components/Tooltip";
-import {
-  EyeIcon,
-  LocationIcon,
-  PencilIcon,
-  SearchIcon,
-  TrashIcon,
-} from "../../../components/icons";
+import { EyeIcon, LocationIcon, PencilIcon, TrashIcon } from "../../../components/icons";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import { buildLocationColorMap } from "../../../lib/locationColor";
@@ -31,22 +25,19 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { useTableSort } from "../../../lib/useTableSort";
 import type { Equipo, Profile } from "../../../types/database";
 
-type Filter = "all" | Equipo["status"];
-type SortBy = "location" | "code";
-
-const SORT_OPTIONS: { key: SortBy; label: string }[] = [
-  { key: "location", label: "Ubicación" },
-  { key: "code", label: "Código" },
-];
-
-const STATUS_FILTERS: { key: Filter; label: string }[] = [
-  { key: "all", label: "Todos" },
-  { key: "operational", label: "Funcionando" },
-  { key: "waiting", label: "En espera" },
-  { key: "repair", label: "En reparación" },
-];
+const STATUS_RANK: Record<Equipo["status"], number> = {
+  operational: 0,
+  waiting: 1,
+  repair: 2,
+};
+const STATUS_LABELS: Record<Equipo["status"], string> = {
+  operational: "Funcionando",
+  waiting: "En espera",
+  repair: "En reparación",
+};
 
 export default function EquipmentScreen() {
   const [equipment, setEquipment] = useState<Equipo[]>([]);
@@ -58,8 +49,9 @@ export default function EquipmentScreen() {
   const [deleting, setDeleting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [sortBy, setSortBy] = useState<SortBy>("location");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.tablet;
@@ -100,20 +92,41 @@ export default function EquipmentScreen() {
     };
   }, []);
 
-  const equipmentView = useMemo(() => {
+  const locationOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(equipment.map((e) => e.location?.trim()).filter((v): v is string => !!v)),
+    ).sort((a, b) => a.localeCompare(b, "es"));
+    return [{ value: "", label: "Todas" }, ...values.map((v) => ({ value: v, label: v }))];
+  }, [equipment]);
+
+  const typeOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(equipment.map((e) => e.type?.trim()).filter((v): v is string => !!v)),
+    ).sort((a, b) => a.localeCompare(b, "es"));
+    return [{ value: "", label: "Todos" }, ...values.map((v) => ({ value: v, label: v }))];
+  }, [equipment]);
+
+  const filteredEquipment = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const filtered = equipment.filter((e) => {
+    return equipment.filter((e) => {
       const matchQ = !q || `${e.name} ${e.code} ${e.location}`.toLowerCase().includes(q);
-      const matchF = filter === "all" || e.status === filter;
-      return matchQ && matchF;
+      const matchStatus = !statusFilter || e.status === statusFilter;
+      const matchLocation = !locationFilter || e.location?.trim() === locationFilter;
+      const matchType = !typeFilter || e.type?.trim() === typeFilter;
+      return matchQ && matchStatus && matchLocation && matchType;
     });
-    if (sortBy === "code") {
-      return [...filtered].sort((a, b) => a.code.localeCompare(b.code));
-    }
-    return [...filtered].sort(
-      (a, b) => a.location.localeCompare(b.location) || a.code.localeCompare(b.code),
-    );
-  }, [equipment, search, filter, sortBy]);
+  }, [equipment, search, statusFilter, locationFilter, typeFilter]);
+
+  const { sorted, field, dir, toggle } = useTableSort<Equipo>(
+    filteredEquipment,
+    {
+      equipo: (e) => e.name,
+      ubicacion: (e) => e.location,
+      estado: (e) => STATUS_RANK[e.status],
+      tipo: (e) => e.type,
+    },
+    "ubicacion",
+  );
 
   const locationColors = useMemo(
     () => buildLocationColorMap(equipment.map((e) => e.location)),
@@ -121,8 +134,8 @@ export default function EquipmentScreen() {
   );
 
   const { pageItems, page, pageCount, setPage } = usePagination(
-    equipmentView,
-    `${search}|${filter}|${sortBy}`,
+    sorted,
+    `${search}|${statusFilter}|${locationFilter}|${typeFilter}|${field}|${dir}`,
     8,
   );
 
@@ -201,74 +214,93 @@ export default function EquipmentScreen() {
           </View>
         )}
 
-        <View style={styles.toolbar}>
-          <View style={styles.searchBox}>
-            <SearchIcon size={16} color={colors.textMuted} />
-
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar por nombre, código o ubicación…"
-              placeholderTextColor={colors.textMuted}
-              value={search}
-              onChangeText={(text) => {
-                setSearch(text);
-                setPage(1);
-              }}
-            />
-          </View>
-
-          <View style={styles.sortToggle}>
-            {SORT_OPTIONS.map((s) => (
-              <Pressable
-                key={s.key}
-                style={[styles.sortOption, sortBy === s.key && styles.sortOptionActive]}
-                onPress={() => setSortBy(s.key)}
-              >
-                <Text
-                  style={[styles.sortOptionText, sortBy === s.key && styles.sortOptionTextActive]}
-                >
-                  {s.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={styles.countBadgePill}>
+        <TableFilterBar
+          searchValue={search}
+          onSearch={setSearch}
+          searchPlaceholder="Buscar por nombre, código o ubicación…"
+          filters={[
+            {
+              key: "estado",
+              label: "Estado",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: [
+                { value: "", label: "Todos" },
+                { value: "operational", label: STATUS_LABELS.operational },
+                { value: "waiting", label: STATUS_LABELS.waiting },
+                { value: "repair", label: STATUS_LABELS.repair },
+              ],
+            },
+            ...(locationOptions.length > 1
+              ? [
+                  {
+                    key: "ubicacion",
+                    label: "Ubicación",
+                    value: locationFilter,
+                    onChange: setLocationFilter,
+                    options: locationOptions,
+                  },
+                ]
+              : []),
+            ...(typeOptions.length > 1
+              ? [
+                  {
+                    key: "tipo",
+                    label: "Tipo",
+                    value: typeFilter,
+                    onChange: setTypeFilter,
+                    options: typeOptions,
+                  },
+                ]
+              : []),
+          ]}
+          right={
             <Text style={styles.countBadgePillText}>
-              {equipmentView.length} {equipmentView.length === 1 ? "equipo" : "equipos"}
+              {sorted.length} {sorted.length === 1 ? "equipo" : "equipos"}
             </Text>
-          </View>
-        </View>
+          }
+        />
 
-        <View style={styles.filterRow}>
-          {STATUS_FILTERS.map((f) => {
-            const active = filter === f.key;
-            return (
-              <Pressable
-                key={f.key}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-                onPress={() => setFilter(f.key)}
-              >
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                  {f.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {equipmentView.length === 0 ? (
+        {sorted.length === 0 ? (
           <Text style={styles.empty}>No hay equipos que coincidan con el filtro.</Text>
         ) : isWide ? (
           <View style={styles.table}>
             <View style={styles.tableHeader}>
-              <Text style={[styles.headerCell, { flex: 1.6 }]}>EQUIPO</Text>
+              <SortHeaderCell
+                label="Equipo"
+                field="equipo"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={{ flex: 1.6 }}
+              />
 
-              <Text style={[styles.headerCell, { flex: 1.2 }]}>UBICACIÓN</Text>
+              <SortHeaderCell
+                label="Ubicación"
+                field="ubicacion"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={{ flex: 1.2 }}
+              />
 
-              <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
+              <SortHeaderCell
+                label="Estado"
+                field="estado"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={{ flex: 1 }}
+              />
 
-              <Text style={[styles.headerCell, { flex: 1 }]}>TIPO</Text>
+              <SortHeaderCell
+                label="Tipo"
+                field="tipo"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={{ flex: 1 }}
+              />
 
               <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
             </View>
@@ -654,20 +686,20 @@ function TablePagination({
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 24, paddingBottom: 48 },
+    content: { padding: 16 },
     center: { flex: 1 },
     error: { padding: 16, color: c.destructive },
     pageHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
-      marginBottom: 20,
+      marginBottom: 12,
       gap: 12,
       flexWrap: "wrap",
     },
     headerText: { flexShrink: 1, minWidth: 0 },
-    title: { fontSize: 22, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    title: { fontSize: 19, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 2, fontSize: 13, color: c.textSecondary },
     headerActions: {
       flexDirection: "row",
       gap: 10,
@@ -677,81 +709,18 @@ function makeStyles(c: ThemeColors) {
     },
     primaryButton: {
       backgroundColor: c.accent,
-      paddingHorizontal: 22,
-      height: 46,
+      paddingHorizontal: 20,
+      height: 40,
       borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
     },
-    primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
-    toolbar: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      flexWrap: "wrap",
-      gap: 12,
-      marginBottom: 14,
-    },
-    searchBox: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      maxWidth: 340,
-      flexGrow: 1,
-      minWidth: 200,
-      height: 40,
-      paddingHorizontal: 12,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      borderRadius: 9,
-      backgroundColor: c.bgCard,
-    },
-    searchInput: {
-      flex: 1,
-      height: "100%",
-      fontSize: 14,
-      color: c.text,
-      padding: 0,
-      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}),
-    },
-    countBadgePill: {
-      height: 40,
-      paddingHorizontal: 14,
-      borderRadius: 9,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgCard,
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
     countBadgePillText: {
       fontSize: 13,
       fontWeight: "500",
       color: c.textSecondary,
     },
-    sortToggle: {
-      flexDirection: "row",
-      backgroundColor: c.bgToggle,
-      borderRadius: 9,
-      padding: 3,
-      gap: 2,
-    },
-    sortOption: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 7 },
-    sortOptionActive: { backgroundColor: c.bgToggleActive },
-    sortOptionText: { fontSize: 12.5, fontWeight: "600", color: c.textMuted },
-    sortOptionTextActive: { color: c.text },
-    filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },
-    filterChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-    },
-    filterChipActive: { backgroundColor: c.text, borderColor: c.text },
-    filterChipText: { fontSize: 12.5, fontWeight: "600", color: c.textSecondary },
-    filterChipTextActive: { color: c.bgCard },
     empty: { color: c.textMuted, fontSize: 13.5, marginTop: 8 },
     table: {
       backgroundColor: c.bgCard,
@@ -759,7 +728,6 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 1040,
       width: "100%",
     },
     tableHeader: {
@@ -810,7 +778,7 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       paddingHorizontal: 16,
-      paddingVertical: 15,
+      paddingVertical: 10,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
@@ -922,7 +890,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13,
       color: c.textMuted,
     },
-    cardList: { gap: 12, maxWidth: 1040, width: "100%" },
+    cardList: { gap: 12, width: "100%" },
     card: {
       backgroundColor: c.bgCard,
       borderWidth: 1,

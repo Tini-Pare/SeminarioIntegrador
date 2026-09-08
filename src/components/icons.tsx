@@ -275,6 +275,23 @@ export function SearchIcon({ size = 16, color = "currentColor" }: IconProps) {
   );
 }
 
+export function FunnelIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" />
+    </Svg>
+  );
+}
+
 export function InfoIcon({ size = 16, color = "currentColor" }: IconProps) {
   return (
     <Svg
@@ -293,4 +310,3 @@ export function InfoIcon({ size = 16, color = "currentColor" }: IconProps) {
     </Svg>
   );
 }
-

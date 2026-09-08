@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,8 @@ import { DetailModal } from "../../../components/DetailModal";
 import { FaultTypeModal } from "../../../components/FaultTypeModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { SortHeaderCell } from "../../../components/SortHeaderCell";
+import { TableFilterBar } from "../../../components/TableFilterBar";
 import { useConfirm } from "../../../lib/useConfirm";
 import {
   deleteFaultType,
@@ -22,13 +24,19 @@ import {
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { useTableSort } from "../../../lib/useTableSort";
 import type { Fallo } from "../../../types/database";
+
+const GRAVEDAD_RANK: Record<"low" | "medium" | "high", number> = { low: 0, medium: 1, high: 2 };
 
 export default function FaultsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [faults, setFaults] = useState<Fallo[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [gravedadFilter, setGravedadFilter] = useState("");
 
   const [editingFault, setEditingFault] = useState<Fallo | null>(null);
   const [creatingFault, setCreatingFault] = useState(false);
@@ -63,7 +71,25 @@ export default function FaultsScreen() {
     setRefreshing(false);
   }
 
-  const faultsPage = usePagination(faults, "", 8);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return faults.filter((f) => {
+      const matchSearch = !q || f.fa_nombre.toLowerCase().includes(q);
+      const matchGravedad = !gravedadFilter || normalizeGravedad(f.fa_gravedad) === gravedadFilter;
+      return matchSearch && matchGravedad;
+    });
+  }, [faults, search, gravedadFilter]);
+
+  const { sorted, field, dir, toggle } = useTableSort<Fallo>(
+    filtered,
+    {
+      nombre: (f) => f.fa_nombre,
+      gravedad: (f) => GRAVEDAD_RANK[normalizeGravedad(f.fa_gravedad)],
+    },
+    "nombre",
+  );
+
+  const faultsPage = usePagination(sorted, `${search}|${gravedadFilter}|${field}|${dir}`, 8);
 
   function deleteFault(f: Fallo) {
     confirm({
@@ -95,7 +121,7 @@ export default function FaultsScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ padding: 20 }}
+      contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.pageHeader}>
@@ -113,13 +139,58 @@ export default function FaultsScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      {faults.length === 0 ? (
-        <Text style={styles.empty}>Todavía no hay fallas genéricas cargadas.</Text>
+      <TableFilterBar
+        searchValue={search}
+        onSearch={setSearch}
+        searchPlaceholder="Buscar por nombre…"
+        filters={[
+          {
+            key: "gravedad",
+            label: "Gravedad",
+            value: gravedadFilter,
+            onChange: setGravedadFilter,
+            options: [
+              { value: "", label: "Todas" },
+              { value: "high", label: GRAVEDAD_LABELS.high },
+              { value: "medium", label: GRAVEDAD_LABELS.medium },
+              { value: "low", label: GRAVEDAD_LABELS.low },
+            ],
+          },
+        ]}
+        right={
+          <Text style={styles.count}>
+            {sorted.length} {sorted.length === 1 ? "falla" : "fallas"}
+          </Text>
+        }
+      />
+
+      {sorted.length === 0 ? (
+        <Text style={styles.empty}>
+          {faults.length === 0
+            ? "Todavía no hay fallas genéricas cargadas."
+            : "Nada coincide con la búsqueda."}
+        </Text>
       ) : (
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 2.2 }]}>FALLA</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>GRAVEDAD</Text>
+            <SortHeaderCell
+              label="Falla"
+              field="nombre"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={{ flex: 2.2 }}
+            />
+
+            <SortHeaderCell
+              label="Gravedad"
+              field="gravedad"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={{ flex: 1 }}
+            />
+
             <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
           </View>
 
@@ -190,6 +261,7 @@ export default function FaultsScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
+    content: { padding: 20 },
     center: { flex: 1 },
     pageHeader: {
       flexDirection: "row",
@@ -197,7 +269,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
-      marginBottom: 20,
+      marginBottom: 16,
     },
     sectionHeadingText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
@@ -212,6 +284,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     addButtonText: { color: "#fff", fontWeight: "600", fontSize: 13.5 },
+    count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
     empty: { color: c.textMuted, fontSize: 13.5, marginTop: 4 },
     table: {
       backgroundColor: c.bgCard,

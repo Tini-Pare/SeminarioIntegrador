@@ -7,14 +7,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
-import { InfoIcon, SearchIcon } from "../../../components/icons";
+import { InfoIcon } from "../../../components/icons";
 import { LocationModal } from "../../../components/LocationModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { SortHeaderCell } from "../../../components/SortHeaderCell";
+import { TableFilterBar } from "../../../components/TableFilterBar";
 import { BREAKPOINT } from "../../../constants";
 import { useConfirm } from "../../../lib/useConfirm";
 import { deleteLocation, listLocations } from "../../../lib/queries/locations";
@@ -22,6 +23,7 @@ import type { LocationWithCount } from "../../../lib/queries/locations";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { useTableSort } from "../../../lib/useTableSort";
 
 // The row's trash icon is disabled while the record is still in use, so the
 // tooltip carries the reason -- it used to live in the edit modal.
@@ -35,6 +37,8 @@ export default function LocationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [locations, setLocations] = useState<LocationWithCount[]>([]);
   const [search, setSearch] = useState("");
+  const [pisoFilter, setPisoFilter] = useState("");
+  const [equiposFilter, setEquiposFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<LocationWithCount | null>(null);
   const [creating, setCreating] = useState(false);
@@ -78,20 +82,49 @@ export default function LocationsScreen() {
     });
   }
 
+  const pisoOptions = useMemo(() => {
+    const pisos = Array.from(
+      new Set(locations.map((l) => l.lu_piso?.trim()).filter((p): p is string => !!p)),
+    ).sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
+    return [{ value: "", label: "Todos" }, ...pisos.map((p) => ({ value: p, label: p }))];
+  }, [locations]);
+
   const filteredLocations = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return locations;
-    return locations.filter((l) => l.lu_nombre_sector.toLowerCase().includes(query));
-  }, [locations, search]);
+    return locations.filter((l) => {
+      const matchSearch =
+        !query ||
+        l.lu_nombre_sector.toLowerCase().includes(query) ||
+        (l.lu_piso ?? "").toLowerCase().includes(query);
+      const matchPiso = !pisoFilter || l.lu_piso?.trim() === pisoFilter;
+      const matchEquipos =
+        !equiposFilter ||
+        (equiposFilter === "with" ? l.equipmentCount > 0 : l.equipmentCount === 0);
+      return matchSearch && matchPiso && matchEquipos;
+    });
+  }, [locations, search, pisoFilter, equiposFilter]);
 
-  const { pageItems, page, pageCount, setPage } = usePagination(filteredLocations);
+  const { sorted, field, dir, toggle } = useTableSort<LocationWithCount>(
+    filteredLocations,
+    {
+      sector: (l) => l.lu_nombre_sector,
+      piso: (l) => l.lu_piso,
+      equipos: (l) => l.equipmentCount,
+    },
+    "sector",
+  );
+
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    sorted,
+    `${search}|${pisoFilter}|${equiposFilter}|${field}|${dir}`,
+  );
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ padding: 20 }}
+      contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.contentWrap}>
@@ -115,42 +148,74 @@ export default function LocationsScreen() {
           <Text style={styles.empty}>Todavía no hay ubicaciones cargadas.</Text>
         ) : (
           <>
-            <View style={styles.toolbar}>
-              <View style={styles.searchBox}>
-                <SearchIcon size={16} color={colors.textMuted} />
-
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Buscar por sector..."
-                  placeholderTextColor={colors.textMuted}
-                  value={search}
-                  onChangeText={(text) => {
-                    setSearch(text);
-                    setPage(1);
-                  }}
-                />
-              </View>
-
-              <View style={styles.countBadgePill}>
+            <TableFilterBar
+              searchValue={search}
+              onSearch={setSearch}
+              searchPlaceholder="Buscar por sector o piso…"
+              filters={[
+                ...(pisoOptions.length > 1
+                  ? [
+                      {
+                        key: "piso",
+                        label: "Piso",
+                        value: pisoFilter,
+                        onChange: setPisoFilter,
+                        options: pisoOptions,
+                      },
+                    ]
+                  : []),
+                {
+                  key: "equipos",
+                  label: "Equipos",
+                  value: equiposFilter,
+                  onChange: setEquiposFilter,
+                  options: [
+                    { value: "", label: "Todas" },
+                    { value: "with", label: "Con equipos" },
+                    { value: "without", label: "Sin equipos" },
+                  ],
+                },
+              ]}
+              right={
                 <Text style={styles.countBadgePillText}>
-                  {filteredLocations.length}{" "}
-                  {filteredLocations.length === 1 ? "ubicación" : "ubicaciones"}
+                  {sorted.length} {sorted.length === 1 ? "ubicación" : "ubicaciones"}
                 </Text>
-              </View>
-            </View>
+              }
+            />
 
-            {filteredLocations.length === 0 ? (
+            {sorted.length === 0 ? (
               <Text style={styles.empty}>
                 No se encontraron ubicaciones que coincidan con la búsqueda.
               </Text>
             ) : isWide ? (
               <View style={styles.table}>
                 <View style={styles.tableHeader}>
-                  <Text style={[styles.headerCell, { flex: 2 }]}>SECTOR</Text>
+                  <SortHeaderCell
+                    label="Sector"
+                    field="sector"
+                    activeField={field}
+                    dir={dir}
+                    onSort={toggle}
+                    style={{ flex: 2 }}
+                  />
 
-                  <Text style={[styles.headerCell, { flex: 1.2 }]}>PISO</Text>
+                  <SortHeaderCell
+                    label="Piso"
+                    field="piso"
+                    activeField={field}
+                    dir={dir}
+                    onSort={toggle}
+                    style={{ flex: 1.2 }}
+                  />
 
-                  <Text style={[styles.headerCell, { flex: 1 }]}>EQUIPOS</Text>
+                  <SortHeaderCell
+                    label="Equipos"
+                    field="equipos"
+                    activeField={field}
+                    dir={dir}
+                    onSort={toggle}
+                    style={{ flex: 1 }}
+                  />
 
                   <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
                 </View>
@@ -321,11 +386,11 @@ function LocationTableRow({
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
+    content: { padding: 20 },
     center: { flex: 1 },
     contentWrap: {
-      maxWidth: 980,
       width: "100%",
-      alignSelf: "flex-start",
+      alignSelf: "stretch",
     },
     header: {
       flexDirection: "row",
@@ -333,7 +398,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
-      marginBottom: 20,
+      marginBottom: 16,
     },
     headerText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
@@ -400,7 +465,6 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 980,
       width: "100%",
     },
     tableHeader: {
@@ -441,7 +505,7 @@ function makeStyles(c: ThemeColors) {
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center" },
     name: { fontWeight: "600", fontSize: 15, color: c.text },
     floorText: { fontSize: 13.5, color: c.textSecondary, marginTop: 2 },
-    cardList: { gap: 10, maxWidth: 980, width: "100%" },
+    cardList: { gap: 10, width: "100%" },
     locationCard: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -490,7 +554,6 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       gap: 7,
       marginTop: 14,
-      maxWidth: 980,
     },
     helpText: {
       fontSize: 12.5,

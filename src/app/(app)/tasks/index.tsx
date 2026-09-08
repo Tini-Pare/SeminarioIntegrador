@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -12,11 +12,14 @@ import { DetailModal } from "../../../components/DetailModal";
 import { GeneralTaskModal } from "../../../components/GeneralTaskModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { SortHeaderCell } from "../../../components/SortHeaderCell";
+import { TableFilterBar } from "../../../components/TableFilterBar";
 import { useConfirm } from "../../../lib/useConfirm";
 import { deleteGeneralTask, listGeneralTasks } from "../../../lib/queries/generalTasks";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { useTableSort } from "../../../lib/useTableSort";
 import type { TareaGeneral } from "../../../types/database";
 
 export default function TasksScreen() {
@@ -24,6 +27,9 @@ export default function TasksScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [tasks, setTasks] = useState<TareaGeneral[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [descFilter, setDescFilter] = useState("");
 
   const [editingTask, setEditingTask] = useState<TareaGeneral | null>(null);
   const [creatingTask, setCreatingTask] = useState(false);
@@ -52,7 +58,26 @@ export default function TasksScreen() {
     setRefreshing(false);
   }
 
-  const tasksPage = usePagination(tasks, "", 8);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tasks.filter((t) => {
+      const hasDesc = !!t.tag_descripcion_tarea?.trim();
+      const matchSearch =
+        !q ||
+        t.tag_nombre_tarea.toLowerCase().includes(q) ||
+        (t.tag_descripcion_tarea ?? "").toLowerCase().includes(q);
+      const matchDesc = !descFilter || (descFilter === "with" ? hasDesc : !hasDesc);
+      return matchSearch && matchDesc;
+    });
+  }, [tasks, search, descFilter]);
+
+  const { sorted, field, dir, toggle } = useTableSort<TareaGeneral>(
+    filtered,
+    { nombre: (t) => t.tag_nombre_tarea },
+    "nombre",
+  );
+
+  const tasksPage = usePagination(sorted, `${search}|${descFilter}|${field}|${dir}`, 8);
 
   function deleteTask(t: TareaGeneral) {
     confirm({
@@ -74,7 +99,7 @@ export default function TasksScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ padding: 20 }}
+      contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.pageHeader}>
@@ -90,12 +115,48 @@ export default function TasksScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      {tasks.length === 0 ? (
-        <Text style={styles.empty}>Todavía no hay tareas generales cargadas.</Text>
+      <TableFilterBar
+        searchValue={search}
+        onSearch={setSearch}
+        searchPlaceholder="Buscar por nombre o descripción…"
+        filters={[
+          {
+            key: "desc",
+            label: "Descripción",
+            value: descFilter,
+            onChange: setDescFilter,
+            options: [
+              { value: "", label: "Todas" },
+              { value: "with", label: "Con descripción" },
+              { value: "without", label: "Sin descripción" },
+            ],
+          },
+        ]}
+        right={
+          <Text style={styles.count}>
+            {sorted.length} {sorted.length === 1 ? "tarea" : "tareas"}
+          </Text>
+        }
+      />
+
+      {sorted.length === 0 ? (
+        <Text style={styles.empty}>
+          {tasks.length === 0
+            ? "Todavía no hay tareas generales cargadas."
+            : "Nada coincide con la búsqueda."}
+        </Text>
       ) : (
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 1 }]}>TAREA</Text>
+            <SortHeaderCell
+              label="Tarea"
+              field="nombre"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={{ flex: 1 }}
+            />
+
             <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
           </View>
 
@@ -162,6 +223,7 @@ export default function TasksScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
+    content: { padding: 20 },
     center: { flex: 1 },
     pageHeader: {
       flexDirection: "row",
@@ -169,11 +231,12 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
-      marginBottom: 20,
+      marginBottom: 16,
     },
     sectionHeadingText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },
     addButton: {
       backgroundColor: c.accent,
