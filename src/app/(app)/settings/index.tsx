@@ -87,7 +87,6 @@ export default function SettingsScreen() {
 
         <View style={styles.metaGrid}>
           <MetaCell label="Rol" value={ROLE_LABELS[profile.role]} />
-          <MetaCell label="Área" value={profile.area || "—"} />
           <MetaCell label="Estado" value={profile.active ? "Activo" : "Inactivo"} />
         </View>
       </View>
@@ -96,9 +95,7 @@ export default function SettingsScreen() {
         <View style={styles.themeRow}>
           <View>
             <Text style={styles.sectionTitle}>Tema oscuro</Text>
-            <Text style={styles.themeSubtitle}>
-              {isDark ? "Activado" : "Desactivado"}
-            </Text>
+            <Text style={styles.themeSubtitle}>{isDark ? "Activado" : "Desactivado"}</Text>
           </View>
 
           <Switch
@@ -157,7 +154,9 @@ function MetaCell({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ flexGrow: 1, minWidth: 100, backgroundColor: colors.bgNested, padding: 12 }}>
       <Text style={{ fontSize: 11, color: colors.textMuted, fontWeight: "500" }}>{label}</Text>
-      <Text style={{ marginTop: 3, fontSize: 13.5, fontWeight: "600", color: colors.text }}>{value}</Text>
+      <Text style={{ marginTop: 3, fontSize: 13.5, fontWeight: "600", color: colors.text }}>
+        {value}
+      </Text>
     </View>
   );
 }

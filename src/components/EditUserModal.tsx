@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, View, Text, Pressable, Switch, TextInput, StyleSheet } from "react-native";
 import { listProfiles, updateProfile } from "../lib/queries/profiles";
-import { AutocompleteInput } from "./AutocompleteInput";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -27,7 +26,6 @@ export function EditUserModal({
   isSelf?: boolean;
 }) {
   const [name, setName] = useState(profile.name);
-  const [area, setArea] = useState(profile.area ?? "");
   const [legajo, setLegajo] = useState(profile.legajo ?? "");
   const [role, setRole] = useState<Profile["role"]>(profile.role);
   const [active, setActive] = useState(profile.active);
@@ -70,7 +68,6 @@ export function EditUserModal({
       // can never demote or deactivate themselves.
       await updateProfile(profile.id, {
         name: name.trim(),
-        area: area.trim(),
         legajo: legajoTrimmed || null,
         role: isSelf ? profile.role : role,
         active: isSelf ? profile.active : active,
@@ -112,14 +109,6 @@ export function EditUserModal({
             placeholder="Ej: 1234"
             placeholderTextColor={colors.textMuted}
             keyboardType="number-pad"
-          />
-
-          <Text style={styles.label}>Área</Text>
-          <AutocompleteInput
-            value={area}
-            onChangeText={setArea}
-            options={existingProfiles.map((p) => p.area).filter((a): a is string => !!a)}
-            placeholder="Área"
           />
 
           <Text style={styles.label}>Rol</Text>

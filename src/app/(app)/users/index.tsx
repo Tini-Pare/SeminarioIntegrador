@@ -52,7 +52,6 @@ export default function UsersScreen() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [areaFilter, setAreaFilter] = useState("");
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
@@ -103,13 +102,6 @@ export default function UsersScreen() {
     });
   }
 
-  const areaOptions = useMemo(() => {
-    const areas = Array.from(
-      new Set(profiles.map((p) => p.area?.trim()).filter((a): a is string => !!a)),
-    ).sort((a, b) => a.localeCompare(b, "es"));
-    return [{ value: "", label: "Todas" }, ...areas.map((a) => ({ value: a, label: a }))];
-  }, [profiles]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return profiles.filter((p) => {
@@ -117,10 +109,9 @@ export default function UsersScreen() {
         !q || p.name.toLowerCase().includes(q) || (p.legajo ?? "").toLowerCase().includes(q);
       const matchRole = !roleFilter || p.role === roleFilter;
       const matchStatus = !statusFilter || (statusFilter === "active" ? p.active : !p.active);
-      const matchArea = !areaFilter || p.area?.trim() === areaFilter;
-      return matchSearch && matchRole && matchStatus && matchArea;
+      return matchSearch && matchRole && matchStatus;
     });
-  }, [profiles, search, roleFilter, statusFilter, areaFilter]);
+  }, [profiles, search, roleFilter, statusFilter]);
 
   const { sorted, field, dir, toggle } = useTableSort<Profile>(
     filtered,
@@ -134,7 +125,7 @@ export default function UsersScreen() {
 
   const { pageItems, page, pageCount, setPage } = usePagination(
     sorted,
-    `${search}|${roleFilter}|${statusFilter}|${areaFilter}|${field}|${dir}`,
+    `${search}|${roleFilter}|${statusFilter}|${field}|${dir}`,
   );
 
   if (loading) return <ActivityIndicator style={styles.center} />;
@@ -208,17 +199,6 @@ export default function UsersScreen() {
               { value: "inactive", label: "Inactivo" },
             ],
           },
-          ...(areaOptions.length > 1
-            ? [
-                {
-                  key: "area",
-                  label: "Área",
-                  value: areaFilter,
-                  onChange: setAreaFilter,
-                  options: areaOptions,
-                },
-              ]
-            : []),
         ]}
         right={
           <Text style={styles.count}>
@@ -339,14 +319,6 @@ export default function UsersScreen() {
                   </View>
 
                   <View style={styles.personCardChips}>
-                    {!!p.area && (
-                      <View style={styles.areaChip}>
-                        <Text style={styles.areaChipText} numberOfLines={1}>
-                          {p.area}
-                        </Text>
-                      </View>
-                    )}
-
                     <View style={[styles.badge, { backgroundColor: rm.bg }]}>
                       <Text style={[styles.badgeText, { color: rm.fg }]}>{rm.label}</Text>
                     </View>
@@ -476,14 +448,6 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       justifyContent: "flex-end",
     },
-    areaChip: {
-      paddingHorizontal: 10,
-      paddingVertical: 3,
-      borderRadius: 999,
-      backgroundColor: c.bgAreaChip,
-      maxWidth: 160,
-    },
-    areaChipText: { fontSize: 12, color: c.textLabel, fontWeight: "500" },
     statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
     avatar: {
       width: 34,

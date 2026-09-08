@@ -13,7 +13,6 @@ export async function updateProfile(
     role?: Profile["role"];
     active?: boolean;
     name?: string;
-    area?: string;
     legajo?: string | null;
   },
 ): Promise<void> {

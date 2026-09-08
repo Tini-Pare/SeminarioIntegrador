@@ -9,7 +9,6 @@ export type ThemeColors = {
   bgToggleActive: string;
   bgTableHeader: string;
   bgStatCard: string;
-  bgAreaChip: string;
   bgLoginPanel: string;
   bgMetaGrid: string;
   bgBottomBar: string;
@@ -80,7 +79,6 @@ export const light: ThemeColors = {
   bgToggleActive: "#f3f1e8",
   bgTableHeader: "#e2e5d2",
   bgStatCard: "#efede2",
-  bgAreaChip: "#e0e3d1",
   bgLoginPanel: "#f3f1e8",
   bgMetaGrid: "#dddfcc",
   bgBottomBar: "#e2e5d2",
@@ -147,7 +145,6 @@ export const dark: ThemeColors = {
   bgToggleActive: "#1e2330",
   bgTableHeader: "#0e1017",
   bgStatCard: "#14171d",
-  bgAreaChip: "#1e2330",
   bgLoginPanel: "#0d0f14",
   bgMetaGrid: "rgba(255,255,255,0.04)",
   bgBottomBar: "#0c0e13",

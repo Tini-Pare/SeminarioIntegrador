@@ -33,7 +33,6 @@ export type Database = {
           name: string;
           email: string;
           legajo: string | null;
-          area: string | null;
           role: "admin" | "technician" | "user";
           active: boolean;
           created_at: string;
@@ -43,7 +42,6 @@ export type Database = {
           name: string;
           email: string;
           legajo?: string | null;
-          area?: string | null;
           role?: "admin" | "technician" | "user";
           active?: boolean;
           created_at?: string;
@@ -53,7 +51,6 @@ export type Database = {
           name?: string;
           email?: string;
           legajo?: string | null;
-          area?: string | null;
           role?: "admin" | "technician" | "user";
           active?: boolean;
           created_at?: string;
