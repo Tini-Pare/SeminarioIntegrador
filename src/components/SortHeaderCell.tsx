@@ -54,7 +54,15 @@ function makeStyles(_c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    arrow: { fontSize: 13, color: "#fff", fontWeight: "700" },
+    // Triangle glyphs render a hair below the text baseline; nudge them up
+    // so they line up with the label.
+    arrow: {
+      fontSize: 13,
+      color: "#fff",
+      fontWeight: "700",
+      lineHeight: 13,
+      transform: [{ translateY: -1.5 }],
+    },
     arrowInactive: { opacity: 0.55 },
   });
 }
