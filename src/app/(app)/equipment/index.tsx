@@ -740,9 +740,9 @@ function makeStyles(c: ThemeColors) {
       borderTopRightRadius: 13,
     },
     headerCell: {
-      fontSize: 11.5,
-      fontWeight: "600",
-      letterSpacing: 0.7,
+      fontSize: 13.5,
+      fontWeight: "700",
+      letterSpacing: 0.6,
       textTransform: "uppercase",
       color: "#fff",
       fontFamily: "monospace",

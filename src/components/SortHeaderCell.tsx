@@ -4,9 +4,9 @@ import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
 // A table header cell that doubles as the sort control for its column. Lives
-// inside the accent-colored header bar, so the text and arrow are white. The
-// arrow shows the current direction when this column is active, and a faint
-// up/down hint otherwise.
+// inside the accent-colored header bar, so the text and triangle are white.
+// The triangle points the current direction when this column is active, and
+// shows a dimmed hollow triangle otherwise.
 export function SortHeaderCell({
   label,
   field,
@@ -37,7 +37,7 @@ export function SortHeaderCell({
       </Text>
 
       <Text style={[styles.arrow, !active && styles.arrowInactive]}>
-        {active ? (dir === "asc" ? "↑" : "↓") : "↕"}
+        {active ? (dir === "asc" ? "▲" : "▼") : "▽"}
       </Text>
     </Pressable>
   );
@@ -45,16 +45,16 @@ export function SortHeaderCell({
 
 function makeStyles(_c: ThemeColors) {
   return StyleSheet.create({
-    cell: { flexDirection: "row", alignItems: "center", gap: 4 },
+    cell: { flexDirection: "row", alignItems: "center", gap: 5 },
     text: {
-      fontSize: 11.5,
-      fontWeight: "600",
-      letterSpacing: 0.7,
+      fontSize: 13.5,
+      fontWeight: "700",
+      letterSpacing: 0.6,
       textTransform: "uppercase",
       color: "#fff",
       fontFamily: "monospace",
     },
-    arrow: { fontSize: 11, color: "#fff", fontWeight: "700" },
-    arrowInactive: { opacity: 0.45 },
+    arrow: { fontSize: 13, color: "#fff", fontWeight: "700" },
+    arrowInactive: { opacity: 0.55 },
   });
 }
