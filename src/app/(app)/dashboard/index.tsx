@@ -13,6 +13,7 @@ import {
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { RequestList } from "../../../components/RequestList";
 import { StatusBadge } from "../../../components/StatusBadge";
+import { StatusBarChart } from "../../../components/StatusBarChart";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import { listEquipment } from "../../../lib/queries/equipment";
@@ -85,14 +86,10 @@ export default function DashboardScreen() {
   const stats = useMemo(() => {
     const byStatus = (s: Equipo["status"]) => equipment.filter((e) => e.status === s).length;
     return {
-      total: equipment.length,
       operational: byStatus("operational"),
       waiting: byStatus("waiting"),
       repair: byStatus("repair"),
       reqNew: requests.filter((r) => r.status === "new").length,
-      reqInProgress: requests.filter((r) => r.status === "assigned" || r.status === "in_progress")
-        .length,
-      reqResolved: requests.filter((r) => r.status === "resolved").length,
     };
   }, [equipment, requests]);
 
@@ -118,17 +115,10 @@ export default function DashboardScreen() {
   // Inicio is an admin overview; other roles start on the equipment list.
   if (role !== "admin") return <Redirect href="/equipment" />;
 
-  const statCards = [
-    { label: "Equipos totales", value: stats.total, color: colors.textMuted },
+  const equipmentBars = [
     { label: "Funcionando", value: stats.operational, color: colors.eqOperational.dot },
     { label: "En espera", value: stats.waiting, color: colors.eqWaiting.dot },
     { label: "En reparación", value: stats.repair, color: colors.eqRepair.dot },
-  ];
-
-  const requestCards = [
-    { label: "Solicitudes nuevas", value: stats.reqNew, color: colors.faultNew.fg },
-    { label: "En curso", value: stats.reqInProgress, color: colors.faultInProgress.fg },
-    { label: "Resueltas", value: stats.reqResolved, color: colors.faultResolved.fg },
   ];
 
   return (
@@ -140,10 +130,7 @@ export default function DashboardScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <View
-        style={styles.hero}
-        onLayout={(e) => setHeroSize(e.nativeEvent.layout)}
-      >
+      <View style={styles.hero} onLayout={(e) => setHeroSize(e.nativeEvent.layout)}>
         {isDark ? (
           <>
             <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
@@ -216,29 +203,7 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      <View style={styles.statsRow}>
-        {statCards.map((s) => (
-          <View key={s.label} style={styles.statCard}>
-            <View style={styles.statLabelRow}>
-              <View style={[styles.statDot, { backgroundColor: s.color }]} />
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-            <Text style={styles.statValue}>{s.value}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.statsRow}>
-        {requestCards.map((s) => (
-          <View key={s.label} style={styles.statCard}>
-            <View style={styles.statLabelRow}>
-              <View style={[styles.statDot, { backgroundColor: s.color }]} />
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-            <Text style={styles.statValue}>{s.value}</Text>
-          </View>
-        ))}
-      </View>
+      <StatusBarChart title="Equipos por estado" data={equipmentBars} totalLabel="en total" />
 
       <View style={isWide ? styles.columns : undefined}>
         <View style={styles.column}>
@@ -339,7 +304,13 @@ function makeStyles(c: ThemeColors) {
       color: c.accent,
       fontWeight: "600",
     },
-    heroValue: { fontSize: 30, fontWeight: "700", color: c.text, letterSpacing: -0.6, lineHeight: 36 },
+    heroValue: {
+      fontSize: 30,
+      fontWeight: "700",
+      color: c.text,
+      letterSpacing: -0.6,
+      lineHeight: 36,
+    },
     heroCopy: { fontSize: 13.5, color: c.textSecondary, lineHeight: 19 },
     heroActions: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 8 },
     primaryButton: {
@@ -360,20 +331,6 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     ghostButtonText: { color: c.text, fontWeight: "600", fontSize: 14 },
-    statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginBottom: 20 },
-    statCard: {
-      flexGrow: 1,
-      minWidth: 150,
-      backgroundColor: c.bgCard,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 12,
-      padding: 14,
-    },
-    statLabelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-    statDot: { width: 8, height: 8, borderRadius: 4 },
-    statLabel: { fontSize: 12.5, color: c.textSecondary, fontWeight: "500" },
-    statValue: { marginTop: 6, fontSize: 28, fontWeight: "600", color: c.text },
     columns: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
     column: { flex: 1, gap: 16, minWidth: 0 },
     panel: {
