@@ -25,6 +25,7 @@ export function InvitePersonModal({
   const [legajo, setLegajo] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<Profile["role"]>("user");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +33,19 @@ export function InvitePersonModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
+  const hasMismatch =
+    (confirmPassword.length > 0 && password !== confirmPassword) ||
+    error === "Las contraseñas no coinciden.";
+
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      setLegajo("");
+      setName("");
+      setPassword("");
+      setConfirmPassword("");
+      setError(null);
+      return;
+    }
     listProfiles()
       .then(setExistingProfiles)
       .catch(() => {});
@@ -41,7 +53,7 @@ export function InvitePersonModal({
 
   async function handleSubmit() {
     const legajoTrimmed = legajo.trim();
-    if (!legajoTrimmed || !name.trim() || !password.trim()) {
+    if (!legajoTrimmed || !name.trim() || !password.trim() || !confirmPassword.trim()) {
       setError("Completá legajo, nombre y contraseña.");
       return;
     }
@@ -51,6 +63,10 @@ export function InvitePersonModal({
     }
     if (password.trim().length < 6) {
       setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Las contraseñas no coinciden.");
       return;
     }
     if (existingProfiles.some((p) => p.legajo === legajoTrimmed)) {
@@ -91,7 +107,9 @@ export function InvitePersonModal({
       setLegajo("");
       setName("");
       setPassword("");
+      setConfirmPassword("");
       setRole("user");
+      setError(null);
       onInvited();
       onClose();
     } catch (e) {
@@ -106,12 +124,14 @@ export function InvitePersonModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>Nuevo usuario</Text>
+
           <Text style={styles.subtitle}>
             Se crea la cuenta ya activa con esta contraseña — compartísela a la persona por otro
             medio.
           </Text>
 
           <Text style={styles.label}>Legajo</Text>
+
           <TextInput
             style={styles.input}
             placeholder="Ej: 1234"
@@ -122,6 +142,7 @@ export function InvitePersonModal({
           />
 
           <Text style={styles.label}>Nombre</Text>
+
           <TextInput
             style={styles.input}
             placeholder="Nombre completo"
@@ -131,16 +152,41 @@ export function InvitePersonModal({
           />
 
           <Text style={styles.label}>Contraseña</Text>
+
           <TextInput
-            style={styles.input}
+            style={[styles.input, hasMismatch && styles.inputError]}
             placeholder="Mínimo 6 caracteres"
             placeholderTextColor={colors.textMuted}
             secureTextEntry
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (error === "Las contraseñas no coinciden.") {
+                setError(null);
+              }
+            }}
           />
 
+          <Text style={styles.label}>Confirmar contraseña</Text>
+
+          <TextInput
+            style={[styles.input, hasMismatch && styles.inputError]}
+            placeholder="Repetí la contraseña"
+            placeholderTextColor={colors.textMuted}
+            secureTextEntry
+            value={confirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              if (error === "Las contraseñas no coinciden.") {
+                setError(null);
+              }
+            }}
+          />
+
+          {hasMismatch && <Text style={styles.fieldError}>Las contraseñas no coinciden.</Text>}
+
           <Text style={styles.label}>Rol</Text>
+
           <View style={styles.chipsRow}>
             {ROLES.map((r) => (
               <Pressable
@@ -158,7 +204,9 @@ export function InvitePersonModal({
             ))}
           </View>
 
-          {error && <Text style={styles.error}>{error}</Text>}
+          {error && error !== "Las contraseñas no coinciden." && (
+            <Text style={styles.error}>{error}</Text>
+          )}
 
           <View style={styles.actions}>
             <Pressable style={styles.cancelButton} onPress={onClose}>
@@ -209,6 +257,14 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       backgroundColor: c.bgInput,
       color: c.text,
+    },
+    inputError: {
+      borderColor: c.destructive,
+    },
+    fieldError: {
+      color: c.destructive,
+      fontSize: 12,
+      marginTop: 4,
     },
     chipsRow: { flexDirection: "row", gap: 8 },
     chip: {
