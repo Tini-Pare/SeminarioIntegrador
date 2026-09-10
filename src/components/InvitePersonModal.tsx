@@ -105,7 +105,7 @@ export function InvitePersonModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Nueva persona</Text>
+          <Text style={styles.title}>Nuevo usuario</Text>
           <Text style={styles.subtitle}>
             Se crea la cuenta ya activa con esta contraseña — compartísela a la persona por otro
             medio.
