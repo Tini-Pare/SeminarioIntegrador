@@ -97,7 +97,7 @@ export function FaultTypeModal({
 
           <Text style={styles.subtitle}>
             {isEditing
-              ? "Editá el nombre, el desperfecto o la gravedad."
+              ? "Editá el nombre, la descripción o la gravedad."
               : "Definí un tipo de falla para clasificar las incidencias."}
           </Text>
 
@@ -112,7 +112,7 @@ export function FaultTypeModal({
             maxLength={100}
           />
 
-          <Text style={styles.label}>Desperfecto</Text>
+          <Text style={styles.label}>Descripción de la falla</Text>
 
           <TextInput
             style={[styles.input, styles.inputMultiline]}
