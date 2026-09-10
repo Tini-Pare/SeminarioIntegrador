@@ -11,6 +11,12 @@ import {
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Fallo } from "../types/database";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
+
+const GRAVEDAD_RADIO_OPTIONS: RadioOption<Gravedad>[] = GRAVEDAD_OPTIONS.map((g) => ({
+  value: g,
+  label: GRAVEDAD_LABELS[g],
+}));
 
 export function FaultTypeModal({
   visible,
@@ -83,13 +89,12 @@ export function FaultTypeModal({
     }
   }
 
-
-
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>{isEditing ? fault!.fa_nombre : "Nueva falla genérica"}</Text>
+
           <Text style={styles.subtitle}>
             {isEditing
               ? "Editá el nombre, el desperfecto o la gravedad."
@@ -97,6 +102,7 @@ export function FaultTypeModal({
           </Text>
 
           <Text style={styles.label}>Nombre</Text>
+
           <TextInput
             style={styles.input}
             value={name}
@@ -107,6 +113,7 @@ export function FaultTypeModal({
           />
 
           <Text style={styles.label}>Desperfecto</Text>
+
           <TextInput
             style={[styles.input, styles.inputMultiline]}
             value={desperfecto}
@@ -119,22 +126,13 @@ export function FaultTypeModal({
           />
 
           <Text style={styles.label}>Gravedad</Text>
-          <View style={styles.chipsRow}>
-            {GRAVEDAD_OPTIONS.map((g) => (
-              <Pressable
-                key={g}
-                style={[
-                  styles.chip,
-                  gravedad === g && { backgroundColor: colors.accent, borderColor: colors.accent },
-                ]}
-                onPress={() => setGravedad(g)}
-              >
-                <Text style={[styles.chipText, gravedad === g && styles.chipTextSelected]}>
-                  {GRAVEDAD_LABELS[g]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+
+          <RadioGroup
+            name="fault-gravedad"
+            value={gravedad}
+            onChange={setGravedad}
+            options={GRAVEDAD_RADIO_OPTIONS}
+          />
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -190,17 +188,6 @@ function makeStyles(c: ThemeColors) {
       color: c.text,
     },
     inputMultiline: { minHeight: 76, textAlignVertical: "top" },
-    chipsRow: { flexDirection: "row", gap: 8 },
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgInput,
-    },
-    chipText: { fontSize: 13, color: c.textLabel },
-    chipTextSelected: { color: "#fff", fontWeight: "600" },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 24 },
     cancelButton: {

@@ -5,13 +5,13 @@ import { listProfiles } from "../lib/queries/profiles";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
 
-const ROLES: Profile["role"][] = ["user", "technician", "admin"];
-const ROLE_LABELS: Record<Profile["role"], string> = {
-  user: "Usuario",
-  technician: "Técnico",
-  admin: "Admin",
-};
+const ROLE_OPTIONS: RadioOption<Profile["role"]>[] = [
+  { value: "user", label: "Usuario" },
+  { value: "technician", label: "Técnico" },
+  { value: "admin", label: "Admin" },
+];
 
 export function InvitePersonModal({
   visible,
@@ -187,22 +187,7 @@ export function InvitePersonModal({
 
           <Text style={styles.label}>Rol</Text>
 
-          <View style={styles.chipsRow}>
-            {ROLES.map((r) => (
-              <Pressable
-                key={r}
-                style={[
-                  styles.chip,
-                  role === r && { backgroundColor: colors.accent, borderColor: colors.accent },
-                ]}
-                onPress={() => setRole(r)}
-              >
-                <Text style={[styles.chipText, role === r && styles.chipTextActive]}>
-                  {ROLE_LABELS[r]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <RadioGroup name="user-role" value={role} onChange={setRole} options={ROLE_OPTIONS} />
 
           {error && error !== "Las contraseñas no coinciden." && (
             <Text style={styles.error}>{error}</Text>
@@ -266,17 +251,6 @@ function makeStyles(c: ThemeColors) {
       fontSize: 12,
       marginTop: 4,
     },
-    chipsRow: { flexDirection: "row", gap: 8 },
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgInput,
-    },
-    chipText: { fontSize: 13, color: c.textLabel, fontWeight: "600" },
-    chipTextActive: { color: "#fff" },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 22 },
     cancelButton: {

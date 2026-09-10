@@ -4,13 +4,13 @@ import { listProfiles, updateProfile } from "../lib/queries/profiles";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
 
-const ROLES: Profile["role"][] = ["user", "technician", "admin"];
-const ROLE_LABELS: Record<Profile["role"], string> = {
-  user: "Usuario",
-  technician: "Técnico",
-  admin: "Admin",
-};
+const ROLE_OPTIONS: RadioOption<Profile["role"]>[] = [
+  { value: "user", label: "Usuario" },
+  { value: "technician", label: "Técnico" },
+  { value: "admin", label: "Admin" },
+];
 
 export function EditUserModal({
   visible,
@@ -112,23 +112,14 @@ export function EditUserModal({
           />
 
           <Text style={styles.label}>Rol</Text>
-          <View style={[styles.chipsRow, isSelf && styles.disabled]}>
-            {ROLES.map((r) => (
-              <Pressable
-                key={r}
-                style={[
-                  styles.chip,
-                  role === r && { backgroundColor: colors.accent, borderColor: colors.accent },
-                ]}
-                onPress={() => !isSelf && setRole(r)}
-                disabled={isSelf}
-              >
-                <Text style={[styles.chipText, role === r && styles.chipTextActive]}>
-                  {ROLE_LABELS[r]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+
+          <RadioGroup
+            name="edit-user-role"
+            value={role}
+            onChange={setRole}
+            options={ROLE_OPTIONS}
+            disabled={isSelf}
+          />
 
           <View style={[styles.switchRow, isSelf && styles.disabled]}>
             <Text style={styles.label}>Activo</Text>
@@ -222,17 +213,6 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       color: c.text,
     },
-    chipsRow: { flexDirection: "row", gap: 8 },
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgInput,
-    },
-    chipText: { fontSize: 13, color: c.textLabel, fontWeight: "600" },
-    chipTextActive: { color: "#fff" },
     disabled: { opacity: 0.45 },
     selfNote: { marginTop: 10, fontSize: 12.5, color: c.textMuted },
     switchRow: {
