@@ -92,16 +92,8 @@ export function EditUserModal({
         <View style={styles.sheet}>
           <Text style={styles.title}>{profile.name}</Text>
 
-          <Text style={styles.label}>Nombre</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Nombre"
-            placeholderTextColor={colors.textMuted}
-          />
-
           <Text style={styles.label}>Legajo</Text>
+
           <TextInput
             style={styles.input}
             value={legajo}
@@ -109,6 +101,16 @@ export function EditUserModal({
             placeholder="Ej: 1234"
             placeholderTextColor={colors.textMuted}
             keyboardType="number-pad"
+          />
+
+          <Text style={styles.label}>Nombre</Text>
+
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="Nombre"
+            placeholderTextColor={colors.textMuted}
           />
 
           <Text style={styles.label}>Rol</Text>
@@ -123,6 +125,7 @@ export function EditUserModal({
 
           <View style={[styles.switchRow, isSelf && styles.disabled]}>
             <Text style={styles.label}>Activo</Text>
+
             <Switch value={active} onValueChange={setActive} disabled={isSelf} />
           </View>
 
