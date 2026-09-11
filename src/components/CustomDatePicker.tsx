@@ -87,6 +87,106 @@ export function isDateOnOrAfter(dateStr: string, minDateStr: string): boolean {
   return d1.getTime() >= d2.getTime();
 }
 
+export function formatAndValidateDateInput(
+  text: string,
+  prevValue: string,
+  minDate?: Date,
+  maxDate?: Date,
+): string | null {
+  if (text.length < prevValue.length) {
+    return text;
+  }
+
+  const cleaned = text.replace(/[^0-9/]/g, "");
+  let normalized = cleaned.replace(/\/+/g, "/");
+
+  // If digits were pasted without slashes, format automatically
+  if (!normalized.includes("/") && normalized.length > 2) {
+    if (normalized.length <= 4) {
+      normalized = `${normalized.slice(0, 2)}/${normalized.slice(2)}`;
+    } else {
+      normalized = `${normalized.slice(0, 2)}/${normalized.slice(2, 4)}/${normalized.slice(4, 8)}`;
+    }
+  }
+
+  const parts = normalized.split("/");
+  if (parts.length > 3) {
+    return null;
+  }
+
+  // 1. Validate Day (01 - 31)
+  const day = parts[0];
+  if (day.length === 1) {
+    const d1 = parseInt(day, 10);
+    if (d1 >= 4 && parts.length === 1) {
+      return `0${d1}/`;
+    }
+  } else if (day.length === 2) {
+    const dNum = parseInt(day, 10);
+    if (dNum < 1 || dNum > 31) {
+      return null;
+    }
+    if (parts.length === 1 && prevValue.length < 2) {
+      return `${day}/`;
+    }
+  } else if (day.length > 2) {
+    return null;
+  }
+
+  // 2. Validate Month (01 - 12)
+  if (parts.length >= 2) {
+    const month = parts[1];
+    if (month.length === 1) {
+      const m1 = parseInt(month, 10);
+      if (m1 >= 2 && parts.length === 2) {
+        return `${day}/0${m1}/`;
+      }
+    } else if (month.length === 2) {
+      const mNum = parseInt(month, 10);
+      if (mNum < 1 || mNum > 12) {
+        return null;
+      }
+      if (parts.length === 2 && prevValue.length < 5) {
+        return `${day}/${month}/`;
+      }
+    } else if (month.length > 2) {
+      return null;
+    }
+  }
+
+  // 3. Validate Year & min/max bounds when full date is typed
+  if (parts.length === 3) {
+    const year = parts[2];
+    if (year.length > 4) {
+      return null;
+    }
+
+    if (year.length === 4) {
+      const fullDateStr = `${day}/${parts[1]}/${year}`;
+      if (!isValidDateString(fullDateStr)) {
+        return null;
+      }
+
+      const parsed = parseDateString(fullDateStr);
+      if (!parsed) {
+        return null;
+      }
+
+      if (minDate && toDay(parsed) < toDay(minDate)) {
+        return null;
+      }
+
+      if (maxDate && toDay(parsed) > toDay(maxDate)) {
+        return null;
+      }
+
+      return fullDateStr;
+    }
+  }
+
+  return normalized;
+}
+
 export function CustomDatePicker({
   value,
   onChange,
@@ -96,6 +196,8 @@ export function CustomDatePicker({
   minDate,
   maxDate,
   maxWidth,
+  compact = false,
+  alignDropdown = "left",
 }: {
   value: string;
   onChange: (val: string) => void;
@@ -105,6 +207,8 @@ export function CustomDatePicker({
   minDate?: Date;
   maxDate?: Date;
   maxWidth?: number;
+  compact?: boolean;
+  alignDropdown?: "left" | "right";
 }) {
   const [openState, setOpenState] = useState(false);
   const controlled = onOpenChange !== undefined;
@@ -116,7 +220,7 @@ export function CustomDatePicker({
   const inputRef = useRef<View>(null);
   const { colors } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
-  const styles = makeStyles(colors, flipVertical);
+  const styles = makeStyles(colors, flipVertical, compact, alignDropdown);
 
   useEffect(() => {
     if (isOpen) {
@@ -133,21 +237,9 @@ export function CustomDatePicker({
   }, [isOpen, value]);
 
   const handleTextChange = (text: string) => {
-    let cleaned = text.replace(/[^0-9/]/g, "");
-
-    if (cleaned.length < value.length) {
-      onChange(cleaned);
-      return;
-    }
-
-    if (cleaned.length === 2 && !cleaned.includes("/")) {
-      cleaned = cleaned + "/";
-    } else if (cleaned.length === 5 && cleaned.split("/").length === 2) {
-      cleaned = cleaned + "/";
-    }
-
-    if (cleaned.length <= 10) {
-      onChange(cleaned);
+    const result = formatAndValidateDateInput(text, value, minDate, maxDate);
+    if (result !== null) {
+      onChange(result);
     }
   };
 
@@ -314,7 +406,12 @@ export function CustomDatePicker({
     </View>
   );
 }
-function makeStyles(c: ThemeColors, flipVertical: boolean) {
+function makeStyles(
+  c: ThemeColors,
+  flipVertical: boolean,
+  compact: boolean = false,
+  alignDropdown: "left" | "right" = "left",
+) {
   return StyleSheet.create({
     container: {
       position: "relative",
@@ -331,23 +428,25 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       alignItems: "center",
       borderWidth: 1,
       borderColor: c.borderInput,
-      borderRadius: 10,
-      backgroundColor: c.bgInput,
-      height: 44,
+      borderRadius: compact ? 9 : 10,
+      backgroundColor: compact ? c.bgCard : c.bgInput,
+      height: compact ? 38 : 44,
       overflow: "hidden",
     },
     input: {
       flex: 1,
       minWidth: 0,
       height: "100%",
-      paddingHorizontal: 14,
-      fontSize: 14,
+      paddingHorizontal: compact ? 10 : 14,
+      fontSize: compact ? 13.5 : 14,
       color: c.text,
+      padding: 0,
+      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
     },
     // Fixed width so the calendar button never gets squeezed out when the
     // field is narrowed.
     iconButton: {
-      width: 42,
+      width: compact ? 34 : 42,
       flexShrink: 0,
       height: "100%",
       alignItems: "center",
@@ -364,10 +463,12 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
     },
     dropdown: {
       position: "absolute",
-      top: flipVertical ? undefined : 48,
-      bottom: flipVertical ? 48 : undefined,
-      left: 0,
-      right: 0,
+      top: flipVertical ? undefined : compact ? 42 : 48,
+      bottom: flipVertical ? (compact ? 42 : 48) : undefined,
+      left: alignDropdown === "right" ? undefined : 0,
+      right: alignDropdown === "right" ? 0 : compact ? undefined : 0,
+      width: compact ? 230 : undefined,
+      minWidth: compact ? 230 : undefined,
       backgroundColor: c.bgModal,
       borderWidth: 1,
       borderColor: c.borderInput,

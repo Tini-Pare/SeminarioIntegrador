@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
-import { EyeIcon } from "../../../components/icons";
+import {
+  CustomDatePicker,
+  isValidDateString,
+  parseDateString,
+  toDbDate,
+} from "../../../components/CustomDatePicker";
+import { EyeIcon, SearchIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { PurchaseDetailModal } from "../../../components/PurchaseDetailModal";
 import { PurchaseModal } from "../../../components/PurchaseModal";
@@ -46,6 +54,10 @@ export default function PurchasesScreen() {
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<PurchaseWithDetail | null>(null);
 
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -77,18 +89,51 @@ export default function PurchasesScreen() {
     setRefreshing(false);
   }
 
+  const parsedDateFrom = useMemo(() => parseDateString(dateFrom), [dateFrom]);
+  const parsedDateTo = useMemo(() => parseDateString(dateTo), [dateTo]);
+  const hasDateFilter = dateFrom.length > 0 || dateTo.length > 0;
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const dbFrom = isValidDateString(dateFrom) ? toDbDate(dateFrom) : null;
+    const dbTo = isValidDateString(dateTo) ? toDbDate(dateTo) : null;
+
+    return purchases.filter((p) => {
+      const provName = p.proveedores?.prov_nombre?.toLowerCase() ?? "";
+      const matchSearch = !q || provName.includes(q);
+
+      let matchDate = true;
+      if (dbFrom) {
+        if (!p.co_fecha_compra || p.co_fecha_compra < dbFrom) {
+          matchDate = false;
+        }
+      }
+      if (dbTo) {
+        if (!p.co_fecha_compra || p.co_fecha_compra > dbTo) {
+          matchDate = false;
+        }
+      }
+
+      return matchSearch && matchDate;
+    });
+  }, [purchases, search, dateFrom, dateTo]);
+
   const { sorted, field, dir, toggle } = useTableSort<PurchaseWithDetail>(
-    purchases,
+    filtered,
     {
       proveedor: (p) => p.proveedores?.prov_nombre ?? "",
-      fecha: (p) => p.co_fecha_compra,
+      fecha: (p) => p.co_fecha_compra ?? "",
       total: (p) => (p.co_costo_total != null ? Number(p.co_costo_total) : 0),
     },
     "fecha",
     "desc",
   );
 
-  const { pageItems, page, pageCount, setPage } = usePagination(sorted, `${field}|${dir}`, 8);
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    sorted,
+    `${search}|${dateFrom}|${dateTo}|${field}|${dir}`,
+    8,
+  );
 
   const canRegister = suppliers.length > 0 && spareParts.some((p) => p.rep_estado === "activo");
 
@@ -133,8 +178,78 @@ export default function PurchasesScreen() {
         </View>
       )}
 
-      {purchases.length === 0 ? (
-        <Text style={styles.empty}>Todavía no hay compras registradas.</Text>
+      <View style={styles.filterBar}>
+        <View style={styles.searchBox}>
+          <SearchIcon size={15} color={colors.textMuted} />
+
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por proveedor…"
+            placeholderTextColor={colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
+            autoCorrect={false}
+          />
+
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch("")} hitSlop={8}>
+              <Text style={styles.clearSearchText}>✕</Text>
+            </Pressable>
+          )}
+        </View>
+
+        <View style={styles.dateRangeWrap}>
+          <View style={styles.dateInputWrap}>
+            <CustomDatePicker
+              value={dateFrom}
+              onChange={setDateFrom}
+              placeholder="Desde"
+              compact
+              maxDate={parsedDateTo ?? undefined}
+              alignDropdown="left"
+            />
+          </View>
+
+          <Text style={styles.dateArrow}>→</Text>
+
+          <View style={styles.dateInputWrap}>
+            <CustomDatePicker
+              value={dateTo}
+              onChange={setDateTo}
+              placeholder="Hasta"
+              compact
+              minDate={parsedDateFrom ?? undefined}
+              alignDropdown="right"
+            />
+          </View>
+
+          {hasDateFilter && (
+            <Pressable
+              style={styles.clearDateBtn}
+              onPress={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+              accessibilityLabel="Limpiar filtro de fecha"
+            >
+              <Text style={styles.clearDateText}>Limpiar</Text>
+            </Pressable>
+          )}
+        </View>
+
+        <View style={styles.spacer} />
+
+        <Text style={styles.count}>
+          {sorted.length} {sorted.length === 1 ? "compra" : "compras"}
+        </Text>
+      </View>
+
+      {sorted.length === 0 ? (
+        <Text style={styles.empty}>
+          {purchases.length === 0
+            ? "Todavía no hay compras registradas."
+            : "No hay compras que coincidan con la búsqueda o filtros."}
+        </Text>
       ) : (
         <View style={styles.table}>
           <View style={styles.tableHeader}>
@@ -144,7 +259,7 @@ export default function PurchasesScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 2 }}
+              style={{ flex: 2.2 }}
             />
 
             <SortHeaderCell
@@ -153,7 +268,7 @@ export default function PurchasesScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 1 }}
+              style={{ flex: 1.1 }}
             />
 
             <SortHeaderCell
@@ -162,7 +277,7 @@ export default function PurchasesScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 1 }}
+              style={{ flex: 1.1 }}
             />
 
             <Text style={[styles.headerCell, styles.actionsCol]}>VER</Text>
@@ -171,7 +286,7 @@ export default function PurchasesScreen() {
           {pageItems.map((p, i) => (
             <View key={p.co_id_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
               <View style={styles.rowMain}>
-                <View style={{ flex: 2, justifyContent: "center", paddingRight: 12 }}>
+                <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
                   <Text style={styles.name} numberOfLines={1}>
                     {p.proveedores?.prov_nombre ?? "Proveedor —"}
                   </Text>
@@ -182,11 +297,11 @@ export default function PurchasesScreen() {
                   </Text>
                 </View>
 
-                <View style={{ flex: 1, justifyContent: "center" }}>
+                <View style={{ flex: 1.1, justifyContent: "center" }}>
                   <Text style={styles.dateCell}>{formatDate(p.co_fecha_compra)}</Text>
                 </View>
 
-                <View style={{ flex: 1, justifyContent: "center" }}>
+                <View style={{ flex: 1.1, justifyContent: "center" }}>
                   <Text style={styles.total}>
                     {p.co_costo_total != null && Number(p.co_costo_total) > 0
                       ? `$${Number(p.co_costo_total).toLocaleString("es-AR")}`
@@ -232,7 +347,7 @@ export default function PurchasesScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
-    content: { padding: 20, maxWidth: 900 },
+    content: { padding: 20 },
     center: { flex: 1 },
     header: {
       flexDirection: "row",
@@ -264,13 +379,92 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 14,
     },
     alertText: { color: c.eqWaiting.fg, fontSize: 13, fontWeight: "600" },
-    empty: { color: c.textMuted, fontSize: 13.5, marginTop: 4 },
+    filterBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 10,
+      marginBottom: 14,
+      zIndex: 50,
+    },
+    searchBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      width: 320,
+      flexGrow: 1,
+      minWidth: 180,
+      maxWidth: 340,
+      height: 38,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 9,
+      backgroundColor: c.bgCard,
+    },
+    searchInput: {
+      flex: 1,
+      height: "100%",
+      fontSize: 13.5,
+      color: c.text,
+      padding: 0,
+      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
+    },
+    clearSearchText: {
+      fontSize: 13,
+      color: c.textMuted,
+      fontWeight: "600",
+    },
+    dateRangeWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      zIndex: 60,
+    },
+    dateInputWrap: {
+      width: 140,
+    },
+    dateArrow: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: c.textMuted,
+    },
+    clearDateBtn: {
+      height: 38,
+      paddingHorizontal: 12,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      backgroundColor: c.bgCard,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    clearDateText: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.accent,
+    },
+    spacer: {
+      flex: 1,
+      minWidth: 0,
+    },
+    count: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: c.textSecondary,
+    },
+    empty: {
+      color: c.textMuted,
+      fontSize: 13.5,
+      marginTop: 4,
+    },
     table: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
+      width: "100%",
     },
     tableHeader: {
       flexDirection: "row",
@@ -289,7 +483,7 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 52, flexShrink: 0, alignItems: "flex-start" },
+    actionsCol: { width: 56, flexShrink: 0, alignItems: "center" },
     row: {
       flexDirection: "row",
       alignItems: "center",
