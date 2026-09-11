@@ -26,10 +26,11 @@ export function StockBadge({ status }: { status: StockStatus }) {
 
 const styles = StyleSheet.create({
   badge: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     paddingVertical: 4,
     borderRadius: 999,
   },

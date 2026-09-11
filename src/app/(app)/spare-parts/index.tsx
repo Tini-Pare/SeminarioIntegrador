@@ -229,7 +229,7 @@ export default function SparePartsScreen() {
             />
 
             <SortHeaderCell
-              label="Salud"
+              label="Estado"
               field="salud"
               activeField={field}
               dir={dir}
@@ -259,7 +259,7 @@ export default function SparePartsScreen() {
                   <Text style={styles.qty}>{p.rep_cantidad_actual}</Text>
                 </View>
 
-                <View style={{ flex: 1.2, justifyContent: "center" }}>
+                <View style={{ flex: 1.2, justifyContent: "center", alignItems: "flex-start" }}>
                   <StockBadge status={stockStatus(p)} />
                 </View>
               </View>
