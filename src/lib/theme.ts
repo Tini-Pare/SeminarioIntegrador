@@ -25,7 +25,6 @@ export type ThemeColors = {
   textNavInactive: string;
 
   accent: string;
-  heroGradient: [string, string, string];
   heroBlobColors: [string, string];
   heroSecondaryButtonBg: string;
 
@@ -95,7 +94,6 @@ export const light: ThemeColors = {
   textNavInactive: "#59634e",
 
   accent: "#4f6340",
-  heroGradient: ["#c7d3b3", "#e2e8d3", "#f3f1e8"],
   heroBlobColors: ["#9eaf86", "#4f6340"],
   heroSecondaryButtonBg: "rgba(255,255,255,0.6)",
 
@@ -132,70 +130,4 @@ export const light: ThemeColors = {
   histAsignada: { dot: "#2f7d5b", bg: "#dfeae4", fg: "#2f7d5b" },
   histEnCurso: { dot: "#12706a", bg: "#dcece9", fg: "#12706a" },
   histResuelta: { dot: "#256a4e", bg: "#dcecdf", fg: "#256a4e" },
-};
-
-export const dark: ThemeColors = {
-  bg: "#0a0c10",
-  bgCard: "#14171d",
-  bgInput: "#191d24",
-  bgModal: "#15181f",
-  bgNested: "#191d24",
-  bgSidebar: "#0c0e13",
-  bgToggle: "#14171d",
-  bgToggleActive: "#1e2330",
-  bgTableHeader: "#0e1017",
-  bgStatCard: "#14171d",
-  bgLoginPanel: "#0d0f14",
-  bgMetaGrid: "rgba(255,255,255,0.04)",
-  bgBottomBar: "#0c0e13",
-
-  bgRow: "#14171d",
-  bgRowAlt: "#191d25",
-  bgRowHover: "rgba(255,255,255,0.055)",
-
-  text: "#e8ebf2",
-  textSecondary: "#8b94a3",
-  textMuted: "#6d7684",
-  textLabel: "#aab2c0",
-  textSidebar: "#e8ebf2",
-  textNavInactive: "#7b8494",
-
-  accent: "#4a9b74",
-  heroGradient: ["rgba(74,155,116,0.22)", "rgba(74,155,116,0.07)", "rgba(74,155,116,0)"],
-  heroBlobColors: ["#8fd4b0", "#2f7d5b"],
-  heroSecondaryButtonBg: "rgba(255,255,255,0.08)",
-
-  border: "rgba(255,255,255,0.07)",
-  borderInput: "rgba(255,255,255,0.09)",
-  borderSidebar: "rgba(255,255,255,0.06)",
-  borderRow: "rgba(255,255,255,0.04)",
-  borderBottom: "rgba(255,255,255,0.08)",
-
-  avatarBg: "rgba(74,155,116,0.18)",
-  avatarFg: "#8fd4b0",
-
-  destructive: "#f0876a",
-  success: "#4ade80",
-
-  eqOperational: { bg: "rgba(52,211,153,0.12)", fg: "#4ade80", dot: "#34d399" },
-  eqWaiting: { bg: "rgba(251,191,36,0.13)", fg: "#fbbf24", dot: "#fbbf24" },
-  eqRepair: { bg: "rgba(248,113,113,0.13)", fg: "#f87171", dot: "#f87171" },
-
-  faultNew: { bg: "rgba(169,201,106,0.16)", fg: "#c3dd8f" },
-  faultAssigned: { bg: "rgba(74,155,116,0.16)", fg: "#8fd4b0" },
-  faultInProgress: { bg: "rgba(45,212,191,0.13)", fg: "#5eead4" },
-  faultResolved: { bg: "rgba(52,211,153,0.12)", fg: "#4ade80" },
-
-  urgencyLow: { bg: "rgba(107,114,128,0.18)", fg: "#9ca3af" },
-  urgencyMedium: { bg: "rgba(251,191,36,0.13)", fg: "#fbbf24" },
-  urgencyHigh: { bg: "rgba(240,135,106,0.14)", fg: "#f0876a" },
-
-  roleAdmin: { bg: "rgba(74,155,116,0.16)", fg: "#8fd4b0" },
-  roleTechnician: { bg: "rgba(169,201,106,0.16)", fg: "#c3dd8f" },
-  roleUser: { bg: "rgba(107,114,128,0.18)", fg: "#a8b0a0" },
-
-  histReporte: { dot: "#c3dd8f", bg: "rgba(169,201,106,0.16)", fg: "#c3dd8f" },
-  histAsignada: { dot: "#8fd4b0", bg: "rgba(74,155,116,0.16)", fg: "#8fd4b0" },
-  histEnCurso: { dot: "#5eead4", bg: "rgba(45,212,191,0.13)", fg: "#5eead4" },
-  histResuelta: { dot: "#4ade80", bg: "rgba(52,211,153,0.12)", fg: "#4ade80" },
 };

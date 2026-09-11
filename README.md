@@ -43,6 +43,10 @@ src/
       locations/              # Ubicaciones (admin)
       requests/               # Solicitudes (admin) / Mis solicitudes (usuario)
       queue/                  # Cola de trabajo (técnico)
+      spare-parts/            # Repuestos: inventario (admin ABM) / consulta (técnico)
+      suppliers/              # Proveedores de repuestos (admin)
+      purchases/              # Compras: ingreso de stock de repuestos (admin)
+      purchase-orders/        # Pedidos de compra: alta (técnico) / aprobación (admin)
       users/                  # Usuarios y roles (admin)
       settings/               # perfil + cambiar contraseña
   components/                 # modales, cards, AutocompleteInput, AccountMenu
@@ -50,7 +54,7 @@ src/
   lib/
     supabase.ts               # cliente Supabase (lee las env vars EXPO_PUBLIC_*)
     auth.ts, faultPhoto.ts, locationColor.ts
-    ThemeContext.tsx, theme.ts # tema claro/oscuro
+    ThemeContext.tsx, theme.ts # paleta única (light) vía useTheme().colors
     queries/                  # todo el acceso a Supabase pasa por acá
     __tests__/
   types/database.ts           # tipos TS a mano, espejan el schema SQL
@@ -80,6 +84,10 @@ Las pantallas nunca llaman a `supabase.from(...)` directo — siempre pasan por 
 - **`queries/faultTypes.ts`**: CRUD de `fallo` (pantalla Fallas genéricas). `fa_gravedad` se guarda como `low`/`medium`/`high` (Spanish en la UI). Borrado con guarda de FK.
 - **`queries/faults.ts`**: reportar/asignar/avanzar fallas sobre `solicitudes` + `orden_de_trabajo`. Cada paso (reportar/asignar/iniciar/resolver) también escribe en `historial` vía `logHistorial()` — es el timeline del tab Historial.
 - **`queries/locations.ts`**: CRUD de `lugares` (pantalla Ubicaciones).
+- **`queries/spareParts.ts`**: CRUD de `repuestos` (pantalla Repuestos). `rep_cantidad_actual` solo lo mueve la RPC `registrar_compra` — el ABM nunca lo pisa. `stockStatus()` deriva `ok`/`bajo`/`agotado` de cantidad vs mínimo. Borrado con guarda de FK.
+- **`queries/suppliers.ts`**: CRUD de `proveedores` (pantalla Proveedores). El "rubro" (`tp_id`) se elige de `tipos_proveedores`, un catálogo **fijo** que se carga a mano en la BD — la app solo lo lee, no lo escribe (RLS sin insert/update).
+- **`queries/purchases.ts`**: alta de compras (pantalla Compras). `registrarCompra()` llama a la RPC `registrar_compra` — una transacción: inserta `compras` + `linea_compra` y suma cada línea a `repuestos.rep_cantidad_actual`.
+- **`queries/purchaseOrders.ts`**: pedidos de compra del técnico (pantalla Pedidos de compra). Alta (`pedido_compra` + `linea_pedido`), listado propio/todos, y `resolvePurchaseOrder()` (RPC `resolver_pedido_compra`: aprobar / rechazar / recibir).
 - **`queries/profiles.ts`**: `listProfiles`, `updateProfile`.
 - **`faultPhoto.ts`**: pick/take → `compressToWebp` (resize 1600px, webp, `data:` URI en base64) → `uploadFaultPhoto` (decode + sube a Storage). Ver nota abajo sobre por qué `data:` y no `blob:`.
 
@@ -101,6 +109,12 @@ no se corre.
   mano dejaban la secuencia atrás y el siguiente INSERT chocaba en el `*_pkey`).
 - **0008** elimina un `UNIQUE` sobrante en `fallo.fa_gravedad` (agregado a mano en
   la BD, no en migraciones) que limitaba el catálogo a 3 fallas.
+- **0009** elimina `profiles.area` (columna sin uso, sacada del código y de la BD a mano).
+- **0010** Sprint 3 (repuestos): abre las RLS de `repuestos` / `proveedores` /
+  `compras` / `pedido_compra` por rol, agrega el enum `pedido_estado_t` y los
+  campos de resolución del pedido, y las RPC `registrar_compra` (compra + líneas
+  + ingreso de stock, atómico) y `resolver_pedido_compra`. Realtime en
+  `repuestos` y `pedido_compra`.
 
 | Tabla                                   | Qué guarda                                                                                                    |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -112,11 +126,15 @@ no se corre.
 | `solicitudes`                           | Reporte inicial de falla: equipo, quién reporta, descripción, urgencia, foto, estado.                        |
 | `orden_de_trabajo`                      | Se crea cuando un técnico toma una solicitud. Responsable, tipo, fechas, estado, prioridad.                  |
 | `historial`                             | Log de eventos por equipo — se completa solo en cada paso de una falla (reportar/asignar/iniciar/resolver).  |
-| resto del schema de 0003                | Planes de mantenimiento preventivo, proveedores, compras, repuestos — **sin UI todavía**, RLS admin-only. |
+| `repuestos`                             | Inventario de repuestos. `rep_cantidad_actual` (solo lo mueve `registrar_compra`), `rep_stock_minimo`/`maximo`, `rep_estado` (`activo`\|`inactivo`). ABM Repuestos. |
+| `proveedores`, `tipos_proveedores`      | Proveedores de repuestos y su rubro (texto libre → `tipos_proveedores`). ABM Proveedores.                     |
+| `compras`, `linea_compra`               | Ingreso de stock: cada compra suma sus líneas a `repuestos.rep_cantidad_actual` (RPC `registrar_compra`, transaccional). |
+| `pedido_compra`, `linea_pedido`         | Pedido de repuestos del técnico. Estado `pendiente`\|`aprobado`\|`rechazado`\|`recibido` (RPC `resolver_pedido_compra`). |
+| resto del schema de 0003                | Planes de mantenimiento preventivo, catálogo de fallas — **sin UI todavía**, RLS admin-only. |
 
 **RLS + grants:** lectura amplia para cualquier autenticado en `equipment`/`history`/`maintenance_plan`/`profiles` (necesario para resolver nombres de otros usuarios en Historial/Solicitudes — restringir `profiles` a "uno mismo" dejaba a cualquiera que no fuera admin/technician viendo "Desconocido"). `faults` sí está restringido a dueño/asignado/admin-technician. Postgres exige `GRANT` de tabla además de la policy — sin el grant a `service_role` sobre `profiles`, las Edge Functions fallan con "Forbidden" aunque el caller sea admin real. Todo esto ya está en la migración.
 
-**Realtime:** `equipo`, `solicitudes` y `orden_de_trabajo` están en la publication `supabase_realtime`. Las pantallas abren un canal (`supabase.channel(...).on("postgres_changes", ...)`) y listo — no hay botones de refresh manual en esas pantallas.
+**Realtime:** `equipo`, `solicitudes`, `orden_de_trabajo`, `repuestos` y `pedido_compra` están en la publication `supabase_realtime`. Las pantallas abren un canal (`supabase.channel(...).on("postgres_changes", ...)`) y listo — no hay botones de refresh manual en esas pantallas.
 
 **Storage (fotos de falla):** bucket `fault-photos` (lectura pública, escritura autenticada). El flujo comprime a webp y sube en base64 en vez de `blob:` + `fetch` — Safari en iOS devuelve blobs de 0 bytes silenciosamente con ese patrón, así que se evita por completo.
 
@@ -129,8 +147,8 @@ no se corre.
 | Rol          | Qué ve/hace                                                                                             |
 | ------------ | ------------------------------------------------------------------------------------------------------- |
 | `user`       | Equipos, reportar falla, Mis solicitudes.                                                               |
-| `technician` | Equipos, reportar falla, Cola de trabajo (asignarse/avanzar estado).                                    |
-| `admin`      | Todo lo anterior + Usuarios (invitar/editar/desactivar/eliminar), Solicitudes (todas), CRUD de equipos, ABM de Ubicaciones, Tipos de equipo, Tareas generales y Fallas genéricas. |
+| `technician` | Equipos, reportar falla, Cola de trabajo (asignarse/avanzar estado), Repuestos (consulta de stock), Pedidos de compra (alta). |
+| `admin`      | Todo lo anterior + Usuarios (invitar/editar/desactivar/eliminar), Solicitudes (todas), CRUD de equipos, ABM de Ubicaciones, Tipos de equipo, Tareas generales y Fallas genéricas, ABM de Repuestos y Proveedores, Compras (ingreso de stock) y Pedidos de compra (aprobar/rechazar/recibir). |
 
 El rol se lee siempre con `getProfile()` → `profiles.role`, nunca de JWT claims. Los permisos están reforzados en RLS, no son solo UI oculta — un `user` que le pegue directo a Supabase para editar equipos recibe error de permisos igual. Un admin no puede auto-degradarse ni desactivarse a sí mismo desde Usuarios (guard explícito).
 

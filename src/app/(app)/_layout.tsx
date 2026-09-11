@@ -5,6 +5,7 @@ import {
   Animated,
   Easing,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -19,7 +20,11 @@ import {
   GeneralTaskIcon,
   HomeIcon,
   LocationIcon,
+  PurchaseIcon,
+  PurchaseOrderIcon,
   RequestsIcon,
+  SparePartIcon,
+  SupplierIcon,
   UsersIcon,
   WarningIcon,
 } from "../../components/icons";
@@ -118,11 +123,27 @@ export default function AppLayout() {
       { key: "requests", label: "Solicitudes", href: "/requests", Icon: RequestsIcon },
       { key: "faults", label: "Fallas", href: "/faults", Icon: WarningIcon },
       { key: "tasks", label: "Tareas", href: "/tasks", Icon: GeneralTaskIcon },
+      { key: "spare-parts", label: "Repuestos", href: "/spare-parts", Icon: SparePartIcon },
+      { key: "suppliers", label: "Proveedores", href: "/suppliers", Icon: SupplierIcon },
+      { key: "purchases", label: "Compras", href: "/purchases", Icon: PurchaseIcon },
+      {
+        key: "purchase-orders",
+        label: "Pedidos de compra",
+        href: "/purchase-orders",
+        Icon: PurchaseOrderIcon,
+      },
     ];
   } else if (role === "technician") {
     navItems = [
       equipmentItem,
       { key: "queue", label: "Cola de trabajo", href: "/queue", Icon: RequestsIcon },
+      { key: "spare-parts", label: "Repuestos", href: "/spare-parts", Icon: SparePartIcon },
+      {
+        key: "purchase-orders",
+        label: "Pedidos de compra",
+        href: "/purchase-orders",
+        Icon: PurchaseOrderIcon,
+      },
     ];
   } else if (role === "user") {
     navItems = [
@@ -198,7 +219,11 @@ export default function AppLayout() {
             <Text style={[styles.brandName, { color: colors.textSidebar }]}>Mantia</Text>
           </View>
 
-          <View style={styles.navList}>
+          <ScrollView
+            style={styles.navScroll}
+            contentContainerStyle={styles.navList}
+            showsVerticalScrollIndicator={false}
+          >
             {indicatorHeight != null && activeNavIndex !== -1 && (
               <Animated.View
                 pointerEvents="none"
@@ -239,7 +264,7 @@ export default function AppLayout() {
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
 
           <View style={[styles.sidebarFooter, { borderTopColor: colors.borderSidebar }]}>
             <View style={{ position: "relative" }}>
@@ -366,6 +391,7 @@ const styles = StyleSheet.create({
   sidebar: { width: 250, padding: 16, paddingTop: 20 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 8 },
   brandName: { fontWeight: "600", fontSize: 17 },
+  navScroll: { flex: 1 },
   navList: { gap: 3, paddingTop: 16, position: "relative" },
   navItem: {
     flexDirection: "row",
@@ -389,7 +415,7 @@ const styles = StyleSheet.create({
   },
   navItemText: { fontSize: 14, fontWeight: "500" },
   navItemTextActive: { fontWeight: "700" },
-  sidebarFooter: { marginTop: "auto", paddingTop: 16, borderTopWidth: 1 },
+  sidebarFooter: { paddingTop: 16, borderTopWidth: 1 },
   userRow: { flexDirection: "row", alignItems: "center", gap: 11, padding: 8 },
   avatar: {
     width: 36,

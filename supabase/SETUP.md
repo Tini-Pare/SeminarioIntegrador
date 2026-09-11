@@ -23,6 +23,13 @@ SQL Editor → run, in order:
    solicitudes, orden_de_trabajo, historial, plus the rest of the schema
    with no UI yet). Creates the `sync_equipo_estado` function, its RLS
    policies, and Realtime on `equipo`/`solicitudes`/`orden_de_trabajo`.
+3. `migrations/0004_login_por_legajo.sql` through
+   `migrations/0010_sprint3_repuestos_compras.sql`, **in numeric order**
+   (0002 stays skipped). These are incremental: login by legajo, unique
+   indexes on the fault/task catalogs, identity-sequence resync, a couple
+   of dropped columns, and — 0010 — the RLS/columns/RPCs that turn the
+   `repuestos`/`proveedores`/`compras`/`pedido_compra` tables into the
+   Repuestos / Proveedores / Compras / Pedidos de compra screens.
 
 Do **not** run `migrations/0002_gestion_mantenimiento.sql` — it's the raw
 reference model 0003 was adapted from (no RLS, no Supabase Auth wiring,
@@ -118,6 +125,7 @@ values ('<uid-from-step-3>', 'Your Name', '1@legajo.mantia.internal', '1', 'admi
 
 That's the full rebuild. No other manual Supabase configuration is
 required — RLS, grants, and both Edge Functions are the only
-project-specific state, and all three are captured above (see 0003's
-comments for what's schema-complete-but-no-UI-yet: proveedores, compras,
-repuestos, planes de mantenimiento preventivo, catálogo de fallas).
+project-specific state, and all three are captured above. Still
+schema-complete-but-no-UI-yet after 0010: planes de mantenimiento
+preventivo and the fault catalog (`fallo`) — everything else in the
+`repuestos`/compras area now has screens (see 0010's header comment).

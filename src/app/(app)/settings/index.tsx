@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ScrollView, View, Text, Pressable, TextInput, StyleSheet, Switch } from "react-native";
+import { ScrollView, View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { changePassword, getProfile, signOut } from "../../../lib/auth";
 import { BackIcon } from "../../../components/icons";
@@ -29,7 +29,7 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const { colors, isDark, toggleTheme } = useTheme();
+  const { colors } = useTheme();
   const styles = makeStyles(colors);
 
   useEffect(() => {
@@ -88,22 +88,6 @@ export default function SettingsScreen() {
         <View style={styles.metaGrid}>
           <MetaCell label="Rol" value={ROLE_LABELS[profile.role]} />
           <MetaCell label="Estado" value={profile.active ? "Activo" : "Inactivo"} />
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.themeRow}>
-          <View>
-            <Text style={styles.sectionTitle}>Tema oscuro</Text>
-            <Text style={styles.themeSubtitle}>{isDark ? "Activado" : "Desactivado"}</Text>
-          </View>
-
-          <Switch
-            value={isDark}
-            onValueChange={toggleTheme}
-            trackColor={{ false: colors.bgToggle, true: colors.accent }}
-            thumbColor={colors.bgToggleActive}
-          />
         </View>
       </View>
 
@@ -200,13 +184,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 12,
       overflow: "hidden",
     },
-    themeRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
     sectionTitle: { fontSize: 14, fontWeight: "600", color: c.text, marginBottom: 4 },
-    themeSubtitle: { fontSize: 12.5, color: c.textMuted },
     input: {
       height: 42,
       paddingHorizontal: 12,

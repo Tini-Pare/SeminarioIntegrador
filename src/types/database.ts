@@ -7,8 +7,10 @@
 //
 // Only tables the app's query layer actually calls `.from()` on are declared
 // here (profiles, lugares, tipos_de_equipos, equipo, solicitudes,
-// orden_de_trabajo, historial) — the rest of the schema (proveedores, compras,
-// repuestos, planes de mantenimiento, catalogo de fallas, etc., see
+// orden_de_trabajo, historial, plus the Sprint 3 consumibles tables:
+// repuestos, tipos_proveedores, proveedores, compras, linea_compra,
+// pedido_compra, linea_pedido) — the rest of the schema (planes de
+// mantenimiento, catalogo de fallas, etc., see
 // supabase/migrations/0003_reemplazo_gestion_mantenimiento.sql) has no UI yet
 // and nothing here queries it.
 export type Database = {
@@ -22,6 +24,25 @@ export type Database = {
       email_for_legajo: {
         Args: { p_legajo: string };
         Returns: string;
+      };
+      registrar_compra: {
+        Args: {
+          p_prov_id_proveedor: number;
+          p_co_nombre: string | null;
+          p_co_fecha_compra: string | null;
+          p_co_garantia: string | null;
+          p_lineas: {
+            rep_id: number;
+            cantidad: number;
+            costo_unitario: number | null;
+          }[];
+          p_ped_id_ped_compra?: number | null;
+        };
+        Returns: number;
+      };
+      resolver_pedido_compra: {
+        Args: { p_ped_id: number; p_estado: string; p_motivo?: string | null };
+        Returns: void;
       };
     };
     Enums: Record<string, never>;
@@ -301,6 +322,228 @@ export type Database = {
         };
         Relationships: [];
       };
+      repuestos: {
+        Row: {
+          rep_id: number;
+          rep_nombre: string;
+          rep_cantidad_actual: number;
+          rep_stock_minimo: number;
+          rep_stock_maximo: number | null;
+          rep_estado: "activo" | "inactivo";
+        };
+        Insert: {
+          rep_id?: number;
+          rep_nombre: string;
+          rep_cantidad_actual?: number;
+          rep_stock_minimo?: number;
+          rep_stock_maximo?: number | null;
+          rep_estado?: "activo" | "inactivo";
+        };
+        Update: {
+          rep_id?: number;
+          rep_nombre?: string;
+          rep_cantidad_actual?: number;
+          rep_stock_minimo?: number;
+          rep_stock_maximo?: number | null;
+          rep_estado?: "activo" | "inactivo";
+        };
+        Relationships: [];
+      };
+      tipos_proveedores: {
+        Row: { tp_id: number; tp_nombre_rubro: string; tp_descripcion: string | null };
+        Insert: { tp_id?: number; tp_nombre_rubro: string; tp_descripcion?: string | null };
+        Update: { tp_id?: number; tp_nombre_rubro?: string; tp_descripcion?: string | null };
+        Relationships: [];
+      };
+      proveedores: {
+        Row: {
+          prov_id_proveedor: number;
+          tp_id: number | null;
+          prov_nombre: string;
+          prov_telefono: string | null;
+          prov_correo: string | null;
+        };
+        Insert: {
+          prov_id_proveedor?: number;
+          tp_id?: number | null;
+          prov_nombre: string;
+          prov_telefono?: string | null;
+          prov_correo?: string | null;
+        };
+        Update: {
+          prov_id_proveedor?: number;
+          tp_id?: number | null;
+          prov_nombre?: string;
+          prov_telefono?: string | null;
+          prov_correo?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "proveedores_tp_id_fkey";
+            columns: ["tp_id"];
+            isOneToOne: false;
+            referencedRelation: "tipos_proveedores";
+            referencedColumns: ["tp_id"];
+          },
+        ];
+      };
+      compras: {
+        Row: {
+          co_id_compra: number;
+          prov_id_proveedor: number;
+          co_garantia: string | null;
+          co_nombre: string | null;
+          co_fecha_compra: string | null;
+          co_costo_total: number | null;
+          co_p_id_registrador: string | null;
+        };
+        Insert: {
+          co_id_compra?: number;
+          prov_id_proveedor: number;
+          co_garantia?: string | null;
+          co_nombre?: string | null;
+          co_fecha_compra?: string | null;
+          co_costo_total?: number | null;
+          co_p_id_registrador?: string | null;
+        };
+        Update: {
+          co_id_compra?: number;
+          prov_id_proveedor?: number;
+          co_garantia?: string | null;
+          co_nombre?: string | null;
+          co_fecha_compra?: string | null;
+          co_costo_total?: number | null;
+          co_p_id_registrador?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "compras_prov_id_proveedor_fkey";
+            columns: ["prov_id_proveedor"];
+            isOneToOne: false;
+            referencedRelation: "proveedores";
+            referencedColumns: ["prov_id_proveedor"];
+          },
+        ];
+      };
+      linea_compra: {
+        Row: {
+          co_id_compra: number;
+          rep_id: number;
+          lc_nro_linea: number | null;
+          lc_cantidad: number | null;
+          lc_costo_unitario: number | null;
+        };
+        Insert: {
+          co_id_compra: number;
+          rep_id: number;
+          lc_nro_linea?: number | null;
+          lc_cantidad?: number | null;
+          lc_costo_unitario?: number | null;
+        };
+        Update: {
+          co_id_compra?: number;
+          rep_id?: number;
+          lc_nro_linea?: number | null;
+          lc_cantidad?: number | null;
+          lc_costo_unitario?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "linea_compra_co_id_compra_fkey";
+            columns: ["co_id_compra"];
+            isOneToOne: false;
+            referencedRelation: "compras";
+            referencedColumns: ["co_id_compra"];
+          },
+          {
+            foreignKeyName: "linea_compra_rep_id_fkey";
+            columns: ["rep_id"];
+            isOneToOne: false;
+            referencedRelation: "repuestos";
+            referencedColumns: ["rep_id"];
+          },
+        ];
+      };
+      pedido_compra: {
+        Row: {
+          ped_id_ped_compra: number;
+          p_id_tecnico: string;
+          co_id_compra: number | null;
+          ped_fecha_solicitud: string | null;
+          ped_estado: "pendiente" | "aprobado" | "rechazado" | "recibido";
+          ped_observacion: string | null;
+          ped_motivo_rechazo: string | null;
+          ped_p_id_resolutor: string | null;
+          ped_fecha_resolucion: string | null;
+        };
+        Insert: {
+          ped_id_ped_compra?: number;
+          p_id_tecnico: string;
+          co_id_compra?: number | null;
+          ped_fecha_solicitud?: string | null;
+          ped_estado?: "pendiente" | "aprobado" | "rechazado" | "recibido";
+          ped_observacion?: string | null;
+          ped_motivo_rechazo?: string | null;
+          ped_p_id_resolutor?: string | null;
+          ped_fecha_resolucion?: string | null;
+        };
+        Update: {
+          ped_id_ped_compra?: number;
+          p_id_tecnico?: string;
+          co_id_compra?: number | null;
+          ped_fecha_solicitud?: string | null;
+          ped_estado?: "pendiente" | "aprobado" | "rechazado" | "recibido";
+          ped_observacion?: string | null;
+          ped_motivo_rechazo?: string | null;
+          ped_p_id_resolutor?: string | null;
+          ped_fecha_resolucion?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pedido_compra_p_id_tecnico_fkey";
+            columns: ["p_id_tecnico"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      linea_pedido: {
+        Row: {
+          ped_id_ped_compra: number;
+          rep_id: number;
+          lp_nro_linea: number | null;
+          lp_cantidad: number | null;
+        };
+        Insert: {
+          ped_id_ped_compra: number;
+          rep_id: number;
+          lp_nro_linea?: number | null;
+          lp_cantidad?: number | null;
+        };
+        Update: {
+          ped_id_ped_compra?: number;
+          rep_id?: number;
+          lp_nro_linea?: number | null;
+          lp_cantidad?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "linea_pedido_ped_id_ped_compra_fkey";
+            columns: ["ped_id_ped_compra"];
+            isOneToOne: false;
+            referencedRelation: "pedido_compra";
+            referencedColumns: ["ped_id_ped_compra"];
+          },
+          {
+            foreignKeyName: "linea_pedido_rep_id_fkey";
+            columns: ["rep_id"];
+            isOneToOne: false;
+            referencedRelation: "repuestos";
+            referencedColumns: ["rep_id"];
+          },
+        ];
+      };
     };
   };
 };
@@ -310,6 +553,13 @@ export type Lugar = Database["public"]["Tables"]["lugares"]["Row"];
 export type TipoEquipo = Database["public"]["Tables"]["tipos_de_equipos"]["Row"];
 export type TareaGeneral = Database["public"]["Tables"]["tareas_generales"]["Row"];
 export type Fallo = Database["public"]["Tables"]["fallo"]["Row"];
+export type Repuesto = Database["public"]["Tables"]["repuestos"]["Row"];
+export type TipoProveedor = Database["public"]["Tables"]["tipos_proveedores"]["Row"];
+export type Proveedor = Database["public"]["Tables"]["proveedores"]["Row"];
+export type Compra = Database["public"]["Tables"]["compras"]["Row"];
+export type LineaCompra = Database["public"]["Tables"]["linea_compra"]["Row"];
+export type PedidoCompra = Database["public"]["Tables"]["pedido_compra"]["Row"];
+export type LineaPedido = Database["public"]["Tables"]["linea_pedido"]["Row"];
 
 // Equipo/Solicitud/HistorialEntry are the query layer's computed/joined
 // view shapes (see src/lib/queries/equipment.ts and faults.ts), not raw

@@ -1,34 +1,15 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
-import { useColorScheme } from "react-native";
-import { light, dark, type ThemeColors } from "./theme";
+import { createContext, useContext, type ReactNode } from "react";
+import { light, type ThemeColors } from "./theme";
 
-type ThemeContextType = {
-  colors: ThemeColors;
-  isDark: boolean;
-  toggleTheme: () => void;
-};
+// The app is light-only. This context stays so every screen keeps using
+// `useTheme().colors` instead of importing `light` directly (and so a theme
+// switch could be reintroduced in one place if it's ever wanted again).
+type ThemeContextType = { colors: ThemeColors };
 
-const ThemeContext = createContext<ThemeContextType>({
-  colors: light,
-  isDark: false,
-  toggleTheme: () => {},
-});
+const ThemeContext = createContext<ThemeContextType>({ colors: light });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const scheme = useColorScheme();
-  const [isDark, setIsDark] = useState(scheme === "dark");
-
-  return (
-    <ThemeContext.Provider
-      value={{
-        colors: isDark ? dark : light,
-        isDark,
-        toggleTheme: () => setIsDark((v) => !v),
-      }}
-    >
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={{ colors: light }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

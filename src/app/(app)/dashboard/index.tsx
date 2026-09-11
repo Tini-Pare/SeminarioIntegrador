@@ -10,7 +10,6 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { RequestList } from "../../../components/RequestList";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { StatusBarChart } from "../../../components/StatusBarChart";
@@ -43,7 +42,7 @@ export default function DashboardScreen() {
   const [heroSize, setHeroSize] = useState({ width: 0, height: 0 });
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.tablet;
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const styles = makeStyles(colors);
 
   const load = useCallback(async () => {
@@ -131,53 +130,19 @@ export default function DashboardScreen() {
       {error && <Text style={styles.error}>{error}</Text>}
 
       <View style={styles.hero} onLayout={(e) => setHeroSize(e.nativeEvent.layout)}>
-        {isDark ? (
-          <>
-            <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-              <Defs>
-                <RadialGradient id="heroCardBg" cx="88%" cy="15%" r="90%">
-                  <Stop offset="0" stopColor={colors.heroGradient[0]} stopOpacity={1} />
-                  <Stop offset="0.42" stopColor={colors.heroGradient[1]} stopOpacity={1} />
-                  <Stop offset="0.78" stopColor={colors.heroGradient[2]} stopOpacity={1} />
-                  <Stop offset="1" stopColor={colors.heroGradient[2]} stopOpacity={1} />
-                </RadialGradient>
-              </Defs>
-              <Rect x={0} y={0} width="100%" height="100%" fill="url(#heroCardBg)" />
-            </Svg>
-
-            <View style={styles.heroBlob} pointerEvents="none">
-              <Svg width="100%" height="100%" viewBox="0 0 340 340">
-                <Defs>
-                  <RadialGradient id="heroBlob" cx="36%" cy="32%" r="85%">
-                    <Stop offset="0" stopColor={colors.heroBlobColors[0]} stopOpacity={0.75} />
-                    <Stop offset="0.18" stopColor={colors.heroBlobColors[0]} stopOpacity={0.65} />
-                    <Stop offset="0.34" stopColor={colors.heroBlobColors[1]} stopOpacity={0.5} />
-                    <Stop offset="0.5" stopColor={colors.heroBlobColors[1]} stopOpacity={0.38} />
-                    <Stop offset="0.66" stopColor={colors.heroBlobColors[1]} stopOpacity={0.26} />
-                    <Stop offset="0.8" stopColor={colors.heroBlobColors[1]} stopOpacity={0.14} />
-                    <Stop offset="0.92" stopColor={colors.heroBlobColors[1]} stopOpacity={0.05} />
-                    <Stop offset="1" stopColor={colors.heroBlobColors[1]} stopOpacity={0} />
-                  </RadialGradient>
-                </Defs>
-                <Circle cx={170} cy={170} r={170} fill="url(#heroBlob)" />
-              </Svg>
-            </View>
-          </>
-        ) : (
-          <Image
-            source={require("../../../../assets/images/dashboard-hero-bg.png")}
-            style={[
-              styles.heroBgImage,
-              heroSize.height
-                ? {
-                    width: Math.max(heroSize.width, heroSize.height * HERO_BG_ASPECT_RATIO),
-                    height: heroSize.height,
-                  }
-                : StyleSheet.absoluteFillObject,
-            ]}
-            resizeMode="cover"
-          />
-        )}
+        <Image
+          source={require("../../../../assets/images/dashboard-hero-bg.png")}
+          style={[
+            styles.heroBgImage,
+            heroSize.height
+              ? {
+                  width: Math.max(heroSize.width, heroSize.height * HERO_BG_ASPECT_RATIO),
+                  height: heroSize.height,
+                }
+              : StyleSheet.absoluteFillObject,
+          ]}
+          resizeMode="cover"
+        />
 
         <View style={styles.heroText}>
           <Text style={styles.heroEyebrow}>{eyebrowDate}</Text>
@@ -287,14 +252,6 @@ function makeStyles(c: ThemeColors) {
       position: "absolute",
       top: 0,
       right: 0,
-    },
-    heroBlob: {
-      position: "absolute",
-      top: -60,
-      right: -35,
-      width: 340,
-      height: 340,
-      opacity: 0.6,
     },
     heroText: { gap: 8, maxWidth: 460 },
     heroEyebrow: {
