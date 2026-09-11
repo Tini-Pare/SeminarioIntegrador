@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
-import { EyeIcon } from "../../../components/icons";
+import {
+  CustomDatePicker,
+  isValidDateString,
+  parseDateString,
+  toDbDate,
+} from "../../../components/CustomDatePicker";
+import { EyeIcon, SearchIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { PurchaseModal, type PurchasePrefill } from "../../../components/PurchaseModal";
 import { PurchaseOrderDetailModal } from "../../../components/PurchaseOrderDetailModal";
@@ -36,6 +44,7 @@ const ESTADO_LABELS: Record<PedidoCompra["ped_estado"], string> = {
   rechazado: "Rechazado",
   recibido: "Recibido",
 };
+
 const ESTADO_RANK: Record<PedidoCompra["ped_estado"], number> = {
   pendiente: 0,
   aprobado: 1,
@@ -55,6 +64,141 @@ function itemsSummary(o: PurchaseOrderWithLines): string {
   return `${names.slice(0, 2).join(" · ")} +${names.length - 2}`;
 }
 
+function TechFilterDropdown({
+  value,
+  onChange,
+  options,
+  colors,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: { value: string; label: string }[];
+  colors: ThemeColors;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value) ?? options[0];
+
+  return (
+    <View style={dropdownStyles.wrap}>
+      <Pressable
+        style={[
+          dropdownStyles.btn,
+          { backgroundColor: colors.bgCard, borderColor: value ? colors.accent : colors.borderInput },
+          open && { borderColor: colors.accent },
+        ]}
+        onPress={() => setOpen((v) => !v)}
+        accessibilityLabel="Filtrar por técnico"
+      >
+        <Text
+          style={[
+            dropdownStyles.btnText,
+            { color: value ? colors.accent : colors.textLabel },
+            value !== "" && { fontWeight: "600" },
+          ]}
+          numberOfLines={1}
+        >
+          {selected?.label ?? "Todos los técnicos"}
+        </Text>
+
+        <Text style={[dropdownStyles.chevron, { color: value ? colors.accent : colors.textMuted }]}>
+          {open ? "▲" : "▼"}
+        </Text>
+      </Pressable>
+
+      {open && (
+        <>
+          <Pressable style={dropdownStyles.backdrop} onPress={() => setOpen(false)} />
+
+          <View
+            style={[
+              dropdownStyles.menu,
+              {
+                backgroundColor: colors.bgModal,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+              {options.map((opt) => {
+                const active = opt.value === value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    style={[
+                      dropdownStyles.option,
+                      active && { backgroundColor: colors.accent + "15" },
+                    ]}
+                    onPress={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        dropdownStyles.optionText,
+                        { color: active ? colors.accent : colors.text },
+                        active && { fontWeight: "700" },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+const dropdownStyles = StyleSheet.create({
+  wrap: { position: "relative", zIndex: 65 },
+  btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    height: 38,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 9,
+    minWidth: 160,
+    maxWidth: 200,
+  },
+  btnText: { fontSize: 13, flex: 1 },
+  chevron: { fontSize: 10 },
+  backdrop: {
+    position: Platform.OS === "web" ? "fixed" : "absolute",
+    top: Platform.OS === "web" ? 0 : -1000,
+    left: Platform.OS === "web" ? 0 : -1000,
+    right: Platform.OS === "web" ? 0 : -1000,
+    bottom: Platform.OS === "web" ? 0 : -1000,
+    zIndex: 70,
+    backgroundColor: "transparent",
+  },
+  menu: {
+    position: "absolute",
+    top: 42,
+    left: 0,
+    minWidth: 200,
+    borderWidth: 1,
+    borderRadius: 10,
+    overflow: "hidden",
+    zIndex: 80,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 5,
+    ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)" } : {}),
+  },
+  option: { paddingHorizontal: 14, paddingVertical: 10 },
+  optionText: { fontSize: 13 },
+});
+
 export default function PurchaseOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -64,6 +208,12 @@ export default function PurchaseOrdersScreen() {
   const [spareParts, setSpareParts] = useState<Repuesto[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierWithRubro[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [techFilter, setTechFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<PurchaseOrderWithLines | null>(null);
@@ -132,18 +282,109 @@ export default function PurchaseOrdersScreen() {
     setRejecting(order.ped_id_ped_compra);
   }
 
+  const techOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    orders.forEach((o) => {
+      const name = techNames.get(o.p_id_tecnico);
+      if (name) {
+        map.set(o.p_id_tecnico, name);
+      } else if (o.p_id_tecnico) {
+        map.set(o.p_id_tecnico, "Técnico " + o.p_id_tecnico.slice(0, 6));
+      }
+    });
+    return [
+      { value: "", label: "Todos los técnicos" },
+      ...Array.from(map.entries())
+        .map(([id, name]) => ({ value: id, label: name }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    ];
+  }, [orders, techNames]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: orders.length,
+      pendiente: 0,
+      aprobado: 0,
+      recibido: 0,
+      rechazado: 0,
+    };
+    orders.forEach((o) => {
+      if (counts[o.ped_estado] !== undefined) {
+        counts[o.ped_estado]++;
+      }
+    });
+    return counts;
+  }, [orders]);
+
+  const statusChips = useMemo(() => {
+    const list = [
+      { key: "", label: "Todos" },
+      { key: "pendiente", label: "Pendiente" },
+    ];
+    if (orders.some((o) => o.ped_estado === "aprobado")) {
+      list.push({ key: "aprobado", label: "Aprobado" });
+    }
+    list.push({ key: "recibido", label: "Recibido" });
+    list.push({ key: "rechazado", label: "Rechazado" });
+    return list;
+  }, [orders]);
+
+  const parsedDateFrom = useMemo(() => parseDateString(dateFrom), [dateFrom]);
+  const parsedDateTo = useMemo(() => parseDateString(dateTo), [dateTo]);
+  const hasDateFilter = dateFrom.length > 0 || dateTo.length > 0;
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const dbFrom = isValidDateString(dateFrom) ? toDbDate(dateFrom) : null;
+    const dbTo = isValidDateString(dateTo) ? toDbDate(dateTo) : null;
+
+    return orders.filter((o) => {
+      // 1. Search by technician name or spare part name
+      const techName = techNames.get(o.p_id_tecnico)?.toLowerCase() ?? "";
+      const matchSearch =
+        !q ||
+        techName.includes(q) ||
+        o.linea_pedido.some((l) => l.repuesto?.rep_nombre?.toLowerCase().includes(q));
+
+      // 2. Status filter
+      const matchStatus = !statusFilter || o.ped_estado === statusFilter;
+
+      // 3. Technician filter (for admin)
+      const matchTech = !techFilter || o.p_id_tecnico === techFilter;
+
+      // 4. Date range filter
+      let matchDate = true;
+      if (dbFrom) {
+        if (!o.ped_fecha_solicitud || o.ped_fecha_solicitud < dbFrom) {
+          matchDate = false;
+        }
+      }
+      if (dbTo) {
+        if (!o.ped_fecha_solicitud || o.ped_fecha_solicitud > dbTo) {
+          matchDate = false;
+        }
+      }
+
+      return matchSearch && matchStatus && matchTech && matchDate;
+    });
+  }, [orders, search, statusFilter, techFilter, dateFrom, dateTo, techNames]);
+
   const { sorted, field, dir, toggle } = useTableSort<PurchaseOrderWithLines>(
-    orders,
+    filtered,
     {
       estado: (o) => ESTADO_RANK[o.ped_estado],
-      fecha: (o) => o.ped_fecha_solicitud,
+      fecha: (o) => o.ped_fecha_solicitud ?? "",
       tecnico: (o) => techNames.get(o.p_id_tecnico) ?? "",
     },
     "fecha",
     "desc",
   );
 
-  const { pageItems, page, pageCount, setPage } = usePagination(sorted, `${field}|${dir}`, 8);
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    sorted,
+    `${search}|${statusFilter}|${techFilter}|${dateFrom}|${dateTo}|${field}|${dir}`,
+    8,
+  );
 
   const hasActiveParts = useMemo(
     () => spareParts.some((p) => p.rep_estado === "activo"),
@@ -199,9 +440,106 @@ export default function PurchaseOrdersScreen() {
         </Text>
       )}
 
-      {orders.length === 0 ? (
+      <View style={styles.filterBar}>
+        <View style={styles.searchBox}>
+          <SearchIcon size={15} color={colors.textMuted} />
+
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por técnico o repuesto…"
+            placeholderTextColor={colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
+            autoCorrect={false}
+          />
+
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch("")} hitSlop={8}>
+              <Text style={styles.clearSearchText}>✕</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {isAdmin && techOptions.length > 2 && (
+          <TechFilterDropdown
+            value={techFilter}
+            onChange={setTechFilter}
+            options={techOptions}
+            colors={colors}
+          />
+        )}
+
+        <View style={styles.dateRangeWrap}>
+          <View style={styles.dateInputWrap}>
+            <CustomDatePicker
+              value={dateFrom}
+              onChange={setDateFrom}
+              placeholder="Desde"
+              compact
+              maxDate={parsedDateTo ?? undefined}
+              alignDropdown="left"
+            />
+          </View>
+
+          <Text style={styles.dateArrow}>→</Text>
+
+          <View style={styles.dateInputWrap}>
+            <CustomDatePicker
+              value={dateTo}
+              onChange={setDateTo}
+              placeholder="Hasta"
+              compact
+              minDate={parsedDateFrom ?? undefined}
+              alignDropdown="right"
+            />
+          </View>
+
+          {hasDateFilter && (
+            <Pressable
+              style={styles.clearDateBtn}
+              onPress={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+              accessibilityLabel="Limpiar filtro de fecha"
+            >
+              <Text style={styles.clearDateText}>Limpiar</Text>
+            </Pressable>
+          )}
+        </View>
+
+        <View style={styles.spacer} />
+
+        <Text style={styles.count}>
+          {sorted.length} {sorted.length === 1 ? "pedido" : "pedidos"}
+        </Text>
+      </View>
+
+      <View style={styles.chipsRow}>
+        {statusChips.map((chip) => {
+          const active = statusFilter === chip.key;
+          const count = statusCounts[chip.key || "all"] ?? 0;
+          return (
+            <Pressable
+              key={chip.key}
+              style={[styles.chip, active && styles.chipActive]}
+              onPress={() => setStatusFilter(chip.key)}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {chip.label} ({count})
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {sorted.length === 0 ? (
         <Text style={styles.empty}>
-          {isAdmin ? "Todavía no hay pedidos de compra." : "Todavía no enviaste ningún pedido."}
+          {orders.length === 0
+            ? isAdmin
+              ? "Todavía no hay pedidos de compra."
+              : "Todavía no enviaste ningún pedido."
+            : "No hay pedidos que coincidan con la búsqueda o filtros."}
         </Text>
       ) : (
         <View style={styles.table}>
@@ -212,7 +550,7 @@ export default function PurchaseOrdersScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 1 }}
+              style={{ flex: 1.2 }}
             />
 
             <SortHeaderCell
@@ -243,7 +581,7 @@ export default function PurchaseOrdersScreen() {
             return (
               <View key={o.ped_id_ped_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
                 <View style={styles.rowMain}>
-                  <View style={{ flex: 1, justifyContent: "center", paddingRight: 8 }}>
+                  <View style={{ flex: 1.2, justifyContent: "center", alignItems: "flex-start", paddingRight: 8 }}>
                     <View style={[styles.badge, { backgroundColor: st.bg }]}>
                       <Text style={[styles.badgeText, { color: st.fg }]} numberOfLines={1}>
                         {ESTADO_LABELS[o.ped_estado]}
@@ -331,7 +669,7 @@ export default function PurchaseOrdersScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
-    content: { padding: 20, maxWidth: 900 },
+    content: { padding: 20 },
     center: { flex: 1 },
     header: {
       flexDirection: "row",
@@ -355,13 +693,118 @@ function makeStyles(c: ThemeColors) {
     },
     addButtonDisabled: { opacity: 0.45 },
     addButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-    empty: { color: c.textMuted, fontSize: 13.5, marginTop: 4 },
+    filterBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 10,
+      marginBottom: 10,
+      zIndex: 50,
+    },
+    searchBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      width: 300,
+      flexGrow: 1,
+      minWidth: 180,
+      maxWidth: 340,
+      height: 38,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 9,
+      backgroundColor: c.bgCard,
+    },
+    searchInput: {
+      flex: 1,
+      height: "100%",
+      fontSize: 13.5,
+      color: c.text,
+      padding: 0,
+      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
+    },
+    clearSearchText: {
+      fontSize: 13,
+      color: c.textMuted,
+      fontWeight: "600",
+    },
+    dateRangeWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      zIndex: 60,
+    },
+    dateInputWrap: {
+      width: 140,
+    },
+    dateArrow: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: c.textMuted,
+    },
+    clearDateBtn: {
+      height: 38,
+      paddingHorizontal: 12,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      backgroundColor: c.bgCard,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    clearDateText: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.accent,
+    },
+    spacer: {
+      flex: 1,
+      minWidth: 0,
+    },
+    count: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: c.textSecondary,
+    },
+    chipsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 7,
+      marginBottom: 14,
+    },
+    chip: {
+      paddingHorizontal: 13,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      backgroundColor: c.bgStatCard,
+    },
+    chipActive: {
+      backgroundColor: c.accent,
+      borderColor: c.accent,
+    },
+    chipText: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+    },
+    chipTextActive: {
+      color: "#fff",
+    },
+    empty: {
+      color: c.textMuted,
+      fontSize: 13.5,
+      marginTop: 4,
+    },
     table: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
+      width: "100%",
     },
     tableHeader: {
       flexDirection: "row",
@@ -380,7 +823,7 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 52, flexShrink: 0, alignItems: "flex-start" },
+    actionsCol: { width: 56, flexShrink: 0, alignItems: "center" },
     row: {
       flexDirection: "row",
       alignItems: "center",
