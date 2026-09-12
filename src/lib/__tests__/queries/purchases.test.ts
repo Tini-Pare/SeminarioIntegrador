@@ -49,7 +49,7 @@ describe("registrarCompra", () => {
       proveedorId: 3,
       nombre: "  Remito 5  ",
       fecha: "2026-09-01",
-      garantia: null,
+      garantia: "24",
       lineas: [
         { repId: 7, cantidad: 3, costoUnitario: 120.5 },
         { repId: 8, cantidad: 1, costoUnitario: null },
@@ -61,7 +61,7 @@ describe("registrarCompra", () => {
       p_prov_id_proveedor: 3,
       p_co_nombre: "Remito 5",
       p_co_fecha_compra: "2026-09-01",
-      p_co_garantia: null,
+      p_co_garantia: "24",
       p_lineas: [
         { rep_id: 7, cantidad: 3, costo_unitario: 120.5 },
         { rep_id: 8, cantidad: 1, costo_unitario: null },

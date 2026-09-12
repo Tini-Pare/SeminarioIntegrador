@@ -13,6 +13,17 @@ function money(n: number | null | undefined): string {
   return `$${Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
 }
 
+export function formatGarantia(val: string | null | undefined): string {
+  if (!val) return "";
+  const trimmed = val.trim();
+  if (!trimmed) return "";
+  if (/^\d+$/.test(trimmed)) {
+    const months = parseInt(trimmed, 10);
+    return `${months} ${months === 1 ? "mes" : "meses"}`;
+  }
+  return trimmed;
+}
+
 export function PurchaseDetailModal({
   visible,
   onClose,
@@ -41,7 +52,7 @@ export function PurchaseDetailModal({
           <ScrollView style={styles.body}>
             {(purchase?.co_garantia || registradorName) && (
               <Text style={styles.meta}>
-                {purchase?.co_garantia ? `Garantía: ${purchase.co_garantia}` : ""}
+                {purchase?.co_garantia ? `Garantía: ${formatGarantia(purchase.co_garantia)}` : ""}
                 {purchase?.co_garantia && registradorName ? "  ·  " : ""}
                 {registradorName ? `Registró: ${registradorName}` : ""}
               </Text>

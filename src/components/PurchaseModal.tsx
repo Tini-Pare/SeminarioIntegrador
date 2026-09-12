@@ -75,6 +75,7 @@ export function PurchaseModal({
   const [nombre, setNombre] = useState("");
   const [fecha, setFecha] = useState("");
   const [garantia, setGarantia] = useState("");
+  const [garantiaError, setGarantiaError] = useState<string | null>(null);
   const [lines, setLines] = useState<LineDraft[]>([newLine()]);
   const [openField, setOpenField] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -133,6 +134,7 @@ export function PurchaseModal({
     setNombre("");
     setFecha(getTodayDateString());
     setGarantia("");
+    setGarantiaError(null);
     setLines(
       prefill && prefill.lines.length > 0
         ? prefill.lines.map((l) => newLine(l.repId, String(l.cantidad)))
@@ -162,6 +164,7 @@ export function PurchaseModal({
   );
 
   async function handleSave() {
+    setGarantiaError(null);
     if (!rubro) {
       setError("Elegí un rubro de proveedor.");
       return;
@@ -172,6 +175,12 @@ export function PurchaseModal({
     }
     if (!fecha.trim() || !isValidDateString(fecha)) {
       setError("La fecha de compra no es válida.");
+      return;
+    }
+
+    const garantiaNum = Number(garantia.trim());
+    if (!garantia.trim() || !Number.isInteger(garantiaNum) || garantiaNum <= 0) {
+      setGarantiaError("Ingresá la garantía en meses.");
       return;
     }
 
@@ -214,7 +223,7 @@ export function PurchaseModal({
         proveedorId,
         nombre: nombre.trim() || null,
         fecha: toDbDate(fecha),
-        garantia: garantia.trim() || null,
+        garantia: garantia.trim(),
         lineas: parsed,
         pedidoId: prefill?.pedidoId ?? null,
       });
@@ -272,6 +281,7 @@ export function PurchaseModal({
             <View style={[styles.row, openField === "fecha" && styles.rowRaised]}>
               <View style={[styles.rowItem, styles.dateCol]}>
                 <Text style={styles.label}>Fecha de compra</Text>
+
                 <CustomDatePicker
                   value={fecha}
                   onChange={setFecha}
@@ -282,15 +292,22 @@ export function PurchaseModal({
               </View>
 
               <View style={styles.rowItem}>
-                <Text style={styles.label}>Garantía</Text>
+                <Text style={styles.label}>Garantía (meses)</Text>
+
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, garantiaError ? styles.inputError : null]}
                   value={garantia}
-                  onChangeText={setGarantia}
-                  placeholder="Opcional"
+                  onChangeText={(text) => {
+                    setGarantia(text.replace(/[^0-9]/g, ""));
+                    if (garantiaError) setGarantiaError(null);
+                  }}
+                  placeholder="Ej: 24"
                   placeholderTextColor={colors.textMuted}
-                  maxLength={100}
+                  keyboardType="number-pad"
+                  maxLength={5}
                 />
+
+                {garantiaError && <Text style={styles.fieldError}>{garantiaError}</Text>}
               </View>
             </View>
 
@@ -435,6 +452,14 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       fontSize: 14,
       color: c.text,
+    },
+    inputError: {
+      borderColor: c.destructive,
+    },
+    fieldError: {
+      color: c.destructive,
+      fontSize: 12,
+      marginTop: 4,
     },
     row: { flexDirection: "row", gap: 12, position: "relative", zIndex: 40 },
     rowRaised: { zIndex: 60 },
