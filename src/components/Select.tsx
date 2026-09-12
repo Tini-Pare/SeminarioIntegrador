@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
-export type SelectOption = { value: number; label: string };
+export type SelectOption<T extends number | string = number> = { value: T; label: string };
 
 // Strict dropdown: the value can only ever be one of `options` (or null).
 // Unlike AutocompleteInput there's no free-text entry — the search box only
@@ -13,7 +13,7 @@ export type SelectOption = { value: number; label: string };
 // Open state can be controlled from the parent (pass `open` + `onOpenChange`)
 // so sibling dropdowns in the same form close each other; otherwise it's
 // self-managed.
-export function Select({
+export function Select<T extends number | string = number>({
   value,
   onChange,
   options,
@@ -22,9 +22,9 @@ export function Select({
   open: openProp,
   onOpenChange,
 }: {
-  value: number | null;
-  onChange: (v: number) => void;
-  options: SelectOption[];
+  value: T | null;
+  onChange: (v: T) => void;
+  options: SelectOption<T>[];
   placeholder?: string;
   disabled?: boolean;
   open?: boolean;

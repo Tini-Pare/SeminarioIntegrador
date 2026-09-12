@@ -22,9 +22,37 @@ const newLine = (repId: number | null = null, cantidad = ""): LineDraft => ({
   costo: "",
 });
 
+export const RUBROS_CATALOG: string[] = [
+  "Aberturas y vidriería",
+  "Ascensores y montacargas",
+  "Autoelevadores y zorras",
+  "Balanzas y pesaje",
+  "Carros y cestas de compras",
+  "Climatización / HVAC",
+  "Electricidad",
+  "Equipamiento gastronómico",
+  "Estanterías y góndolas",
+  "Ferretería industrial",
+  "Grupos electrógenos",
+  "Herrería y cerrajería",
+  "Lubricantes y químicos",
+  "Pintura y construcción en seco",
+  "Plomería y sanitarios",
+  "Puntos de venta/cajas",
+  "Refrigeración",
+  "Seguridad electrónica",
+  "Sistemas contra incendios",
+];
+
+export function getSupplierRubro(s: { rubro?: string | null }): string {
+  const r = s.rubro?.trim();
+  return r && r.length > 0 ? r : "Sin clasificar";
+}
+
 export type PurchasePrefill = {
   pedidoId: number;
   lines: { repId: number; cantidad: number }[];
+  proveedorId?: number | null;
 };
 
 export function PurchaseModal({
@@ -38,10 +66,11 @@ export function PurchaseModal({
   visible: boolean;
   onClose: () => void;
   onSaved: () => void;
-  suppliers: Proveedor[];
+  suppliers: (Proveedor & { rubro?: string | null })[];
   spareParts: Repuesto[];
   prefill?: PurchasePrefill | null;
 }) {
+  const [rubro, setRubro] = useState<string | null>(null);
   const [proveedorId, setProveedorId] = useState<number | null>(null);
   const [nombre, setNombre] = useState("");
   const [fecha, setFecha] = useState("");
@@ -55,6 +84,19 @@ export function PurchaseModal({
 
   const today = useMemo(() => new Date(), []);
 
+  const rubroOptions = useMemo(() => {
+    const set = new Set<string>(RUBROS_CATALOG);
+    for (const s of suppliers) {
+      set.add(getSupplierRubro(s));
+    }
+    return Array.from(set).map((r) => ({ value: r, label: r }));
+  }, [suppliers]);
+
+  const filteredSuppliers = useMemo(() => {
+    if (!rubro) return [];
+    return suppliers.filter((s) => getSupplierRubro(s) === rubro);
+  }, [suppliers, rubro]);
+
   const partOptions = useMemo(
     () =>
       spareParts
@@ -63,13 +105,31 @@ export function PurchaseModal({
     [spareParts],
   );
   const supplierOptions = useMemo(
-    () => suppliers.map((s) => ({ value: s.prov_id_proveedor, label: s.prov_nombre })),
-    [suppliers],
+    () => filteredSuppliers.map((s) => ({ value: s.prov_id_proveedor, label: s.prov_nombre })),
+    [filteredSuppliers],
   );
+
+  function handleRubroChange(newRubro: string) {
+    setRubro(newRubro);
+    if (proveedorId != null) {
+      const currentSupplier = suppliers.find((s) => s.prov_id_proveedor === proveedorId);
+      if (!currentSupplier || getSupplierRubro(currentSupplier) !== newRubro) {
+        setProveedorId(null);
+      }
+    }
+  }
 
   useEffect(() => {
     if (!visible) return;
-    setProveedorId(null);
+    const initialProvId = prefill?.proveedorId ?? null;
+    if (initialProvId != null) {
+      const found = suppliers.find((sp) => sp.prov_id_proveedor === initialProvId);
+      setRubro(found ? getSupplierRubro(found) : null);
+      setProveedorId(initialProvId);
+    } else {
+      setRubro(null);
+      setProveedorId(null);
+    }
     setNombre("");
     setFecha(fromDbDate(new Date().toISOString().slice(0, 10)));
     setGarantia("");
@@ -80,7 +140,7 @@ export function PurchaseModal({
     );
     setOpenField(null);
     setError(null);
-  }, [visible, prefill]);
+  }, [visible, prefill, suppliers]);
 
   function updateLine(key: string, patch: Partial<LineDraft>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -102,6 +162,10 @@ export function PurchaseModal({
   );
 
   async function handleSave() {
+    if (!rubro) {
+      setError("Elegí un rubro de proveedor.");
+      return;
+    }
     if (!proveedorId) {
       setError("Elegí un proveedor.");
       return;
@@ -176,12 +240,31 @@ export function PurchaseModal({
           </Text>
 
           <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
+            <Text style={styles.label}>Rubro del proveedor</Text>
+
+            <Select
+              value={rubro}
+              onChange={handleRubroChange}
+              options={rubroOptions}
+              placeholder="Elegí un rubro"
+              open={openField === "rubro"}
+              onOpenChange={(o) => setOpenField(o ? "rubro" : null)}
+            />
+
             <Text style={styles.label}>Proveedor</Text>
+
             <Select
               value={proveedorId}
               onChange={setProveedorId}
               options={supplierOptions}
-              placeholder="Elegí un proveedor"
+              placeholder={
+                !rubro
+                  ? "Primero elegí un rubro"
+                  : supplierOptions.length === 0
+                    ? "Sin proveedores en este rubro"
+                    : "Elegí un proveedor"
+              }
+              disabled={!rubro}
               open={openField === "proveedor"}
               onOpenChange={(o) => setOpenField(o ? "proveedor" : null)}
             />
