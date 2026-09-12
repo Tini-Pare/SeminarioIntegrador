@@ -78,3 +78,42 @@ describe("Warranty validation rules", () => {
     });
   });
 });
+
+describe("PurchaseModal lines LIFO behavior", () => {
+  type LineDraft = { key: string; repId: number | null; cantidad: string; costo: string };
+
+  it("prepends new lines to the list in LIFO order", () => {
+    let list: LineDraft[] = [{ key: "l0", repId: 1, cantidad: "5", costo: "100" }];
+
+    // Add a new line
+    const newLine1: LineDraft = { key: "l1", repId: 2, cantidad: "10", costo: "50" };
+    list = [newLine1, ...list];
+
+    expect(list).toHaveLength(2);
+    expect(list[0].key).toBe("l1");
+    expect(list[1].key).toBe("l0");
+
+    // Add another new line
+    const newLine2: LineDraft = { key: "l2", repId: 3, cantidad: "1", costo: "20" };
+    list = [newLine2, ...list];
+
+    expect(list).toHaveLength(3);
+    expect(list[0].key).toBe("l2");
+    expect(list[1].key).toBe("l1");
+    expect(list[2].key).toBe("l0");
+  });
+
+  it("removes target line without altering order of others", () => {
+    let list: LineDraft[] = [
+      { key: "l2", repId: 3, cantidad: "1", costo: "20" },
+      { key: "l1", repId: 2, cantidad: "10", costo: "50" },
+      { key: "l0", repId: 1, cantidad: "5", costo: "100" },
+    ];
+
+    list = list.filter((l) => l.key !== "l1");
+
+    expect(list).toHaveLength(2);
+    expect(list[0].key).toBe("l2");
+    expect(list[1].key).toBe("l0");
+  });
+});

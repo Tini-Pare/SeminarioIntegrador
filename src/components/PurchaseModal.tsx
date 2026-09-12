@@ -324,7 +324,7 @@ export function PurchaseModal({
             <View style={styles.linesHeader}>
               <Text style={styles.label}>Repuestos</Text>
 
-              <Pressable onPress={() => setLines((prev) => [...prev, newLine()])}>
+              <Pressable onPress={() => setLines((prev) => [newLine(), ...prev])}>
                 <Text style={styles.addLine}>+ Agregar línea</Text>
               </Pressable>
             </View>
