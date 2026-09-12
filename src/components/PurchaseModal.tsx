@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   CustomDatePicker,
-  fromDbDate,
+  getTodayDateString,
   isValidDateString,
   toDbDate,
 } from "../components/CustomDatePicker";
@@ -131,7 +131,7 @@ export function PurchaseModal({
       setProveedorId(null);
     }
     setNombre("");
-    setFecha(fromDbDate(new Date().toISOString().slice(0, 10)));
+    setFecha(getTodayDateString());
     setGarantia("");
     setLines(
       prefill && prefill.lines.length > 0
@@ -269,8 +269,8 @@ export function PurchaseModal({
               onOpenChange={(o) => setOpenField(o ? "proveedor" : null)}
             />
 
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
+            <View style={[styles.row, openField === "fecha" && styles.rowRaised]}>
+              <View style={[styles.rowItem, styles.dateCol]}>
                 <Text style={styles.label}>Fecha de compra</Text>
                 <CustomDatePicker
                   value={fecha}
@@ -313,7 +313,13 @@ export function PurchaseModal({
             </View>
 
             {lines.map((l, idx) => (
-              <View key={l.key} style={styles.lineCard}>
+              <View
+                key={l.key}
+                style={[
+                  styles.lineCard,
+                  openField === `rep-${l.key}` && styles.lineCardRaised,
+                ]}
+              >
                 <View style={styles.lineTop}>
                   <Text style={styles.lineNum}>Línea {idx + 1}</Text>
 
@@ -430,8 +436,10 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       color: c.text,
     },
-    row: { flexDirection: "row", gap: 12 },
-    rowItem: { flex: 1 },
+    row: { flexDirection: "row", gap: 12, position: "relative", zIndex: 40 },
+    rowRaised: { zIndex: 60 },
+    rowItem: { flex: 1, position: "relative" },
+    dateCol: { zIndex: 60 },
     linesHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -445,6 +453,11 @@ function makeStyles(c: ThemeColors) {
       padding: 12,
       marginTop: 10,
       backgroundColor: c.bgCard,
+      position: "relative",
+      zIndex: 40,
+    },
+    lineCardRaised: {
+      zIndex: 50,
     },
     lineTop: {
       flexDirection: "row",

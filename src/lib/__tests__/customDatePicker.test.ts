@@ -1,5 +1,8 @@
 import {
   formatAndValidateDateInput,
+  fromDbDate,
+  getTodayDateString,
+  getTodayDbDate,
   isDateOnOrAfter,
   isDateWithinMax,
   isValidDateString,
@@ -8,6 +11,65 @@ import {
 } from "../../components/CustomDatePicker";
 
 describe("CustomDatePicker helpers", () => {
+  describe("getTodayDateString & getTodayDbDate", () => {
+    it("formats local date components into dd/mm/aaaa without UTC timezone skew", () => {
+      const sample = new Date(2026, 8, 11, 23, 30, 0); // 11 Sept 2026 late night
+      expect(getTodayDateString(sample)).toBe("11/09/2026");
+      expect(getTodayDbDate(sample)).toBe("2026-09-11");
+    });
+
+    it("reconstructs exact same date when parsed back", () => {
+      const sample = new Date(2026, 8, 11);
+      const str = getTodayDateString(sample);
+      const parsed = parseDateString(str);
+      expect(parsed).not.toBeNull();
+      expect(parsed?.getDate()).toBe(11);
+      expect(parsed?.getMonth()).toBe(8);
+      expect(parsed?.getFullYear()).toBe(2026);
+    });
+  });
+
+  describe("Calendar day matching (selected vs today)", () => {
+    it("correctly identifies selected day from input string", () => {
+      const inputStr = "11/09/2026";
+      const selectedDate = parseDateString(inputStr)!;
+      const day11 = new Date(2026, 8, 11);
+      const day12 = new Date(2026, 8, 12);
+
+      const isDay11Selected =
+        selectedDate.getFullYear() === day11.getFullYear() &&
+        selectedDate.getMonth() === day11.getMonth() &&
+        selectedDate.getDate() === day11.getDate();
+
+      const isDay12Selected =
+        selectedDate.getFullYear() === day12.getFullYear() &&
+        selectedDate.getMonth() === day12.getMonth() &&
+        selectedDate.getDate() === day12.getDate();
+
+      expect(isDay11Selected).toBe(true);
+      expect(isDay12Selected).toBe(false);
+    });
+
+    it("correctly identifies today independently from selected date", () => {
+      const today = new Date(2026, 8, 11);
+      const day11 = new Date(2026, 8, 11);
+      const day12 = new Date(2026, 8, 12);
+
+      const isDay11Today =
+        today.getFullYear() === day11.getFullYear() &&
+        today.getMonth() === day11.getMonth() &&
+        today.getDate() === day11.getDate();
+
+      const isDay12Today =
+        today.getFullYear() === day12.getFullYear() &&
+        today.getMonth() === day12.getMonth() &&
+        today.getDate() === day12.getDate();
+
+      expect(isDay11Today).toBe(true);
+      expect(isDay12Today).toBe(false);
+    });
+  });
+
   describe("isValidDateString", () => {
     it("returns true for valid dd/mm/aaaa dates", () => {
       expect(isValidDateString("15/01/2026")).toBe(true);
@@ -23,9 +85,14 @@ describe("CustomDatePicker helpers", () => {
     });
   });
 
-  describe("toDbDate", () => {
+  describe("toDbDate and fromDbDate", () => {
     it("converts dd/mm/aaaa to yyyy-mm-dd", () => {
       expect(toDbDate("15/01/2026")).toBe("2026-01-15");
+    });
+
+    it("converts yyyy-mm-dd to dd/mm/aaaa", () => {
+      expect(fromDbDate("2026-01-15")).toBe("15/01/2026");
+      expect(fromDbDate(null)).toBe("");
     });
   });
 

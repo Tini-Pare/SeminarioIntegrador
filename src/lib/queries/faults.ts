@@ -1,3 +1,4 @@
+import { getTodayDbDate } from "../../components/CustomDatePicker";
 import { supabase } from "../supabase";
 import type { Database } from "../../types/database";
 import type { Solicitud } from "../../types/database";
@@ -164,7 +165,7 @@ export async function advanceStatus(
     .update({
       ot_estado: nextStatus,
       ...(nextStatus === "resolved"
-        ? { ot_fecha_fin: new Date().toISOString().slice(0, 10) }
+        ? { ot_fecha_fin: getTodayDbDate() }
         : {}),
     })
     .eq("sol_id_solicitud", solicitudId)

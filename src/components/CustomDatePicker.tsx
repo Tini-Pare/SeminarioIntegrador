@@ -55,6 +55,22 @@ export function fromDbDate(dbDate: string | null | undefined): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+// Local date formatting functions to prevent UTC timezone offsets from shifting
+// the date to tomorrow after 21:00 in UTC-3 or similar timezones.
+export function getTodayDateString(d: Date = new Date()): string {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+export function getTodayDbDate(d: Date = new Date()): string {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // Day-granularity truncation, so time-of-day never makes "today" look like
 // a future date.
 export function toDay(date: Date): Date {
@@ -233,8 +249,28 @@ export function CustomDatePicker({
         setCurrentMonth(today.getMonth());
         setCurrentYear(today.getFullYear());
       }
+
+      if (
+        Platform.OS === "web" &&
+        typeof (inputRef.current as any)?.getBoundingClientRect === "function"
+      ) {
+        const rect = (inputRef.current as any).getBoundingClientRect();
+        const spaceBelow = windowHeight - rect.bottom;
+        const dropdownHeight = compact ? 220 : 250;
+        setFlipVertical(spaceBelow < dropdownHeight && rect.top > dropdownHeight);
+      } else {
+        inputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          const dropdownHeight = compact ? 220 : 250;
+          const spaceBelow = windowHeight - (pageY ?? 0) - (height ?? 44);
+          if (spaceBelow < dropdownHeight && (pageY ?? 0) > dropdownHeight) {
+            setFlipVertical(true);
+          } else {
+            setFlipVertical(false);
+          }
+        });
+      }
     }
-  }, [isOpen, value]);
+  }, [isOpen, value, windowHeight, compact]);
 
   const handleTextChange = (text: string) => {
     const result = formatAndValidateDateInput(text, value, minDate, maxDate);
@@ -288,15 +324,25 @@ export function CustomDatePicker({
 
   const handleToggle = () => {
     if (!isOpen) {
-      inputRef.current?.measure((x, y, width, height, pageX, pageY) => {
-        const dropdownHeight = 230;
-        const spaceBelow = windowHeight - pageY - height;
-        if (spaceBelow < dropdownHeight && pageY > dropdownHeight) {
-          setFlipVertical(true);
-        } else {
-          setFlipVertical(false);
-        }
-      });
+      if (
+        Platform.OS === "web" &&
+        typeof (inputRef.current as any)?.getBoundingClientRect === "function"
+      ) {
+        const rect = (inputRef.current as any).getBoundingClientRect();
+        const spaceBelow = windowHeight - rect.bottom;
+        const dropdownHeight = compact ? 220 : 250;
+        setFlipVertical(spaceBelow < dropdownHeight && rect.top > dropdownHeight);
+      } else {
+        inputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          const dropdownHeight = compact ? 220 : 250;
+          const spaceBelow = windowHeight - (pageY ?? 0) - (height ?? 44);
+          if (spaceBelow < dropdownHeight && (pageY ?? 0) > dropdownHeight) {
+            setFlipVertical(true);
+          } else {
+            setFlipVertical(false);
+          }
+        });
+      }
     }
     setIsOpen(!isOpen);
   };
@@ -360,7 +406,7 @@ export function CustomDatePicker({
                 }
 
                 const isSelected =
-                  selectedDateObj &&
+                  selectedDateObj !== null &&
                   selectedDateObj.getDate() === day.getDate() &&
                   selectedDateObj.getMonth() === day.getMonth() &&
                   selectedDateObj.getFullYear() === day.getFullYear();
@@ -379,7 +425,7 @@ export function CustomDatePicker({
                     key={`day-${idx}`}
                     style={[
                       styles.dayCell,
-                      isToday && styles.dayCellToday,
+                      isToday && !isSelected && styles.dayCellToday,
                       isSelected && styles.dayCellSelected,
                       isDisabled && styles.dayCellDisabled,
                     ]}
@@ -389,7 +435,7 @@ export function CustomDatePicker({
                     <Text
                       style={[
                         styles.dayText,
-                        isToday && styles.dayTextToday,
+                        isToday && !isSelected && styles.dayTextToday,
                         isSelected && styles.dayTextSelected,
                         isDisabled && styles.dayTextDisabled,
                       ]}
@@ -466,56 +512,57 @@ function makeStyles(
       top: flipVertical ? undefined : compact ? 42 : 48,
       bottom: flipVertical ? (compact ? 42 : 48) : undefined,
       left: alignDropdown === "right" ? undefined : 0,
-      right: alignDropdown === "right" ? 0 : compact ? undefined : 0,
-      width: compact ? 230 : undefined,
-      minWidth: compact ? 230 : undefined,
+      right: alignDropdown === "right" ? 0 : undefined,
+      width: compact ? 230 : 252,
+      minWidth: compact ? 230 : 252,
       backgroundColor: c.bgModal,
       borderWidth: 1,
-      borderColor: c.borderInput,
+      borderColor: c.border,
       borderRadius: 12,
-      padding: 6,
-      zIndex: 60,
+      padding: compact ? 6 : 8,
+      zIndex: 70,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
-      shadowRadius: 5,
-      elevation: 5,
-      ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)" } : {}),
+      shadowRadius: 8,
+      elevation: 8,
+      ...(Platform.OS === "web" ? { boxShadow: "0px 6px 16px rgba(0, 0, 0, 0.35)" } : {}),
     },
     header: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginBottom: 4,
+      marginBottom: compact ? 4 : 6,
+      paddingHorizontal: 2,
     },
     headerTitle: {
-      fontSize: 11.5,
+      fontSize: compact ? 11.5 : 13,
       fontWeight: "600",
       color: c.text,
     },
     navButton: {
-      width: 20,
-      height: 20,
+      width: compact ? 20 : 26,
+      height: compact ? 20 : 26,
       alignItems: "center",
       justifyContent: "center",
-      borderRadius: 4,
+      borderRadius: 6,
       borderWidth: 1,
       borderColor: c.borderInput,
       backgroundColor: c.bgInput,
     },
     navButtonText: {
-      fontSize: 10,
+      fontSize: compact ? 10 : 12,
       fontWeight: "600",
       color: c.textLabel,
     },
     weekdaysRow: {
       flexDirection: "row",
-      marginBottom: 2,
+      marginBottom: compact ? 2 : 4,
     },
     weekdayText: {
       width: "14.28%",
       textAlign: "center",
-      fontSize: 8.5,
+      fontSize: compact ? 8.5 : 10.5,
       fontWeight: "600",
       color: c.textMuted,
     },
@@ -525,19 +572,21 @@ function makeStyles(
     },
     dayCell: {
       width: "14.28%",
-      height: 22,
+      height: compact ? 22 : 28,
       alignItems: "center",
       justifyContent: "center",
-      borderRadius: 4,
-      marginVertical: 0,
+      borderRadius: 6,
+      marginVertical: 1,
     },
     dayCellEmpty: {
       width: "14.28%",
-      height: 22,
+      height: compact ? 22 : 28,
+      marginVertical: 1,
     },
     dayCellToday: {
-      borderWidth: 1,
-      borderColor: c.borderInput,
+      borderWidth: 1.5,
+      borderColor: c.accent,
+      backgroundColor: c.bgInput,
     },
     dayCellSelected: {
       backgroundColor: c.accent,
@@ -546,7 +595,7 @@ function makeStyles(
       opacity: 0.3,
     },
     dayText: {
-      fontSize: 10,
+      fontSize: compact ? 10 : 11.5,
       color: c.text,
     },
     dayTextToday: {
