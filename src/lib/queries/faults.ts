@@ -29,12 +29,34 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
   };
 }
 
-async function currentUserId(): Promise<string> {
+async function currentUserId(errorMessage = "no session"): Promise<string> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (!session) throw new Error("no session");
+  if (!session) throw new Error(errorMessage);
   return session.user.id;
+}
+
+function validateCreateFaultInput(input: {
+  equipmentId: number;
+  description: string;
+  urgency: Solicitud["urgency"];
+}): string {
+  if (!Number.isInteger(input.equipmentId) || input.equipmentId <= 0) {
+    throw new Error("El equipo seleccionado no es válido.");
+  }
+
+  const description = input.description.trim();
+  if (!description) throw new Error("Describí la falla para poder registrarla.");
+  if (description.length > 2000) {
+    throw new Error("La descripción no puede superar los 2000 caracteres.");
+  }
+
+  if (!(["low", "medium", "high"] as const).includes(input.urgency)) {
+    throw new Error("La urgencia seleccionada no es válida.");
+  }
+
+  return description;
 }
 
 async function syncEquipoEstado(equipoId: number): Promise<void> {
@@ -56,21 +78,30 @@ export async function createFault(input: {
   urgency: Solicitud["urgency"];
   photoUrl?: string;
 }): Promise<Solicitud> {
-  const userId = await currentUserId();
+  const description = validateCreateFaultInput(input);
+  const userId = await currentUserId("Necesitás iniciar sesión para reportar una falla.");
   const { data, error } = await supabase
     .from("solicitudes")
     .insert({
       eq_id_equipo: input.equipmentId,
       p_legajo_solicitante: userId,
-      sol_descripcion: input.description,
+      sol_descripcion: description,
       sol_urgencia: input.urgency,
       sol_foto_url: input.photoUrl ?? null,
     })
     .select("*, orden_de_trabajo(*)")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23503" && error.message.includes("solicitudes_eq_id_equipo_fkey")) {
+      throw new Error("El equipo seleccionado no existe.");
+    }
+    if (error.code === "42501") {
+      throw new Error("No tenés permisos para registrar esta solicitud.");
+    }
+    throw new Error(error.message);
+  }
   await syncEquipoEstado(input.equipmentId);
-  await logHistorial(input.equipmentId, "Reporte", input.description);
+  await logHistorial(input.equipmentId, "Reporte", description);
   return mapSolicitudRow(data as SolicitudWithOrden);
 }
 
