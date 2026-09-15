@@ -5,7 +5,7 @@ import { useTheme } from "../lib/ThemeContext";
 const LABELS: Record<StockStatus, string> = {
   ok: "Stock OK",
   bajo: "Stock bajo",
-  agotado: "Agotado",
+  sin_stock: "Sin stock",
 };
 
 // Reuses the equipment-status palette: green for healthy, amber for low,

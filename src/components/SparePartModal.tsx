@@ -37,7 +37,6 @@ export function SparePartModal({
   const [name, setName] = useState("");
   const [stockMin, setStockMin] = useState("");
   const [stockMax, setStockMax] = useState("");
-  const [initialQty, setInitialQty] = useState("");
   const [estado, setEstado] = useState<Repuesto["rep_estado"]>("activo");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +48,6 @@ export function SparePartModal({
     setName(sparePart?.rep_nombre ?? "");
     setStockMin(sparePart ? String(sparePart.rep_stock_minimo) : "");
     setStockMax(sparePart?.rep_stock_maximo != null ? String(sparePart.rep_stock_maximo) : "");
-    setInitialQty("");
     setEstado(sparePart?.rep_estado ?? "activo");
     setError(null);
   }, [visible, sparePart]);
@@ -71,7 +69,13 @@ export function SparePartModal({
       return;
     }
 
-    const min = parseIntOrNull(stockMin) ?? 0;
+    // Required on purpose: an empty or mistyped minimum used to become 0
+    // silently, and a 0 minimum means the "Stock bajo" warning never shows.
+    const min = parseIntOrNull(stockMin);
+    if (min === null) {
+      setError("El stock mínimo es obligatorio y tiene que ser un número entero ≥ 0.");
+      return;
+    }
     const max = stockMax.trim() ? parseIntOrNull(stockMax) : null;
     if (stockMax.trim() && max === null) {
       setError("El stock máximo tiene que ser un número entero ≥ 0.");
@@ -90,8 +94,7 @@ export function SparePartModal({
       if (sparePart) {
         await updateSparePart(sparePart.rep_id, payload);
       } else {
-        const qty = parseIntOrNull(initialQty) ?? 0;
-        await createSparePart({ ...payload, initialQty: qty });
+        await createSparePart(payload);
       }
       onSaved();
       onClose();
@@ -111,7 +114,7 @@ export function SparePartModal({
           <Text style={styles.subtitle}>
             {isEditing
               ? "Editá los datos del repuesto. El stock actual se ajusta con las compras."
-              : "Agregá un repuesto al inventario."}
+              : "Agregá un repuesto al inventario. El stock arranca en 0 y se carga al registrar una compra."}
           </Text>
 
           <Text style={styles.label}>Nombre</Text>
@@ -131,7 +134,7 @@ export function SparePartModal({
                 style={styles.input}
                 value={stockMin}
                 onChangeText={setStockMin}
-                placeholder="0"
+                placeholder="Ej: 5"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="numeric"
               />
@@ -149,20 +152,6 @@ export function SparePartModal({
               />
             </View>
           </View>
-
-          {!isEditing && (
-            <>
-              <Text style={styles.label}>Stock inicial</Text>
-              <TextInput
-                style={styles.input}
-                value={initialQty}
-                onChangeText={setInitialQty}
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="numeric"
-              />
-            </>
-          )}
 
           <Text style={styles.label}>Estado</Text>
           <RadioGroup

@@ -29,7 +29,7 @@ import { usePagination } from "../../../lib/usePagination";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Repuesto } from "../../../types/database";
 
-const STOCK_RANK: Record<StockStatus, number> = { agotado: 0, bajo: 1, ok: 2 };
+const STOCK_RANK: Record<StockStatus, number> = { sin_stock: 0, bajo: 1, ok: 2 };
 
 export default function SparePartsScreen() {
   const [loading, setLoading] = useState(true);
@@ -159,8 +159,8 @@ export default function SparePartsScreen() {
         <View style={styles.alert}>
           <Text style={styles.alertText}>
             {lowCount === 1
-              ? "1 repuesto activo con stock bajo o agotado."
-              : `${lowCount} repuestos activos con stock bajo o agotado.`}
+              ? "1 repuesto activo con stock bajo o sin stock."
+              : `${lowCount} repuestos activos con stock bajo o sin stock.`}
           </Text>
         </View>
       )}
@@ -177,7 +177,7 @@ export default function SparePartsScreen() {
             onChange: setStockFilter,
             options: [
               { value: "", label: "Todos" },
-              { value: "agotado", label: "Agotado" },
+              { value: "sin_stock", label: "Sin stock" },
               { value: "bajo", label: "Stock bajo" },
               { value: "ok", label: "Stock OK" },
             ],

@@ -14,8 +14,8 @@ import {
 import { supabase } from "../../supabase";
 
 describe("stockStatus", () => {
-  it("agotado when nothing left", () => {
-    expect(stockStatus({ rep_cantidad_actual: 0, rep_stock_minimo: 3 })).toBe("agotado");
+  it("sin_stock when nothing on hand", () => {
+    expect(stockStatus({ rep_cantidad_actual: 0, rep_stock_minimo: 3 })).toBe("sin_stock");
   });
 
   it("bajo when at or below the minimum", () => {
@@ -55,7 +55,7 @@ describe("listSpareParts", () => {
 });
 
 describe("createSparePart", () => {
-  it("inserts trimmed name plus stock fields and returns the row", async () => {
+  it("inserts trimmed name plus stock limits, never a current quantity", async () => {
     const single = jest.fn().mockResolvedValue({ data: { rep_id: 5 }, error: null });
     const select = jest.fn().mockReturnValue({ single });
     const insert = jest.fn().mockReturnValue({ select });
@@ -66,16 +66,15 @@ describe("createSparePart", () => {
       stockMin: 2,
       stockMax: 10,
       estado: "activo",
-      initialQty: 4,
     });
 
     expect(insert).toHaveBeenCalledWith({
       rep_nombre: "Correa A42",
-      rep_cantidad_actual: 4,
       rep_stock_minimo: 2,
       rep_stock_maximo: 10,
       rep_estado: "activo",
     });
+    expect(insert.mock.calls[0][0]).not.toHaveProperty("rep_cantidad_actual");
   });
 
   it("maps a 23505 on the name index to the duplicate-name message", async () => {
@@ -96,7 +95,6 @@ describe("createSparePart", () => {
         stockMin: 0,
         stockMax: null,
         estado: "activo",
-        initialQty: 0,
       }),
     ).rejects.toThrow("Ya existe un repuesto con ese nombre");
   });
@@ -119,7 +117,6 @@ describe("createSparePart", () => {
         stockMin: 0,
         stockMax: null,
         estado: "activo",
-        initialQty: 0,
       }),
     ).rejects.toThrow("repuestos_pkey");
   });

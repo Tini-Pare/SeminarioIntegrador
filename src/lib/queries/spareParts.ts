@@ -11,14 +11,17 @@ function isDuplicateNameError(error: { code?: string; message?: string } | null)
   return error?.code === "23505" && !!error.message?.includes("repuestos_nombre_unico_idx");
 }
 
-export type StockStatus = "ok" | "bajo" | "agotado";
+export type StockStatus = "ok" | "bajo" | "sin_stock";
 
 // Stock health derived from cantidad vs minimo — the table never stores it.
-// agotado: nothing left. bajo: at or below the reorder point. ok: above it.
+// sin_stock: nothing on hand. bajo: at or below the reorder point. ok: above it.
+// Nothing consumes stock yet, so a part at 0 has never been purchased; calling
+// that "agotado" would be wrong. Telling the two apart is planned for the
+// sprint that adds stock consumption.
 export function stockStatus(
   rep: Pick<Repuesto, "rep_cantidad_actual" | "rep_stock_minimo">,
 ): StockStatus {
-  if (rep.rep_cantidad_actual <= 0) return "agotado";
+  if (rep.rep_cantidad_actual <= 0) return "sin_stock";
   if (rep.rep_cantidad_actual <= rep.rep_stock_minimo) return "bajo";
   return "ok";
 }
@@ -36,17 +39,14 @@ export type SparePartInput = {
   estado: Repuesto["rep_estado"];
 };
 
-// initialQty is only accepted on create — from then on rep_cantidad_actual is
-// moved exclusively by registrar_compra (stock-in) so the edit form can't
-// silently overwrite a real count.
-export async function createSparePart(
-  input: SparePartInput & { initialQty: number },
-): Promise<Repuesto> {
+// rep_cantidad_actual is deliberately left out: a new spare part starts at the
+// column default (0) and only registrar_compra moves it, so every unit in stock
+// traces back to a linea_compra. Neither create nor update can set it.
+export async function createSparePart(input: SparePartInput): Promise<Repuesto> {
   const { data, error } = await supabase
     .from("repuestos")
     .insert({
       rep_nombre: input.name.trim(),
-      rep_cantidad_actual: input.initialQty,
       rep_stock_minimo: input.stockMin,
       rep_stock_maximo: input.stockMax,
       rep_estado: input.estado,
