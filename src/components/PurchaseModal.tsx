@@ -184,7 +184,7 @@ export function PurchaseModal({
       return;
     }
 
-    const parsed: { repId: number; cantidad: number; costoUnitario: number | null }[] = [];
+    const parsed: { repId: number; cantidad: number; costoUnitario: number }[] = [];
     const seen = new Set<number>();
     for (const l of lines) {
       if (!l.repId) {
@@ -203,14 +203,16 @@ export function PurchaseModal({
         return;
       }
 
-      let costo: number | null = null;
-      if (l.costo.trim()) {
-        const c = Number(l.costo);
-        if (!Number.isFinite(c) || c < 0) {
-          setError("El costo unitario tiene que ser un número ≥ 0.");
-          return;
-        }
-        costo = c;
+      // Required: a line without a unit cost counts as $0 in co_costo_total,
+      // which makes the purchase total unverifiable later.
+      if (!l.costo.trim()) {
+        setError("Cada línea tiene que tener un costo unitario.");
+        return;
+      }
+      const costo = Number(l.costo);
+      if (!Number.isFinite(costo) || costo < 0) {
+        setError("El costo unitario tiene que ser un número ≥ 0.");
+        return;
       }
 
       parsed.push({ repId: l.repId, cantidad: qty, costoUnitario: costo });
@@ -332,10 +334,7 @@ export function PurchaseModal({
             {lines.map((l, idx) => (
               <View
                 key={l.key}
-                style={[
-                  styles.lineCard,
-                  openField === `rep-${l.key}` && styles.lineCardRaised,
-                ]}
+                style={[styles.lineCard, openField === `rep-${l.key}` && styles.lineCardRaised]}
               >
                 <View style={styles.lineTop}>
                   <Text style={styles.lineNum}>Línea {idx + 1}</Text>
@@ -375,7 +374,7 @@ export function PurchaseModal({
                       style={styles.input}
                       value={l.costo}
                       onChangeText={(v) => updateLine(l.key, { costo: v })}
-                      placeholder="Opcional"
+                      placeholder="Ej: 1500"
                       placeholderTextColor={colors.textMuted}
                       keyboardType="numeric"
                     />

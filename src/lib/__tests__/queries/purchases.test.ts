@@ -52,7 +52,7 @@ describe("registrarCompra", () => {
       garantia: "24",
       lineas: [
         { repId: 7, cantidad: 3, costoUnitario: 120.5 },
-        { repId: 8, cantidad: 1, costoUnitario: null },
+        { repId: 8, cantidad: 1, costoUnitario: 900 },
       ],
       pedidoId: 9,
     });
@@ -64,7 +64,7 @@ describe("registrarCompra", () => {
       p_co_garantia: "24",
       p_lineas: [
         { rep_id: 7, cantidad: 3, costo_unitario: 120.5 },
-        { rep_id: 8, cantidad: 1, costo_unitario: null },
+        { rep_id: 8, cantidad: 1, costo_unitario: 900 },
       ],
       p_ped_id_ped_compra: 9,
     });
@@ -83,7 +83,7 @@ describe("registrarCompra", () => {
         nombre: null,
         fecha: null,
         garantia: null,
-        lineas: [{ repId: 1, cantidad: 1, costoUnitario: null }],
+        lineas: [{ repId: 1, cantidad: 1, costoUnitario: 100 }],
       }),
     ).rejects.toThrow("Solo un administrador");
   });

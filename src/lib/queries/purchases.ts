@@ -34,7 +34,7 @@ export type RegisterPurchaseInput = {
   nombre: string | null;
   fecha: string | null;
   garantia: string | null;
-  lineas: { repId: number; cantidad: number; costoUnitario: number | null }[];
+  lineas: { repId: number; cantidad: number; costoUnitario: number }[];
   // When set, the purchase fulfils this pedido_compra: registrar_compra
   // links it and flips the pedido to 'recibido' in the same transaction.
   pedidoId?: number | null;
