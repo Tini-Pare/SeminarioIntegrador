@@ -392,3 +392,26 @@ export function PurchaseOrderIcon({ size = 18, color = "currentColor" }: IconPro
     </Svg>
   );
 }
+
+// Document under a magnifier: "review before deciding". Deliberately not a
+// clipboard (Tareas / Pedidos de compra nav icons) nor a bare magnifier
+// (search bars), so it doesn't read as either of those.
+export function ReviewIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <Path d="M4.268 21a2 2 0 0 0 1.727 1H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3" />
+      <Path d="m9 18-1.5-1.5" />
+      <Circle cx={5} cy={14} r={3} />
+    </Svg>
+  );
+}

@@ -16,7 +16,8 @@ import {
   parseDateString,
   toDbDate,
 } from "../../../components/CustomDatePicker";
-import { EyeIcon, SearchIcon } from "../../../components/icons";
+import { EyeIcon, ReviewIcon, SearchIcon } from "../../../components/icons";
+import { Tooltip } from "../../../components/Tooltip";
 import { Pagination } from "../../../components/Pagination";
 import { PurchaseModal, type PurchasePrefill } from "../../../components/PurchaseModal";
 import { PurchaseOrderDetailModal } from "../../../components/PurchaseOrderDetailModal";
@@ -83,7 +84,10 @@ function TechFilterDropdown({
       <Pressable
         style={[
           dropdownStyles.btn,
-          { backgroundColor: colors.bgCard, borderColor: value ? colors.accent : colors.borderInput },
+          {
+            backgroundColor: colors.bgCard,
+            borderColor: value ? colors.accent : colors.borderInput,
+          },
           open && { borderColor: colors.accent },
         ]}
         onPress={() => setOpen((v) => !v)}
@@ -118,7 +122,11 @@ function TechFilterDropdown({
               },
             ]}
           >
-            <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+            <ScrollView
+              style={{ maxHeight: 220 }}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               {options.map((opt) => {
                 const active = opt.value === value;
                 return (
@@ -581,7 +589,14 @@ export default function PurchaseOrdersScreen() {
             return (
               <View key={o.ped_id_ped_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
                 <View style={styles.rowMain}>
-                  <View style={{ flex: 1.2, justifyContent: "center", alignItems: "flex-start", paddingRight: 8 }}>
+                  <View
+                    style={{
+                      flex: 1.2,
+                      justifyContent: "center",
+                      alignItems: "flex-start",
+                      paddingRight: 8,
+                    }}
+                  >
                     <View style={[styles.badge, { backgroundColor: st.bg }]}>
                       <Text style={[styles.badgeText, { color: st.fg }]} numberOfLines={1}>
                         {ESTADO_LABELS[o.ped_estado]}
@@ -607,13 +622,31 @@ export default function PurchaseOrdersScreen() {
                 </View>
 
                 <View style={styles.actionsCol}>
-                  <Pressable
-                    style={styles.viewBtn}
-                    onPress={() => setViewing(o)}
-                    accessibilityLabel="Ver pedido"
-                  >
-                    <EyeIcon size={16} color={colors.accent} />
-                  </Pressable>
+                  {/* Approve/reject live in the detail modal so the admin sees the
+                      lines first; a pending order just flags that a decision is due.
+                      Icon-only like every other row action, so the tooltip carries
+                      the wording. */}
+                  {isAdmin && o.ped_estado === "pendiente" ? (
+                    <Tooltip text="Revisar pedido">
+                      <Pressable
+                        style={[styles.viewBtn, styles.reviewBtn]}
+                        onPress={() => setViewing(o)}
+                        accessibilityLabel="Revisar pedido"
+                      >
+                        <ReviewIcon size={16} color={colors.accent} />
+                      </Pressable>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip text="Ver pedido">
+                      <Pressable
+                        style={styles.viewBtn}
+                        onPress={() => setViewing(o)}
+                        accessibilityLabel="Ver pedido"
+                      >
+                        <EyeIcon size={16} color={colors.accent} />
+                      </Pressable>
+                    </Tooltip>
+                  )}
                 </View>
               </View>
             );
@@ -854,5 +887,7 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1,
       borderColor: c.border,
     },
+    // Same square as viewBtn; only the accent border marks a pending review.
+    reviewBtn: { borderColor: c.accent },
   });
 }
