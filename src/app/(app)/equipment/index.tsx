@@ -360,7 +360,10 @@ export default function EquipmentScreen() {
         <ReportFaultModal
           visible={modalVisible}
           onClose={() => setModalVisible(false)}
-          onSubmitted={() => {}}
+          onSubmitted={() => {
+            setSuccessMessage("Solicitud registrada con éxito");
+            reload();
+          }}
           equipmentOptions={equipment.map(({ id, code, name }) => ({ id, code, name }))}
         />
 
@@ -1025,4 +1028,3 @@ function makeStyles(c: ThemeColors) {
     successClose: { color: c.textMuted, fontSize: 14, fontWeight: "600", paddingLeft: 8 },
   });
 }
-
