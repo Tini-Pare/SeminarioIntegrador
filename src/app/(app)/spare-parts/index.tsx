@@ -109,8 +109,8 @@ export default function SparePartsScreen() {
     filtered,
     {
       nombre: (p) => p.rep_nombre,
-      stock: (p) => p.rep_cantidad_actual,
-      salud: (p) => STOCK_RANK[stockStatus(p)],
+      cantidad: (p) => p.rep_cantidad_actual,
+      stock: (p) => STOCK_RANK[stockStatus(p)],
       estado: (p) => p.rep_estado,
     },
     "nombre",
@@ -128,6 +128,23 @@ export default function SparePartsScreen() {
   );
 
   if (loading) return <ActivityIndicator style={styles.center} />;
+
+  function ActiveBadge({ active }: { active: boolean }) {
+    return (
+      <View style={styles.statusChip}>
+        <View
+          style={[
+            styles.statusDot,
+            { backgroundColor: active ? colors.success : colors.textMuted },
+          ]}
+        />
+
+        <Text style={[styles.statusText, { color: active ? colors.success : colors.textMuted }]}>
+          {active ? "Activo" : "Inactivo"}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -220,21 +237,30 @@ export default function SparePartsScreen() {
             />
 
             <SortHeaderCell
+              label="Cantidad"
+              field="cantidad"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={{ flex: 0.9 }}
+            />
+
+            <SortHeaderCell
               label="Stock"
               field="stock"
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 1 }}
+              style={{ flex: 1.2 }}
             />
 
             <SortHeaderCell
               label="Estado"
-              field="salud"
+              field="estado"
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 1.2 }}
+              style={{ flex: 1 }}
             />
 
             {isAdmin && <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>}
@@ -251,16 +277,19 @@ export default function SparePartsScreen() {
                   <Text style={styles.sub}>
                     Mín. {p.rep_stock_minimo}
                     {p.rep_stock_maximo != null ? ` · Máx. ${p.rep_stock_maximo}` : ""}
-                    {p.rep_estado === "inactivo" ? " · Inactivo" : ""}
                   </Text>
                 </View>
 
-                <View style={{ flex: 1, justifyContent: "center" }}>
+                <View style={{ flex: 0.9, justifyContent: "center" }}>
                   <Text style={styles.qty}>{p.rep_cantidad_actual}</Text>
                 </View>
 
                 <View style={{ flex: 1.2, justifyContent: "center", alignItems: "flex-start" }}>
                   <StockBadge status={stockStatus(p)} />
+                </View>
+
+                <View style={{ flex: 1, justifyContent: "center", alignItems: "flex-start" }}>
+                  <ActiveBadge active={p.rep_estado === "activo"} />
                 </View>
               </View>
 
@@ -379,5 +408,8 @@ function makeStyles(c: ThemeColors) {
     name: { fontWeight: "600", fontSize: 14, color: c.text },
     sub: { marginTop: 2, fontSize: 12, color: c.textMuted },
     qty: { fontSize: 15, fontWeight: "700", color: c.text, fontFamily: "monospace" },
+    statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
+    statusDot: { width: 7, height: 7, borderRadius: 4 },
+    statusText: { fontSize: 12.5, fontWeight: "500" },
   });
 }
