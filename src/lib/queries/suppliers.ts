@@ -40,8 +40,8 @@ export async function listTiposProveedores(): Promise<TipoProveedor[]> {
 
 export type SupplierInput = {
   name: string;
-  phone: string | null;
-  email: string | null;
+  phone: string;
+  email: string;
   tpId: number | null;
 };
 
@@ -57,8 +57,8 @@ function mapRubroFkError(error: { code?: string; message?: string } | null): Err
 export async function createSupplier(input: SupplierInput): Promise<void> {
   const { error } = await supabase.from("proveedores").insert({
     prov_nombre: input.name.trim(),
-    prov_telefono: input.phone?.trim() || null,
-    prov_correo: input.email?.trim() || null,
+    prov_telefono: input.phone.trim(),
+    prov_correo: input.email.trim(),
     tp_id: input.tpId,
   });
   if (error) {
@@ -72,8 +72,8 @@ export async function updateSupplier(id: number, changes: SupplierInput): Promis
     .from("proveedores")
     .update({
       prov_nombre: changes.name.trim(),
-      prov_telefono: changes.phone?.trim() || null,
-      prov_correo: changes.email?.trim() || null,
+      prov_telefono: changes.phone.trim(),
+      prov_correo: changes.email.trim(),
       tp_id: changes.tpId,
     })
     .eq("prov_id_proveedor", id);
