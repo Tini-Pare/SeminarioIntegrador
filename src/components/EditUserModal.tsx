@@ -31,7 +31,6 @@ export function EditUserModal({
   const [active, setActive] = useState(profile.active);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [existingProfiles, setExistingProfiles] = useState<Profile[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -48,16 +47,20 @@ export function EditUserModal({
       setError("El nombre no puede estar vacío");
       return;
     }
+    // Legajo doubles as login credential, so it's as mandatory here as it is
+    // when a user is first created (InvitePersonModal) — a profile can't end
+    // up unable to log in just because someone cleared the field while editing.
     const legajoTrimmed = legajo.trim();
-    if (legajoTrimmed && !/^[0-9]+$/.test(legajoTrimmed)) {
+    if (!legajoTrimmed) {
+      setError("El legajo es obligatorio.");
+      return;
+    }
+    if (!/^[0-9]+$/.test(legajoTrimmed)) {
       setError("El legajo solo puede tener números.");
       return;
     }
-    if (
-      legajoTrimmed &&
-      existingProfiles.some((p) => p.id !== profile.id && p.legajo === legajoTrimmed)
-    ) {
-      setDuplicateWarning(true);
+    if (existingProfiles.some((p) => p.id !== profile.id && p.legajo === legajoTrimmed)) {
+      setError(`Ya existe otra persona con el legajo ${legajoTrimmed}. Usá otro número.`);
       return;
     }
     setSaving(true);
@@ -68,7 +71,7 @@ export function EditUserModal({
       // can never demote or deactivate themselves.
       await updateProfile(profile.id, {
         name: name.trim(),
-        legajo: legajoTrimmed || null,
+        legajo: legajoTrimmed,
         role: isSelf ? profile.role : role,
         active: isSelf ? profile.active : active,
       });
@@ -77,7 +80,7 @@ export function EditUserModal({
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (message.includes("profiles_legajo")) {
-        setDuplicateWarning(true);
+        setError(`Ya existe otra persona con el legajo ${legajoTrimmed}. Usá otro número.`);
       } else {
         setError(message);
       }
@@ -148,26 +151,6 @@ export function EditUserModal({
           </View>
         </View>
       </View>
-
-      <Modal
-        visible={duplicateWarning}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDuplicateWarning(false)}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.warningSheet}>
-            <Text style={styles.title}>Legajo ya registrado</Text>
-            <Text style={styles.subtitle}>
-              Ya existe otra persona con el legajo {legajo.trim()}. Usá otro número.
-            </Text>
-
-            <Pressable style={styles.saveButton} onPress={() => setDuplicateWarning(false)}>
-              <Text style={styles.saveText}>Entendido</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </Modal>
   );
 }
@@ -188,17 +171,7 @@ function makeStyles(c: ThemeColors) {
       maxWidth: 440,
       alignSelf: "center",
     },
-    warningSheet: {
-      backgroundColor: c.bgModal,
-      borderRadius: 16,
-      padding: 24,
-      width: "100%",
-      maxWidth: 380,
-      alignSelf: "center",
-      gap: 16,
-    },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
     label: {
       fontSize: 12.5,
       fontWeight: "600",

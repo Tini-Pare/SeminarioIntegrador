@@ -109,7 +109,10 @@ export function PurchaseOrderModal({
             </View>
 
             {lines.map((l, idx) => (
-              <View key={l.key} style={styles.lineCard}>
+              <View
+                key={l.key}
+                style={[styles.lineCard, openField === `rep-${l.key}` && styles.lineCardRaised]}
+              >
                 <View style={styles.lineTop}>
                   <Text style={styles.lineNum}>Línea {idx + 1}</Text>
 
@@ -230,6 +233,14 @@ function makeStyles(c: ThemeColors) {
       padding: 12,
       marginTop: 10,
       backgroundColor: c.bgCard,
+      position: "relative",
+      zIndex: 40,
+    },
+    // Raised above later lines/the Observación field while this line's
+    // repuesto dropdown is open, so its absolutely-positioned option list
+    // doesn't get painted over by content that comes after it in the form.
+    lineCardRaised: {
+      zIndex: 50,
     },
     lineTop: {
       flexDirection: "row",
