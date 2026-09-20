@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Stack, router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -19,7 +20,6 @@ import {
 import { EyeIcon, SearchIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { PurchaseDetailModal } from "../../../components/PurchaseDetailModal";
-import { PurchaseModal } from "../../../components/PurchaseModal";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { listPurchases, type PurchaseWithDetail } from "../../../lib/queries/purchases";
@@ -43,6 +43,18 @@ function itemsSummary(p: PurchaseWithDetail): string {
   return `${names.slice(0, 2).join(" · ")} +${names.length - 2}`;
 }
 
+const TIPO_LABEL: Record<PurchaseWithDetail["co_tipo_comprobante"], string> = {
+  factura: "Factura",
+  remito: "Remito",
+  tique: "Tique",
+};
+
+function comprobanteRef(p: PurchaseWithDetail): string | null {
+  if (p.co_punto_venta && p.co_nombre) return `${p.co_punto_venta}-${p.co_nombre}`;
+  if (p.co_nombre) return p.co_nombre;
+  return null;
+}
+
 export default function PurchasesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,7 +63,6 @@ export default function PurchasesScreen() {
   const [spareParts, setSpareParts] = useState<Repuesto[]>([]);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<PurchaseWithDetail | null>(null);
 
   const [search, setSearch] = useState("");
@@ -79,9 +90,14 @@ export default function PurchasesScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  // Registering a purchase now lives on its own route (/purchases/register);
+  // reload on every focus so coming back from it (or from a fulfilled pedido
+  // in purchase-orders) shows the new row, same pattern as equipment/index.tsx.
+  useFocusEffect(
+    useCallback(() => {
+      load().finally(() => setLoading(false));
+    }, [load]),
+  );
 
   async function onRefresh() {
     setRefreshing(true);
@@ -142,205 +158,217 @@ export default function PurchasesScreen() {
     [viewing, names],
   );
 
-  if (loading) return <ActivityIndicator style={styles.center} />;
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ActivityIndicator style={styles.center} />
+      </>
+    );
+  }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Compras</Text>
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
 
-          <Text style={styles.subtitle}>
-            Registrá el ingreso de stock de repuestos a partir de una compra
-          </Text>
-        </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Compras</Text>
 
-        <Pressable
-          style={[styles.addButton, !canRegister && styles.addButtonDisabled]}
-          onPress={() => setCreating(true)}
-          disabled={!canRegister}
-        >
-          <Text style={styles.addButtonText}>+ Registrar compra</Text>
-        </Pressable>
-      </View>
-
-      {error && <Text style={styles.error}>{error}</Text>}
-
-      {!canRegister && (
-        <View style={styles.alert}>
-          <Text style={styles.alertText}>
-            Para registrar una compra necesitás al menos un proveedor y un repuesto activo cargados.
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.filterBar}>
-        <View style={styles.searchBox}>
-          <SearchIcon size={15} color={colors.textMuted} />
-
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar por proveedor…"
-            placeholderTextColor={colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
-            autoCorrect={false}
-          />
-
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch("")} hitSlop={8}>
-              <Text style={styles.clearSearchText}>✕</Text>
-            </Pressable>
-          )}
-        </View>
-
-        <View style={styles.dateRangeWrap}>
-          <View style={styles.dateInputWrap}>
-            <CustomDatePicker
-              value={dateFrom}
-              onChange={setDateFrom}
-              placeholder="Desde"
-              compact
-              maxDate={parsedDateTo ?? undefined}
-              alignDropdown="left"
-            />
+            <Text style={styles.subtitle}>
+              Registrá el ingreso de stock de repuestos a partir de una compra
+            </Text>
           </View>
 
-          <Text style={styles.dateArrow}>→</Text>
-
-          <View style={styles.dateInputWrap}>
-            <CustomDatePicker
-              value={dateTo}
-              onChange={setDateTo}
-              placeholder="Hasta"
-              compact
-              minDate={parsedDateFrom ?? undefined}
-              alignDropdown="right"
-            />
-          </View>
-
-          {hasDateFilter && (
-            <Pressable
-              style={styles.clearDateBtn}
-              onPress={() => {
-                setDateFrom("");
-                setDateTo("");
-              }}
-              accessibilityLabel="Limpiar filtro de fecha"
-            >
-              <Text style={styles.clearDateText}>Limpiar</Text>
-            </Pressable>
-          )}
+          <Pressable
+            style={[styles.addButton, !canRegister && styles.addButtonDisabled]}
+            onPress={() => router.push("/purchases/register")}
+            disabled={!canRegister}
+          >
+            <Text style={styles.addButtonText}>+ Registrar compra</Text>
+          </Pressable>
         </View>
 
-        <View style={styles.spacer} />
+        {error && <Text style={styles.error}>{error}</Text>}
 
-        <Text style={styles.count}>
-          {sorted.length} {sorted.length === 1 ? "compra" : "compras"}
-        </Text>
-      </View>
+        {!canRegister && (
+          <View style={styles.alert}>
+            <Text style={styles.alertText}>
+              Para registrar una compra necesitás al menos un proveedor y un repuesto activo
+              cargados.
+            </Text>
+          </View>
+        )}
 
-      {sorted.length === 0 ? (
-        <Text style={styles.empty}>
-          {purchases.length === 0
-            ? "Todavía no hay compras registradas."
-            : "No hay compras que coincidan con la búsqueda o filtros."}
-        </Text>
-      ) : (
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <SortHeaderCell
-              label="Proveedor"
-              field="proveedor"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 2.2 }}
+        <View style={styles.filterBar}>
+          <View style={styles.searchBox}>
+            <SearchIcon size={15} color={colors.textMuted} />
+
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar por proveedor…"
+              placeholderTextColor={colors.textMuted}
+              value={search}
+              onChangeText={setSearch}
+              autoCorrect={false}
             />
 
-            <SortHeaderCell
-              label="Fecha"
-              field="fecha"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1.1 }}
-            />
-
-            <SortHeaderCell
-              label="Total"
-              field="total"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1.1 }}
-            />
-
-            <Text style={[styles.headerCell, styles.actionsCol]}>VER</Text>
+            {search.length > 0 && (
+              <Pressable onPress={() => setSearch("")} hitSlop={8}>
+                <Text style={styles.clearSearchText}>✕</Text>
+              </Pressable>
+            )}
           </View>
 
-          {pageItems.map((p, i) => (
-            <View key={p.co_id_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-              <View style={styles.rowMain}>
-                <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {p.proveedores?.prov_nombre ?? "Proveedor —"}
-                  </Text>
-
-                  <Text style={styles.sub} numberOfLines={1}>
-                    {itemsSummary(p)}
-                    {p.co_nombre ? ` · Ref: ${p.co_nombre}` : ""}
-                  </Text>
-                </View>
-
-                <View style={{ flex: 1.1, justifyContent: "center" }}>
-                  <Text style={styles.dateCell}>{formatDate(p.co_fecha_compra)}</Text>
-                </View>
-
-                <View style={{ flex: 1.1, justifyContent: "center" }}>
-                  <Text style={styles.total}>
-                    {p.co_costo_total != null && Number(p.co_costo_total) > 0
-                      ? `$${Number(p.co_costo_total).toLocaleString("es-AR")}`
-                      : "—"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.actionsCol}>
-                <Pressable
-                  style={styles.viewBtn}
-                  onPress={() => setViewing(p)}
-                  accessibilityLabel="Ver compra"
-                >
-                  <EyeIcon size={16} color={colors.accent} />
-                </Pressable>
-              </View>
+          <View style={styles.dateRangeWrap}>
+            <View style={styles.dateInputWrap}>
+              <CustomDatePicker
+                value={dateFrom}
+                onChange={setDateFrom}
+                placeholder="Desde"
+                compact
+                maxDate={parsedDateTo ?? undefined}
+                alignDropdown="left"
+              />
             </View>
-          ))}
+
+            <Text style={styles.dateArrow}>→</Text>
+
+            <View style={styles.dateInputWrap}>
+              <CustomDatePicker
+                value={dateTo}
+                onChange={setDateTo}
+                placeholder="Hasta"
+                compact
+                minDate={parsedDateFrom ?? undefined}
+                alignDropdown="right"
+              />
+            </View>
+
+            {hasDateFilter && (
+              <Pressable
+                style={styles.clearDateBtn}
+                onPress={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                accessibilityLabel="Limpiar filtro de fecha"
+              >
+                <Text style={styles.clearDateText}>Limpiar</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <View style={styles.spacer} />
+
+          <Text style={styles.count}>
+            {sorted.length} {sorted.length === 1 ? "compra" : "compras"}
+          </Text>
         </View>
-      )}
 
-      <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+        {sorted.length === 0 ? (
+          <Text style={styles.empty}>
+            {purchases.length === 0
+              ? "Todavía no hay compras registradas."
+              : "No hay compras que coincidan con la búsqueda o filtros."}
+          </Text>
+        ) : (
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <SortHeaderCell
+                label="Proveedor"
+                field="proveedor"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={{ flex: 2.2 }}
+              />
 
-      <PurchaseModal
-        visible={creating}
-        onClose={() => setCreating(false)}
-        onSaved={load}
-        suppliers={suppliers}
-        spareParts={spareParts}
-      />
+              <SortHeaderCell
+                label="Fecha"
+                field="fecha"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={{ flex: 1.1 }}
+              />
 
-      <PurchaseDetailModal
-        visible={viewing != null}
-        onClose={() => setViewing(null)}
-        purchase={viewing}
-        registradorName={viewingRegistrador}
-      />
-    </ScrollView>
+              <SortHeaderCell
+                label="Total"
+                field="total"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={{ flex: 1.1 }}
+              />
+
+              <Text style={[styles.headerCell, styles.actionsCol]}>VER</Text>
+            </View>
+
+            {pageItems.map((p, i) => (
+              <View key={p.co_id_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                <View style={styles.rowMain}>
+                  <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {p.proveedores?.prov_nombre ?? "Proveedor —"}
+                      </Text>
+
+                      <View style={styles.tipoBadge}>
+                        <Text style={styles.tipoBadgeText}>
+                          {TIPO_LABEL[p.co_tipo_comprobante]}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.sub} numberOfLines={1}>
+                      {itemsSummary(p)}
+                      {comprobanteRef(p) ? ` · N.º ${comprobanteRef(p)}` : ""}
+                    </Text>
+                  </View>
+
+                  <View style={{ flex: 1.1, justifyContent: "center" }}>
+                    <Text style={styles.dateCell}>{formatDate(p.co_fecha_compra)}</Text>
+                  </View>
+
+                  <View style={{ flex: 1.1, justifyContent: "center" }}>
+                    <Text style={styles.total}>
+                      {p.co_costo_total != null && Number(p.co_costo_total) > 0
+                        ? `$${Number(p.co_costo_total).toLocaleString("es-AR")}`
+                        : "—"}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.actionsCol}>
+                  <Pressable
+                    style={styles.viewBtn}
+                    onPress={() => setViewing(p)}
+                    accessibilityLabel="Ver compra"
+                  >
+                    <EyeIcon size={16} color={colors.accent} />
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+
+        <PurchaseDetailModal
+          visible={viewing != null}
+          onClose={() => setViewing(null)}
+          purchase={viewing}
+          registradorName={viewingRegistrador}
+        />
+      </ScrollView>
+    </>
   );
 }
 
@@ -494,6 +522,15 @@ function makeStyles(c: ThemeColors) {
     },
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    nameRow: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 },
+    tipoBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 999,
+      backgroundColor: c.bgNested,
+      flexShrink: 0,
+    },
+    tipoBadgeText: { fontSize: 10.5, fontWeight: "700", color: c.textLabel },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
     sub: { marginTop: 2, fontSize: 12, color: c.textMuted },
     dateCell: { fontSize: 13, color: c.textLabel },

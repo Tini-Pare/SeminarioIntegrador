@@ -42,6 +42,7 @@ export type SupplierInput = {
   name: string;
   phone: string | null;
   email: string | null;
+  cuit: string | null;
   tpId: number | null;
 };
 
@@ -59,6 +60,7 @@ export async function createSupplier(input: SupplierInput): Promise<void> {
     prov_nombre: input.name.trim(),
     prov_telefono: input.phone?.trim() || null,
     prov_correo: input.email?.trim() || null,
+    prov_cuit: input.cuit?.trim() || null,
     tp_id: input.tpId,
   });
   if (error) {
@@ -74,6 +76,7 @@ export async function updateSupplier(id: number, changes: SupplierInput): Promis
       prov_nombre: changes.name.trim(),
       prov_telefono: changes.phone?.trim() || null,
       prov_correo: changes.email?.trim() || null,
+      prov_cuit: changes.cuit?.trim() || null,
       tp_id: changes.tpId,
     })
     .eq("prov_id_proveedor", id);
