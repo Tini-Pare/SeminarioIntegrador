@@ -5,13 +5,13 @@ import { listProfiles } from "../lib/queries/profiles";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
 
-const ROLES: Profile["role"][] = ["user", "technician", "admin"];
-const ROLE_LABELS: Record<Profile["role"], string> = {
-  user: "Usuario",
-  technician: "Técnico",
-  admin: "Admin",
-};
+const ROLE_OPTIONS: RadioOption<Profile["role"]>[] = [
+  { value: "user", label: "Usuario" },
+  { value: "technician", label: "Técnico" },
+  { value: "admin", label: "Admin" },
+];
 
 export function InvitePersonModal({
   visible,
@@ -25,6 +25,7 @@ export function InvitePersonModal({
   const [legajo, setLegajo] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<Profile["role"]>("user");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +33,19 @@ export function InvitePersonModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
+  const hasMismatch =
+    (confirmPassword.length > 0 && password !== confirmPassword) ||
+    error === "Las contraseñas no coinciden.";
+
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      setLegajo("");
+      setName("");
+      setPassword("");
+      setConfirmPassword("");
+      setError(null);
+      return;
+    }
     listProfiles()
       .then(setExistingProfiles)
       .catch(() => {});
@@ -41,7 +53,7 @@ export function InvitePersonModal({
 
   async function handleSubmit() {
     const legajoTrimmed = legajo.trim();
-    if (!legajoTrimmed || !name.trim() || !password.trim()) {
+    if (!legajoTrimmed || !name.trim() || !password.trim() || !confirmPassword.trim()) {
       setError("Completá legajo, nombre y contraseña.");
       return;
     }
@@ -51,6 +63,10 @@ export function InvitePersonModal({
     }
     if (password.trim().length < 6) {
       setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Las contraseñas no coinciden.");
       return;
     }
     if (existingProfiles.some((p) => p.legajo === legajoTrimmed)) {
@@ -91,7 +107,9 @@ export function InvitePersonModal({
       setLegajo("");
       setName("");
       setPassword("");
+      setConfirmPassword("");
       setRole("user");
+      setError(null);
       onInvited();
       onClose();
     } catch (e) {
@@ -105,13 +123,15 @@ export function InvitePersonModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Nueva persona</Text>
+          <Text style={styles.title}>Nuevo usuario</Text>
+
           <Text style={styles.subtitle}>
             Se crea la cuenta ya activa con esta contraseña — compartísela a la persona por otro
             medio.
           </Text>
 
           <Text style={styles.label}>Legajo</Text>
+
           <TextInput
             style={styles.input}
             placeholder="Ej: 1234"
@@ -122,6 +142,7 @@ export function InvitePersonModal({
           />
 
           <Text style={styles.label}>Nombre</Text>
+
           <TextInput
             style={styles.input}
             placeholder="Nombre completo"
@@ -131,34 +152,46 @@ export function InvitePersonModal({
           />
 
           <Text style={styles.label}>Contraseña</Text>
+
           <TextInput
-            style={styles.input}
+            style={[styles.input, hasMismatch && styles.inputError]}
             placeholder="Mínimo 6 caracteres"
             placeholderTextColor={colors.textMuted}
             secureTextEntry
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (error === "Las contraseñas no coinciden.") {
+                setError(null);
+              }
+            }}
           />
 
-          <Text style={styles.label}>Rol</Text>
-          <View style={styles.chipsRow}>
-            {ROLES.map((r) => (
-              <Pressable
-                key={r}
-                style={[
-                  styles.chip,
-                  role === r && { backgroundColor: colors.accent, borderColor: colors.accent },
-                ]}
-                onPress={() => setRole(r)}
-              >
-                <Text style={[styles.chipText, role === r && styles.chipTextActive]}>
-                  {ROLE_LABELS[r]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <Text style={styles.label}>Confirmar contraseña</Text>
 
-          {error && <Text style={styles.error}>{error}</Text>}
+          <TextInput
+            style={[styles.input, hasMismatch && styles.inputError]}
+            placeholder="Repetí la contraseña"
+            placeholderTextColor={colors.textMuted}
+            secureTextEntry
+            value={confirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              if (error === "Las contraseñas no coinciden.") {
+                setError(null);
+              }
+            }}
+          />
+
+          {hasMismatch && <Text style={styles.fieldError}>Las contraseñas no coinciden.</Text>}
+
+          <Text style={styles.label}>Rol</Text>
+
+          <RadioGroup name="user-role" value={role} onChange={setRole} options={ROLE_OPTIONS} />
+
+          {error && error !== "Las contraseñas no coinciden." && (
+            <Text style={styles.error}>{error}</Text>
+          )}
 
           <View style={styles.actions}>
             <Pressable style={styles.cancelButton} onPress={onClose}>
@@ -210,17 +243,14 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       color: c.text,
     },
-    chipsRow: { flexDirection: "row", gap: 8 },
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgInput,
+    inputError: {
+      borderColor: c.destructive,
     },
-    chipText: { fontSize: 13, color: c.textLabel, fontWeight: "600" },
-    chipTextActive: { color: "#fff" },
+    fieldError: {
+      color: c.destructive,
+      fontSize: 12,
+      marginTop: 4,
+    },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 22 },
     cancelButton: {

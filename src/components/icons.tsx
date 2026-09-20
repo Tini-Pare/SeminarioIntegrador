@@ -275,6 +275,23 @@ export function SearchIcon({ size = 16, color = "currentColor" }: IconProps) {
   );
 }
 
+export function FunnelIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" />
+    </Svg>
+  );
+}
+
 export function InfoIcon({ size = 16, color = "currentColor" }: IconProps) {
   return (
     <Svg
@@ -294,3 +311,107 @@ export function InfoIcon({ size = 16, color = "currentColor" }: IconProps) {
   );
 }
 
+// Open box — the spare-parts / consumables inventory.
+export function SparePartIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" />
+      <Path d="M4 7.5l8 4.5 8-4.5" />
+      <Path d="M12 12v9" />
+    </Svg>
+  );
+}
+
+// Delivery truck — suppliers.
+export function SupplierIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M3 6h11v10H3z" />
+      <Path d="M14 9h4l3 3v4h-7z" />
+      <Circle cx={7.5} cy={17.5} r={1.8} />
+      <Circle cx={17.5} cy={17.5} r={1.8} />
+    </Svg>
+  );
+}
+
+// Receipt with a check — a registered stock-in purchase.
+export function PurchaseIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" />
+      <Path d="M9 8h6" />
+      <Path d="M9.5 12.5l1.5 1.5 3.5-3.5" />
+    </Svg>
+  );
+}
+
+// Clipboard with a plus — a technician's purchase request.
+export function PurchaseOrderIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M9 4h6a1 1 0 011 1v1H8V5a1 1 0 011-1z" />
+      <Path d="M8 6H6a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V7a1 1 0 00-1-1h-2" />
+      <Path d="M12 11v5" />
+      <Path d="M9.5 13.5h5" />
+    </Svg>
+  );
+}
+
+// Document under a magnifier: "review before deciding". Deliberately not a
+// clipboard (Tareas / Pedidos de compra nav icons) nor a bare magnifier
+// (search bars), so it doesn't read as either of those.
+export function ReviewIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <Path d="M4.268 21a2 2 0 0 0 1.727 1H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3" />
+      <Path d="m9 18-1.5-1.5" />
+      <Circle cx={5} cy={14} r={3} />
+    </Svg>
+  );
+}

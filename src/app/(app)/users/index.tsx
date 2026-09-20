@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +13,8 @@ import { EditUserModal } from "../../../components/EditUserModal";
 import { InvitePersonModal } from "../../../components/InvitePersonModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { SortHeaderCell } from "../../../components/SortHeaderCell";
+import { TableFilterBar } from "../../../components/TableFilterBar";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import { useConfirm } from "../../../lib/useConfirm";
@@ -20,7 +22,15 @@ import { deleteUser, listProfiles } from "../../../lib/queries/profiles";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { useTableSort } from "../../../lib/useTableSort";
 import type { Profile } from "../../../types/database";
+
+const ROLE_RANK: Record<Profile["role"], number> = { admin: 0, technician: 1, user: 2 };
+const ROLE_LABELS: Record<Profile["role"], string> = {
+  admin: "Admin",
+  technician: "Técnico",
+  user: "Usuario",
+};
 
 function initials(name: string) {
   return name
@@ -39,6 +49,9 @@ export default function UsersScreen() {
   const [editing, setEditing] = useState<Profile | null>(null);
   const [inviting, setInviting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
@@ -89,7 +102,31 @@ export default function UsersScreen() {
     });
   }
 
-  const { pageItems, page, pageCount, setPage } = usePagination(profiles);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return profiles.filter((p) => {
+      const matchSearch =
+        !q || p.name.toLowerCase().includes(q) || (p.legajo ?? "").toLowerCase().includes(q);
+      const matchRole = !roleFilter || p.role === roleFilter;
+      const matchStatus = !statusFilter || (statusFilter === "active" ? p.active : !p.active);
+      return matchSearch && matchRole && matchStatus;
+    });
+  }, [profiles, search, roleFilter, statusFilter]);
+
+  const { sorted, field, dir, toggle } = useTableSort<Profile>(
+    filtered,
+    {
+      persona: (p) => p.name,
+      rol: (p) => ROLE_RANK[p.role],
+      estado: (p) => (p.active ? 0 : 1),
+    },
+    "persona",
+  );
+
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    sorted,
+    `${search}|${roleFilter}|${statusFilter}|${field}|${dir}`,
+  );
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
@@ -118,7 +155,7 @@ export default function UsersScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ padding: 20 }}
+      contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
@@ -128,26 +165,89 @@ export default function UsersScreen() {
         </View>
 
         <Pressable style={styles.addButton} onPress={() => setInviting(true)}>
-          <Text style={styles.addButtonText}>+ Nueva persona</Text>
+          <Text style={styles.addButtonText}>+ Nuevo</Text>
         </Pressable>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      {isWide ? (
+      <TableFilterBar
+        searchValue={search}
+        onSearch={setSearch}
+        searchPlaceholder="Buscar por nombre o legajo…"
+        filters={[
+          {
+            key: "rol",
+            label: "Rol",
+            value: roleFilter,
+            onChange: setRoleFilter,
+            options: [
+              { value: "", label: "Todos" },
+              { value: "admin", label: ROLE_LABELS.admin },
+              { value: "technician", label: ROLE_LABELS.technician },
+              { value: "user", label: ROLE_LABELS.user },
+            ],
+          },
+          {
+            key: "estado",
+            label: "Estado",
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { value: "", label: "Todos" },
+              { value: "active", label: "Activo" },
+              { value: "inactive", label: "Inactivo" },
+            ],
+          },
+        ]}
+        right={
+          <Text style={styles.count}>
+            {sorted.length} {sorted.length === 1 ? "persona" : "personas"}
+          </Text>
+        }
+      />
+
+      {sorted.length === 0 ? (
+        <Text style={styles.empty}>
+          {profiles.length === 0
+            ? "Todavía no hay personas cargadas."
+            : "Nadie coincide con la búsqueda."}
+        </Text>
+      ) : isWide ? (
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 2.2 }]}>PERSONA</Text>
-            <Text style={[styles.headerCell, { flex: 1.1 }]}>ROL</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
+            <SortHeaderCell
+              label="Persona"
+              field="persona"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={{ flex: 2.2 }}
+            />
+            <SortHeaderCell
+              label="Rol"
+              field="rol"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={{ flex: 1.1 }}
+            />
+            <SortHeaderCell
+              label="Estado"
+              field="estado"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={{ flex: 1 }}
+            />
             <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
           </View>
 
-          {pageItems.map((p) => {
+          {pageItems.map((p, i) => {
             const rm = roleMeta[p.role];
             const isSelf = p.id === currentUserId;
             return (
-              <View key={p.id} style={styles.row}>
+              <View key={p.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
                 <View style={styles.rowMain}>
                   <View
                     style={{
@@ -219,14 +319,6 @@ export default function UsersScreen() {
                   </View>
 
                   <View style={styles.personCardChips}>
-                    {!!p.area && (
-                      <View style={styles.areaChip}>
-                        <Text style={styles.areaChipText} numberOfLines={1}>
-                          {p.area}
-                        </Text>
-                      </View>
-                    )}
-
                     <View style={[styles.badge, { backgroundColor: rm.bg }]}>
                       <Text style={[styles.badgeText, { color: rm.fg }]}>{rm.label}</Text>
                     </View>
@@ -272,6 +364,7 @@ export default function UsersScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
+    content: { padding: 20 },
     center: { flex: 1 },
     header: {
       flexDirection: "row",
@@ -279,11 +372,13 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
-      marginBottom: 20,
+      marginBottom: 16,
     },
     headerText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
+    empty: { color: c.textMuted, fontSize: 13.5, marginTop: 4 },
     addButton: {
       backgroundColor: c.accent,
       paddingHorizontal: 18,
@@ -300,7 +395,6 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
       borderRadius: 14,
       overflow: "hidden",
-      maxWidth: 980,
     },
     tableHeader: {
       flexDirection: "row",
@@ -312,9 +406,9 @@ function makeStyles(c: ThemeColors) {
       borderTopRightRadius: 13,
     },
     headerCell: {
-      fontSize: 11.5,
-      fontWeight: "600",
-      letterSpacing: 0.7,
+      fontSize: 13.5,
+      fontWeight: "700",
+      letterSpacing: 0.6,
       textTransform: "uppercase",
       color: "#fff",
       fontFamily: "monospace",
@@ -328,6 +422,7 @@ function makeStyles(c: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
+    rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     cardList: { gap: 10 },
     personCard: {
@@ -353,14 +448,6 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       justifyContent: "flex-end",
     },
-    areaChip: {
-      paddingHorizontal: 10,
-      paddingVertical: 3,
-      borderRadius: 999,
-      backgroundColor: c.bgAreaChip,
-      maxWidth: 160,
-    },
-    areaChipText: { fontSize: 12, color: c.textLabel, fontWeight: "500" },
     statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
     avatar: {
       width: 34,

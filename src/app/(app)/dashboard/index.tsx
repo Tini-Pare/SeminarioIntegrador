@@ -10,9 +10,9 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { RequestList } from "../../../components/RequestList";
 import { StatusBadge } from "../../../components/StatusBadge";
+import { StatusBarChart } from "../../../components/StatusBarChart";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import { listEquipment } from "../../../lib/queries/equipment";
@@ -42,7 +42,7 @@ export default function DashboardScreen() {
   const [heroSize, setHeroSize] = useState({ width: 0, height: 0 });
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.tablet;
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const styles = makeStyles(colors);
 
   const load = useCallback(async () => {
@@ -85,14 +85,10 @@ export default function DashboardScreen() {
   const stats = useMemo(() => {
     const byStatus = (s: Equipo["status"]) => equipment.filter((e) => e.status === s).length;
     return {
-      total: equipment.length,
       operational: byStatus("operational"),
       waiting: byStatus("waiting"),
       repair: byStatus("repair"),
       reqNew: requests.filter((r) => r.status === "new").length,
-      reqInProgress: requests.filter((r) => r.status === "assigned" || r.status === "in_progress")
-        .length,
-      reqResolved: requests.filter((r) => r.status === "resolved").length,
     };
   }, [equipment, requests]);
 
@@ -118,17 +114,10 @@ export default function DashboardScreen() {
   // Inicio is an admin overview; other roles start on the equipment list.
   if (role !== "admin") return <Redirect href="/equipment" />;
 
-  const statCards = [
-    { label: "Equipos totales", value: stats.total, color: colors.textMuted },
+  const equipmentBars = [
     { label: "Funcionando", value: stats.operational, color: colors.eqOperational.dot },
     { label: "En espera", value: stats.waiting, color: colors.eqWaiting.dot },
     { label: "En reparación", value: stats.repair, color: colors.eqRepair.dot },
-  ];
-
-  const requestCards = [
-    { label: "Solicitudes nuevas", value: stats.reqNew, color: colors.faultNew.fg },
-    { label: "En curso", value: stats.reqInProgress, color: colors.faultInProgress.fg },
-    { label: "Resueltas", value: stats.reqResolved, color: colors.faultResolved.fg },
   ];
 
   return (
@@ -140,57 +129,20 @@ export default function DashboardScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <View
-        style={styles.hero}
-        onLayout={(e) => setHeroSize(e.nativeEvent.layout)}
-      >
-        {isDark ? (
-          <>
-            <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-              <Defs>
-                <RadialGradient id="heroCardBg" cx="88%" cy="15%" r="90%">
-                  <Stop offset="0" stopColor={colors.heroGradient[0]} stopOpacity={1} />
-                  <Stop offset="0.42" stopColor={colors.heroGradient[1]} stopOpacity={1} />
-                  <Stop offset="0.78" stopColor={colors.heroGradient[2]} stopOpacity={1} />
-                  <Stop offset="1" stopColor={colors.heroGradient[2]} stopOpacity={1} />
-                </RadialGradient>
-              </Defs>
-              <Rect x={0} y={0} width="100%" height="100%" fill="url(#heroCardBg)" />
-            </Svg>
-
-            <View style={styles.heroBlob} pointerEvents="none">
-              <Svg width="100%" height="100%" viewBox="0 0 340 340">
-                <Defs>
-                  <RadialGradient id="heroBlob" cx="36%" cy="32%" r="85%">
-                    <Stop offset="0" stopColor={colors.heroBlobColors[0]} stopOpacity={0.75} />
-                    <Stop offset="0.18" stopColor={colors.heroBlobColors[0]} stopOpacity={0.65} />
-                    <Stop offset="0.34" stopColor={colors.heroBlobColors[1]} stopOpacity={0.5} />
-                    <Stop offset="0.5" stopColor={colors.heroBlobColors[1]} stopOpacity={0.38} />
-                    <Stop offset="0.66" stopColor={colors.heroBlobColors[1]} stopOpacity={0.26} />
-                    <Stop offset="0.8" stopColor={colors.heroBlobColors[1]} stopOpacity={0.14} />
-                    <Stop offset="0.92" stopColor={colors.heroBlobColors[1]} stopOpacity={0.05} />
-                    <Stop offset="1" stopColor={colors.heroBlobColors[1]} stopOpacity={0} />
-                  </RadialGradient>
-                </Defs>
-                <Circle cx={170} cy={170} r={170} fill="url(#heroBlob)" />
-              </Svg>
-            </View>
-          </>
-        ) : (
-          <Image
-            source={require("../../../../assets/images/dashboard-hero-bg.png")}
-            style={[
-              styles.heroBgImage,
-              heroSize.height
-                ? {
-                    width: Math.max(heroSize.width, heroSize.height * HERO_BG_ASPECT_RATIO),
-                    height: heroSize.height,
-                  }
-                : StyleSheet.absoluteFillObject,
-            ]}
-            resizeMode="cover"
-          />
-        )}
+      <View style={styles.hero} onLayout={(e) => setHeroSize(e.nativeEvent.layout)}>
+        <Image
+          source={require("../../../../assets/images/dashboard-hero-bg.png")}
+          style={[
+            styles.heroBgImage,
+            heroSize.height
+              ? {
+                  width: Math.max(heroSize.width, heroSize.height * HERO_BG_ASPECT_RATIO),
+                  height: heroSize.height,
+                }
+              : StyleSheet.absoluteFillObject,
+          ]}
+          resizeMode="cover"
+        />
 
         <View style={styles.heroText}>
           <Text style={styles.heroEyebrow}>{eyebrowDate}</Text>
@@ -216,29 +168,7 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      <View style={styles.statsRow}>
-        {statCards.map((s) => (
-          <View key={s.label} style={styles.statCard}>
-            <View style={styles.statLabelRow}>
-              <View style={[styles.statDot, { backgroundColor: s.color }]} />
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-            <Text style={styles.statValue}>{s.value}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.statsRow}>
-        {requestCards.map((s) => (
-          <View key={s.label} style={styles.statCard}>
-            <View style={styles.statLabelRow}>
-              <View style={[styles.statDot, { backgroundColor: s.color }]} />
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-            <Text style={styles.statValue}>{s.value}</Text>
-          </View>
-        ))}
-      </View>
+      <StatusBarChart title="Equipos por estado" data={equipmentBars} totalLabel="en total" />
 
       <View style={isWide ? styles.columns : undefined}>
         <View style={styles.column}>
@@ -323,14 +253,6 @@ function makeStyles(c: ThemeColors) {
       top: 0,
       right: 0,
     },
-    heroBlob: {
-      position: "absolute",
-      top: -60,
-      right: -35,
-      width: 340,
-      height: 340,
-      opacity: 0.6,
-    },
     heroText: { gap: 8, maxWidth: 460 },
     heroEyebrow: {
       fontFamily: "monospace",
@@ -339,7 +261,13 @@ function makeStyles(c: ThemeColors) {
       color: c.accent,
       fontWeight: "600",
     },
-    heroValue: { fontSize: 30, fontWeight: "700", color: c.text, letterSpacing: -0.6, lineHeight: 36 },
+    heroValue: {
+      fontSize: 30,
+      fontWeight: "700",
+      color: c.text,
+      letterSpacing: -0.6,
+      lineHeight: 36,
+    },
     heroCopy: { fontSize: 13.5, color: c.textSecondary, lineHeight: 19 },
     heroActions: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 8 },
     primaryButton: {
@@ -360,20 +288,6 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     ghostButtonText: { color: c.text, fontWeight: "600", fontSize: 14 },
-    statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginBottom: 20 },
-    statCard: {
-      flexGrow: 1,
-      minWidth: 150,
-      backgroundColor: c.bgCard,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 12,
-      padding: 14,
-    },
-    statLabelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-    statDot: { width: 8, height: 8, borderRadius: 4 },
-    statLabel: { fontSize: 12.5, color: c.textSecondary, fontWeight: "500" },
-    statValue: { marginTop: 6, fontSize: 28, fontWeight: "600", color: c.text },
     columns: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
     column: { flex: 1, gap: 16, minWidth: 0 },
     panel: {

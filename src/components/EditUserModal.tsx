@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
 import { Modal, View, Text, Pressable, Switch, TextInput, StyleSheet } from "react-native";
 import { listProfiles, updateProfile } from "../lib/queries/profiles";
-import { AutocompleteInput } from "./AutocompleteInput";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
 
-const ROLES: Profile["role"][] = ["user", "technician", "admin"];
-const ROLE_LABELS: Record<Profile["role"], string> = {
-  user: "Usuario",
-  technician: "Técnico",
-  admin: "Admin",
-};
+const ROLE_OPTIONS: RadioOption<Profile["role"]>[] = [
+  { value: "user", label: "Usuario" },
+  { value: "technician", label: "Técnico" },
+  { value: "admin", label: "Admin" },
+];
 
 export function EditUserModal({
   visible,
@@ -27,13 +26,11 @@ export function EditUserModal({
   isSelf?: boolean;
 }) {
   const [name, setName] = useState(profile.name);
-  const [area, setArea] = useState(profile.area ?? "");
   const [legajo, setLegajo] = useState(profile.legajo ?? "");
   const [role, setRole] = useState<Profile["role"]>(profile.role);
   const [active, setActive] = useState(profile.active);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [existingProfiles, setExistingProfiles] = useState<Profile[]>([]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -50,16 +47,20 @@ export function EditUserModal({
       setError("El nombre no puede estar vacío");
       return;
     }
+    // Legajo doubles as login credential, so it's as mandatory here as it is
+    // when a user is first created (InvitePersonModal) — a profile can't end
+    // up unable to log in just because someone cleared the field while editing.
     const legajoTrimmed = legajo.trim();
-    if (legajoTrimmed && !/^[0-9]+$/.test(legajoTrimmed)) {
+    if (!legajoTrimmed) {
+      setError("El legajo es obligatorio.");
+      return;
+    }
+    if (!/^[0-9]+$/.test(legajoTrimmed)) {
       setError("El legajo solo puede tener números.");
       return;
     }
-    if (
-      legajoTrimmed &&
-      existingProfiles.some((p) => p.id !== profile.id && p.legajo === legajoTrimmed)
-    ) {
-      setDuplicateWarning(true);
+    if (existingProfiles.some((p) => p.id !== profile.id && p.legajo === legajoTrimmed)) {
+      setError(`Ya existe otra persona con el legajo ${legajoTrimmed}. Usá otro número.`);
       return;
     }
     setSaving(true);
@@ -70,8 +71,7 @@ export function EditUserModal({
       // can never demote or deactivate themselves.
       await updateProfile(profile.id, {
         name: name.trim(),
-        area: area.trim(),
-        legajo: legajoTrimmed || null,
+        legajo: legajoTrimmed,
         role: isSelf ? profile.role : role,
         active: isSelf ? profile.active : active,
       });
@@ -80,7 +80,7 @@ export function EditUserModal({
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (message.includes("profiles_legajo")) {
-        setDuplicateWarning(true);
+        setError(`Ya existe otra persona con el legajo ${legajoTrimmed}. Usá otro número.`);
       } else {
         setError(message);
       }
@@ -95,16 +95,8 @@ export function EditUserModal({
         <View style={styles.sheet}>
           <Text style={styles.title}>{profile.name}</Text>
 
-          <Text style={styles.label}>Nombre</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Nombre"
-            placeholderTextColor={colors.textMuted}
-          />
-
           <Text style={styles.label}>Legajo</Text>
+
           <TextInput
             style={styles.input}
             value={legajo}
@@ -114,35 +106,29 @@ export function EditUserModal({
             keyboardType="number-pad"
           />
 
-          <Text style={styles.label}>Área</Text>
-          <AutocompleteInput
-            value={area}
-            onChangeText={setArea}
-            options={existingProfiles.map((p) => p.area).filter((a): a is string => !!a)}
-            placeholder="Área"
+          <Text style={styles.label}>Nombre</Text>
+
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="Nombre"
+            placeholderTextColor={colors.textMuted}
           />
 
           <Text style={styles.label}>Rol</Text>
-          <View style={[styles.chipsRow, isSelf && styles.disabled]}>
-            {ROLES.map((r) => (
-              <Pressable
-                key={r}
-                style={[
-                  styles.chip,
-                  role === r && { backgroundColor: colors.accent, borderColor: colors.accent },
-                ]}
-                onPress={() => !isSelf && setRole(r)}
-                disabled={isSelf}
-              >
-                <Text style={[styles.chipText, role === r && styles.chipTextActive]}>
-                  {ROLE_LABELS[r]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+
+          <RadioGroup
+            name="edit-user-role"
+            value={role}
+            onChange={setRole}
+            options={ROLE_OPTIONS}
+            disabled={isSelf}
+          />
 
           <View style={[styles.switchRow, isSelf && styles.disabled]}>
             <Text style={styles.label}>Activo</Text>
+
             <Switch value={active} onValueChange={setActive} disabled={isSelf} />
           </View>
 
@@ -165,26 +151,6 @@ export function EditUserModal({
           </View>
         </View>
       </View>
-
-      <Modal
-        visible={duplicateWarning}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDuplicateWarning(false)}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.warningSheet}>
-            <Text style={styles.title}>Legajo ya registrado</Text>
-            <Text style={styles.subtitle}>
-              Ya existe otra persona con el legajo {legajo.trim()}. Usá otro número.
-            </Text>
-
-            <Pressable style={styles.saveButton} onPress={() => setDuplicateWarning(false)}>
-              <Text style={styles.saveText}>Entendido</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </Modal>
   );
 }
@@ -205,17 +171,7 @@ function makeStyles(c: ThemeColors) {
       maxWidth: 440,
       alignSelf: "center",
     },
-    warningSheet: {
-      backgroundColor: c.bgModal,
-      borderRadius: 16,
-      padding: 24,
-      width: "100%",
-      maxWidth: 380,
-      alignSelf: "center",
-      gap: 16,
-    },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
     label: {
       fontSize: 12.5,
       fontWeight: "600",
@@ -233,17 +189,6 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       color: c.text,
     },
-    chipsRow: { flexDirection: "row", gap: 8 },
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgInput,
-    },
-    chipText: { fontSize: 13, color: c.textLabel, fontWeight: "600" },
-    chipTextActive: { color: "#fff" },
     disabled: { opacity: 0.45 },
     selfNote: { marginTop: 10, fontSize: 12.5, color: c.textMuted },
     switchRow: {

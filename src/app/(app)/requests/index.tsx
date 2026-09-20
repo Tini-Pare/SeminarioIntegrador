@@ -3,6 +3,7 @@ import {
   ScrollView,
   View,
   Text,
+  Pressable,
   ActivityIndicator,
   StyleSheet,
   RefreshControl,
@@ -12,6 +13,7 @@ import { listMyRequests, listAllRequests } from "../../../lib/queries/faults";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { Pagination } from "../../../components/Pagination";
+import { ReportFaultModal } from "../../../components/ReportFaultModal";
 import { RequestList } from "../../../components/RequestList";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
@@ -25,11 +27,15 @@ type Item = Solicitud & {
   technicianName: string | null;
 };
 
+type EquipmentOption = Pick<Equipo, "id" | "code" | "name">;
+
 export default function RequestsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
+  const [equipmentOptions, setEquipmentOptions] = useState<EquipmentOption[]>([]);
+  const [reportOpen, setReportOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -45,6 +51,7 @@ export default function RequestsScreen() {
         listEquipment(),
         listProfiles(),
       ]);
+      setEquipmentOptions(equipment.map(({ id, code, name }) => ({ id, code, name })));
       const equipmentById = new Map(equipment.map((e) => [e.id, e]));
       const profileById = new Map(profiles.map((p) => [p.id, p]));
       setItems(
@@ -92,7 +99,7 @@ export default function RequestsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerText}>
           <Text style={styles.title}>{isAdmin ? "Solicitudes" : "Mis solicitudes"}</Text>
           <Text style={styles.subtitle}>
             {isAdmin
@@ -100,6 +107,10 @@ export default function RequestsScreen() {
               : "Seguimiento de las fallas que reportaste"}
           </Text>
         </View>
+
+        <Pressable style={styles.reportButton} onPress={() => setReportOpen(true)}>
+          <Text style={styles.reportButtonText}>+ Reportar falla</Text>
+        </Pressable>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
@@ -107,6 +118,13 @@ export default function RequestsScreen() {
       <RequestList items={pageItems} />
 
       <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+
+      <ReportFaultModal
+        visible={reportOpen}
+        onClose={() => setReportOpen(false)}
+        onSubmitted={load}
+        equipmentOptions={equipmentOptions}
+      />
     </ScrollView>
   );
 }
@@ -124,8 +142,18 @@ function makeStyles(c: ThemeColors) {
       gap: 12,
       marginBottom: 20,
     },
+    headerText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    reportButton: {
+      backgroundColor: c.accent,
+      paddingHorizontal: 18,
+      height: 42,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    reportButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
     error: { color: c.destructive, marginBottom: 12 },
   });
 }
