@@ -46,6 +46,8 @@ describe("registrarCompra", () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: 42, error: null });
 
     const id = await registrarCompra({
+      tipoComprobante: "factura",
+      puntoVenta: "0002",
       proveedorId: 3,
       nombre: "  Remito 5  ",
       fecha: "2026-09-01",
@@ -67,6 +69,8 @@ describe("registrarCompra", () => {
         { rep_id: 8, cantidad: 1, costo_unitario: 900 },
       ],
       p_ped_id_ped_compra: 9,
+      p_co_tipo_comprobante: "factura",
+      p_co_punto_venta: "0002",
     });
     expect(id).toBe(42);
   });
@@ -79,11 +83,13 @@ describe("registrarCompra", () => {
 
     await expect(
       registrarCompra({
+        tipoComprobante: "remito",
+        puntoVenta: null,
         proveedorId: 1,
         nombre: null,
         fecha: null,
         garantia: null,
-        lineas: [{ repId: 1, cantidad: 1, costoUnitario: 100 }],
+        lineas: [{ repId: 1, cantidad: 1, costoUnitario: null }],
       }),
     ).rejects.toThrow("Solo un administrador");
   });

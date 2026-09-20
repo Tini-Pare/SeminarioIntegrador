@@ -37,6 +37,8 @@ export type Database = {
             costo_unitario: number | null;
           }[];
           p_ped_id_ped_compra?: number | null;
+          p_co_tipo_comprobante?: string;
+          p_co_punto_venta?: string | null;
         };
         Returns: number;
       };
@@ -362,6 +364,7 @@ export type Database = {
           prov_nombre: string;
           prov_telefono: string | null;
           prov_correo: string | null;
+          prov_cuit: string | null;
         };
         Insert: {
           prov_id_proveedor?: number;
@@ -369,6 +372,7 @@ export type Database = {
           prov_nombre: string;
           prov_telefono?: string | null;
           prov_correo?: string | null;
+          prov_cuit?: string | null;
         };
         Update: {
           prov_id_proveedor?: number;
@@ -376,6 +380,7 @@ export type Database = {
           prov_nombre?: string;
           prov_telefono?: string | null;
           prov_correo?: string | null;
+          prov_cuit?: string | null;
         };
         Relationships: [
           {
@@ -396,6 +401,8 @@ export type Database = {
           co_fecha_compra: string | null;
           co_costo_total: number | null;
           co_p_id_registrador: string | null;
+          co_tipo_comprobante: ComprobanteTipo;
+          co_punto_venta: string | null;
         };
         Insert: {
           co_id_compra?: number;
@@ -405,6 +412,8 @@ export type Database = {
           co_fecha_compra?: string | null;
           co_costo_total?: number | null;
           co_p_id_registrador?: string | null;
+          co_tipo_comprobante?: ComprobanteTipo;
+          co_punto_venta?: string | null;
         };
         Update: {
           co_id_compra?: number;
@@ -414,6 +423,8 @@ export type Database = {
           co_fecha_compra?: string | null;
           co_costo_total?: number | null;
           co_p_id_registrador?: string | null;
+          co_tipo_comprobante?: ComprobanteTipo;
+          co_punto_venta?: string | null;
         };
         Relationships: [
           {
@@ -556,6 +567,7 @@ export type Fallo = Database["public"]["Tables"]["fallo"]["Row"];
 export type Repuesto = Database["public"]["Tables"]["repuestos"]["Row"];
 export type TipoProveedor = Database["public"]["Tables"]["tipos_proveedores"]["Row"];
 export type Proveedor = Database["public"]["Tables"]["proveedores"]["Row"];
+export type ComprobanteTipo = "factura" | "remito" | "tique";
 export type Compra = Database["public"]["Tables"]["compras"]["Row"];
 export type LineaCompra = Database["public"]["Tables"]["linea_compra"]["Row"];
 export type PedidoCompra = Database["public"]["Tables"]["pedido_compra"]["Row"];

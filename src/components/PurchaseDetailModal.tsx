@@ -13,6 +13,18 @@ function money(n: number | null | undefined): string {
   return `$${Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
 }
 
+const TIPO_LABEL: Record<PurchaseWithDetail["co_tipo_comprobante"], string> = {
+  factura: "Factura",
+  remito: "Remito",
+  tique: "Tique",
+};
+
+function comprobanteRef(p: PurchaseWithDetail): string | null {
+  if (p.co_punto_venta && p.co_nombre) return `${p.co_punto_venta}-${p.co_nombre}`;
+  if (p.co_nombre) return p.co_nombre;
+  return null;
+}
+
 export function formatGarantia(val: string | null | undefined): string {
   if (!val) return "";
   const trimmed = val.trim();
@@ -42,11 +54,19 @@ export function PurchaseDetailModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{purchase?.proveedores?.prov_nombre ?? "Compra"}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>{purchase?.proveedores?.prov_nombre ?? "Compra"}</Text>
+
+            {purchase && (
+              <View style={styles.tipoBadge}>
+                <Text style={styles.tipoBadgeText}>{TIPO_LABEL[purchase.co_tipo_comprobante]}</Text>
+              </View>
+            )}
+          </View>
 
           <Text style={styles.subtitle}>
             {formatDate(purchase?.co_fecha_compra ?? null)}
-            {purchase?.co_nombre ? ` · Ref: ${purchase.co_nombre}` : ""}
+            {purchase && comprobanteRef(purchase) ? ` · N.º ${comprobanteRef(purchase)}` : ""}
           </Text>
 
           <ScrollView style={styles.body}>
@@ -61,8 +81,12 @@ export function PurchaseDetailModal({
             <View style={styles.tableHead}>
               <Text style={[styles.hCell, { flex: 2.2 }]}>REPUESTO</Text>
               <Text style={[styles.hCell, styles.num]}>CANT.</Text>
-              <Text style={[styles.hCell, styles.num]}>C. UNIT.</Text>
-              <Text style={[styles.hCell, styles.num]}>SUBTOT.</Text>
+              {purchase?.co_tipo_comprobante !== "remito" && (
+                <>
+                  <Text style={[styles.hCell, styles.num]}>C. UNIT.</Text>
+                  <Text style={[styles.hCell, styles.num]}>SUBTOT.</Text>
+                </>
+              )}
             </View>
 
             {(purchase?.linea_compra ?? []).map((l) => {
@@ -74,17 +98,25 @@ export function PurchaseDetailModal({
                     {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
                   </Text>
                   <Text style={[styles.cell, styles.num]}>{qty}</Text>
-                  <Text style={[styles.cell, styles.num]}>{unit != null ? money(unit) : "—"}</Text>
-                  <Text style={[styles.cell, styles.num]}>
-                    {unit != null ? money(unit * qty) : "—"}
-                  </Text>
+                  {purchase?.co_tipo_comprobante !== "remito" && (
+                    <>
+                      <Text style={[styles.cell, styles.num]}>
+                        {unit != null ? money(unit) : "—"}
+                      </Text>
+                      <Text style={[styles.cell, styles.num]}>
+                        {unit != null ? money(unit * qty) : "—"}
+                      </Text>
+                    </>
+                  )}
                 </View>
               );
             })}
 
-            {purchase?.co_costo_total != null && Number(purchase.co_costo_total) > 0 && (
-              <Text style={styles.total}>Total: {money(purchase.co_costo_total)}</Text>
-            )}
+            {purchase?.co_tipo_comprobante !== "remito" &&
+              purchase?.co_costo_total != null &&
+              Number(purchase.co_costo_total) > 0 && (
+                <Text style={styles.total}>Total: {money(purchase.co_costo_total)}</Text>
+              )}
           </ScrollView>
 
           <Pressable style={styles.closeButton} onPress={onClose}>
@@ -113,7 +145,15 @@ function makeStyles(c: ThemeColors) {
       maxHeight: "85%",
       alignSelf: "center",
     },
+    titleRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
+    tipoBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 999,
+      backgroundColor: c.bgNested,
+    },
+    tipoBadgeText: { fontSize: 11, fontWeight: "700", color: c.textLabel },
     subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
     body: { marginTop: 14 },
     meta: { fontSize: 12.5, color: c.textSecondary, marginBottom: 12 },

@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -19,7 +20,6 @@ import {
 import { EyeIcon, ReviewIcon, SearchIcon } from "../../../components/icons";
 import { Tooltip } from "../../../components/Tooltip";
 import { Pagination } from "../../../components/Pagination";
-import { PurchaseModal, type PurchasePrefill } from "../../../components/PurchaseModal";
 import { PurchaseOrderDetailModal } from "../../../components/PurchaseOrderDetailModal";
 import { PurchaseOrderModal } from "../../../components/PurchaseOrderModal";
 import { RejectPurchaseOrderModal } from "../../../components/RejectPurchaseOrderModal";
@@ -31,7 +31,6 @@ import {
 } from "../../../lib/queries/purchaseOrders";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { listSpareParts } from "../../../lib/queries/spareParts";
-import { listSuppliers, type SupplierWithRubro } from "../../../lib/queries/suppliers";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
@@ -214,7 +213,6 @@ export default function PurchaseOrdersScreen() {
   const [orders, setOrders] = useState<PurchaseOrderWithLines[]>([]);
   const [techNames, setTechNames] = useState<Map<string, string>>(new Map());
   const [spareParts, setSpareParts] = useState<Repuesto[]>([]);
-  const [suppliers, setSuppliers] = useState<SupplierWithRubro[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
@@ -226,7 +224,6 @@ export default function PurchaseOrdersScreen() {
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<PurchaseOrderWithLines | null>(null);
   const [rejecting, setRejecting] = useState<number | null>(null);
-  const [purchaseFor, setPurchaseFor] = useState<PurchasePrefill | null>(null);
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -246,9 +243,8 @@ export default function PurchaseOrdersScreen() {
       setSpareParts(parts);
 
       if (admin) {
-        const [profiles, supplierList] = await Promise.all([listProfiles(), listSuppliers()]);
+        const profiles = await listProfiles();
         setTechNames(new Map(profiles.map((p) => [p.id, p.name])));
-        setSuppliers(supplierList);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -275,13 +271,21 @@ export default function PurchaseOrdersScreen() {
     setRefreshing(false);
   }
 
+  // Registrar compra for a pedido now lives on its own route; the pedido's
+  // lines travel as JSON in a query param since route params are strings
+  // (see purchases/register.tsx).
   function openPurchaseFor(order: PurchaseOrderWithLines) {
     setViewing(null);
-    setPurchaseFor({
-      pedidoId: order.ped_id_ped_compra,
-      lines: order.linea_pedido
-        .filter((l) => l.lp_cantidad != null)
-        .map((l) => ({ repId: l.rep_id, cantidad: l.lp_cantidad as number })),
+    router.push({
+      pathname: "/purchases/register",
+      params: {
+        pedidoId: String(order.ped_id_ped_compra),
+        lines: JSON.stringify(
+          order.linea_pedido
+            .filter((l) => l.lp_cantidad != null)
+            .map((l) => ({ repId: l.rep_id, cantidad: l.lp_cantidad as number })),
+        ),
+      },
     });
   }
 
@@ -677,23 +681,12 @@ export default function PurchaseOrdersScreen() {
       )}
 
       {isAdmin && (
-        <>
-          <RejectPurchaseOrderModal
-            visible={rejecting != null}
-            pedidoId={rejecting}
-            onClose={() => setRejecting(null)}
-            onResolved={load}
-          />
-
-          <PurchaseModal
-            visible={purchaseFor != null}
-            onClose={() => setPurchaseFor(null)}
-            onSaved={load}
-            suppliers={suppliers}
-            spareParts={spareParts}
-            prefill={purchaseFor}
-          />
-        </>
+        <RejectPurchaseOrderModal
+          visible={rejecting != null}
+          pedidoId={rejecting}
+          onClose={() => setRejecting(null)}
+          onResolved={load}
+        />
       )}
     </ScrollView>
   );

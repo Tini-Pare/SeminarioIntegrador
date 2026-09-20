@@ -43,6 +43,7 @@ export function SupplierModal({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [cuit, setCuit] = useState("");
   const [tpId, setTpId] = useState<number | null>(null);
   const [rubroOpen, setRubroOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,6 +61,7 @@ export function SupplierModal({
     setName(supplier?.prov_nombre ?? "");
     setPhone(supplier?.prov_telefono ?? "");
     setEmail(supplier?.prov_correo ?? "");
+    setCuit(supplier?.prov_cuit ?? "");
     setTpId(supplier?.tp_id ?? null);
     setRubroOpen(false);
     setError(null);
@@ -111,6 +113,7 @@ export function SupplierModal({
       name: trimmedName,
       phone: phone.trim(),
       email: email.trim(),
+      cuit: cuit.trim() || null,
       tpId,
     };
 
@@ -169,6 +172,16 @@ export function SupplierModal({
               onOpenChange={setRubroOpen}
             />
           )}
+
+          <Text style={styles.label}>CUIT</Text>
+          <TextInput
+            style={styles.input}
+            value={cuit}
+            onChangeText={setCuit}
+            placeholder="Ej: 20-22725470-0"
+            placeholderTextColor={colors.textMuted}
+            maxLength={20}
+          />
 
           <View style={styles.row}>
             <View style={styles.rowItem}>

@@ -1,5 +1,5 @@
 import { supabase } from "../supabase";
-import type { Compra, LineaCompra } from "../../types/database";
+import type { Compra, ComprobanteTipo, LineaCompra } from "../../types/database";
 
 export type PurchaseLine = LineaCompra & { repuesto: { rep_nombre: string } | null };
 
@@ -30,18 +30,21 @@ export async function listPurchases(): Promise<PurchaseWithDetail[]> {
 }
 
 export type RegisterPurchaseInput = {
+  tipoComprobante: ComprobanteTipo;
+  puntoVenta: string | null;
   proveedorId: number;
   nombre: string | null;
   fecha: string | null;
   garantia: string | null;
-  lineas: { repId: number; cantidad: number; costoUnitario: number }[];
+  // A remito has no unit cost; costoUnitario is null for those lines.
+  lineas: { repId: number; cantidad: number; costoUnitario: number | null }[];
   // When set, the purchase fulfils this pedido_compra: registrar_compra
   // links it and flips the pedido to 'recibido' in the same transaction.
   pedidoId?: number | null;
 };
 
 // All-or-nothing: the RPC inserts compras + linea_compra and bumps
-// repuestos.rep_cantidad_actual in one transaction (see migration 0010).
+// repuestos.rep_cantidad_actual in one transaction (see migrations 0010/0011).
 export async function registrarCompra(input: RegisterPurchaseInput): Promise<number> {
   const { data, error } = await supabase.rpc("registrar_compra", {
     p_prov_id_proveedor: input.proveedorId,
@@ -54,6 +57,8 @@ export async function registrarCompra(input: RegisterPurchaseInput): Promise<num
       costo_unitario: l.costoUnitario,
     })),
     p_ped_id_ped_compra: input.pedidoId ?? null,
+    p_co_tipo_comprobante: input.tipoComprobante,
+    p_co_punto_venta: input.puntoVenta?.trim() || null,
   });
   if (error) throw new Error(error.message);
   return data as number;

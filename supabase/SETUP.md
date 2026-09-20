@@ -24,12 +24,14 @@ SQL Editor → run, in order:
    with no UI yet). Creates the `sync_equipo_estado` function, its RLS
    policies, and Realtime on `equipo`/`solicitudes`/`orden_de_trabajo`.
 3. `migrations/0004_login_por_legajo.sql` through
-   `migrations/0010_sprint3_repuestos_compras.sql`, **in numeric order**
-   (0002 stays skipped). These are incremental: login by legajo, unique
-   indexes on the fault/task catalogs, identity-sequence resync, a couple
-   of dropped columns, and — 0010 — the RLS/columns/RPCs that turn the
+   `migrations/0012_proveedores_cuit.sql`, **in numeric order** (0002
+   stays skipped). These are incremental: login by legajo, unique indexes
+   on the fault/task catalogs, identity-sequence resync, a couple of
+   dropped columns, 0010's RLS/columns/RPCs that turn the
    `repuestos`/`proveedores`/`compras`/`pedido_compra` tables into the
-   Repuestos / Proveedores / Compras / Pedidos de compra screens.
+   Repuestos / Proveedores / Compras / Pedidos de compra screens, 0011's
+   comprobante type (factura/remito/tique) on `compras`, and 0012's CUIT
+   column on `proveedores`.
 
 Do **not** run `migrations/0002_gestion_mantenimiento.sql` — it's the raw
 reference model 0003 was adapted from (no RLS, no Supabase Auth wiring,

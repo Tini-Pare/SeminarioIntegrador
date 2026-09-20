@@ -67,6 +67,7 @@ describe("createSupplier", () => {
       name: "  ACME  ",
       phone: " 123 ",
       email: " a@b.com ",
+      cuit: " 20-22725470-0 ",
       tpId: 9,
     });
 
@@ -75,6 +76,7 @@ describe("createSupplier", () => {
       prov_nombre: "ACME",
       prov_telefono: "123",
       prov_correo: "a@b.com",
+      prov_cuit: "20-22725470-0",
       tp_id: 9,
     });
   });
@@ -89,7 +91,7 @@ describe("createSupplier", () => {
     (supabase.from as jest.Mock).mockReturnValue({ insert });
 
     await expect(
-      createSupplier({ name: "ACME", phone: "123", email: "a@b.com", tpId: 1 }),
+      createSupplier({ name: "ACME", phone: "123", email: "a@b.com", cuit: null, tpId: 1 }),
     ).rejects.toThrow("Ya existe un proveedor con ese nombre");
   });
 
@@ -104,7 +106,7 @@ describe("createSupplier", () => {
     (supabase.from as jest.Mock).mockReturnValue({ insert });
 
     await expect(
-      createSupplier({ name: "ACME", phone: "123", email: "a@b.com", tpId: 999 }),
+      createSupplier({ name: "ACME", phone: "123", email: "a@b.com", cuit: null, tpId: 999 }),
     ).rejects.toThrow(/rubro seleccionado ya no existe/);
   });
 });
@@ -115,12 +117,13 @@ describe("updateSupplier", () => {
     const update = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
-    await updateSupplier(2, { name: "ACME", phone: "123", email: "a@b.com", tpId: 3 });
+    await updateSupplier(2, { name: "ACME", phone: "123", email: "a@b.com", cuit: null, tpId: 3 });
 
     expect(update).toHaveBeenCalledWith({
       prov_nombre: "ACME",
       prov_telefono: "123",
       prov_correo: "a@b.com",
+      prov_cuit: null,
       tp_id: 3,
     });
     expect(eq).toHaveBeenCalledWith("prov_id_proveedor", 2);
