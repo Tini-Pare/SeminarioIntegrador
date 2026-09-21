@@ -19,10 +19,9 @@ import {
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
 import type { Equipo, Solicitud } from "../types/database";
+import { Select } from "./Select";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
-
-type EquipmentOption = Pick<Equipo, "id" | "code" | "name">;
 
 const URGENCIES: Solicitud["urgency"][] = ["low", "medium", "high"];
 const URGENCY_LABELS: Record<Solicitud["urgency"], string> = {
@@ -35,17 +34,14 @@ export function ReportFaultModal({
   visible,
   onClose,
   onSubmitted,
-  equipment,
   equipmentOptions,
 }: {
   visible: boolean;
   onClose: () => void;
-  onSubmitted: () => void;
-  equipment?: EquipmentOption;
-  equipmentOptions?: EquipmentOption[];
+  onSubmitted: () => void | Promise<void>;
+  equipmentOptions: Equipo[];
 }) {
-  const [selectedId, setSelectedId] = useState<number | undefined>(equipment?.id);
-  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState<Solicitud["urgency"]>("medium");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -57,25 +53,20 @@ export function ReportFaultModal({
 
   useEffect(() => {
     if (!visible) return;
-    setSelectedId(equipment?.id);
-    setSearch("");
+    setSelectedId(null);
     setDescription("");
     setUrgency("medium");
     setPhotoUri(null);
     setError(null);
     setProcessingPhoto(false);
     setSubmitting(false);
-  }, [visible, equipment?.id]);
+  }, [visible]);
 
-  const effectiveEquipmentId = equipment?.id ?? selectedId;
-  const selectedOption = equipmentOptions?.find((e) => e.id === selectedId);
-  const query = search.trim().toLowerCase();
-  const filteredOptions =
-    query.length === 0
-      ? []
-      : (equipmentOptions ?? []).filter(
-          (e) => e.code.toLowerCase().includes(query) || e.name.toLowerCase().includes(query)
-        );
+  const selectedEquipment = equipmentOptions.find((e) => e.id === selectedId) ?? null;
+  const equipmentSelectOptions = equipmentOptions.map((e) => ({
+    value: e.id,
+    label: `${e.code} — ${e.name}`,
+  }));
 
   async function handlePickPhoto() {
     setError(null);
@@ -105,9 +96,9 @@ export function ReportFaultModal({
 
   async function handleSubmit() {
     if (
-      typeof effectiveEquipmentId !== "number" ||
-      !Number.isInteger(effectiveEquipmentId) ||
-      effectiveEquipmentId <= 0
+      !selectedEquipment ||
+      !Number.isInteger(selectedEquipment.id) ||
+      selectedEquipment.id <= 0
     ) {
       setError("Elegí un equipo válido.");
       return;
@@ -121,17 +112,16 @@ export function ReportFaultModal({
     try {
       const photoUrl = photoUri ? await uploadFaultPhoto(photoUri) : undefined;
       await createFault({
-        equipmentId: effectiveEquipmentId,
+        equipmentId: selectedEquipment.id,
         description: description.trim(),
         urgency,
         photoUrl,
       });
       setDescription("");
       setUrgency("medium");
-      setSelectedId(equipment?.id);
-      setSearch("");
+      setSelectedId(null);
       setPhotoUri(null);
-      onSubmitted();
+      await onSubmitted();
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -154,71 +144,40 @@ export function ReportFaultModal({
           <ScrollView contentContainerStyle={{ padding: 20 }}>
             <Text style={styles.title}>Reportar falla</Text>
 
-            {!equipment && equipmentOptions && (
-              <View style={styles.pickerWrap}>
-                <Text style={styles.label}>Equipo</Text>
+            <View style={styles.pickerWrap}>
+              <Text style={styles.label}>Equipo</Text>
 
-                {selectedOption ? (
-                  <View style={styles.selectedEquipmentRow}>
-                    <Text style={styles.pickerText}>
-                      {selectedOption.code} · {selectedOption.name}
-                    </Text>
+              <Select
+                value={selectedId}
+                onChange={setSelectedId}
+                options={equipmentSelectOptions}
+                placeholder={
+                  equipmentOptions.length === 0 ? "No hay equipos disponibles" : "Elegí un equipo"
+                }
+                disabled={equipmentOptions.length === 0}
+              />
+            </View>
 
-                    <Pressable
-                      onPress={() => {
-                        setSelectedId(undefined);
-                        setSearch("");
-                      }}
-                    >
-                      <Text style={styles.changeEquipmentText}>Cambiar</Text>
-                    </Pressable>
-                  </View>
-                ) : (
-                  <>
-                    <TextInput
-                      style={styles.searchInput}
-                      value={search}
-                      onChangeText={setSearch}
-                      placeholder="Buscar por código o nombre…"
-                      placeholderTextColor={colors.textMuted}
-                      autoCorrect={false}
-                    />
+            {selectedEquipment && (
+              <View style={styles.equipmentInfo}>
+                <Text style={styles.equipmentInfoTitle}>Información del equipo</Text>
 
-                    {query.length > 0 && (
-                      <ScrollView
-                        style={styles.resultsList}
-                        nestedScrollEnabled
-                        keyboardShouldPersistTaps="handled"
-                      >
-                        {filteredOptions.length === 0 ? (
-                          <Text style={styles.noResultsText}>Sin resultados</Text>
-                        ) : (
-                          filteredOptions.map((e) => (
-                            <Pressable
-                              key={e.id}
-                              style={styles.pickerRow}
-                              onPress={() => {
-                                setSelectedId(e.id);
-                                setSearch("");
-                              }}
-                            >
-                              <Text style={styles.pickerText}>
-                                {e.code} · {e.name}
-                              </Text>
-                            </Pressable>
-                          ))
-                        )}
-                      </ScrollView>
-                    )}
-                  </>
-                )}
+                <EquipmentInfoRow label="Código" value={selectedEquipment.code} />
+
+                <EquipmentInfoRow label="Nombre" value={selectedEquipment.name} />
+
+                <EquipmentInfoRow
+                  label="Ubicación"
+                  value={selectedEquipment.location || "No registrada"}
+                />
+
+                <EquipmentInfoRow label="Tipo" value={selectedEquipment.type || "No registrado"} />
+
+                <EquipmentInfoRow
+                  label="Estado actual"
+                  value={STATUS_LABELS[selectedEquipment.status]}
+                />
               </View>
-            )}
-
-            {equipment && (
-              <Text style={styles.fixedEquipment}>
-                {equipment.code} · {equipment.name}
-              </Text>
             )}
 
             <Text style={styles.label}>Descripción</Text>
@@ -287,7 +246,10 @@ export function ReportFaultModal({
 
             <View style={styles.actions}>
               <Pressable
-                style={[styles.cancelButton, (submitting || processingPhoto) && styles.disabledButton]}
+                style={[
+                  styles.cancelButton,
+                  (submitting || processingPhoto) && styles.disabledButton,
+                ]}
                 onPress={onClose}
                 disabled={submitting || processingPhoto}
               >
@@ -305,9 +267,33 @@ export function ReportFaultModal({
   );
 }
 
+const STATUS_LABELS: Record<Equipo["status"], string> = {
+  operational: "Funcionando",
+  waiting: "En espera",
+  repair: "En reparación",
+};
+
+function EquipmentInfoRow({ label, value }: { label: string; value: string }) {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
+
+  return (
+    <View style={styles.equipmentInfoRow}>
+      <Text style={styles.equipmentInfoLabel}>{label}</Text>
+
+      <Text style={styles.equipmentInfoValue}>{value}</Text>
+    </View>
+  );
+}
+
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -317,40 +303,27 @@ function makeStyles(c: ThemeColors) {
       alignSelf: "center",
     },
     title: { fontSize: 20, fontWeight: "600", color: c.text, marginBottom: 16 },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginBottom: 6, marginTop: 12 },
-    fixedEquipment: { fontSize: 14, color: c.text, fontWeight: "600" },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginBottom: 6,
+      marginTop: 12,
+    },
     pickerWrap: { marginBottom: 4 },
-    searchInput: {
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      borderRadius: 10,
-      padding: 10,
-      fontSize: 13.5,
-      backgroundColor: c.bgInput,
-      color: c.text,
-    },
-    resultsList: { maxHeight: 160, marginTop: 6 },
-    noResultsText: { fontSize: 13, color: c.textMuted, padding: 10 },
-    selectedEquipmentRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: 10,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: c.accent,
-      backgroundColor: c.bgNested,
-    },
-    changeEquipmentText: { fontSize: 12.5, fontWeight: "600", color: c.accent },
-    pickerRow: {
-      padding: 10,
-      borderRadius: 8,
+    equipmentInfo: {
+      marginTop: 12,
+      padding: 12,
       borderWidth: 1,
       borderColor: c.border,
-      marginBottom: 6,
-      backgroundColor: c.bgInput,
+      borderRadius: 10,
+      backgroundColor: c.bgNested,
+      gap: 7,
     },
-    pickerText: { fontSize: 13.5, color: c.text, flexShrink: 1 },
+    equipmentInfoTitle: { fontSize: 13.5, fontWeight: "700", color: c.text },
+    equipmentInfoRow: { flexDirection: "row", gap: 12 },
+    equipmentInfoLabel: { width: 94, fontSize: 13, color: c.textSecondary },
+    equipmentInfoValue: { flex: 1, fontSize: 13, color: c.text, fontWeight: "600" },
     textarea: {
       borderWidth: 1,
       borderColor: c.borderInput,
