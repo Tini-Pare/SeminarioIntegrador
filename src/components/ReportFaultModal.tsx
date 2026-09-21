@@ -12,13 +12,15 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { createFault } from "../lib/queries/faults";
+import { listFaultTypes } from "../lib/queries/faultTypes";
 import {
   pickFaultPhoto,
   takeFaultPhoto,
   compressToWebp,
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
-import type { Equipo, Solicitud } from "../types/database";
+import type { Equipo, Fallo, Solicitud } from "../types/database";
+import { StatusBadge } from "./StatusBadge";
 import { Select } from "./Select";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -35,20 +37,27 @@ export function ReportFaultModal({
   onClose,
   onSubmitted,
   equipmentOptions,
+  reporterName,
 }: {
   visible: boolean;
   onClose: () => void;
   onSubmitted: () => void | Promise<void>;
   equipmentOptions: Equipo[];
+  reporterName: string | null;
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [equipmentSelectOpen, setEquipmentSelectOpen] = useState(false);
+  const [faultTypes, setFaultTypes] = useState<Fallo[]>([]);
+  const [faultTypeId, setFaultTypeId] = useState<number | null>(null);
+  const [faultTypeSelectOpen, setFaultTypeSelectOpen] = useState(false);
+  const [faultTypesError, setFaultTypesError] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState<Solicitud["urgency"]>("medium");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [processingPhoto, setProcessingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reportedAt, setReportedAt] = useState(() => new Date());
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -56,18 +65,34 @@ export function ReportFaultModal({
     if (!visible) return;
     setSelectedId(null);
     setEquipmentSelectOpen(false);
+    setFaultTypeId(null);
+    setFaultTypeSelectOpen(false);
     setDescription("");
     setUrgency("medium");
     setPhotoUri(null);
     setError(null);
     setProcessingPhoto(false);
     setSubmitting(false);
+    setReportedAt(new Date());
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    setFaultTypes([]);
+    setFaultTypesError(null);
+    listFaultTypes()
+      .then(setFaultTypes)
+      .catch((e) => setFaultTypesError(e instanceof Error ? e.message : String(e)));
   }, [visible]);
 
   const selectedEquipment = equipmentOptions.find((e) => e.id === selectedId) ?? null;
   const equipmentSelectOptions = equipmentOptions.map((e) => ({
     value: e.id,
     label: `${e.code} — ${e.name}`,
+  }));
+  const faultTypeOptions = faultTypes.map((faultType) => ({
+    value: faultType.fa_id_fallo,
+    label: faultType.fa_nombre,
   }));
 
   async function handlePickPhoto() {
@@ -97,6 +122,10 @@ export function ReportFaultModal({
   }
 
   async function handleSubmit() {
+    if (!reporterName) {
+      setError("No se pudo obtener el usuario actual. Volvé a iniciar sesión.");
+      return;
+    }
     if (
       !selectedEquipment ||
       !Number.isInteger(selectedEquipment.id) ||
@@ -117,11 +146,13 @@ export function ReportFaultModal({
         equipmentId: selectedEquipment.id,
         description: description.trim(),
         urgency,
+        faultTypeId,
         photoUrl,
       });
       setDescription("");
       setUrgency("medium");
       setSelectedId(null);
+      setFaultTypeId(null);
       setPhotoUri(null);
       await onSubmitted();
       onClose();
@@ -144,10 +175,16 @@ export function ReportFaultModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
-            <Text style={styles.title}>Reportar falla</Text>
+            <Text style={styles.title}>Nueva solicitud</Text>
+
+            <Text style={styles.subtitle}>
+              Reportá una falla o inconveniente asociado a un equipo.
+            </Text>
+
+            <Text style={styles.sectionTitle}>Datos del equipo</Text>
 
             <View style={styles.pickerWrap}>
-              <Text style={styles.label}>Equipo</Text>
+              <Text style={styles.label}>Equipo *</Text>
 
               <Select
                 value={selectedId}
@@ -177,14 +214,52 @@ export function ReportFaultModal({
 
                 <EquipmentInfoRow label="Tipo" value={selectedEquipment.type || "No registrado"} />
 
-                <EquipmentInfoRow
-                  label="Estado actual"
-                  value={STATUS_LABELS[selectedEquipment.status]}
-                />
+                <View style={styles.equipmentInfoRow}>
+                  <Text style={styles.equipmentInfoLabel}>Estado actual</Text>
+
+                  <StatusBadge status={selectedEquipment.status} />
+                </View>
+
+                {selectedEquipment.model && (
+                  <EquipmentInfoRow label="Modelo" value={selectedEquipment.model} />
+                )}
+
+                {selectedEquipment.installDate && (
+                  <EquipmentInfoRow
+                    label="Instalación"
+                    value={formatEquipmentDate(selectedEquipment.installDate)}
+                  />
+                )}
+
+                {selectedEquipment.warrantyDate && (
+                  <EquipmentInfoRow
+                    label="Garantía"
+                    value={formatEquipmentDate(selectedEquipment.warrantyDate)}
+                  />
+                )}
               </View>
             )}
 
-            <Text style={styles.label}>Descripción</Text>
+            <Text style={styles.sectionTitle}>Detalle de la falla</Text>
+
+            <Text style={styles.label}>Tipo de falla</Text>
+
+            <Select
+              value={faultTypeId}
+              onChange={setFaultTypeId}
+              options={faultTypeOptions}
+              open={faultTypeSelectOpen}
+              onOpenChange={setFaultTypeSelectOpen}
+              placeholder={
+                faultTypes.length === 0 ? "No hay tipos de falla disponibles" : "Seleccionar"
+              }
+              disabled={faultTypes.length === 0}
+            />
+
+            {faultTypesError && <Text style={styles.error}>{faultTypesError}</Text>}
+
+            <Text style={styles.label}>Descripción *</Text>
+
             <TextInput
               style={styles.textarea}
               multiline
@@ -196,7 +271,10 @@ export function ReportFaultModal({
               maxLength={2000}
             />
 
-            <Text style={styles.label}>Urgencia</Text>
+            <Text style={styles.characterCount}>{description.length} / 2000</Text>
+
+            <Text style={styles.label}>Urgencia *</Text>
+
             <View style={styles.chipsRow}>
               {URGENCIES.map((u) => (
                 <Pressable
@@ -214,7 +292,10 @@ export function ReportFaultModal({
               ))}
             </View>
 
+            <Text style={styles.sectionTitle}>Evidencia</Text>
+
             <Text style={styles.label}>Foto (opcional)</Text>
+
             {photoUri ? (
               <View style={styles.photoPreviewWrap}>
                 <Image source={{ uri: photoUri }} style={styles.photoPreview} />
@@ -246,6 +327,26 @@ export function ReportFaultModal({
               </View>
             )}
 
+            {!photoUri && <Text style={styles.photoHelp}>Podés adjuntar una imagen opcional.</Text>}
+
+            <Text style={styles.sectionTitle}>Información del reporte</Text>
+
+            <View style={styles.reportInfo}>
+              <EquipmentInfoRow label="Reportado por" value={reporterName ?? "No disponible"} />
+
+              <EquipmentInfoRow label="Fecha" value={reportedAt.toLocaleDateString("es-AR")} />
+
+              <EquipmentInfoRow
+                label="Hora"
+                value={reportedAt.toLocaleTimeString("es-AR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              />
+
+              <EquipmentInfoRow label="Estado inicial" value="Pendiente" />
+            </View>
+
             {error && <Text style={styles.error}>{error}</Text>}
 
             <View style={styles.actions}>
@@ -261,7 +362,9 @@ export function ReportFaultModal({
               </Pressable>
 
               <Pressable style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
-                <Text style={styles.submitText}>{submitting ? "Enviando…" : "Reportar"}</Text>
+                <Text style={styles.submitText}>
+                  {submitting ? "Enviando…" : "Reportar solicitud"}
+                </Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -271,11 +374,9 @@ export function ReportFaultModal({
   );
 }
 
-const STATUS_LABELS: Record<Equipo["status"], string> = {
-  operational: "Funcionando",
-  waiting: "En espera",
-  repair: "En reparación",
-};
+function formatEquipmentDate(value: string): string {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("es-AR");
+}
 
 function EquipmentInfoRow({ label, value }: { label: string; value: string }) {
   const { colors } = useTheme();
@@ -306,7 +407,16 @@ function makeStyles(c: ThemeColors) {
       maxWidth: 480,
       alignSelf: "center",
     },
-    title: { fontSize: 20, fontWeight: "600", color: c.text, marginBottom: 16 },
+    title: { fontSize: 20, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 4, fontSize: 13.5, color: c.textSecondary },
+    sectionTitle: {
+      marginTop: 24,
+      fontSize: 11.5,
+      fontWeight: "700",
+      letterSpacing: 0.7,
+      textTransform: "uppercase",
+      color: c.textSecondary,
+    },
     label: {
       fontSize: 12.5,
       fontWeight: "600",
@@ -339,6 +449,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       color: c.text,
     },
+    characterCount: { alignSelf: "flex-end", marginTop: 4, fontSize: 11.5, color: c.textMuted },
     chipsRow: { flexDirection: "row", gap: 8 },
     chip: {
       paddingHorizontal: 14,
@@ -360,10 +471,20 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.borderInput,
     },
     photoButtonText: { fontSize: 13, fontWeight: "600", color: c.textLabel },
+    photoHelp: { marginTop: 6, fontSize: 12, color: c.textMuted },
     photoPreviewWrap: { flexDirection: "row", alignItems: "center", gap: 12 },
     photoPreview: { width: 72, height: 72, borderRadius: 10, backgroundColor: c.bgNested },
     photoRemoveButton: { paddingVertical: 6 },
     photoRemoveText: { color: c.destructive, fontSize: 13, fontWeight: "600" },
+    reportInfo: {
+      marginTop: 12,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 10,
+      backgroundColor: c.bgNested,
+      gap: 7,
+    },
     actions: { flexDirection: "row", gap: 10, marginTop: 20 },
     cancelButton: {
       flex: 1,

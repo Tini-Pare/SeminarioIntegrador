@@ -19,7 +19,7 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
-import type { Solicitud, Equipo } from "../../../types/database";
+import type { Profile, Solicitud, Equipo } from "../../../types/database";
 
 type Item = Solicitud & {
   equipment: Pick<Equipo, "code" | "name">;
@@ -31,6 +31,7 @@ export default function RequestsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [equipmentOptions, setEquipmentOptions] = useState<Equipo[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
@@ -45,6 +46,7 @@ export default function RequestsScreen() {
       const profile = await getProfile();
       const admin = profile?.role === "admin";
       setIsAdmin(admin);
+      setProfile(profile);
       const [faults, equipment, profiles] = await Promise.all([
         admin ? listAllRequests() : listMyRequests(),
         listEquipment(),
@@ -136,6 +138,7 @@ export default function RequestsScreen() {
         onClose={() => setReportOpen(false)}
         onSubmitted={handleSubmitted}
         equipmentOptions={equipmentOptions}
+        reporterName={profile?.name ?? null}
       />
     </ScrollView>
   );

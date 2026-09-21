@@ -87,15 +87,13 @@ describe("createFaultType", () => {
   });
 
   it("maps a 23505 unique violation to the duplicate-name message", async () => {
-    const single = jest
-      .fn()
-      .mockResolvedValue({
-        data: null,
-        error: {
-          code: "23505",
-          message: 'duplicate key value violates unique constraint "fallo_nombre_unico_idx"',
-        },
-      });
+    const single = jest.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "fallo_nombre_unico_idx"',
+      },
+    });
     const select = jest.fn().mockReturnValue({ single });
     const insert = jest.fn().mockReturnValue({ select });
     (supabase.from as jest.Mock).mockReturnValue({ insert });
@@ -171,7 +169,7 @@ describe("deleteFaultType", () => {
     const del = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ delete: del });
 
-    await expect(deleteFaultType(7)).rejects.toThrow(/asociada a una orden de trabajo/);
+    await expect(deleteFaultType(7)).rejects.toThrow(/asociada a una solicitud u orden de trabajo/);
   });
 
   it("rethrows other errors as-is", async () => {

@@ -73,15 +73,14 @@ export async function updateFaultType(
   }
 }
 
-// 23503 = Postgres foreign_key_violation — fallo_por_orden references
-// fa_id_fallo with no ON DELETE CASCADE, so a fault type that's already
-// tied to a work order can't be deleted; surface a friendly message.
+// 23503 = Postgres foreign_key_violation. A fault type tied to a request or
+// work order must stay available for the historical record.
 export async function deleteFaultType(id: number): Promise<void> {
   const { error } = await supabase.from("fallo").delete().eq("fa_id_fallo", id);
   if (error) {
     if (error.code === "23503") {
       throw new Error(
-        "No se puede eliminar: esta falla genérica ya está asociada a una orden de trabajo.",
+        "No se puede eliminar: esta falla genérica ya está asociada a una solicitud u orden de trabajo.",
       );
     }
     throw new Error(error.message);

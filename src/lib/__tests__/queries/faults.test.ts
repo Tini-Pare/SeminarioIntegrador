@@ -30,6 +30,7 @@ describe("createFault", () => {
         sol_id_solicitud: 1,
         eq_id_equipo: 5,
         p_legajo_solicitante: "u1",
+        fa_id_fallo: 3,
         sol_descripcion: "no enfría",
         sol_urgencia: "high",
         sol_foto_url: null,
@@ -45,12 +46,18 @@ describe("createFault", () => {
       table === "historial" ? { insert: insertHistorial } : { insert: insertSolicitud },
     );
 
-    const result = await createFault({ equipmentId: 5, description: "no enfría", urgency: "high" });
+    const result = await createFault({
+      equipmentId: 5,
+      description: "no enfría",
+      urgency: "high",
+      faultTypeId: 3,
+    });
 
     expect(supabase.from).toHaveBeenCalledWith("solicitudes");
     expect(insertSolicitud).toHaveBeenCalledWith({
       eq_id_equipo: 5,
       p_legajo_solicitante: "u1",
+      fa_id_fallo: 3,
       sol_descripcion: "no enfría",
       sol_urgencia: "high",
       sol_foto_url: null,
@@ -63,6 +70,7 @@ describe("createFault", () => {
       id: 1,
       equipment_id: 5,
       reported_by: "u1",
+      fault_type_id: 3,
       description: "no enfría",
       urgency: "high",
       status: "new",
@@ -74,21 +82,25 @@ describe("createFault", () => {
 
   it("throws when there is no session", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({ data: { session: null } });
-    await expect(
-      createFault({ equipmentId: 5, description: "x", urgency: "low" }),
-    ).rejects.toThrow("Necesitás iniciar sesión para reportar una falla.");
+    await expect(createFault({ equipmentId: 5, description: "x", urgency: "low" })).rejects.toThrow(
+      "Necesitás iniciar sesión para reportar una falla.",
+    );
   });
 
   it("rejects invalid equipment and blank descriptions before writing", async () => {
     (supabase.auth.getSession as jest.Mock).mockClear();
 
-    await expect(
-      createFault({ equipmentId: 0, description: "x", urgency: "low" }),
-    ).rejects.toThrow("El equipo seleccionado no es válido.");
+    await expect(createFault({ equipmentId: 0, description: "x", urgency: "low" })).rejects.toThrow(
+      "El equipo seleccionado no es válido.",
+    );
 
     await expect(
       createFault({ equipmentId: 5, description: "   ", urgency: "low" }),
     ).rejects.toThrow("Describí la falla para poder registrarla.");
+
+    await expect(
+      createFault({ equipmentId: 5, description: "x", urgency: "low", faultTypeId: 0 }),
+    ).rejects.toThrow("El tipo de falla seleccionado no es válido.");
 
     expect(supabase.auth.getSession).not.toHaveBeenCalled();
   });
@@ -128,6 +140,7 @@ describe("listMyRequests", () => {
         id: 1,
         equipment_id: 5,
         reported_by: "u1",
+        fault_type_id: null,
         description: "no enfría",
         urgency: "high",
         status: "new",
@@ -212,6 +225,7 @@ describe("listWorkQueue", () => {
         id: 1,
         equipment_id: 5,
         reported_by: "u1",
+        fault_type_id: null,
         description: "no enfría",
         urgency: "high",
         status: "new",
@@ -223,6 +237,7 @@ describe("listWorkQueue", () => {
         id: 2,
         equipment_id: 6,
         reported_by: "u2",
+        fault_type_id: null,
         description: "ruido raro",
         urgency: "low",
         status: "assigned",
