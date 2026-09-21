@@ -186,7 +186,6 @@ export type Database = {
           eq_id_equipo: number;
           p_legajo_solicitante: string;
           p_legajo_admin: string | null;
-          fa_id_fallo: number | null;
           sol_descripcion: string;
           sol_urgencia: "low" | "medium" | "high";
           sol_foto_url: string | null;
@@ -198,7 +197,6 @@ export type Database = {
           eq_id_equipo: number;
           p_legajo_solicitante: string;
           p_legajo_admin?: string | null;
-          fa_id_fallo?: number | null;
           sol_descripcion: string;
           sol_urgencia?: "low" | "medium" | "high";
           sol_foto_url?: string | null;
@@ -210,7 +208,6 @@ export type Database = {
           eq_id_equipo?: number;
           p_legajo_solicitante?: string;
           p_legajo_admin?: string | null;
-          fa_id_fallo?: number | null;
           sol_descripcion?: string;
           sol_urgencia?: "low" | "medium" | "high";
           sol_foto_url?: string | null;
@@ -231,13 +228,6 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "solicitudes_fa_id_fallo_fkey";
-            columns: ["fa_id_fallo"];
-            isOneToOne: false;
-            referencedRelation: "fallo";
-            referencedColumns: ["fa_id_fallo"];
           },
         ];
       };
@@ -594,7 +584,6 @@ export type Solicitud = {
   id: number;
   equipment_id: number;
   reported_by: string;
-  fault_type_id: number | null;
   description: string;
   urgency: "low" | "medium" | "high";
   status: "new" | "assigned" | "in_progress" | "resolved";

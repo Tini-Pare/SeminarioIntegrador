@@ -169,7 +169,7 @@ describe("deleteFaultType", () => {
     const del = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ delete: del });
 
-    await expect(deleteFaultType(7)).rejects.toThrow(/asociada a una solicitud u orden de trabajo/);
+    await expect(deleteFaultType(7)).rejects.toThrow(/asociada a una orden de trabajo/);
   });
 
   it("rethrows other errors as-is", async () => {

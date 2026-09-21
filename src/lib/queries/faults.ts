@@ -21,7 +21,6 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
     id: row.sol_id_solicitud,
     equipment_id: row.eq_id_equipo,
     reported_by: row.p_legajo_solicitante,
-    fault_type_id: row.fa_id_fallo ?? null,
     description: row.sol_descripcion,
     urgency: row.sol_urgencia,
     status: orden ? orden.ot_estado : "new",
@@ -43,7 +42,6 @@ function validateCreateFaultInput(input: {
   equipmentId: number;
   description: string;
   urgency: Solicitud["urgency"];
-  faultTypeId?: number | null;
 }): string {
   if (!Number.isInteger(input.equipmentId) || input.equipmentId <= 0) {
     throw new Error("El equipo seleccionado no es válido.");
@@ -57,14 +55,6 @@ function validateCreateFaultInput(input: {
 
   if (!(["low", "medium", "high"] as const).includes(input.urgency)) {
     throw new Error("La urgencia seleccionada no es válida.");
-  }
-
-  if (
-    input.faultTypeId !== undefined &&
-    input.faultTypeId !== null &&
-    (!Number.isInteger(input.faultTypeId) || input.faultTypeId <= 0)
-  ) {
-    throw new Error("El tipo de falla seleccionado no es válido.");
   }
 
   return description;
@@ -87,7 +77,6 @@ export async function createFault(input: {
   equipmentId: number;
   description: string;
   urgency: Solicitud["urgency"];
-  faultTypeId?: number | null;
   photoUrl?: string;
 }): Promise<Solicitud> {
   const description = validateCreateFaultInput(input);
@@ -97,7 +86,6 @@ export async function createFault(input: {
     .insert({
       eq_id_equipo: input.equipmentId,
       p_legajo_solicitante: userId,
-      fa_id_fallo: input.faultTypeId ?? null,
       sol_descripcion: description,
       sol_urgencia: input.urgency,
       sol_foto_url: input.photoUrl ?? null,
@@ -107,9 +95,6 @@ export async function createFault(input: {
   if (error) {
     if (error.code === "23503" && error.message.includes("solicitudes_eq_id_equipo_fkey")) {
       throw new Error("El equipo seleccionado no existe.");
-    }
-    if (error.code === "23503" && error.message.includes("solicitudes_fa_id_fallo_fkey")) {
-      throw new Error("El tipo de falla seleccionado no existe.");
     }
     if (error.code === "42501") {
       throw new Error("No tenés permisos para registrar esta solicitud.");

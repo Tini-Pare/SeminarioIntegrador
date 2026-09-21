@@ -12,14 +12,13 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { createFault } from "../lib/queries/faults";
-import { listFaultTypes } from "../lib/queries/faultTypes";
 import {
   pickFaultPhoto,
   takeFaultPhoto,
   compressToWebp,
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
-import type { Equipo, Fallo, Solicitud } from "../types/database";
+import type { Equipo, Solicitud } from "../types/database";
 import { StatusBadge } from "./StatusBadge";
 import { Select } from "./Select";
 import { useTheme } from "../lib/ThemeContext";
@@ -47,10 +46,6 @@ export function ReportFaultModal({
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [equipmentSelectOpen, setEquipmentSelectOpen] = useState(false);
-  const [faultTypes, setFaultTypes] = useState<Fallo[]>([]);
-  const [faultTypeId, setFaultTypeId] = useState<number | null>(null);
-  const [faultTypeSelectOpen, setFaultTypeSelectOpen] = useState(false);
-  const [faultTypesError, setFaultTypesError] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState<Solicitud["urgency"]>("medium");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -65,8 +60,6 @@ export function ReportFaultModal({
     if (!visible) return;
     setSelectedId(null);
     setEquipmentSelectOpen(false);
-    setFaultTypeId(null);
-    setFaultTypeSelectOpen(false);
     setDescription("");
     setUrgency("medium");
     setPhotoUri(null);
@@ -76,25 +69,11 @@ export function ReportFaultModal({
     setReportedAt(new Date());
   }, [visible]);
 
-  useEffect(() => {
-    if (!visible) return;
-    setFaultTypes([]);
-    setFaultTypesError(null);
-    listFaultTypes()
-      .then(setFaultTypes)
-      .catch((e) => setFaultTypesError(e instanceof Error ? e.message : String(e)));
-  }, [visible]);
-
   const selectedEquipment = equipmentOptions.find((e) => e.id === selectedId) ?? null;
   const equipmentSelectOptions = equipmentOptions.map((e) => ({
     value: e.id,
     label: `${e.code} — ${e.name}`,
   }));
-  const faultTypeOptions = faultTypes.map((faultType) => ({
-    value: faultType.fa_id_fallo,
-    label: faultType.fa_nombre,
-  }));
-
   async function handlePickPhoto() {
     setError(null);
     setProcessingPhoto(true);
@@ -146,13 +125,11 @@ export function ReportFaultModal({
         equipmentId: selectedEquipment.id,
         description: description.trim(),
         urgency,
-        faultTypeId,
         photoUrl,
       });
       setDescription("");
       setUrgency("medium");
       setSelectedId(null);
-      setFaultTypeId(null);
       setPhotoUri(null);
       await onSubmitted();
       onClose();
@@ -241,22 +218,6 @@ export function ReportFaultModal({
             )}
 
             <Text style={styles.sectionTitle}>Detalle de la falla</Text>
-
-            <Text style={styles.label}>Tipo de falla</Text>
-
-            <Select
-              value={faultTypeId}
-              onChange={setFaultTypeId}
-              options={faultTypeOptions}
-              open={faultTypeSelectOpen}
-              onOpenChange={setFaultTypeSelectOpen}
-              placeholder={
-                faultTypes.length === 0 ? "No hay tipos de falla disponibles" : "Seleccionar"
-              }
-              disabled={faultTypes.length === 0}
-            />
-
-            {faultTypesError && <Text style={styles.error}>{faultTypesError}</Text>}
 
             <Text style={styles.label}>Descripción *</Text>
 
