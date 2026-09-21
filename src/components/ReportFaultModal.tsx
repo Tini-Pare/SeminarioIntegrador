@@ -229,7 +229,7 @@ export function ReportFaultModal({
                   onPress={handlePickPhoto}
                   disabled={processingPhoto}
                 >
-                  <Text style={styles.photoButtonText}>Elegir de galería</Text>
+                  <Text style={styles.photoButtonText}>Adjuntar foto</Text>
                 </Pressable>
 
                 {Platform.OS !== "web" && (
