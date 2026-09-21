@@ -42,6 +42,7 @@ export function ReportFaultModal({
   equipmentOptions: Equipo[];
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [equipmentSelectOpen, setEquipmentSelectOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState<Solicitud["urgency"]>("medium");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export function ReportFaultModal({
   useEffect(() => {
     if (!visible) return;
     setSelectedId(null);
+    setEquipmentSelectOpen(false);
     setDescription("");
     setUrgency("medium");
     setPhotoUri(null);
@@ -151,6 +153,8 @@ export function ReportFaultModal({
                 value={selectedId}
                 onChange={setSelectedId}
                 options={equipmentSelectOptions}
+                open={equipmentSelectOpen}
+                onOpenChange={setEquipmentSelectOpen}
                 placeholder={
                   equipmentOptions.length === 0 ? "No hay equipos disponibles" : "Elegí un equipo"
                 }
