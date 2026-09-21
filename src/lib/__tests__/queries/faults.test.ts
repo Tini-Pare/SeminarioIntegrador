@@ -74,17 +74,17 @@ describe("createFault", () => {
 
   it("throws when there is no session", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({ data: { session: null } });
-    await expect(
-      createFault({ equipmentId: 5, description: "x", urgency: "low" }),
-    ).rejects.toThrow("Necesitás iniciar sesión para reportar una falla.");
+    await expect(createFault({ equipmentId: 5, description: "x", urgency: "low" })).rejects.toThrow(
+      "Necesitás iniciar sesión para reportar una falla.",
+    );
   });
 
   it("rejects invalid equipment and blank descriptions before writing", async () => {
     (supabase.auth.getSession as jest.Mock).mockClear();
 
-    await expect(
-      createFault({ equipmentId: 0, description: "x", urgency: "low" }),
-    ).rejects.toThrow("El equipo seleccionado no es válido.");
+    await expect(createFault({ equipmentId: 0, description: "x", urgency: "low" })).rejects.toThrow(
+      "El equipo seleccionado no es válido.",
+    );
 
     await expect(
       createFault({ equipmentId: 5, description: "   ", urgency: "low" }),

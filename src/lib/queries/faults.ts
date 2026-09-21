@@ -195,9 +195,7 @@ export async function advanceStatus(
     .from("orden_de_trabajo")
     .update({
       ot_estado: nextStatus,
-      ...(nextStatus === "resolved"
-        ? { ot_fecha_fin: getTodayDbDate() }
-        : {}),
+      ...(nextStatus === "resolved" ? { ot_fecha_fin: getTodayDbDate() } : {}),
     })
     .eq("sol_id_solicitud", solicitudId)
     .select("eq_id_equipo, solicitudes(sol_descripcion)")
@@ -214,7 +212,8 @@ export async function advanceStatus(
 
   await syncEquipoEstado(orden.eq_id_equipo);
 
-  const description = (orden.solicitudes as { sol_descripcion: string } | null)?.sol_descripcion ?? "";
+  const description =
+    (orden.solicitudes as { sol_descripcion: string } | null)?.sol_descripcion ?? "";
   if (nextStatus === "in_progress") {
     await logHistorial(orden.eq_id_equipo, "En curso", `Reparación iniciada: ${description}`);
   }
