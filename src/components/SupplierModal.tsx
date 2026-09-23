@@ -11,6 +11,19 @@ import { useTheme } from "../lib/ThemeContext";
 import type { TipoProveedor } from "../types/database";
 import { Select } from "./Select";
 
+// Digits plus the usual separators (spaces, +, -, parentheses): area codes and
+// formats vary, so length isn't checked — only that there are no letters and at
+// least one digit.
+function isValidPhone(raw: string): boolean {
+  return /^[0-9+\-()\s]+$/.test(raw) && /[0-9]/.test(raw);
+}
+
+// Structure only (something@something.tld). Checking that the mailbox actually
+// exists needs a confirmation email, which is out of scope here.
+function isValidEmail(raw: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(raw);
+}
+
 export function SupplierModal({
   visible,
   onClose,
@@ -77,15 +90,29 @@ export function SupplierModal({
       return;
     }
 
-    if (email.trim() && !email.includes("@")) {
-      setError("El correo no parece válido.");
+    // Both are required: a supplier with no contact data can't be reached when
+    // a purchase needs following up.
+    if (!phone.trim()) {
+      setError("El teléfono del proveedor es obligatorio.");
+      return;
+    }
+    if (!isValidPhone(phone.trim())) {
+      setError("El teléfono solo puede tener números.");
+      return;
+    }
+    if (!email.trim()) {
+      setError("El correo del proveedor es obligatorio.");
+      return;
+    }
+    if (!isValidEmail(email.trim())) {
+      setError("El correo no es válido. Tiene que ser del tipo nombre@dominio.com.");
       return;
     }
 
     const payload: SupplierInput = {
       name: trimmedName,
-      phone: phone.trim() || null,
-      email: email.trim() || null,
+      phone: phone.trim(),
+      email: email.trim(),
       cuit: cuit.trim() || null,
       tpId,
     };
@@ -163,7 +190,7 @@ export function SupplierModal({
                 style={styles.input}
                 value={phone}
                 onChangeText={setPhone}
-                placeholder="Opcional"
+                placeholder="Ej: 351 555 1234"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
                 maxLength={30}
@@ -176,7 +203,7 @@ export function SupplierModal({
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="Opcional"
+                placeholder="Ej: ventas@proveedor.com"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"

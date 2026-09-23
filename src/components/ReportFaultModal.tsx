@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Modal,
   View,
@@ -55,6 +55,18 @@ export function ReportFaultModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
+  useEffect(() => {
+    if (!visible) return;
+    setSelectedId(equipment?.id);
+    setSearch("");
+    setDescription("");
+    setUrgency("medium");
+    setPhotoUri(null);
+    setError(null);
+    setProcessingPhoto(false);
+    setSubmitting(false);
+  }, [visible, equipment?.id]);
+
   const effectiveEquipmentId = equipment?.id ?? selectedId;
   const selectedOption = equipmentOptions?.find((e) => e.id === selectedId);
   const query = search.trim().toLowerCase();
@@ -92,8 +104,16 @@ export function ReportFaultModal({
   }
 
   async function handleSubmit() {
-    if (!effectiveEquipmentId || !description.trim()) {
-      setError("Elegí un equipo y describí la falla.");
+    if (
+      typeof effectiveEquipmentId !== "number" ||
+      !Number.isInteger(effectiveEquipmentId) ||
+      effectiveEquipmentId <= 0
+    ) {
+      setError("Elegí un equipo válido.");
+      return;
+    }
+    if (!description.trim()) {
+      setError("Describí la falla para poder registrarla.");
       return;
     }
     setSubmitting(true);
@@ -121,7 +141,14 @@ export function ReportFaultModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => {
+        if (!submitting && !processingPhoto) onClose();
+      }}
+    >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -203,6 +230,7 @@ export function ReportFaultModal({
               onChangeText={setDescription}
               placeholder="¿Qué está pasando?"
               placeholderTextColor={colors.textMuted}
+              maxLength={2000}
             />
 
             <Text style={styles.label}>Urgencia</Text>
@@ -258,7 +286,11 @@ export function ReportFaultModal({
             {error && <Text style={styles.error}>{error}</Text>}
 
             <View style={styles.actions}>
-              <Pressable style={styles.cancelButton} onPress={onClose}>
+              <Pressable
+                style={[styles.cancelButton, (submitting || processingPhoto) && styles.disabledButton]}
+                onPress={onClose}
+                disabled={submitting || processingPhoto}
+              >
                 <Text style={styles.cancelText}>Cancelar</Text>
               </Pressable>
 
@@ -364,6 +396,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
+    disabledButton: { opacity: 0.55 },
     cancelText: { color: "#fff", fontWeight: "600" },
     submitButton: {
       flex: 1,
