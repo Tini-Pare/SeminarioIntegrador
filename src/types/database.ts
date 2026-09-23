@@ -9,8 +9,8 @@
 // here (profiles, lugares, tipos_de_equipos, equipo, solicitudes,
 // orden_de_trabajo, historial, plus the Sprint 3 consumibles tables:
 // repuestos, tipos_proveedores, proveedores, compras, linea_compra,
-// pedido_compra, linea_pedido) — the rest of the schema (planes de
-// mantenimiento, catalogo de fallas, etc., see
+// pedido_compra, linea_pedido, remito_compra, remito_compra_linea) — the
+// rest of the schema (planes de mantenimiento, catalogo de fallas, etc., see
 // supabase/migrations/0003_reemplazo_gestion_mantenimiento.sql) has no UI yet
 // and nothing here queries it.
 export type Database = {
@@ -44,6 +44,26 @@ export type Database = {
       };
       resolver_pedido_compra: {
         Args: { p_ped_id: number; p_estado: string; p_motivo?: string | null };
+        Returns: void;
+      };
+      registrar_remito_compra: {
+        Args: {
+          p_co_id_compra: number;
+          p_fecha: string | null;
+          p_lineas: { rep_id: number; cantidad: number }[];
+        };
+        Returns: number;
+      };
+      editar_remito_compra: {
+        Args: {
+          p_rc_id: number;
+          p_fecha: string | null;
+          p_lineas: { rep_id: number; cantidad: number }[];
+        };
+        Returns: void;
+      };
+      anular_remito_compra: {
+        Args: { p_rc_id: number };
         Returns: void;
       };
     };
@@ -555,6 +575,74 @@ export type Database = {
           },
         ];
       };
+      remito_compra: {
+        Row: {
+          rc_id: number;
+          co_id_compra: number;
+          rc_fecha: string;
+          rc_p_id_registrador: string | null;
+          rc_creado_en: string;
+        };
+        Insert: {
+          rc_id?: number;
+          co_id_compra: number;
+          rc_fecha?: string;
+          rc_p_id_registrador?: string | null;
+          rc_creado_en?: string;
+        };
+        Update: {
+          rc_id?: number;
+          co_id_compra?: number;
+          rc_fecha?: string;
+          rc_p_id_registrador?: string | null;
+          rc_creado_en?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "remito_compra_co_id_compra_fkey";
+            columns: ["co_id_compra"];
+            isOneToOne: false;
+            referencedRelation: "compras";
+            referencedColumns: ["co_id_compra"];
+          },
+        ];
+      };
+      remito_compra_linea: {
+        Row: {
+          rc_id: number;
+          co_id_compra: number;
+          rep_id: number;
+          rcl_cantidad: number;
+        };
+        Insert: {
+          rc_id: number;
+          co_id_compra: number;
+          rep_id: number;
+          rcl_cantidad: number;
+        };
+        Update: {
+          rc_id?: number;
+          co_id_compra?: number;
+          rep_id?: number;
+          rcl_cantidad?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "remito_compra_linea_rc_id_fkey";
+            columns: ["rc_id"];
+            isOneToOne: false;
+            referencedRelation: "remito_compra";
+            referencedColumns: ["rc_id"];
+          },
+          {
+            foreignKeyName: "remito_compra_linea_co_id_compra_rep_id_fkey";
+            columns: ["co_id_compra", "rep_id"];
+            isOneToOne: false;
+            referencedRelation: "linea_compra";
+            referencedColumns: ["co_id_compra", "rep_id"];
+          },
+        ];
+      };
     };
   };
 };
@@ -572,6 +660,8 @@ export type Compra = Database["public"]["Tables"]["compras"]["Row"];
 export type LineaCompra = Database["public"]["Tables"]["linea_compra"]["Row"];
 export type PedidoCompra = Database["public"]["Tables"]["pedido_compra"]["Row"];
 export type LineaPedido = Database["public"]["Tables"]["linea_pedido"]["Row"];
+export type RemitoCompra = Database["public"]["Tables"]["remito_compra"]["Row"];
+export type RemitoCompraLinea = Database["public"]["Tables"]["remito_compra_linea"]["Row"];
 
 // Equipo/Solicitud/HistorialEntry are the query layer's computed/joined
 // view shapes (see src/lib/queries/equipment.ts and faults.ts), not raw

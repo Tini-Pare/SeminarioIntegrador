@@ -23,6 +23,12 @@ import { PurchaseDetailModal } from "../../../components/PurchaseDetailModal";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { listPurchases, type PurchaseWithDetail } from "../../../lib/queries/purchases";
+import {
+  RECEIPT_STATE_LABEL,
+  purchaseReceiptState,
+  receiptStateColors,
+  type ReceiptState,
+} from "../../../lib/purchaseReceipt";
 import { listSpareParts } from "../../../lib/queries/spareParts";
 import { listSuppliers, type SupplierWithRubro } from "../../../lib/queries/suppliers";
 import type { ThemeColors } from "../../../lib/theme";
@@ -30,6 +36,8 @@ import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Repuesto } from "../../../types/database";
+
+const ESTADO_RANK: Record<ReceiptState, number> = { pendiente: 0, parcial: 1, completa: 2 };
 
 function formatDate(d: string | null): string {
   if (!d) return "—";
@@ -68,6 +76,7 @@ export default function PurchasesScreen() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [estadoFilter, setEstadoFilter] = useState<ReceiptState | "">("");
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -109,6 +118,22 @@ export default function PurchasesScreen() {
   const parsedDateTo = useMemo(() => parseDateString(dateTo), [dateTo]);
   const hasDateFilter = dateFrom.length > 0 || dateTo.length > 0;
 
+  const estados = useMemo(
+    () => new Map(purchases.map((p) => [p.co_id_compra, purchaseReceiptState(p)])),
+    [purchases],
+  );
+
+  const estadoCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: purchases.length,
+      pendiente: 0,
+      parcial: 0,
+      completa: 0,
+    };
+    estados.forEach((st) => counts[st]++);
+    return counts;
+  }, [purchases, estados]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const dbFrom = isValidDateString(dateFrom) ? toDbDate(dateFrom) : null;
@@ -130,9 +155,11 @@ export default function PurchasesScreen() {
         }
       }
 
-      return matchSearch && matchDate;
+      const matchEstado = !estadoFilter || estados.get(p.co_id_compra) === estadoFilter;
+
+      return matchSearch && matchDate && matchEstado;
     });
-  }, [purchases, search, dateFrom, dateTo]);
+  }, [purchases, search, dateFrom, dateTo, estadoFilter, estados]);
 
   const { sorted, field, dir, toggle } = useTableSort<PurchaseWithDetail>(
     filtered,
@@ -140,6 +167,7 @@ export default function PurchasesScreen() {
       proveedor: (p) => p.proveedores?.prov_nombre ?? "",
       fecha: (p) => p.co_fecha_compra ?? "",
       total: (p) => (p.co_costo_total != null ? Number(p.co_costo_total) : 0),
+      estado: (p) => ESTADO_RANK[estados.get(p.co_id_compra) ?? "pendiente"],
     },
     "fecha",
     "desc",
@@ -147,7 +175,7 @@ export default function PurchasesScreen() {
 
   const { pageItems, page, pageCount, setPage } = usePagination(
     sorted,
-    `${search}|${dateFrom}|${dateTo}|${field}|${dir}`,
+    `${search}|${dateFrom}|${dateTo}|${estadoFilter}|${field}|${dir}`,
     8,
   );
 
@@ -181,7 +209,7 @@ export default function PurchasesScreen() {
             <Text style={styles.title}>Compras</Text>
 
             <Text style={styles.subtitle}>
-              Registrá el ingreso de stock de repuestos a partir de una compra
+              Registrá compras y trackeá qué repuestos ya llegaron a partir de sus remitos
             </Text>
           </View>
 
@@ -271,6 +299,31 @@ export default function PurchasesScreen() {
           </Text>
         </View>
 
+        <View style={styles.chipsRow}>
+          {(
+            [
+              { key: "", label: "Todas" },
+              { key: "pendiente", label: "Pendiente" },
+              { key: "parcial", label: "Parcial" },
+              { key: "completa", label: "Completa" },
+            ] as const
+          ).map((chip) => {
+            const active = estadoFilter === chip.key;
+            const count = estadoCounts[chip.key || "all"] ?? 0;
+            return (
+              <Pressable
+                key={chip.key}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setEstadoFilter(chip.key)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {chip.label} ({count})
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         {sorted.length === 0 ? (
           <Text style={styles.empty}>
             {purchases.length === 0
@@ -307,55 +360,83 @@ export default function PurchasesScreen() {
                 style={{ flex: 1.1 }}
               />
 
+              <SortHeaderCell
+                label="Estado"
+                field="estado"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={{ flex: 1 }}
+              />
+
               <Text style={[styles.headerCell, styles.actionsCol]}>VER</Text>
             </View>
 
-            {pageItems.map((p, i) => (
-              <View key={p.co_id_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-                <View style={styles.rowMain}>
-                  <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.name} numberOfLines={1}>
-                        {p.proveedores?.prov_nombre ?? "Proveedor —"}
-                      </Text>
+            {pageItems.map((p, i) => {
+              const estado = estados.get(p.co_id_compra) ?? "completa";
+              const estadoStyle = receiptStateColors(colors)[estado];
+              return (
+                <View key={p.co_id_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                  <View style={styles.rowMain}>
+                    <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.name} numberOfLines={1}>
+                          {p.proveedores?.prov_nombre ?? "Proveedor —"}
+                        </Text>
 
-                      <View style={styles.tipoBadge}>
-                        <Text style={styles.tipoBadgeText}>
-                          {TIPO_LABEL[p.co_tipo_comprobante]}
+                        <View style={styles.tipoBadge}>
+                          <Text style={styles.tipoBadgeText}>
+                            {TIPO_LABEL[p.co_tipo_comprobante]}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.sub} numberOfLines={1}>
+                        {itemsSummary(p)}
+                        {comprobanteRef(p) ? ` · N.º ${comprobanteRef(p)}` : ""}
+                      </Text>
+                    </View>
+
+                    <View style={{ flex: 1.1, justifyContent: "center" }}>
+                      <Text style={styles.dateCell}>{formatDate(p.co_fecha_compra)}</Text>
+                    </View>
+
+                    <View style={{ flex: 1.1, justifyContent: "center" }}>
+                      <Text style={styles.total}>
+                        {p.co_costo_total != null && Number(p.co_costo_total) > 0
+                          ? `$${Number(p.co_costo_total).toLocaleString("es-AR")}`
+                          : "—"}
+                      </Text>
+                    </View>
+
+                    <View style={{ flex: 1, justifyContent: "center" }}>
+                      <View style={[styles.estadoBadge, { backgroundColor: estadoStyle.bg }]}>
+                        <Text style={[styles.estadoBadgeText, { color: estadoStyle.fg }]}>
+                          {RECEIPT_STATE_LABEL[estado]}
                         </Text>
                       </View>
                     </View>
-
-                    <Text style={styles.sub} numberOfLines={1}>
-                      {itemsSummary(p)}
-                      {comprobanteRef(p) ? ` · N.º ${comprobanteRef(p)}` : ""}
-                    </Text>
                   </View>
 
-                  <View style={{ flex: 1.1, justifyContent: "center" }}>
-                    <Text style={styles.dateCell}>{formatDate(p.co_fecha_compra)}</Text>
-                  </View>
-
-                  <View style={{ flex: 1.1, justifyContent: "center" }}>
-                    <Text style={styles.total}>
-                      {p.co_costo_total != null && Number(p.co_costo_total) > 0
-                        ? `$${Number(p.co_costo_total).toLocaleString("es-AR")}`
-                        : "—"}
-                    </Text>
+                  <View style={styles.actionsCol}>
+                    <Pressable
+                      style={styles.viewBtn}
+                      onPress={() =>
+                        p.co_tipo_comprobante === "factura"
+                          ? router.push({
+                              pathname: "/purchases/[id]",
+                              params: { id: String(p.co_id_compra) },
+                            })
+                          : setViewing(p)
+                      }
+                      accessibilityLabel="Ver compra"
+                    >
+                      <EyeIcon size={16} color={colors.accent} />
+                    </Pressable>
                   </View>
                 </View>
-
-                <View style={styles.actionsCol}>
-                  <Pressable
-                    style={styles.viewBtn}
-                    onPress={() => setViewing(p)}
-                    accessibilityLabel="Ver compra"
-                  >
-                    <EyeIcon size={16} color={colors.accent} />
-                  </Pressable>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -481,6 +562,39 @@ function makeStyles(c: ThemeColors) {
       fontWeight: "500",
       color: c.textSecondary,
     },
+    chipsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 7,
+      marginBottom: 14,
+    },
+    chip: {
+      paddingHorizontal: 13,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      backgroundColor: c.bgStatCard,
+    },
+    chipActive: {
+      backgroundColor: c.accent,
+      borderColor: c.accent,
+    },
+    chipText: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+    },
+    chipTextActive: {
+      color: "#fff",
+    },
+    estadoBadge: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    estadoBadgeText: { fontSize: 11.5, fontWeight: "600" },
     empty: {
       color: c.textMuted,
       fontSize: 13.5,
