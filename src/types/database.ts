@@ -117,16 +117,19 @@ export type Database = {
           tag_id_tarea: number;
           tag_nombre_tarea: string;
           tag_descripcion_tarea: string | null;
+          tag_estado: "activo" | "inactivo";
         };
         Insert: {
           tag_id_tarea?: number;
           tag_nombre_tarea: string;
           tag_descripcion_tarea?: string | null;
+          tag_estado?: "activo" | "inactivo";
         };
         Update: {
           tag_id_tarea?: number;
           tag_nombre_tarea?: string;
           tag_descripcion_tarea?: string | null;
+          tag_estado?: "activo" | "inactivo";
         };
         Relationships: [];
       };
@@ -136,18 +139,21 @@ export type Database = {
           fa_nombre: string;
           fa_desperfecto: string | null;
           fa_gravedad: string | null;
+          fa_estado: "activo" | "inactivo";
         };
         Insert: {
           fa_id_fallo?: number;
           fa_nombre: string;
           fa_desperfecto?: string | null;
           fa_gravedad?: string | null;
+          fa_estado?: "activo" | "inactivo";
         };
         Update: {
           fa_id_fallo?: number;
           fa_nombre?: string;
           fa_desperfecto?: string | null;
           fa_gravedad?: string | null;
+          fa_estado?: "activo" | "inactivo";
         };
         Relationships: [];
       };
@@ -162,6 +168,7 @@ export type Database = {
           eq_modelo: string | null;
           eq_fecha_garantia: string | null;
           eq_fecha_instalacion: string | null;
+          eq_estado_registro: "activo" | "inactivo";
         };
         Insert: {
           eq_id_equipo?: number;
@@ -173,6 +180,7 @@ export type Database = {
           eq_modelo?: string | null;
           eq_fecha_garantia?: string | null;
           eq_fecha_instalacion?: string | null;
+          eq_estado_registro?: "activo" | "inactivo";
         };
         Update: {
           eq_id_equipo?: number;
@@ -184,6 +192,7 @@ export type Database = {
           eq_modelo?: string | null;
           eq_fecha_garantia?: string | null;
           eq_fecha_instalacion?: string | null;
+          eq_estado_registro?: "activo" | "inactivo";
         };
         Relationships: [
           {
@@ -677,6 +686,8 @@ export type Equipo = {
   location: string;
   locationId: number;
   status: "operational" | "waiting" | "repair";
+  // Registration state, separate from the automatic operational `status`.
+  active: boolean;
   model: string | null;
   installDate: string | null;
   warrantyDate: string | null;

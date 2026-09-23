@@ -37,6 +37,7 @@ export default function FaultsScreen() {
 
   const [search, setSearch] = useState("");
   const [gravedadFilter, setGravedadFilter] = useState("");
+  const [estadoFilter, setEstadoFilter] = useState("");
 
   const [editingFault, setEditingFault] = useState<Fallo | null>(null);
   const [creatingFault, setCreatingFault] = useState(false);
@@ -76,9 +77,10 @@ export default function FaultsScreen() {
     return faults.filter((f) => {
       const matchSearch = !q || f.fa_nombre.toLowerCase().includes(q);
       const matchGravedad = !gravedadFilter || normalizeGravedad(f.fa_gravedad) === gravedadFilter;
-      return matchSearch && matchGravedad;
+      const matchEstado = !estadoFilter || f.fa_estado === estadoFilter;
+      return matchSearch && matchGravedad && matchEstado;
     });
-  }, [faults, search, gravedadFilter]);
+  }, [faults, search, gravedadFilter, estadoFilter]);
 
   const { sorted, field, dir, toggle } = useTableSort<Fallo>(
     filtered,
@@ -89,7 +91,11 @@ export default function FaultsScreen() {
     "nombre",
   );
 
-  const faultsPage = usePagination(sorted, `${search}|${gravedadFilter}|${field}|${dir}`, 8);
+  const faultsPage = usePagination(
+    sorted,
+    `${search}|${gravedadFilter}|${estadoFilter}|${field}|${dir}`,
+    8,
+  );
 
   function deleteFault(f: Fallo) {
     confirm({
@@ -156,6 +162,17 @@ export default function FaultsScreen() {
               { value: "low", label: GRAVEDAD_LABELS.low },
             ],
           },
+          {
+            key: "estado",
+            label: "Estado",
+            value: estadoFilter,
+            onChange: setEstadoFilter,
+            options: [
+              { value: "", label: "Todos" },
+              { value: "activo", label: "Activo" },
+              { value: "inactivo", label: "Inactivo" },
+            ],
+          },
         ]}
         right={
           <Text style={styles.count}>
@@ -201,6 +218,8 @@ export default function FaultsScreen() {
                   <Text style={styles.name} numberOfLines={1}>
                     {f.fa_nombre}
                   </Text>
+
+                  {f.fa_estado === "inactivo" && <Text style={styles.inactive}>Inactiva</Text>}
                 </View>
 
                 <View style={{ flex: 1, justifyContent: "center" }}>
@@ -322,6 +341,7 @@ function makeStyles(c: ThemeColors) {
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
+    inactive: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     badge: {
       alignSelf: "flex-start",
       paddingHorizontal: 11,

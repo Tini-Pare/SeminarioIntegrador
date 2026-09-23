@@ -30,6 +30,7 @@ export default function TasksScreen() {
 
   const [search, setSearch] = useState("");
   const [descFilter, setDescFilter] = useState("");
+  const [estadoFilter, setEstadoFilter] = useState("");
 
   const [editingTask, setEditingTask] = useState<TareaGeneral | null>(null);
   const [creatingTask, setCreatingTask] = useState(false);
@@ -67,9 +68,10 @@ export default function TasksScreen() {
         t.tag_nombre_tarea.toLowerCase().includes(q) ||
         (t.tag_descripcion_tarea ?? "").toLowerCase().includes(q);
       const matchDesc = !descFilter || (descFilter === "with" ? hasDesc : !hasDesc);
-      return matchSearch && matchDesc;
+      const matchEstado = !estadoFilter || t.tag_estado === estadoFilter;
+      return matchSearch && matchDesc && matchEstado;
     });
-  }, [tasks, search, descFilter]);
+  }, [tasks, search, descFilter, estadoFilter]);
 
   const { sorted, field, dir, toggle } = useTableSort<TareaGeneral>(
     filtered,
@@ -77,7 +79,11 @@ export default function TasksScreen() {
     "nombre",
   );
 
-  const tasksPage = usePagination(sorted, `${search}|${descFilter}|${field}|${dir}`, 8);
+  const tasksPage = usePagination(
+    sorted,
+    `${search}|${descFilter}|${estadoFilter}|${field}|${dir}`,
+    8,
+  );
 
   function deleteTask(t: TareaGeneral) {
     confirm({
@@ -131,6 +137,17 @@ export default function TasksScreen() {
               { value: "without", label: "Sin descripción" },
             ],
           },
+          {
+            key: "estado",
+            label: "Estado",
+            value: estadoFilter,
+            onChange: setEstadoFilter,
+            options: [
+              { value: "", label: "Todos" },
+              { value: "activo", label: "Activo" },
+              { value: "inactivo", label: "Inactivo" },
+            ],
+          },
         ]}
         right={
           <Text style={styles.count}>
@@ -167,6 +184,8 @@ export default function TasksScreen() {
                   <Text style={styles.name} numberOfLines={1}>
                     {t.tag_nombre_tarea}
                   </Text>
+
+                  {t.tag_estado === "inactivo" && <Text style={styles.inactive}>Inactiva</Text>}
                 </View>
               </View>
 
@@ -284,5 +303,6 @@ function makeStyles(c: ThemeColors) {
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 14, color: c.text },
+    inactive: { fontSize: 12, color: c.textMuted, marginTop: 2 },
   });
 }

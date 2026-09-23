@@ -17,6 +17,7 @@ function mapEquipo(row: EquipoRow): Equipo {
     location: row.lugares?.lu_nombre_sector ?? "",
     locationId: row.lu_codigo,
     status: row.eq_estado,
+    active: row.eq_estado_registro === "activo",
     model: row.eq_modelo,
     installDate: row.eq_fecha_instalacion,
     warrantyDate: row.eq_fecha_garantia,
@@ -46,6 +47,8 @@ type EquipmentInput = {
   model: string | null;
   installDate: string | null;
   warrantyDate: string | null;
+  // Only sent on update: a new equipment is born 'activo' (column default).
+  active?: boolean;
 };
 
 // 23505 = Postgres unique_violation — eq_codigo has a UNIQUE constraint
@@ -85,6 +88,9 @@ export async function updateEquipment(id: number, changes: EquipmentInput): Prom
       eq_modelo: changes.model,
       eq_fecha_instalacion: changes.installDate,
       eq_fecha_garantia: changes.warrantyDate,
+      ...(changes.active !== undefined
+        ? { eq_estado_registro: changes.active ? ("activo" as const) : ("inactivo" as const) }
+        : {}),
     })
     .eq("eq_id_equipo", id);
   if (error) {
@@ -95,9 +101,20 @@ export async function updateEquipment(id: number, changes: EquipmentInput): Prom
   }
 }
 
+// 23503 = Postgres foreign_key_violation — solicitudes / orden_de_trabajo /
+// historial reference eq_id_equipo without ON DELETE CASCADE since migration
+// 0014 (before that, deleting an equipment silently wiped its history), so an
+// equipment with history can't be deleted; surface a friendly message.
 export async function deleteEquipment(id: number): Promise<void> {
   const { error } = await supabase.from("equipo").delete().eq("eq_id_equipo", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23503") {
+      throw new Error(
+        "No se puede eliminar: el equipo ya figura en una solicitud, una orden de trabajo o el historial. Marcalo como inactivo en su lugar.",
+      );
+    }
+    throw new Error(error.message);
+  }
 }
 
 export async function getEquipmentById(id: number): Promise<Equipo | null> {

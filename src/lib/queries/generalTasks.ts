@@ -8,9 +8,7 @@ import type { TareaGeneral } from "../../types/database";
 const DUPLICATE_NAME_MESSAGE = "Ya existe una tarea general con ese nombre";
 
 function isDuplicateNameError(error: { code?: string; message?: string } | null): boolean {
-  return (
-    error?.code === "23505" && !!error.message?.includes("tareas_generales_nombre_unico_idx")
-  );
+  return error?.code === "23505" && !!error.message?.includes("tareas_generales_nombre_unico_idx");
 }
 
 export async function listGeneralTasks(): Promise<TareaGeneral[]> {
@@ -25,12 +23,14 @@ export async function listGeneralTasks(): Promise<TareaGeneral[]> {
 export async function createGeneralTask(input: {
   name: string;
   description: string | null;
+  estado: TareaGeneral["tag_estado"];
 }): Promise<TareaGeneral> {
   const { data, error } = await supabase
     .from("tareas_generales")
     .insert({
       tag_nombre_tarea: input.name.trim(),
       tag_descripcion_tarea: input.description?.trim() || null,
+      tag_estado: input.estado,
     })
     .select("*")
     .single();
@@ -43,13 +43,14 @@ export async function createGeneralTask(input: {
 
 export async function updateGeneralTask(
   id: number,
-  changes: { name: string; description: string | null },
+  changes: { name: string; description: string | null; estado: TareaGeneral["tag_estado"] },
 ): Promise<void> {
   const { error } = await supabase
     .from("tareas_generales")
     .update({
       tag_nombre_tarea: changes.name.trim(),
       tag_descripcion_tarea: changes.description?.trim() || null,
+      tag_estado: changes.estado,
     })
     .eq("tag_id_tarea", id);
   if (error) {
@@ -67,7 +68,7 @@ export async function deleteGeneralTask(id: number): Promise<void> {
   if (error) {
     if (error.code === "23503") {
       throw new Error(
-        "No se puede eliminar: la tarea ya está usada en un plan de mantenimiento o en una orden de trabajo.",
+        "No se puede eliminar: la tarea ya figura en un plan de mantenimiento o en una orden de trabajo. Marcala como inactiva en su lugar.",
       );
     }
     throw new Error(error.message);

@@ -62,12 +62,14 @@ describe("createFaultType", () => {
       name: "  Pérdida de gas  ",
       desperfecto: "  Zumbido  ",
       gravedad: "high",
+      estado: "activo",
     });
 
     expect(insert).toHaveBeenCalledWith({
       fa_nombre: "Pérdida de gas",
       fa_desperfecto: "Zumbido",
       fa_gravedad: "high",
+      fa_estado: "activo",
     });
   });
 
@@ -77,31 +79,35 @@ describe("createFaultType", () => {
     const insert = jest.fn().mockReturnValue({ select });
     (supabase.from as jest.Mock).mockReturnValue({ insert });
 
-    await createFaultType({ name: "X", desperfecto: "  ", gravedad: "medium" });
+    await createFaultType({ name: "X", desperfecto: "  ", gravedad: "medium", estado: "activo" });
 
     expect(insert).toHaveBeenCalledWith({
       fa_nombre: "X",
       fa_desperfecto: null,
       fa_gravedad: "medium",
+      fa_estado: "activo",
     });
   });
 
   it("maps a 23505 unique violation to the duplicate-name message", async () => {
-    const single = jest
-      .fn()
-      .mockResolvedValue({
-        data: null,
-        error: {
-          code: "23505",
-          message: 'duplicate key value violates unique constraint "fallo_nombre_unico_idx"',
-        },
-      });
+    const single = jest.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "fallo_nombre_unico_idx"',
+      },
+    });
     const select = jest.fn().mockReturnValue({ single });
     const insert = jest.fn().mockReturnValue({ select });
     (supabase.from as jest.Mock).mockReturnValue({ insert });
 
     await expect(
-      createFaultType({ name: "Repetida", desperfecto: null, gravedad: "medium" }),
+      createFaultType({
+        name: "Repetida",
+        desperfecto: null,
+        gravedad: "medium",
+        estado: "activo",
+      }),
     ).rejects.toThrow("Ya existe una falla genérica con ese nombre.");
   });
 
@@ -118,7 +124,7 @@ describe("createFaultType", () => {
     (supabase.from as jest.Mock).mockReturnValue({ insert });
 
     await expect(
-      createFaultType({ name: "Nueva", desperfecto: null, gravedad: "medium" }),
+      createFaultType({ name: "Nueva", desperfecto: null, gravedad: "medium", estado: "activo" }),
     ).rejects.toThrow("fallo_pkey");
   });
 });
@@ -129,12 +135,18 @@ describe("updateFaultType", () => {
     const update = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
-    await updateFaultType(7, { name: " Corte ", desperfecto: null, gravedad: "low" });
+    await updateFaultType(7, {
+      name: " Corte ",
+      desperfecto: null,
+      gravedad: "low",
+      estado: "activo",
+    });
 
     expect(update).toHaveBeenCalledWith({
       fa_nombre: "Corte",
       fa_desperfecto: null,
       fa_gravedad: "low",
+      fa_estado: "activo",
     });
     expect(eq).toHaveBeenCalledWith("fa_id_fallo", 7);
   });
@@ -150,7 +162,12 @@ describe("updateFaultType", () => {
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
     await expect(
-      updateFaultType(7, { name: "Repetida", desperfecto: null, gravedad: "low" }),
+      updateFaultType(7, {
+        name: "Repetida",
+        desperfecto: null,
+        gravedad: "low",
+        estado: "activo",
+      }),
     ).rejects.toThrow("Ya existe una falla genérica con ese nombre.");
   });
 });
@@ -171,7 +188,9 @@ describe("deleteFaultType", () => {
     const del = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ delete: del });
 
-    await expect(deleteFaultType(7)).rejects.toThrow(/asociada a una orden de trabajo/);
+    await expect(deleteFaultType(7)).rejects.toThrow(
+      /ya figura en una orden de trabajo.*Marcala como inactiva/,
+    );
   });
 
   it("rethrows other errors as-is", async () => {

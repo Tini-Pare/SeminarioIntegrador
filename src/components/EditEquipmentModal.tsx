@@ -4,10 +4,20 @@ import { updateEquipment } from "../lib/queries/equipment";
 import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
 import { listLocations } from "../lib/queries/locations";
 import { DropdownBackdrop } from "./DropdownBackdrop";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Select } from "./Select";
 import type { Equipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+
+// Registration state, separate from the automatic operational status: an
+// equipment with history can't be deleted, it's marked inactive instead.
+// RadioGroup only takes string/number values, so the flag travels as the same
+// 'activo'/'inactivo' wording the other entities use and is mapped on save.
+const ESTADO_OPTIONS: RadioOption<"activo" | "inactivo">[] = [
+  { value: "activo", label: "Activo" },
+  { value: "inactivo", label: "Inactivo" },
+];
 import {
   CustomDatePicker,
   fromDbDate,
@@ -38,6 +48,9 @@ export function EditEquipmentModal({
   const [locationId, setLocationId] = useState<number | null>(equipment.locationId);
   const [installDate, setInstallDate] = useState(fromDbDate(equipment.installDate));
   const [warrantyDate, setWarrantyDate] = useState(fromDbDate(equipment.warrantyDate));
+  const [estado, setEstado] = useState<"activo" | "inactivo">(
+    equipment.active ? "activo" : "inactivo",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [types, setTypes] = useState<{ value: number; label: string }[]>([]);
@@ -121,6 +134,7 @@ export function EditEquipmentModal({
         model: model.trim(),
         installDate: toDbDate(installDate.trim()),
         warrantyDate: toDbDate(warrantyDate.trim()),
+        active: estado === "activo",
       });
       onSaved();
       onClose();
@@ -226,7 +240,7 @@ export function EditEquipmentModal({
             </View>
           </View>
 
-          <Text style={styles.label}>Estado</Text>
+          <Text style={styles.label}>Estado operativo</Text>
           <View style={styles.statusRow}>
             <View style={[styles.statusBadge, { backgroundColor: statusMeta.bg }]}>
               <Text style={[styles.statusBadgeText, { color: statusMeta.fg }]}>{statusLabel}</Text>
@@ -234,6 +248,15 @@ export function EditEquipmentModal({
 
             <Text style={styles.statusNote}>Automático, según fallas activas</Text>
           </View>
+
+          <Text style={styles.label}>Estado del registro</Text>
+
+          <RadioGroup
+            name="equipment-estado-registro"
+            value={estado}
+            onChange={setEstado}
+            options={ESTADO_OPTIONS}
+          />
 
           {error && <Text style={styles.error}>{error}</Text>}
 
