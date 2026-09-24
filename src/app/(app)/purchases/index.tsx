@@ -374,7 +374,9 @@ export default function PurchasesScreen() {
                 style={{ flex: 1 }}
               />
 
-              <Text style={[styles.headerCell, styles.actionsCol]}>VER</Text>
+              <View style={styles.actionsCol}>
+                <Text style={styles.headerCell}>VER</Text>
+              </View>
             </View>
 
             {pageItems.map((p, i) => {
@@ -395,11 +397,6 @@ export default function PurchasesScreen() {
                           </Text>
                         </View>
                       </View>
-
-                      <Text style={styles.sub} numberOfLines={1}>
-                        {itemsSummary(p)}
-                        {comprobanteRef(p) ? ` · N.º ${comprobanteRef(p)}` : ""}
-                      </Text>
                     </View>
 
                     <View style={{ flex: 1.1, justifyContent: "center" }}>
@@ -427,12 +424,10 @@ export default function PurchasesScreen() {
                     <Pressable
                       style={styles.viewBtn}
                       onPress={() =>
-                        p.co_tipo_comprobante === "factura"
-                          ? router.push({
-                              pathname: "/purchases/[id]",
-                              params: { id: String(p.co_id_compra) },
-                            })
-                          : setViewing(p)
+                        router.push({
+                          pathname: "/purchases/[id]",
+                          params: { id: String(p.co_id_compra) },
+                        })
                       }
                       accessibilityLabel="Ver compra"
                     >
@@ -630,7 +625,7 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 56, flexShrink: 0, alignItems: "center" },
+    actionsCol: { width: 56, flexShrink: 0, alignItems: "center", justifyContent: "center" },
     row: {
       flexDirection: "row",
       alignItems: "center",

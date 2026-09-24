@@ -272,23 +272,7 @@ export default function PurchaseOrdersScreen() {
     setRefreshing(false);
   }
 
-  // Registrar compra for a pedido now lives on its own route; the pedido's
-  // lines travel as JSON in a query param since route params are strings
-  // (see purchases/register.tsx).
-  function openPurchaseFor(order: PurchaseOrderWithLines) {
-    setViewing(null);
-    router.push({
-      pathname: "/purchases/register",
-      params: {
-        pedidoId: String(order.ped_id_ped_compra),
-        lines: JSON.stringify(
-          order.linea_pedido
-            .filter((l) => l.lp_cantidad != null)
-            .map((l) => ({ repId: l.rep_id, cantidad: l.lp_cantidad as number })),
-        ),
-      },
-    });
-  }
+
 
   function openReject(order: PurchaseOrderWithLines) {
     setViewing(null);
@@ -590,7 +574,9 @@ export default function PurchaseOrdersScreen() {
               />
             )}
 
-            <Text style={[styles.headerCell, styles.actionsCol]}>VER</Text>
+            <View style={styles.actionsCol}>
+              <Text style={styles.headerCell}>VER</Text>
+            </View>
           </View>
 
           {pageItems.map((o, i) => {
@@ -673,7 +659,6 @@ export default function PurchaseOrdersScreen() {
         techName={viewing ? (techNames.get(viewing.p_id_tecnico) ?? null) : null}
         onChanged={load}
         onReject={openReject}
-        onRegisterPurchase={openPurchaseFor}
       />
 
       {!isAdmin && (
@@ -854,7 +839,7 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 56, flexShrink: 0, alignItems: "center" },
+    actionsCol: { width: 56, flexShrink: 0, alignItems: "center", justifyContent: "center" },
     row: {
       flexDirection: "row",
       alignItems: "center",

@@ -34,7 +34,7 @@ export function PurchaseOrderDetailModal({
   techName?: string | null;
   onChanged: () => void;
   onReject: (order: PurchaseOrderWithLines) => void;
-  onRegisterPurchase: (order: PurchaseOrderWithLines) => void;
+  onRegisterPurchase?: (order: PurchaseOrderWithLines) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,15 +130,6 @@ export function PurchaseOrderDetailModal({
                 </Pressable>
               </>
             )}
-
-            {isAdmin && order?.ped_estado === "aprobado" && (
-              <Pressable
-                style={styles.primaryButton}
-                onPress={() => order && onRegisterPurchase(order)}
-              >
-                <Text style={styles.primaryText}>Registrar compra</Text>
-              </Pressable>
-            )}
           </View>
         </View>
       </View>
@@ -199,11 +190,11 @@ function makeStyles(c: ThemeColors) {
       minWidth: 90,
       height: 44,
       borderRadius: 10,
-      backgroundColor: c.bgNested,
+      backgroundColor: "#dc2626",
       alignItems: "center",
       justifyContent: "center",
     },
-    secondaryText: { color: c.text, fontWeight: "600" },
+    secondaryText: { color: "#fff", fontWeight: "600" },
     primaryButton: {
       flex: 1,
       minWidth: 90,
