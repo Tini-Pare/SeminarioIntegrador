@@ -16,6 +16,7 @@ import {
   isValidDateString,
   parseDateString,
   toDbDate,
+  toDay,
 } from "../../../components/CustomDatePicker";
 import { EyeIcon, ReviewIcon, SearchIcon } from "../../../components/icons";
 import { Tooltip } from "../../../components/Tooltip";
@@ -341,6 +342,7 @@ export default function PurchaseOrdersScreen() {
     return list;
   }, [orders]);
 
+  const today = useMemo(() => toDay(new Date()), []);
   const parsedDateFrom = useMemo(() => parseDateString(dateFrom), [dateFrom]);
   const parsedDateTo = useMemo(() => parseDateString(dateTo), [dateTo]);
   const hasDateFilter = dateFrom.length > 0 || dateTo.length > 0;
@@ -488,7 +490,9 @@ export default function PurchaseOrdersScreen() {
               onChange={setDateFrom}
               placeholder="Desde"
               compact
-              maxDate={parsedDateTo ?? undefined}
+              maxDate={
+                parsedDateTo && parsedDateTo.getTime() < today.getTime() ? parsedDateTo : today
+              }
               alignDropdown="left"
             />
           </View>
@@ -502,6 +506,7 @@ export default function PurchaseOrdersScreen() {
               placeholder="Hasta"
               compact
               minDate={parsedDateFrom ?? undefined}
+              maxDate={today}
               alignDropdown="right"
             />
           </View>

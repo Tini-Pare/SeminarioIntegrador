@@ -353,6 +353,16 @@ export function CustomDatePicker({
   const minDay = minDate ? toDay(minDate) : null;
   const maxDay = maxDate ? toDay(maxDate) : null;
 
+  const isNextMonthDisabled =
+    maxDay !== null &&
+    (currentYear > maxDay.getFullYear() ||
+      (currentYear === maxDay.getFullYear() && currentMonth >= maxDay.getMonth()));
+
+  const isPrevMonthDisabled =
+    minDay !== null &&
+    (currentYear < minDay.getFullYear() ||
+      (currentYear === minDay.getFullYear() && currentMonth <= minDay.getMonth()));
+
   return (
     <View
       style={[styles.container, !isOpen && styles.containerClosed, maxWidth ? { maxWidth } : null]}
@@ -378,16 +388,38 @@ export function CustomDatePicker({
 
           <View style={styles.dropdown}>
             <View style={styles.header}>
-              <Pressable style={styles.navButton} onPress={() => changeMonth(-1)}>
-                <Text style={styles.navButtonText}>{"<"}</Text>
+              <Pressable
+                style={[styles.navButton, isPrevMonthDisabled && styles.navButtonDisabled]}
+                onPress={() => !isPrevMonthDisabled && changeMonth(-1)}
+                disabled={isPrevMonthDisabled}
+              >
+                <Text
+                  style={[
+                    styles.navButtonText,
+                    isPrevMonthDisabled && styles.navButtonTextDisabled,
+                  ]}
+                >
+                  {"<"}
+                </Text>
               </Pressable>
 
               <Text style={styles.headerTitle}>
                 {MONTH_NAMES[currentMonth]} {currentYear}
               </Text>
 
-              <Pressable style={styles.navButton} onPress={() => changeMonth(1)}>
-                <Text style={styles.navButtonText}>{">"}</Text>
+              <Pressable
+                style={[styles.navButton, isNextMonthDisabled && styles.navButtonDisabled]}
+                onPress={() => !isNextMonthDisabled && changeMonth(1)}
+                disabled={isNextMonthDisabled}
+              >
+                <Text
+                  style={[
+                    styles.navButtonText,
+                    isNextMonthDisabled && styles.navButtonTextDisabled,
+                  ]}
+                >
+                  {">"}
+                </Text>
               </Pressable>
             </View>
 
@@ -417,14 +449,15 @@ export function CustomDatePicker({
                   todayDate.getFullYear() === day.getFullYear();
 
                 const isDisabled =
-                  (maxDay !== null && day > maxDay) ||
-                  (minDay !== null && day < minDay);
+                  (maxDay !== null && day.getTime() > maxDay.getTime()) ||
+                  (minDay !== null && day.getTime() < minDay.getTime());
 
                 return (
                   <Pressable
                     key={`day-${idx}`}
-                    style={[
+                    style={({ hovered }: { hovered?: boolean }) => [
                       styles.dayCell,
+                      hovered && !isDisabled && !isSelected && styles.dayCellHover,
                       isToday && !isSelected && styles.dayCellToday,
                       isSelected && styles.dayCellSelected,
                       isDisabled && styles.dayCellDisabled,
@@ -452,6 +485,7 @@ export function CustomDatePicker({
     </View>
   );
 }
+
 function makeStyles(
   c: ThemeColors,
   flipVertical: boolean,
@@ -549,11 +583,19 @@ function makeStyles(
       borderWidth: 1,
       borderColor: c.borderInput,
       backgroundColor: c.bgInput,
+      ...(Platform.OS === "web" ? ({ cursor: "pointer", userSelect: "none" } as object) : {}),
+    },
+    navButtonDisabled: {
+      opacity: 0.3,
+      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as object) : {}),
     },
     navButtonText: {
       fontSize: compact ? 10 : 12,
       fontWeight: "600",
       color: c.textLabel,
+    },
+    navButtonTextDisabled: {
+      color: c.textMuted,
     },
     weekdaysRow: {
       flexDirection: "row",
@@ -577,6 +619,10 @@ function makeStyles(
       justifyContent: "center",
       borderRadius: 6,
       marginVertical: 1,
+      ...(Platform.OS === "web" ? ({ cursor: "pointer", userSelect: "none" } as object) : {}),
+    },
+    dayCellHover: {
+      backgroundColor: c.bgRowHover,
     },
     dayCellEmpty: {
       width: "14.28%",
@@ -586,13 +632,16 @@ function makeStyles(
     dayCellToday: {
       borderWidth: 1.5,
       borderColor: c.accent,
-      backgroundColor: c.bgInput,
+      backgroundColor: c.accent + "18",
     },
     dayCellSelected: {
       backgroundColor: c.accent,
+      borderColor: c.accent,
     },
     dayCellDisabled: {
-      opacity: 0.3,
+      opacity: 0.35,
+      backgroundColor: "transparent",
+      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as object) : {}),
     },
     dayText: {
       fontSize: compact ? 10 : 11.5,
@@ -608,6 +657,7 @@ function makeStyles(
     },
     dayTextDisabled: {
       color: c.textMuted,
+      fontWeight: "400",
     },
   });
 }

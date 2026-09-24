@@ -204,4 +204,44 @@ describe("CustomDatePicker helpers", () => {
       expect(formatAndValidateDateInput("", "1")).toBe("");
     });
   });
+
+  describe("Date range cross-validation & future date restrictions", () => {
+    const today = new Date(2026, 8, 24); // 24/09/2026
+
+    it("restricts 'Desde' to not exceed today or 'Hasta'", () => {
+      const parsedDateTo = new Date(2026, 8, 20); // 20/09/2026
+      const maxForFrom =
+        parsedDateTo && parsedDateTo.getTime() < today.getTime() ? parsedDateTo : today;
+
+      // When 'Hasta' is 20/09/2026, 'Desde' cannot exceed 20/09/2026
+      expect(formatAndValidateDateInput("21/09/2026", "21/09/202", undefined, maxForFrom)).toBeNull();
+      expect(formatAndValidateDateInput("20/09/2026", "20/09/202", undefined, maxForFrom)).toBe("20/09/2026");
+      expect(formatAndValidateDateInput("19/09/2026", "19/09/202", undefined, maxForFrom)).toBe("19/09/2026");
+    });
+
+    it("restricts 'Desde' to not exceed today when 'Hasta' is not set", () => {
+      const parsedDateTo = null;
+      const maxForFrom =
+        parsedDateTo && (parsedDateTo as Date).getTime() < today.getTime()
+          ? (parsedDateTo as Date)
+          : today;
+
+      // Cannot select a future date
+      expect(formatAndValidateDateInput("25/09/2026", "25/09/202", undefined, maxForFrom)).toBeNull();
+      expect(formatAndValidateDateInput("24/09/2026", "24/09/202", undefined, maxForFrom)).toBe("24/09/2026");
+    });
+
+    it("restricts 'Hasta' to not be before 'Desde' and not after today", () => {
+      const parsedDateFrom = new Date(2026, 8, 10); // 10/09/2026
+
+      // Cannot be earlier than 'Desde'
+      expect(formatAndValidateDateInput("09/09/2026", "09/09/202", parsedDateFrom, today)).toBeNull();
+      // Can be equal to 'Desde'
+      expect(formatAndValidateDateInput("10/09/2026", "10/09/202", parsedDateFrom, today)).toBe("10/09/2026");
+      // Can be up to today
+      expect(formatAndValidateDateInput("24/09/2026", "24/09/202", parsedDateFrom, today)).toBe("24/09/2026");
+      // Cannot be in the future
+      expect(formatAndValidateDateInput("25/09/2026", "25/09/202", parsedDateFrom, today)).toBeNull();
+    });
+  });
 });
