@@ -250,11 +250,11 @@ function makeStyles(c: ThemeColors) {
       flex: 1,
       height: 44,
       borderRadius: 10,
-      backgroundColor: c.bgNested,
+      backgroundColor: "#dc2626",
       alignItems: "center",
       justifyContent: "center",
     },
-    cancelText: { color: c.text, fontWeight: "600" },
+    cancelText: { color: "#fff", fontWeight: "600" },
     saveButton: {
       flex: 1,
       height: 44,

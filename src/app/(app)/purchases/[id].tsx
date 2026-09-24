@@ -198,102 +198,93 @@ export default function PurchaseDetailScreen() {
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.topBar}>
-          <Pressable style={styles.backLink} onPress={goBackToPurchases}>
-            <BackIcon />
-            <Text style={styles.backText}>Volver a compras</Text>
+          <Pressable style={styles.backBtn} onPress={goBackToPurchases}>
+            <BackIcon size={14} color={colors.textLabel} />
+            <Text style={styles.backBtnText}>Volver a compras</Text>
           </Pressable>
         </View>
 
         <View style={styles.headerCard}>
-          <View style={styles.headerTop}>
-            <Text style={styles.pageTitle}>{purchase.proveedores?.prov_nombre ?? "Compra"}</Text>
-
+          <View style={styles.headerLeft}>
             <View style={styles.badgesRow}>
               <View style={styles.tipoBadge}>
                 <Text style={styles.tipoBadgeText}>{TIPO_LABEL[purchase.co_tipo_comprobante]}</Text>
               </View>
 
               <View style={[styles.estadoBadge, { backgroundColor: estadoColors.bg }]}>
+                <View style={[styles.estadoDot, { backgroundColor: estadoColors.fg }]} />
+
                 <Text style={[styles.estadoBadgeText, { color: estadoColors.fg }]}>
                   {RECEIPT_STATE_LABEL[estado]}
                 </Text>
               </View>
             </View>
+
+            <Text style={styles.pageTitle}>{purchase.proveedores?.prov_nombre ?? "Compra"}</Text>
+
+            <Text style={styles.headerSub}>
+              {formatDate(purchase.co_fecha_compra)}
+              {comprobanteRef(purchase) ? ` · N.º ${comprobanteRef(purchase)}` : ""}
+            </Text>
+
+            <View style={styles.metaRow}>
+              {purchase.co_garantia ? (
+                <View style={styles.metaCol}>
+                  <Text style={styles.metaLabel}>GARANTÍA</Text>
+                  <Text style={styles.metaValue}>{formatGarantia(purchase.co_garantia)}</Text>
+                </View>
+              ) : null}
+
+              {purchase.co_p_id_registrador ? (
+                <View style={styles.metaCol}>
+                  <Text style={styles.metaLabel}>REGISTRÓ</Text>
+                  <Text style={styles.metaValue}>
+                    {registradorNames.get(purchase.co_p_id_registrador) ?? "—"}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
 
-          <Text style={styles.headerSub}>
-            {formatDate(purchase.co_fecha_compra)}
-            {comprobanteRef(purchase) ? ` · N.º ${comprobanteRef(purchase)}` : ""}
-          </Text>
+          <View style={styles.headerRight}>
+            <Text style={styles.totalLabel}>
+              {isFactura ? "Total facturado" : "Total"}
+            </Text>
 
-          <View style={styles.metaRow}>
-            {purchase.co_garantia && (
-              <Text style={styles.meta}>Garantía: {formatGarantia(purchase.co_garantia)}</Text>
-            )}
-
-            {purchase.co_p_id_registrador && (
-              <Text style={styles.meta}>
-                Registró: {registradorNames.get(purchase.co_p_id_registrador) ?? "—"}
-              </Text>
-            )}
-
-            {purchase.co_costo_total != null && Number(purchase.co_costo_total) > 0 && (
-              <Text style={styles.metaTotal}>Total: {money(purchase.co_costo_total)}</Text>
-            )}
+            <Text style={styles.totalAmount}>
+              {money(purchase.co_costo_total)}
+            </Text>
           </View>
         </View>
 
-        <View style={styles.tableCard}>
-          <Text style={styles.sectionTitle}>{isFactura ? "Ítems facturados" : "Ítems"}</Text>
+        {isFactura ? (
+          <View style={styles.columnsRow}>
+            <View style={styles.columnCard}>
+              <Text style={styles.sectionTitle}>Ítems facturados</Text>
 
-          <View style={styles.tableHead}>
-            <Text style={[styles.hCell, styles.colRep]}>REPUESTO</Text>
-            <Text style={[styles.hCell, styles.colNum]}>CANT.</Text>
-
-            {!isFactura && (
-              <>
-                <Text style={[styles.hCell, styles.colNum]}>C. UNIT.</Text>
-                <Text style={[styles.hCell, styles.colNum]}>SUBTOT.</Text>
-              </>
-            )}
-
-            {isFactura && (
-              <>
+              <View style={styles.tableHead}>
+                <Text style={[styles.hCell, styles.colRep]}>REPUESTO</Text>
+                <Text style={[styles.hCell, styles.colNum]}>CANT.</Text>
                 <Text style={[styles.hCell, styles.colNum]}>RECIBIDO</Text>
                 <Text style={[styles.hCell, styles.colEstado]}>ESTADO</Text>
-              </>
-            )}
-          </View>
+              </View>
 
-          {purchase.linea_compra.map((l) => {
-            const qty = l.lc_cantidad ?? 0;
-            const unit = l.lc_costo_unitario != null ? Number(l.lc_costo_unitario) : null;
-            const recibido = received.get(l.rep_id) ?? 0;
-            const lineEstado = lineReceiptState(qty, recibido);
-            const lineColors = receiptStateColors(colors)[lineEstado];
+              {purchase.linea_compra.map((l) => {
+                const qty = l.lc_cantidad ?? 0;
+                const recibido = received.get(l.rep_id) ?? 0;
+                const lineEstado = lineReceiptState(qty, recibido);
+                const lineColors = receiptStateColors(colors)[lineEstado];
 
-            return (
-              <View key={l.rep_id} style={styles.tableRow}>
-                <Text style={[styles.cell, styles.colRep]} numberOfLines={2}>
-                  {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
-                </Text>
-
-                <Text style={[styles.cell, styles.colNum]}>{qty}</Text>
-
-                {!isFactura && (
-                  <>
-                    <Text style={[styles.cell, styles.colNum]}>
-                      {unit != null ? money(unit) : "—"}
+                return (
+                  <View key={l.rep_id} style={styles.tableRow}>
+                    <Text style={[styles.cell, styles.colRep]} numberOfLines={2}>
+                      {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
                     </Text>
-                    <Text style={[styles.cell, styles.colNum]}>
-                      {unit != null ? money(unit * qty) : "—"}
-                    </Text>
-                  </>
-                )}
 
-                {isFactura && (
-                  <>
+                    <Text style={[styles.cell, styles.colNum]}>{qty}</Text>
+
                     <Text style={[styles.cell, styles.colNum]}>{recibido}</Text>
+
                     <View style={styles.colEstado}>
                       <View style={[styles.lineBadge, { backgroundColor: lineColors.bg }]}>
                         <Text style={[styles.lineBadgeText, { color: lineColors.fg }]}>
@@ -301,75 +292,125 @@ export default function PurchaseDetailScreen() {
                         </Text>
                       </View>
                     </View>
-                  </>
-                )}
-              </View>
-            );
-          })}
-        </View>
-
-        {isFactura && (
-          <View style={styles.tableCard}>
-            <View style={styles.remitosHeader}>
-              <Text style={styles.sectionTitle}>Remitos de recepción</Text>
-
-              <Pressable
-                style={[styles.addRemitoBtn, !hasPendingLines && styles.addRemitoBtnDisabled]}
-                onPress={() => setLoadingRemito(true)}
-                disabled={!hasPendingLines}
-              >
-                <Text style={styles.addRemitoText}>+ Cargar remito</Text>
-              </Pressable>
+                  </View>
+                );
+              })}
             </View>
 
-            {!hasPendingLines && (
-              <View style={styles.completeBanner}>
-                <CheckIcon size={15} color={colors.eqOperational.fg} />
-                <Text style={[styles.completeBannerText, { color: colors.eqOperational.fg }]}>
-                  Ya llegaron todos los ítems facturados.
-                </Text>
+            <View style={styles.columnCard}>
+              <View style={styles.remitosHeader}>
+                <Text style={styles.sectionTitle}>Remitos de recepción</Text>
               </View>
-            )}
 
-            {sortedRemitos.length === 0 ? (
-              <Text style={styles.empty}>Todavía no se cargó ningún remito para esta compra.</Text>
-            ) : (
-              sortedRemitos.map((r) => (
-                <View key={r.rc_id} style={styles.remitoRow}>
-                  <View style={styles.remitoInfo}>
-                    <Text style={styles.remitoDate}>{formatDate(r.rc_fecha)}</Text>
-                    <Text style={styles.remitoItems} numberOfLines={2}>
-                      {remitoItemsSummary(r, repNames)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.remitoActions}>
-                    <Tooltip text="Editar remito">
-                      <Pressable
-                        style={styles.remitoActionBtn}
-                        onPress={() => setEditingRemito(r)}
-                        accessibilityLabel="Editar remito"
-                      >
-                        <PencilIcon size={14} color={colors.textLabel} />
-                      </Pressable>
-                    </Tooltip>
-
-                    <Tooltip text="Anular remito">
-                      <Pressable
-                        style={styles.remitoActionBtn}
-                        onPress={() => {
-                          setAnulError(null);
-                          setAnulando(r);
-                        }}
-                        accessibilityLabel="Anular remito"
-                      >
-                        <TrashIcon size={14} color={colors.destructive} />
-                      </Pressable>
-                    </Tooltip>
-                  </View>
+              {!hasPendingLines && (
+                <View style={styles.completeBanner}>
+                  <CheckIcon size={15} color={colors.eqOperational.fg} />
+                  <Text style={[styles.completeBannerText, { color: colors.eqOperational.fg }]}>
+                    Ya llegaron todos los ítems facturados.
+                  </Text>
                 </View>
-              ))
-            )}
+              )}
+
+              {sortedRemitos.length === 0 ? (
+                <View style={styles.emptyRemitosWrap}>
+                  <Text style={styles.emptyText}>
+                    Todavía no se cargó ningún remito para esta compra.
+                  </Text>
+
+                  <Pressable
+                    style={[
+                      styles.addRemitoFullBtn,
+                      !hasPendingLines && styles.addRemitoBtnDisabled,
+                    ]}
+                    onPress={() => setLoadingRemito(true)}
+                    disabled={!hasPendingLines}
+                  >
+                    <Text style={styles.addRemitoFullText}>+ Cargar remito</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.remitosListWrap}>
+                  {sortedRemitos.map((r) => (
+                    <View key={r.rc_id} style={styles.remitoRow}>
+                      <View style={styles.remitoInfo}>
+                        <Text style={styles.remitoDate}>{formatDate(r.rc_fecha)}</Text>
+                        <Text style={styles.remitoItems} numberOfLines={2}>
+                          {remitoItemsSummary(r, repNames)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.remitoActions}>
+                        <Tooltip text="Editar remito">
+                          <Pressable
+                            style={styles.remitoActionBtn}
+                            onPress={() => setEditingRemito(r)}
+                            accessibilityLabel="Editar remito"
+                          >
+                            <PencilIcon size={14} color={colors.textLabel} />
+                          </Pressable>
+                        </Tooltip>
+
+                        <Tooltip text="Anular remito">
+                          <Pressable
+                            style={styles.remitoActionBtn}
+                            onPress={() => {
+                              setAnulError(null);
+                              setAnulando(r);
+                            }}
+                            accessibilityLabel="Anular remito"
+                          >
+                            <TrashIcon size={14} color={colors.destructive} />
+                          </Pressable>
+                        </Tooltip>
+                      </View>
+                    </View>
+                  ))}
+
+                  {hasPendingLines && (
+                    <Pressable
+                      style={[styles.addRemitoFullBtn, { marginTop: 16 }]}
+                      onPress={() => setLoadingRemito(true)}
+                    >
+                      <Text style={styles.addRemitoFullText}>+ Cargar remito</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.singleCard}>
+            <Text style={styles.sectionTitle}>Ítems</Text>
+
+            <View style={styles.tableHead}>
+              <Text style={[styles.hCell, styles.colRep]}>REPUESTO</Text>
+              <Text style={[styles.hCell, styles.colNum]}>CANT.</Text>
+              <Text style={[styles.hCell, styles.colNum]}>C. UNIT.</Text>
+              <Text style={[styles.hCell, styles.colNum]}>SUBTOT.</Text>
+            </View>
+
+            {purchase.linea_compra.map((l) => {
+              const qty = l.lc_cantidad ?? 0;
+              const unit = l.lc_costo_unitario != null ? Number(l.lc_costo_unitario) : null;
+
+              return (
+                <View key={l.rep_id} style={styles.tableRow}>
+                  <Text style={[styles.cell, styles.colRep]} numberOfLines={2}>
+                    {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
+                  </Text>
+
+                  <Text style={[styles.cell, styles.colNum]}>{qty}</Text>
+
+                  <Text style={[styles.cell, styles.colNum]}>
+                    {unit != null ? money(unit) : "—"}
+                  </Text>
+
+                  <Text style={[styles.cell, styles.colNum]}>
+                    {unit != null ? money(unit * qty) : "—"}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -407,53 +448,117 @@ export default function PurchaseDetailScreen() {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    container: { backgroundColor: c.bg },
-    content: { padding: 20, paddingBottom: 64, maxWidth: 900 },
+    container: { flex: 1, backgroundColor: c.bg },
+    content: { padding: 20, paddingBottom: 64, width: "100%" },
     center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
-    topBar: { flexDirection: "row", marginBottom: 18 },
+    topBar: { flexDirection: "row", marginBottom: 16 },
+    backBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 7,
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 10,
+    },
+    backBtnText: { color: c.textLabel, fontSize: 13, fontWeight: "600" },
     backLink: { flexDirection: "row", alignItems: "center", gap: 7 },
     backText: { color: c.textLabel, fontSize: 13.5 },
     error: { color: c.destructive, fontSize: 14 },
 
     headerCard: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      flexWrap: "wrap",
+      gap: 20,
       borderWidth: 1,
       borderColor: c.border,
+      borderLeftWidth: 5,
+      borderLeftColor: c.accent,
       borderRadius: 16,
       backgroundColor: c.bgCard,
-      padding: 20,
+      padding: 24,
     },
-    headerTop: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
+    headerLeft: {
+      flex: 1,
+      minWidth: 260,
     },
-    pageTitle: { fontSize: 22, fontWeight: "700", color: c.text },
-    badgesRow: { flexDirection: "row", gap: 8 },
+    headerRight: {
+      alignItems: "flex-end",
+      justifyContent: "center",
+      minWidth: 160,
+      paddingTop: 2,
+    },
+    badgesRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
     tipoBadge: {
       paddingHorizontal: 10,
-      paddingVertical: 4,
+      paddingVertical: 3.5,
       borderRadius: 999,
       backgroundColor: c.bgNested,
     },
     tipoBadgeText: { fontSize: 11.5, fontWeight: "700", color: c.textLabel },
-    estadoBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+    estadoBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 10,
+      paddingVertical: 3.5,
+      borderRadius: 999,
+    },
+    estadoDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      marginRight: 6,
+    },
     estadoBadgeText: { fontSize: 11.5, fontWeight: "700" },
+    pageTitle: { fontSize: 24, fontWeight: "700", color: c.text, letterSpacing: -0.3 },
     headerSub: { marginTop: 4, fontSize: 13, color: c.textMuted },
-    metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 16, marginTop: 14 },
-    meta: { fontSize: 12.5, color: c.textSecondary },
-    metaTotal: { fontSize: 14, fontWeight: "700", color: c.text },
+    metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 28, marginTop: 16 },
+    metaCol: { gap: 3 },
+    metaLabel: {
+      fontSize: 10.5,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      color: c.textMuted,
+      textTransform: "uppercase",
+    },
+    metaValue: { fontSize: 14, fontWeight: "700", color: c.text },
+    totalLabel: { fontSize: 12.5, color: c.textSecondary, marginBottom: 4, textAlign: "right" },
+    totalAmount: {
+      fontSize: 32,
+      fontWeight: "800",
+      color: c.accent,
+      textAlign: "right",
+      letterSpacing: -0.5,
+    },
 
-    tableCard: {
+    columnsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 16,
+      marginTop: 16,
+    },
+    columnCard: {
+      flex: 1,
+      minWidth: 320,
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: 16,
       backgroundColor: c.bgCard,
-      padding: 20,
+      padding: 22,
+    },
+    singleCard: {
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 16,
+      backgroundColor: c.bgCard,
+      padding: 22,
       marginTop: 16,
     },
-    sectionTitle: { fontSize: 15, fontWeight: "700", color: c.text },
+    sectionTitle: { fontSize: 16, fontWeight: "700", color: c.text },
     tableHead: {
       flexDirection: "row",
       alignItems: "center",
@@ -468,13 +573,13 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      paddingVertical: 10,
+      paddingVertical: 11,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
     cell: { fontSize: 13, color: c.textLabel },
     colRep: { flex: 2.2, minWidth: 0 },
-    colNum: { flex: 1, textAlign: "right", fontVariant: ["tabular-nums"] },
+    colNum: { flex: 0.8, textAlign: "center", fontVariant: ["tabular-nums"] },
     colEstado: { flex: 1.1, alignItems: "flex-end" },
     lineBadge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999 },
     lineBadgeText: { fontSize: 10.5, fontWeight: "700" },
@@ -483,18 +588,30 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      gap: 12,
     },
-    addRemitoBtn: {
-      height: 36,
-      paddingHorizontal: 14,
-      borderRadius: 9,
+    emptyRemitosWrap: {
+      paddingTop: 36,
+      paddingBottom: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 20,
+    },
+    emptyText: {
+      fontSize: 13,
+      color: c.textMuted,
+      textAlign: "center",
+    },
+    addRemitoFullBtn: {
+      width: "100%",
+      height: 42,
+      borderRadius: 10,
       backgroundColor: c.accent,
       alignItems: "center",
       justifyContent: "center",
     },
     addRemitoBtnDisabled: { opacity: 0.45 },
-    addRemitoText: { color: "#fff", fontWeight: "600", fontSize: 12.5 },
+    addRemitoFullText: { color: "#fff", fontWeight: "600", fontSize: 13.5 },
+
     completeBanner: {
       flexDirection: "row",
       alignItems: "center",
@@ -506,15 +623,16 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.eqOperational.bg,
     },
     completeBannerText: { fontSize: 12.5, fontWeight: "600" },
-    empty: { marginTop: 14, fontSize: 13, color: c.textMuted },
+
+    remitosListWrap: { marginTop: 8 },
     remitoRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
       paddingVertical: 12,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borderRow,
     },
     remitoInfo: { flex: 1, minWidth: 0 },
     remitoDate: { fontSize: 13, fontWeight: "600", color: c.text },
