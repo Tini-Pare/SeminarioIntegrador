@@ -4,6 +4,14 @@ import { createGeneralTask, updateGeneralTask } from "../lib/queries/generalTask
 import type { TareaGeneral } from "../types/database";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
+
+// Registration state, same shape as repuestos: a task with history can't be
+// deleted, it's marked inactive instead.
+const ESTADO_OPTIONS: RadioOption<TareaGeneral["tag_estado"]>[] = [
+  { value: "activo", label: "Activo" },
+  { value: "inactivo", label: "Inactivo" },
+];
 
 export function GeneralTaskModal({
   visible,
@@ -21,6 +29,7 @@ export function GeneralTaskModal({
   const isEditing = !!task;
   const [name, setName] = useState(task?.tag_nombre_tarea ?? "");
   const [description, setDescription] = useState(task?.tag_descripcion_tarea ?? "");
+  const [estado, setEstado] = useState<TareaGeneral["tag_estado"]>(task?.tag_estado ?? "activo");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
@@ -30,6 +39,7 @@ export function GeneralTaskModal({
     if (!visible) return;
     setName(task?.tag_nombre_tarea ?? "");
     setDescription(task?.tag_descripcion_tarea ?? "");
+    setEstado(task?.tag_estado ?? "activo");
     setError(null);
   }, [visible, task]);
 
@@ -57,9 +67,13 @@ export function GeneralTaskModal({
     setError(null);
     try {
       if (task) {
-        await updateGeneralTask(task.tag_id_tarea, { name, description: description || null });
+        await updateGeneralTask(task.tag_id_tarea, {
+          name,
+          description: description || null,
+          estado,
+        });
       } else {
-        await createGeneralTask({ name, description: description || null });
+        await createGeneralTask({ name, description: description || null, estado });
       }
       onSaved();
       onClose();
@@ -69,8 +83,6 @@ export function GeneralTaskModal({
       setSaving(false);
     }
   }
-
-
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -105,6 +117,15 @@ export function GeneralTaskModal({
             multiline
             numberOfLines={3}
             maxLength={255}
+          />
+
+          <Text style={styles.label}>Estado</Text>
+
+          <RadioGroup
+            name="task-estado"
+            value={estado}
+            onChange={setEstado}
+            options={ESTADO_OPTIONS}
           />
 
           {error && <Text style={styles.error}>{error}</Text>}

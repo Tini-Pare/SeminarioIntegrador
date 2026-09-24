@@ -50,6 +50,7 @@ export default function EquipmentScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [registroFilter, setRegistroFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -113,9 +114,10 @@ export default function EquipmentScreen() {
       const matchStatus = !statusFilter || e.status === statusFilter;
       const matchLocation = !locationFilter || e.location?.trim() === locationFilter;
       const matchType = !typeFilter || e.type?.trim() === typeFilter;
-      return matchQ && matchStatus && matchLocation && matchType;
+      const matchRegistro = !registroFilter || (registroFilter === "activo") === e.active;
+      return matchQ && matchStatus && matchLocation && matchType && matchRegistro;
     });
-  }, [equipment, search, statusFilter, locationFilter, typeFilter]);
+  }, [equipment, search, statusFilter, locationFilter, typeFilter, registroFilter]);
 
   const { sorted, field, dir, toggle } = useTableSort<Equipo>(
     filteredEquipment,
@@ -135,7 +137,7 @@ export default function EquipmentScreen() {
 
   const { pageItems, page, pageCount, setPage } = usePagination(
     sorted,
-    `${search}|${statusFilter}|${locationFilter}|${typeFilter}|${field}|${dir}`,
+    `${search}|${statusFilter}|${locationFilter}|${typeFilter}|${registroFilter}|${field}|${dir}`,
     8,
   );
 
@@ -174,15 +176,6 @@ export default function EquipmentScreen() {
       </>
     );
   }
-  if (error) {
-    return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.error}>{error}</Text>
-      </>
-    );
-  }
-
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -203,6 +196,8 @@ export default function EquipmentScreen() {
             </View>
           )}
         </View>
+
+        {error && <Text style={styles.error}>{error}</Text>}
 
         {successMessage && (
           <View style={styles.successBanner}>
@@ -229,6 +224,17 @@ export default function EquipmentScreen() {
                 { value: "operational", label: STATUS_LABELS.operational },
                 { value: "waiting", label: STATUS_LABELS.waiting },
                 { value: "repair", label: STATUS_LABELS.repair },
+              ],
+            },
+            {
+              key: "registro",
+              label: "Registro",
+              value: registroFilter,
+              onChange: setRegistroFilter,
+              options: [
+                { value: "", label: "Todos" },
+                { value: "activo", label: "Activo" },
+                { value: "inactivo", label: "Inactivo" },
               ],
             },
             ...(locationOptions.length > 1
@@ -335,6 +341,8 @@ export default function EquipmentScreen() {
                   </View>
 
                   <Text style={styles.cardName}>{e.name}</Text>
+
+                  {!e.active && <Text style={styles.code}>Inactivo</Text>}
 
                   <Text style={styles.typeText}>{e.type}</Text>
 
@@ -546,6 +554,7 @@ function EquipmentTableRow({
 
           <Text style={styles.code} numberOfLines={1}>
             {e.code}
+            {e.active ? "" : " · Inactivo"}
           </Text>
         </View>
 

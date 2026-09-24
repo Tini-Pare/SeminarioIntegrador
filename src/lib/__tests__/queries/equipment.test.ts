@@ -24,6 +24,7 @@ describe("listEquipment", () => {
           eq_codigo: "AC-014",
           eq_nombre: "Aire Acondicionado",
           eq_estado: "operational",
+          eq_estado_registro: "activo",
           eq_modelo: "Split 3000F",
           eq_fecha_instalacion: "2026-01-15",
           eq_fecha_garantia: "2028-01-15",
@@ -53,6 +54,7 @@ describe("listEquipment", () => {
         location: "Planta A",
         locationId: 3,
         status: "operational",
+        active: true,
         model: "Split 3000F",
         installDate: "2026-01-15",
         warrantyDate: "2028-01-15",
@@ -80,6 +82,7 @@ describe("getEquipmentById", () => {
         eq_codigo: "AC-014",
         eq_nombre: "Aire Acondicionado",
         eq_estado: "operational",
+        eq_estado_registro: "activo",
         eq_modelo: null,
         eq_fecha_instalacion: null,
         eq_fecha_garantia: null,
@@ -104,6 +107,7 @@ describe("getEquipmentById", () => {
       location: "Planta A",
       locationId: 3,
       status: "operational",
+      active: true,
       model: null,
       installDate: null,
       warrantyDate: null,
@@ -134,6 +138,7 @@ describe("createEquipment", () => {
         eq_codigo: "AC-015",
         eq_nombre: "AA Sala",
         eq_estado: "operational",
+        eq_estado_registro: "activo",
         eq_modelo: "Split 3000F",
         eq_fecha_instalacion: "2026-02-01",
         eq_fecha_garantia: "2028-02-01",
@@ -308,4 +313,3 @@ describe("deleteEquipment", () => {
     await expect(deleteEquipment(5)).rejects.toThrow("delete failed");
   });
 });
-

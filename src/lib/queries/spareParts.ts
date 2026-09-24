@@ -40,8 +40,11 @@ export type SparePartInput = {
 };
 
 // rep_cantidad_actual is deliberately left out: a new spare part starts at the
-// column default (0) and only registrar_compra moves it, so every unit in stock
-// traces back to a linea_compra. Neither create nor update can set it.
+// column default (0) and only the purchase RPCs move it — registrar_compra for
+// remito/tique lines, registrar_remito_compra/editar_remito_compra/
+// anular_remito_compra for factura lines received via a remito (see migration
+// 0013) — so every unit in stock traces back to a linea_compra. Neither create
+// nor update can set it.
 export async function createSparePart(input: SparePartInput): Promise<Repuesto> {
   const { data, error } = await supabase
     .from("repuestos")

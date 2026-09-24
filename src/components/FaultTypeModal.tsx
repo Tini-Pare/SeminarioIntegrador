@@ -13,6 +13,13 @@ import { useTheme } from "../lib/ThemeContext";
 import type { Fallo } from "../types/database";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 
+// Registration state, same shape as repuestos: an item with history can't be
+// deleted, it's marked inactive instead.
+const ESTADO_OPTIONS: RadioOption<Fallo["fa_estado"]>[] = [
+  { value: "activo", label: "Activo" },
+  { value: "inactivo", label: "Inactivo" },
+];
+
 const GRAVEDAD_RADIO_OPTIONS: RadioOption<Gravedad>[] = GRAVEDAD_OPTIONS.map((g) => ({
   value: g,
   label: GRAVEDAD_LABELS[g],
@@ -35,6 +42,7 @@ export function FaultTypeModal({
   const [name, setName] = useState(fault?.fa_nombre ?? "");
   const [desperfecto, setDesperfecto] = useState(fault?.fa_desperfecto ?? "");
   const [gravedad, setGravedad] = useState<Gravedad>(normalizeGravedad(fault?.fa_gravedad));
+  const [estado, setEstado] = useState<Fallo["fa_estado"]>(fault?.fa_estado ?? "activo");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
@@ -45,6 +53,7 @@ export function FaultTypeModal({
     setName(fault?.fa_nombre ?? "");
     setDesperfecto(fault?.fa_desperfecto ?? "");
     setGravedad(normalizeGravedad(fault?.fa_gravedad));
+    setEstado(fault?.fa_estado ?? "activo");
     setError(null);
   }, [visible, fault]);
 
@@ -76,9 +85,10 @@ export function FaultTypeModal({
           name,
           desperfecto: desperfecto || null,
           gravedad,
+          estado,
         });
       } else {
-        await createFaultType({ name, desperfecto: desperfecto || null, gravedad });
+        await createFaultType({ name, desperfecto: desperfecto || null, gravedad, estado });
       }
       onSaved();
       onClose();
@@ -132,6 +142,15 @@ export function FaultTypeModal({
             value={gravedad}
             onChange={setGravedad}
             options={GRAVEDAD_RADIO_OPTIONS}
+          />
+
+          <Text style={styles.label}>Estado</Text>
+
+          <RadioGroup
+            name="fault-estado"
+            value={estado}
+            onChange={setEstado}
+            options={ESTADO_OPTIONS}
           />
 
           {error && <Text style={styles.error}>{error}</Text>}

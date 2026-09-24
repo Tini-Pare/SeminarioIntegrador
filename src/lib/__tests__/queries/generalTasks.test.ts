@@ -62,11 +62,13 @@ describe("createGeneralTask", () => {
     const result = await createGeneralTask({
       name: "  Purgar radiador  ",
       description: "  Con llave  ",
+      estado: "activo",
     });
 
     expect(insert).toHaveBeenCalledWith({
       tag_nombre_tarea: "Purgar radiador",
       tag_descripcion_tarea: "Con llave",
+      tag_estado: "activo",
     });
     expect(result.tag_id_tarea).toBe(5);
   });
@@ -77,29 +79,31 @@ describe("createGeneralTask", () => {
     const insert = jest.fn().mockReturnValue({ select });
     (supabase.from as jest.Mock).mockReturnValue({ insert });
 
-    await createGeneralTask({ name: "X", description: "   " });
+    await createGeneralTask({ name: "X", description: "   ", estado: "activo" });
 
-    expect(insert).toHaveBeenCalledWith({ tag_nombre_tarea: "X", tag_descripcion_tarea: null });
+    expect(insert).toHaveBeenCalledWith({
+      tag_nombre_tarea: "X",
+      tag_descripcion_tarea: null,
+      tag_estado: "activo",
+    });
   });
 
   it("maps a 23505 unique violation to the duplicate-name message", async () => {
-    const single = jest
-      .fn()
-      .mockResolvedValue({
-        data: null,
-        error: {
-          code: "23505",
-          message:
-            'duplicate key value violates unique constraint "tareas_generales_nombre_unico_idx"',
-        },
-      });
+    const single = jest.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "tareas_generales_nombre_unico_idx"',
+      },
+    });
     const select = jest.fn().mockReturnValue({ single });
     const insert = jest.fn().mockReturnValue({ select });
     (supabase.from as jest.Mock).mockReturnValue({ insert });
 
-    await expect(createGeneralTask({ name: "Repetida", description: null })).rejects.toThrow(
-      "Ya existe una tarea general con ese nombre",
-    );
+    await expect(
+      createGeneralTask({ name: "Repetida", description: null, estado: "activo" }),
+    ).rejects.toThrow("Ya existe una tarea general con ese nombre");
   });
 
   it("rethrows a 23505 primary-key collision as-is (not a duplicate name)", async () => {
@@ -114,9 +118,9 @@ describe("createGeneralTask", () => {
     const insert = jest.fn().mockReturnValue({ select });
     (supabase.from as jest.Mock).mockReturnValue({ insert });
 
-    await expect(createGeneralTask({ name: "Nueva", description: null })).rejects.toThrow(
-      "tareas_generales_pkey",
-    );
+    await expect(
+      createGeneralTask({ name: "Nueva", description: null, estado: "activo" }),
+    ).rejects.toThrow("tareas_generales_pkey");
   });
 });
 
@@ -126,11 +130,12 @@ describe("updateGeneralTask", () => {
     const update = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
-    await updateGeneralTask(5, { name: " Nueva ", description: null });
+    await updateGeneralTask(5, { name: " Nueva ", description: null, estado: "activo" });
 
     expect(update).toHaveBeenCalledWith({
       tag_nombre_tarea: "Nueva",
       tag_descripcion_tarea: null,
+      tag_estado: "activo",
     });
     expect(eq).toHaveBeenCalledWith("tag_id_tarea", 5);
   });
@@ -140,9 +145,9 @@ describe("updateGeneralTask", () => {
     const update = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
-    await expect(updateGeneralTask(5, { name: "X", description: null })).rejects.toThrow(
-      "update failed",
-    );
+    await expect(
+      updateGeneralTask(5, { name: "X", description: null, estado: "activo" }),
+    ).rejects.toThrow("update failed");
   });
 
   it("maps a 23505 unique violation to the duplicate-name message", async () => {
@@ -156,9 +161,9 @@ describe("updateGeneralTask", () => {
     const update = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
-    await expect(updateGeneralTask(5, { name: "Repetida", description: null })).rejects.toThrow(
-      "Ya existe una tarea general con ese nombre",
-    );
+    await expect(
+      updateGeneralTask(5, { name: "Repetida", description: null, estado: "activo" }),
+    ).rejects.toThrow("Ya existe una tarea general con ese nombre");
   });
 });
 
@@ -178,7 +183,9 @@ describe("deleteGeneralTask", () => {
     const del = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ delete: del });
 
-    await expect(deleteGeneralTask(5)).rejects.toThrow(/ya está usada en un plan/);
+    await expect(deleteGeneralTask(5)).rejects.toThrow(
+      /ya figura en un plan.*Marcala como inactiva/,
+    );
   });
 
   it("rethrows other errors as-is", async () => {

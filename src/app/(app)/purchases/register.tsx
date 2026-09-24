@@ -348,9 +348,11 @@ export default function RegisterPurchaseScreen() {
         <Text style={styles.pageSubtitle}>
           {tipoComprobante == null
             ? "Elegí el tipo de comprobante del proveedor."
-            : pedidoId
-              ? "Al guardar se ingresa el stock y el pedido queda como recibido."
-              : "Al guardar se suma la cantidad de cada línea al stock del repuesto."}
+            : isRemito || tipoComprobante === "tique"
+              ? pedidoId
+                ? "Al guardar se ingresa el stock y el pedido queda como recibido."
+                : "Al guardar se suma la cantidad de cada línea al stock del repuesto."
+              : "Al guardar queda pendiente de recepción. El stock se suma después, cargando remitos desde el detalle de la compra."}
         </Text>
 
         <View style={styles.steps}>
@@ -513,7 +515,11 @@ export default function RegisterPurchaseScreen() {
               <View style={styles.linesHeader}>
                 <View>
                   <Text style={styles.label}>Detalle del comprobante</Text>
-                  <Text style={styles.linesSub}>Cada línea suma al stock del repuesto</Text>
+                  <Text style={styles.linesSub}>
+                    {isRemito || tipoComprobante === "tique"
+                      ? "Cada línea suma al stock del repuesto"
+                      : "Cada línea define lo facturado; el stock se suma al cargar los remitos de recepción"}
+                  </Text>
                 </View>
 
                 <Pressable

@@ -38,6 +38,7 @@ export async function createFaultType(input: {
   name: string;
   desperfecto: string | null;
   gravedad: Gravedad;
+  estado: Fallo["fa_estado"];
 }): Promise<Fallo> {
   const { data, error } = await supabase
     .from("fallo")
@@ -45,6 +46,7 @@ export async function createFaultType(input: {
       fa_nombre: input.name.trim(),
       fa_desperfecto: input.desperfecto?.trim() || null,
       fa_gravedad: input.gravedad,
+      fa_estado: input.estado,
     })
     .select("*")
     .single();
@@ -57,7 +59,12 @@ export async function createFaultType(input: {
 
 export async function updateFaultType(
   id: number,
-  changes: { name: string; desperfecto: string | null; gravedad: Gravedad },
+  changes: {
+    name: string;
+    desperfecto: string | null;
+    gravedad: Gravedad;
+    estado: Fallo["fa_estado"];
+  },
 ): Promise<void> {
   const { error } = await supabase
     .from("fallo")
@@ -65,6 +72,7 @@ export async function updateFaultType(
       fa_nombre: changes.name.trim(),
       fa_desperfecto: changes.desperfecto?.trim() || null,
       fa_gravedad: changes.gravedad,
+      fa_estado: changes.estado,
     })
     .eq("fa_id_fallo", id);
   if (error) {
@@ -81,7 +89,7 @@ export async function deleteFaultType(id: number): Promise<void> {
   if (error) {
     if (error.code === "23503") {
       throw new Error(
-        "No se puede eliminar: esta falla genérica ya está asociada a una orden de trabajo.",
+        "No se puede eliminar: la falla genérica ya figura en una orden de trabajo. Marcala como inactiva en su lugar.",
       );
     }
     throw new Error(error.message);
