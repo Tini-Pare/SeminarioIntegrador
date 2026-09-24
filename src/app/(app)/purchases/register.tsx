@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { BackIcon, TrashIcon } from "../../../components/icons";
+import { BackIcon, CheckIcon, TrashIcon } from "../../../components/icons";
 import {
   CustomDatePicker,
   getTodayDateString,
@@ -26,15 +26,118 @@ import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import type { ComprobanteTipo, Repuesto } from "../../../types/database";
 
-type LineDraft = { key: string; repId: number | null; cantidad: string; costo: string };
+export type LineDraft = { key: string; repId: number | null; cantidad: string; costo: string };
 
 let lineSeq = 0;
-const newLine = (repId: number | null = null, cantidad = ""): LineDraft => ({
+export const newLine = (repId: number | null = null, cantidad = ""): LineDraft => ({
   key: `l${lineSeq++}`,
   repId,
   cantidad,
   costo: "",
 });
+
+export type PurchaseFormValidationInput = {
+  tipoComprobante: ComprobanteTipo | null;
+  puntoVenta: string;
+  numero: string;
+  fecha: string;
+  garantia: string;
+  proveedorId: number | null;
+  lines: { repId: number | null; cantidad: string; costo: string }[];
+};
+
+export type PurchaseValidationResult =
+  | {
+      valid: true;
+      parsedLines: { repId: number; cantidad: number; costoUnitario: number | null }[];
+    }
+  | { valid: false; error: string };
+
+export function validatePurchaseRegistration(
+  form: PurchaseFormValidationInput,
+): PurchaseValidationResult {
+  if (!form.tipoComprobante) {
+    return { valid: false, error: "Elegí un tipo de comprobante." };
+  }
+
+  const isRemito = form.tipoComprobante === "remito";
+  let missingCount = 0;
+
+  if (!form.puntoVenta.trim()) {
+    missingCount++;
+  }
+
+  if (!form.numero.trim()) {
+    missingCount++;
+  }
+
+  if (!form.fecha.trim() || !isValidDateString(form.fecha)) {
+    missingCount++;
+  }
+
+  const garantiaNum = Number(form.garantia.trim());
+  if (!form.garantia.trim() || !Number.isInteger(garantiaNum) || garantiaNum <= 0) {
+    missingCount++;
+  }
+
+  if (!form.proveedorId) {
+    missingCount++;
+  }
+
+  if (!form.lines || form.lines.length === 0) {
+    missingCount++;
+  } else {
+    for (const l of form.lines) {
+      if (!l.repId) {
+        missingCount++;
+      }
+
+      const qty = Number(l.cantidad);
+      if (!l.cantidad.trim() || !Number.isInteger(qty) || qty <= 0) {
+        missingCount++;
+      }
+
+      if (!isRemito) {
+        const costo = Number(l.costo);
+        if (!l.costo.trim() || !Number.isFinite(costo) || costo < 0) {
+          missingCount++;
+        }
+      }
+    }
+  }
+
+  if (missingCount > 1) {
+    return { valid: false, error: "Completá los campos obligatorios." };
+  }
+
+  if (missingCount === 1) {
+    return { valid: false, error: "Completá el campo obligatorio." };
+  }
+
+  const parsed: { repId: number; cantidad: number; costoUnitario: number | null }[] = [];
+  const seen = new Set<number>();
+  for (const l of form.lines) {
+    if (l.repId !== null) {
+      if (seen.has(l.repId)) {
+        return {
+          valid: false,
+          error: "Hay un repuesto repetido en dos líneas. Sumá las cantidades en una sola.",
+        };
+      }
+      seen.add(l.repId);
+    }
+
+    const qty = Number(l.cantidad);
+    const costo = isRemito ? null : Number(l.costo);
+    parsed.push({
+      repId: l.repId!,
+      cantidad: qty,
+      costoUnitario: costo,
+    });
+  }
+
+  return { valid: true, parsedLines: parsed };
+}
 
 type DocOption = {
   id: ComprobanteTipo;
@@ -135,6 +238,37 @@ function DocTypeCard({
   );
 }
 
+function LineDeleteButton({
+  onPress,
+  disabled,
+  colors,
+  styles,
+}: {
+  onPress: () => void;
+  disabled: boolean;
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <Pressable
+      style={[
+        styles.removeBtn,
+        hovered && !disabled && styles.removeBtnHover,
+        disabled && styles.removeBtnDisabled,
+      ]}
+      onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      disabled={disabled}
+      accessibilityLabel="Quitar línea"
+    >
+      <TrashIcon size={15} color={disabled ? colors.textMuted : colors.destructive} />
+    </Pressable>
+  );
+}
+
 export default function RegisterPurchaseScreen() {
   // pedidoId + lines arrive from purchase-orders (admin fulfilling a
   // technician's pedido): lines is the pedido's own line items, JSON-encoded
@@ -164,19 +298,41 @@ export default function RegisterPurchaseScreen() {
   const [proveedorId, setProveedorId] = useState<number | null>(null);
   const [fecha, setFecha] = useState(getTodayDateString());
   const [garantia, setGarantia] = useState("");
-  const [garantiaError, setGarantiaError] = useState<string | null>(null);
   const [lines, setLines] = useState<LineDraft[]>(
     prefillLines ? prefillLines.map((l) => newLine(l.repId, String(l.cantidad))) : [newLine()],
   );
   const [openField, setOpenField] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
   const today = useMemo(() => new Date(), []);
   const isRemito = tipoComprobante === "remito";
+
+  const puntoVentaError = submitted && !puntoVenta.trim();
+  const numeroError = submitted && !numero.trim();
+  const fechaError = submitted && (!fecha.trim() || !isValidDateString(fecha));
+  const garantiaNum = Number(garantia.trim());
+  const garantiaError =
+    submitted && (!garantia.trim() || !Number.isInteger(garantiaNum) || garantiaNum <= 0);
+  const proveedorError = submitted && !proveedorId;
+
+  const repError = (l: LineDraft) => submitted && !l.repId;
+  const cantError = (l: LineDraft) => {
+    const qty = Number(l.cantidad);
+    return submitted && (!l.cantidad.trim() || !Number.isInteger(qty) || qty <= 0);
+  };
+  const costoError = (l: LineDraft) => {
+    const cost = Number(l.costo);
+    return (
+      submitted &&
+      !isRemito &&
+      (!l.costo.trim() || !Number.isFinite(cost) || cost < 0)
+    );
+  };
 
   useEffect(() => {
     Promise.all([listSuppliers(), listSpareParts()])
@@ -233,84 +389,34 @@ export default function RegisterPurchaseScreen() {
   );
 
   async function handleSave() {
-    if (!tipoComprobante) {
-      setError("Elegí un tipo de comprobante.");
-      return;
-    }
-    setGarantiaError(null);
-    if (!proveedorId) {
-      setError("Elegí un proveedor.");
-      return;
-    }
-    if (!puntoVenta.trim()) {
-      setError("Ingresá el punto de venta.");
-      return;
-    }
-    if (!numero.trim()) {
-      setError(`Ingresá el ${docNumberLabel(tipoComprobante).toLowerCase()}.`);
-      return;
-    }
-    if (!fecha.trim() || !isValidDateString(fecha)) {
-      setError("La fecha del comprobante no es válida.");
-      return;
-    }
+    setSubmitted(true);
+    setError(null);
 
-    const garantiaNum = Number(garantia.trim());
-    if (!garantia.trim() || !Number.isInteger(garantiaNum) || garantiaNum <= 0) {
-      setGarantiaError("Ingresá la garantía en meses.");
+    const validation = validatePurchaseRegistration({
+      tipoComprobante,
+      puntoVenta,
+      numero,
+      fecha,
+      garantia,
+      proveedorId,
+      lines,
+    });
+
+    if (!validation.valid) {
+      setError(validation.error);
       return;
-    }
-
-    const parsed: { repId: number; cantidad: number; costoUnitario: number | null }[] = [];
-    const seen = new Set<number>();
-    for (const l of lines) {
-      if (!l.repId) {
-        setError("Cada línea tiene que tener un repuesto elegido.");
-        return;
-      }
-      if (seen.has(l.repId)) {
-        setError("Hay un repuesto repetido en dos líneas. Sumá las cantidades en una sola.");
-        return;
-      }
-      seen.add(l.repId);
-
-      const qty = Number(l.cantidad);
-      if (!Number.isInteger(qty) || qty <= 0) {
-        setError("La cantidad de cada línea tiene que ser un entero mayor a cero.");
-        return;
-      }
-
-      // A remito has no price, so its lines only move stock — costoUnitario
-      // stays null and never reaches co_costo_total (see migration 0011).
-      if (isRemito) {
-        parsed.push({ repId: l.repId, cantidad: qty, costoUnitario: null });
-        continue;
-      }
-
-      if (!l.costo.trim()) {
-        setError("Cada línea tiene que tener un costo unitario.");
-        return;
-      }
-      const costo = Number(l.costo);
-      if (!Number.isFinite(costo) || costo < 0) {
-        setError("El costo unitario tiene que ser un número ≥ 0.");
-        return;
-      }
-
-      parsed.push({ repId: l.repId, cantidad: qty, costoUnitario: costo });
     }
 
     setSaving(true);
-    setError(null);
     try {
       await registrarCompra({
-        tipoComprobante,
+        tipoComprobante: tipoComprobante!,
         puntoVenta: puntoVenta.trim(),
-        proveedorId,
+        proveedorId: proveedorId!,
         nombre: numero.trim() || null,
         fecha: toDbDate(fecha),
         garantia: garantia.trim(),
-        lineas: parsed,
+        lineas: validation.parsedLines,
         pedidoId: pedidoId ? Number(pedidoId) : null,
       });
       goBackToPurchases();
@@ -361,20 +467,30 @@ export default function RegisterPurchaseScreen() {
             onPress={backToStep1}
             disabled={tipoComprobante == null}
           >
-            <View style={[styles.stepDot, tipoComprobante == null && styles.stepDotActive]}>
-              <Text
-                style={[styles.stepDotText, tipoComprobante == null && styles.stepDotTextActive]}
-              >
-                1
-              </Text>
+            <View
+              style={[
+                styles.stepDot,
+                (tipoComprobante == null || tipoComprobante != null) && styles.stepDotActive,
+              ]}
+            >
+              {tipoComprobante != null ? (
+                <CheckIcon size={13} color="#fff" />
+              ) : (
+                <Text style={styles.stepDotTextActive}>1</Text>
+              )}
             </View>
 
-            <Text style={[styles.stepLabel, tipoComprobante == null && styles.stepLabelActive]}>
+            <Text
+              style={[
+                styles.stepLabel,
+                (tipoComprobante == null || tipoComprobante != null) && styles.stepLabelActive,
+              ]}
+            >
               Tipo de comprobante
             </Text>
           </Pressable>
 
-          <View style={styles.stepLine} />
+          <View style={[styles.stepLine, tipoComprobante != null && styles.stepLineActive]} />
 
           <View style={styles.stepItem}>
             <View style={[styles.stepDot, tipoComprobante != null && styles.stepDotActive]}>
@@ -426,13 +542,16 @@ export default function RegisterPurchaseScreen() {
                   <Text style={styles.smallLabel}>Punto de venta</Text>
 
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, puntoVentaError && styles.inputError]}
                     value={puntoVenta}
-                    onChangeText={(t) => setPuntoVenta(t.replace(/[^0-9]/g, ""))}
+                    onChangeText={(t) => {
+                      setPuntoVenta(t.replace(/[^0-9]/g, "").slice(0, 4));
+                      if (error) setError(null);
+                    }}
                     placeholder="Ej: 0002"
                     placeholderTextColor={colors.textMuted}
                     keyboardType="number-pad"
-                    maxLength={6}
+                    maxLength={4}
                   />
                 </View>
 
@@ -440,13 +559,16 @@ export default function RegisterPurchaseScreen() {
                   <Text style={styles.smallLabel}>{docNumberLabel(tipoComprobante)}</Text>
 
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, numeroError && styles.inputError]}
                     value={numero}
-                    onChangeText={(t) => setNumero(t.replace(/[^0-9]/g, ""))}
+                    onChangeText={(t) => {
+                      setNumero(t.replace(/[^0-9]/g, "").slice(0, 8));
+                      if (error) setError(null);
+                    }}
                     placeholder="Ej: 00001111"
                     placeholderTextColor={colors.textMuted}
                     keyboardType="number-pad"
-                    maxLength={12}
+                    maxLength={8}
                   />
                 </View>
 
@@ -455,10 +577,14 @@ export default function RegisterPurchaseScreen() {
 
                   <CustomDatePicker
                     value={fecha}
-                    onChange={setFecha}
+                    onChange={(f) => {
+                      setFecha(f);
+                      if (error) setError(null);
+                    }}
                     maxDate={today}
                     open={openField === "fecha"}
                     onOpenChange={(o) => setOpenField(o ? "fecha" : null)}
+                    hasError={fechaError}
                   />
                 </View>
 
@@ -466,19 +592,17 @@ export default function RegisterPurchaseScreen() {
                   <Text style={styles.smallLabel}>Garantía (meses)</Text>
 
                   <TextInput
-                    style={[styles.input, garantiaError ? styles.inputError : null]}
+                    style={[styles.input, garantiaError && styles.inputError]}
                     value={garantia}
                     onChangeText={(text) => {
                       setGarantia(text.replace(/[^0-9]/g, ""));
-                      if (garantiaError) setGarantiaError(null);
+                      if (error) setError(null);
                     }}
                     placeholder="Ej: 24"
                     placeholderTextColor={colors.textMuted}
                     keyboardType="number-pad"
                     maxLength={5}
                   />
-
-                  {garantiaError && <Text style={styles.fieldError}>{garantiaError}</Text>}
                 </View>
               </View>
 
@@ -488,7 +612,10 @@ export default function RegisterPurchaseScreen() {
 
                   <Select
                     value={proveedorId}
-                    onChange={setProveedorId}
+                    onChange={(p) => {
+                      setProveedorId(p);
+                      if (error) setError(null);
+                    }}
                     options={supplierOptions}
                     placeholder={
                       supplierOptions.length === 0
@@ -498,6 +625,7 @@ export default function RegisterPurchaseScreen() {
                     disabled={supplierOptions.length === 0}
                     open={openField === "proveedor"}
                     onOpenChange={(o) => setOpenField(o ? "proveedor" : null)}
+                    hasError={proveedorError}
                   />
                 </View>
 
@@ -505,7 +633,13 @@ export default function RegisterPurchaseScreen() {
                   <Text style={styles.smallLabel}>CUIT</Text>
 
                   <View style={styles.cuitBox}>
-                    <Text style={styles.cuitText}>{selectedSupplier?.prov_cuit || "—"}</Text>
+                    <Text
+                      style={
+                        selectedSupplier?.prov_cuit ? styles.cuitText : styles.cuitPlaceholder
+                      }
+                    >
+                      {selectedSupplier?.prov_cuit || "Opcional"}
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -524,7 +658,7 @@ export default function RegisterPurchaseScreen() {
 
                 <Pressable
                   style={styles.addLineBtn}
-                  onPress={() => setLines((prev) => [...prev, newLine()])}
+                  onPress={() => setLines((prev) => [newLine(), ...prev])}
                 >
                   <Text style={styles.addLineText}>+ Agregar línea</Text>
                 </Pressable>
@@ -538,7 +672,7 @@ export default function RegisterPurchaseScreen() {
                   </>
                 ) : (
                   <>
-                    <Text style={[styles.tableHeadText, styles.colNum]}>#</Text>
+                    <Text style={[styles.tableHeadText, styles.colNum, { color: "#fff" }]}>#</Text>
                     <Text style={[styles.tableHeadText, styles.colRepFlex]}>Repuesto</Text>
                     <Text style={[styles.tableHeadText, styles.colCant]}>Cant.</Text>
                     <Text style={[styles.tableHeadText, styles.colCosto]}>Costo unit.</Text>
@@ -559,7 +693,7 @@ export default function RegisterPurchaseScreen() {
                     <>
                       <View style={styles.colCant}>
                         <TextInput
-                          style={styles.cellInput}
+                          style={[styles.cellInput, cantError(l) && styles.cellInputError]}
                           value={l.cantidad}
                           onChangeText={(v) => updateLine(l.key, { cantidad: v })}
                           placeholder="0"
@@ -576,6 +710,7 @@ export default function RegisterPurchaseScreen() {
                           placeholder="Elegí un repuesto"
                           open={openField === `rep-${l.key}`}
                           onOpenChange={(o) => setOpenField(o ? `rep-${l.key}` : null)}
+                          hasError={repError(l)}
                         />
                       </View>
                     </>
@@ -591,12 +726,13 @@ export default function RegisterPurchaseScreen() {
                           placeholder="Elegí un repuesto"
                           open={openField === `rep-${l.key}`}
                           onOpenChange={(o) => setOpenField(o ? `rep-${l.key}` : null)}
+                          hasError={repError(l)}
                         />
                       </View>
 
                       <View style={styles.colCant}>
                         <TextInput
-                          style={styles.cellInput}
+                          style={[styles.cellInput, cantError(l) && styles.cellInputError]}
                           value={l.cantidad}
                           onChangeText={(v) => updateLine(l.key, { cantidad: v })}
                           placeholder="0"
@@ -607,7 +743,7 @@ export default function RegisterPurchaseScreen() {
 
                       <View style={styles.colCosto}>
                         <TextInput
-                          style={styles.cellInput}
+                          style={[styles.cellInput, costoError(l) && styles.cellInputError]}
                           value={l.costo}
                           onChangeText={(v) => updateLine(l.key, { costo: v })}
                           placeholder="Ej: 1500"
@@ -624,27 +760,26 @@ export default function RegisterPurchaseScreen() {
                     </>
                   )}
 
-                  <Pressable
-                    style={styles.removeBtn}
+                  <LineDeleteButton
                     onPress={() => removeLine(l.key)}
                     disabled={lines.length === 1}
-                    accessibilityLabel="Quitar línea"
-                  >
-                    <TrashIcon
-                      size={14}
-                      color={lines.length === 1 ? colors.textMuted : colors.destructive}
-                    />
-                  </Pressable>
+                    colors={colors}
+                    styles={styles}
+                  />
                 </View>
               ))}
 
-              <View style={styles.summary}>
-                <Text style={styles.summaryLine}>Unidades a ingresar: {units}</Text>
+              <View style={styles.tableFooter}>
+                <Text style={styles.summaryUnits}>
+                  Unidades a ingresar: <Text style={styles.summaryUnitsNum}>{units}</Text>
+                </Text>
 
                 {!isRemito && (
-                  <Text style={styles.total}>
-                    Total del comprobante: $
-                    {total.toLocaleString("es-AR", { maximumFractionDigits: 2 })}
+                  <Text style={styles.summaryTotal}>
+                    Total del comprobante:{" "}
+                    <Text style={styles.summaryTotalAmount}>
+                      ${total.toLocaleString("es-AR", { maximumFractionDigits: 2 })}
+                    </Text>
                   </Text>
                 )}
               </View>
@@ -681,19 +816,22 @@ function makeStyles(c: ThemeColors) {
     steps: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 24 },
     stepItem: { flexDirection: "row", alignItems: "center", gap: 8 },
     stepDot: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
       backgroundColor: c.bgNested,
       alignItems: "center",
       justifyContent: "center",
+      borderWidth: 1,
+      borderColor: c.borderInput,
     },
-    stepDotActive: { backgroundColor: c.accent },
-    stepDotText: { fontSize: 11.5, fontWeight: "700", color: c.textMuted },
-    stepDotTextActive: { color: "#fff" },
-    stepLabel: { fontSize: 13, fontWeight: "500", color: c.textMuted },
+    stepDotActive: { backgroundColor: c.accent, borderColor: c.accent },
+    stepDotText: { fontSize: 12, fontWeight: "700", color: c.textMuted },
+    stepDotTextActive: { color: "#fff", fontSize: 12, fontWeight: "700" },
+    stepLabel: { fontSize: 13.5, fontWeight: "500", color: c.textMuted },
     stepLabelActive: { color: c.text, fontWeight: "700" },
-    stepLine: { width: 28, height: 1, backgroundColor: c.border },
+    stepLine: { width: 32, height: 2, backgroundColor: c.border },
+    stepLineActive: { backgroundColor: c.accent },
     body: { marginTop: 24 },
     // No flexWrap: the 3 cards must always stay in a single row (they'd
     // wrap to 2+1 — and grow unevenly, since the lone wrapped card fills
@@ -761,7 +899,7 @@ function makeStyles(c: ThemeColors) {
       gap: 12,
       padding: 16,
       borderRadius: 16,
-      backgroundColor: c.bgNested,
+      backgroundColor: c.bgCard,
       borderWidth: 1,
       borderColor: c.border,
     },
@@ -773,7 +911,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       borderWidth: 1,
       borderColor: c.borderInput,
-      backgroundColor: c.bgCard,
+      backgroundColor: c.bgInput,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -816,6 +954,11 @@ function makeStyles(c: ThemeColors) {
     },
     inputError: {
       borderColor: c.destructive,
+      borderWidth: 1.5,
+    },
+    cellInputError: {
+      borderColor: c.destructive,
+      borderWidth: 1.5,
     },
     fieldError: {
       color: c.destructive,
@@ -849,12 +992,10 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1,
       borderColor: c.borderInput,
       borderRadius: 12,
-      backgroundColor: c.bgNested,
+      backgroundColor: c.bgInput,
     },
     cuitText: { fontSize: 14.5, color: c.textSecondary, fontVariant: ["tabular-nums"] },
-    // No overflow:"hidden" here (unlike a typical card) — the repuesto
-    // Select's dropdown for the last couple of rows needs to escape this
-    // card's bottom edge instead of being clipped by it.
+    cuitPlaceholder: { fontSize: 14, color: c.textMuted },
     tableCard: {
       borderWidth: 1,
       borderColor: c.border,
@@ -881,7 +1022,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       borderWidth: 1,
       borderColor: c.borderInput,
-      backgroundColor: c.bgCard,
+      backgroundColor: c.bgInput,
     },
     addLineText: { fontSize: 13, fontWeight: "700", color: c.textLabel },
     tableHeadRow: {
@@ -889,10 +1030,17 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       gap: 10,
       paddingHorizontal: 20,
-      paddingVertical: 11,
-      backgroundColor: c.bgTableHeader,
+      paddingVertical: 12,
+      backgroundColor: c.accent,
     },
-    tableHeadText: { fontSize: 12.5, fontWeight: "700", color: c.textLabel },
+    tableHeadText: {
+      fontSize: 12.5,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: "#fff",
+      fontFamily: "monospace",
+    },
     tableRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -910,7 +1058,7 @@ function makeStyles(c: ThemeColors) {
     colCant: { width: 76 },
     colCosto: { flex: 1, minWidth: 100 },
     colTotal: { flex: 1, minWidth: 90 },
-    colRemove: { width: 30 },
+    colRemove: { width: 34 },
     textRight: { textAlign: "right" },
     cellInput: {
       height: 40,
@@ -926,26 +1074,59 @@ function makeStyles(c: ThemeColors) {
     cellNum: { fontVariant: ["tabular-nums"] },
     cellTotal: { fontSize: 14, fontWeight: "700", color: c.text, fontVariant: ["tabular-nums"] },
     removeBtn: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
+      width: 32,
+      height: 32,
+      borderRadius: 8,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: c.bgNested,
+      backgroundColor: c.bgInput,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      ...(Platform.OS === "web" ? ({ cursor: "pointer" } as object) : {}),
     },
-    summary: {
+    removeBtnHover: {
+      backgroundColor: c.eqRepair.bg,
+      borderColor: c.destructive,
+    },
+    removeBtnDisabled: {
+      opacity: 0.35,
+      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as object) : {}),
+    },
+    tableFooter: {
       flexDirection: "row",
-      justifyContent: "flex-end",
-      alignItems: "baseline",
-      gap: 24,
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: c.eqOperational.bg,
       borderTopWidth: 1,
-      borderTopColor: c.border,
+      borderTopColor: c.borderRow,
       paddingHorizontal: 20,
-      paddingVertical: 16,
+      paddingVertical: 14,
+      borderBottomLeftRadius: 15,
+      borderBottomRightRadius: 15,
     },
-    summaryLine: { fontSize: 13, color: c.textSecondary },
-    total: { fontSize: 16, fontWeight: "700", color: c.text },
-    error: { color: c.destructive, marginTop: 14, fontSize: 13 },
+    summaryUnits: {
+      fontSize: 13.5,
+      color: c.textSecondary,
+      fontWeight: "500",
+    },
+    summaryUnitsNum: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: c.text,
+      fontVariant: ["tabular-nums"],
+    },
+    summaryTotal: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: c.textLabel,
+    },
+    summaryTotalAmount: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: c.accent,
+      fontVariant: ["tabular-nums"],
+    },
+    error: { color: c.destructive, marginTop: 14, fontSize: 16, fontWeight: "700" },
     actions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 22 },
     cancelButton: {
       minWidth: 150,

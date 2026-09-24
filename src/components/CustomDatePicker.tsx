@@ -214,6 +214,7 @@ export function CustomDatePicker({
   maxWidth,
   compact = false,
   alignDropdown = "left",
+  hasError = false,
 }: {
   value: string;
   onChange: (val: string) => void;
@@ -225,6 +226,7 @@ export function CustomDatePicker({
   maxWidth?: number;
   compact?: boolean;
   alignDropdown?: "left" | "right";
+  hasError?: boolean;
 }) {
   const [openState, setOpenState] = useState(false);
   const controlled = onOpenChange !== undefined;
@@ -367,7 +369,7 @@ export function CustomDatePicker({
     <View
       style={[styles.container, !isOpen && styles.containerClosed, maxWidth ? { maxWidth } : null]}
     >
-      <View ref={inputRef} style={styles.inputWrapper}>
+      <View ref={inputRef} style={[styles.inputWrapper, hasError && styles.inputWrapperError]}>
         <TextInput
           style={styles.input}
           placeholder={placeholder}
@@ -512,6 +514,10 @@ function makeStyles(
       backgroundColor: compact ? c.bgCard : c.bgInput,
       height: compact ? 38 : 44,
       overflow: "hidden",
+    },
+    inputWrapperError: {
+      borderColor: c.destructive,
+      borderWidth: 1.5,
     },
     input: {
       flex: 1,

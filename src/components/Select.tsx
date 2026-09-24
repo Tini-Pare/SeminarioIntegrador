@@ -21,6 +21,7 @@ export function Select<T extends number | string = number>({
   disabled = false,
   open: openProp,
   onOpenChange,
+  hasError = false,
 }: {
   value: T | null;
   onChange: (v: T) => void;
@@ -29,6 +30,7 @@ export function Select<T extends number | string = number>({
   disabled?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  hasError?: boolean;
 }) {
   const [openState, setOpenState] = useState(false);
   const controlled = onOpenChange !== undefined;
@@ -57,7 +59,7 @@ export function Select<T extends number | string = number>({
   return (
     <View style={[styles.wrap, open && styles.wrapOpen]}>
       <Pressable
-        style={[styles.control, disabled && styles.disabled]}
+        style={[styles.control, disabled && styles.disabled, hasError && styles.controlError]}
         onPress={() => !disabled && setOpen(!open)}
       >
         <Text style={selected ? styles.valueText : styles.placeholderText} numberOfLines={1}>
@@ -130,6 +132,10 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "space-between",
       gap: 10,
+    },
+    controlError: {
+      borderColor: c.destructive,
+      borderWidth: 1.5,
     },
     disabled: { opacity: 0.45 },
     valueText: { flex: 1, fontSize: 14, color: c.text },
