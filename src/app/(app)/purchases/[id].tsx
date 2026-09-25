@@ -264,8 +264,8 @@ export default function PurchaseDetailScreen() {
 
               <View style={styles.tableHead}>
                 <Text style={[styles.hCell, styles.colRep]}>REPUESTO</Text>
-                <Text style={[styles.hCell, styles.colNum]}>CANT.</Text>
-                <Text style={[styles.hCell, styles.colNum]}>RECIBIDO</Text>
+                <Text style={[styles.hCell, styles.colCant]}>CANT.</Text>
+                <Text style={[styles.hCell, styles.colRecibido]}>RECIBIDO</Text>
                 <Text style={[styles.hCell, styles.colEstado]}>ESTADO</Text>
               </View>
 
@@ -281,9 +281,9 @@ export default function PurchaseDetailScreen() {
                       {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
                     </Text>
 
-                    <Text style={[styles.cell, styles.colNum]}>{qty}</Text>
+                    <Text style={[styles.cell, styles.colCant]}>{qty}</Text>
 
-                    <Text style={[styles.cell, styles.colNum]}>{recibido}</Text>
+                    <Text style={[styles.cell, styles.colRecibido]}>{recibido}</Text>
 
                     <View style={styles.colEstado}>
                       <View style={[styles.lineBadge, { backgroundColor: lineColors.bg }]}>
@@ -384,9 +384,9 @@ export default function PurchaseDetailScreen() {
 
             <View style={styles.tableHead}>
               <Text style={[styles.hCell, styles.colRep]}>REPUESTO</Text>
-              <Text style={[styles.hCell, styles.colNum]}>CANT.</Text>
-              <Text style={[styles.hCell, styles.colNum]}>C. UNIT.</Text>
-              <Text style={[styles.hCell, styles.colNum]}>SUBTOT.</Text>
+              <Text style={[styles.hCell, styles.colCant]}>CANT.</Text>
+              <Text style={[styles.hCell, styles.colPrice]}>C. UNIT.</Text>
+              <Text style={[styles.hCell, styles.colSubtotal]}>SUBTOT.</Text>
             </View>
 
             {purchase.linea_compra.map((l) => {
@@ -399,13 +399,13 @@ export default function PurchaseDetailScreen() {
                     {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
                   </Text>
 
-                  <Text style={[styles.cell, styles.colNum]}>{qty}</Text>
+                  <Text style={[styles.cell, styles.colCant]}>{qty}</Text>
 
-                  <Text style={[styles.cell, styles.colNum]}>
+                  <Text style={[styles.cell, styles.colPrice]}>
                     {unit != null ? money(unit) : "—"}
                   </Text>
 
-                  <Text style={[styles.cell, styles.colNum]}>
+                  <Text style={[styles.cell, styles.colSubtotal]}>
                     {unit != null ? money(unit * qty) : "—"}
                   </Text>
                 </View>
@@ -563,7 +563,7 @@ function makeStyles(c: ThemeColors) {
     tableHead: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
+      gap: 12,
       paddingTop: 14,
       paddingBottom: 8,
       borderBottomWidth: 1,
@@ -580,15 +580,18 @@ function makeStyles(c: ThemeColors) {
     tableRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
+      gap: 12,
       paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
     cell: { fontSize: 14.5, color: c.textLabel },
-    colRep: { flex: 2.2, minWidth: 0 },
-    colNum: { flex: 0.8, textAlign: "center", fontVariant: ["tabular-nums"] },
-    colEstado: { flex: 1.1, alignItems: "flex-end" },
+    colRep: { flex: 1, minWidth: 0 },
+    colCant: { width: 85, textAlign: "center", fontVariant: ["tabular-nums"] },
+    colRecibido: { width: 85, textAlign: "center", fontVariant: ["tabular-nums"] },
+    colEstado: { width: 105, alignItems: "flex-end", textAlign: "right" },
+    colPrice: { width: 105, textAlign: "right", fontVariant: ["tabular-nums"] },
+    colSubtotal: { width: 110, textAlign: "right", fontVariant: ["tabular-nums"] },
     lineBadge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     lineBadgeText: { fontSize: 12.5, fontWeight: "700" },
 
