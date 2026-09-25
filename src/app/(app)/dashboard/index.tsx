@@ -238,7 +238,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.destructive, marginBottom: 12 },
     pageHeader: { marginBottom: 20 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    subtitle: { marginTop: 3, fontSize: 14, color: c.textSecondary },
     hero: {
       backgroundColor: c.bgStatCard,
       borderWidth: 1,
@@ -268,7 +268,7 @@ function makeStyles(c: ThemeColors) {
       letterSpacing: -0.6,
       lineHeight: 36,
     },
-    heroCopy: { fontSize: 13.5, color: c.textSecondary, lineHeight: 19 },
+    heroCopy: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
     heroActions: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 8 },
     primaryButton: {
       backgroundColor: c.text,
@@ -304,18 +304,18 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 12,
     },
     panelTitle: { fontSize: 15.5, fontWeight: "600", color: c.text },
-    panelLink: { fontSize: 13, fontWeight: "500", color: c.accent },
-    panelEmpty: { fontSize: 13, color: c.textMuted, paddingVertical: 8 },
+    panelLink: { fontSize: 13.5, fontWeight: "500", color: c.accent },
+    panelEmpty: { fontSize: 13.5, color: c.textMuted, paddingVertical: 8 },
     attentionRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
-      paddingVertical: 11,
+      paddingVertical: 12,
       borderTopWidth: 1,
       borderTopColor: c.borderRow,
     },
-    attentionName: { fontSize: 14, fontWeight: "600", color: c.text },
-    attentionMeta: { fontSize: 12.5, color: c.textMuted, marginTop: 2 },
+    attentionName: { fontSize: 14.5, fontWeight: "600", color: c.text },
+    attentionMeta: { fontSize: 13, color: c.textMuted, marginTop: 2 },
     placeholderPanel: {
       backgroundColor: c.bgNested,
       borderWidth: 1,
@@ -325,6 +325,6 @@ function makeStyles(c: ThemeColors) {
       padding: 16,
       gap: 8,
     },
-    placeholderText: { fontSize: 13, color: c.textMuted, lineHeight: 19 },
+    placeholderText: { fontSize: 13.5, color: c.textMuted, lineHeight: 19 },
   });
 }

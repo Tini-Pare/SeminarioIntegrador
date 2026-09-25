@@ -283,7 +283,7 @@ function MetaCell({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ flexGrow: 1, minWidth: 150, backgroundColor: colors.bgNested, padding: 14 }}>
       <Text style={{ fontSize: 11.5, color: colors.textMuted, fontWeight: "500" }}>{label}</Text>
-      <Text style={{ marginTop: 4, fontSize: 14, fontWeight: "600", color: colors.text }}>
+      <Text style={{ marginTop: 4, fontSize: 14.5, fontWeight: "600", color: colors.text }}>
         {value}
       </Text>
     </View>
@@ -327,11 +327,11 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       gap: 6,
       paddingHorizontal: 11,
-      paddingVertical: 4,
+      paddingVertical: 3.5,
       borderRadius: 999,
     },
     badgeDot: { width: 7, height: 7, borderRadius: 4 },
-    badgeText: { fontSize: 12, fontWeight: "600" },
+    badgeText: { fontSize: 12.5, fontWeight: "600" },
     title: { fontSize: 26, fontWeight: "600", color: c.text },
     subtitle: { fontSize: 14, color: c.textSecondary, marginTop: 4 },
     metaGrid: {
@@ -373,7 +373,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    emptyText: { fontSize: 14, fontWeight: "500", flex: 1 },
+    emptyText: { fontSize: 14.5, fontWeight: "500", flex: 1 },
     emptyMuted: { color: c.textMuted, fontSize: 13.5 },
     faultCard: {
       flexDirection: "row",
@@ -394,8 +394,8 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     faultPhoto: { width: 30, height: 30, borderRadius: 8, backgroundColor: c.bgNested },
-    faultText: { fontWeight: "600", fontSize: 14, color: c.text },
-    faultMeta: { fontSize: 12.5, color: c.eqRepair.fg, marginTop: 2 },
+    faultText: { fontWeight: "600", fontSize: 14.5, color: c.text },
+    faultMeta: { fontSize: 13, color: c.eqRepair.fg, marginTop: 2 },
     timeline: { paddingLeft: 4 },
     // position:"relative" + paddingBottom separates the cards. The line is a
     // position:"absolute" child of the ROW (not the rail) so it can cross that
@@ -422,10 +422,10 @@ function makeStyles(c: ThemeColors) {
       padding: 14,
     },
     timelineHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    tag: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6 },
-    tagText: { fontSize: 11.5, fontWeight: "600" },
-    timelineDate: { fontSize: 12, color: c.textMuted, fontFamily: "monospace" },
-    timelineNote: { marginTop: 9, fontSize: 14, color: c.textSecondary, lineHeight: 20 },
-    timelineAuthor: { marginTop: 6, fontSize: 12, color: c.textMuted },
+    tag: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
+    tagText: { fontSize: 12.5, fontWeight: "600" },
+    timelineDate: { fontSize: 12.5, color: c.textMuted, fontFamily: "monospace" },
+    timelineNote: { marginTop: 9, fontSize: 14.5, color: c.textSecondary, lineHeight: 20 },
+    timelineAuthor: { marginTop: 6, fontSize: 12.5, color: c.textMuted },
   });
 }

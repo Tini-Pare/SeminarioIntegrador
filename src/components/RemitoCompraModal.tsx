@@ -210,7 +210,7 @@ function makeStyles(c: ThemeColors) {
       alignSelf: "center",
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
+    subtitle: { marginTop: 2, fontSize: 13.5, color: c.textMuted },
     label: {
       fontSize: 12.5,
       fontWeight: "600",
@@ -218,7 +218,7 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 8,
       marginTop: 18,
     },
-    empty: { fontSize: 13, color: c.textMuted, marginTop: 4 },
+    empty: { fontSize: 13.5, color: c.textMuted, marginTop: 4 },
     rows: { maxHeight: 260 },
     row: {
       flexDirection: "row",
@@ -229,8 +229,8 @@ function makeStyles(c: ThemeColors) {
       borderTopColor: c.borderRow,
     },
     rowInfo: { flex: 1, minWidth: 0 },
-    rowName: { fontSize: 13.5, fontWeight: "600", color: c.text },
-    rowMax: { marginTop: 2, fontSize: 12, color: c.textMuted },
+    rowName: { fontSize: 14.5, fontWeight: "600", color: c.text },
+    rowMax: { marginTop: 2, fontSize: 13, color: c.textMuted },
     rowInput: {
       width: 72,
       height: 40,
@@ -239,12 +239,12 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.borderInput,
       borderRadius: 10,
       backgroundColor: c.bgInput,
-      fontSize: 14,
+      fontSize: 14.5,
       color: c.text,
       textAlign: "center",
       fontVariant: ["tabular-nums"],
     },
-    error: { color: c.destructive, marginTop: 14, fontSize: 13 },
+    error: { color: c.destructive, marginTop: 14, fontSize: 13.5 },
     actions: { flexDirection: "row", gap: 10, marginTop: 22 },
     cancelButton: {
       flex: 1,

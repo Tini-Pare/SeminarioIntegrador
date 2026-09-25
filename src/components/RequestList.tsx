@@ -107,7 +107,7 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: 14,
-      padding: 18,
+      padding: 16,
     },
     iconWrap: {
       width: 42,
@@ -118,12 +118,12 @@ function makeStyles(c: ThemeColors) {
     },
     photo: { width: 42, height: 42, borderRadius: 10, backgroundColor: c.bgNested },
     row: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-    equipmentName: { fontWeight: "600", fontSize: 15, color: c.text },
-    equipmentCode: { fontFamily: "monospace", fontSize: 12, color: c.textMuted },
-    badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
-    badgeText: { fontSize: 11.5, fontWeight: "600" },
+    equipmentName: { fontWeight: "600", fontSize: 14.5, color: c.text },
+    equipmentCode: { fontFamily: "monospace", fontSize: 12.5, color: c.textMuted },
+    badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
+    badgeText: { fontSize: 12.5, fontWeight: "600" },
     desc: { marginTop: 6, fontSize: 13.5, color: c.textLabel, lineHeight: 19 },
     metaRow: { marginTop: 8, flexDirection: "row", gap: 16, flexWrap: "wrap" },
-    meta: { fontSize: 12.5, color: c.textMuted },
+    meta: { fontSize: 13, color: c.textMuted },
   });
 }

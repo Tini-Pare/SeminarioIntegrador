@@ -346,7 +346,7 @@ export default function PurchaseDetailScreen() {
                             onPress={() => setEditingRemito(r)}
                             accessibilityLabel="Editar remito"
                           >
-                            <PencilIcon size={14} color={colors.textLabel} />
+                            <PencilIcon size={16} color={colors.textLabel} />
                           </Pressable>
                         </Tooltip>
 
@@ -359,7 +359,7 @@ export default function PurchaseDetailScreen() {
                             }}
                             accessibilityLabel="Anular remito"
                           >
-                            <TrashIcon size={14} color={colors.destructive} />
+                            <TrashIcon size={16} color={colors.destructive} />
                           </Pressable>
                         </Tooltip>
                       </View>
@@ -494,16 +494,16 @@ function makeStyles(c: ThemeColors) {
     },
     badgesRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
     tipoBadge: {
-      paddingHorizontal: 10,
+      paddingHorizontal: 11,
       paddingVertical: 3.5,
       borderRadius: 999,
       backgroundColor: c.bgNested,
     },
-    tipoBadgeText: { fontSize: 11.5, fontWeight: "700", color: c.textLabel },
+    tipoBadgeText: { fontSize: 12.5, fontWeight: "700", color: c.textLabel },
     estadoBadge: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 10,
+      paddingHorizontal: 11,
       paddingVertical: 3.5,
       borderRadius: 999,
     },
@@ -513,19 +513,20 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 3,
       marginRight: 6,
     },
-    estadoBadgeText: { fontSize: 11.5, fontWeight: "700" },
+    estadoBadgeText: { fontSize: 12.5, fontWeight: "700" },
     pageTitle: { fontSize: 24, fontWeight: "700", color: c.text, letterSpacing: -0.3 },
-    headerSub: { marginTop: 4, fontSize: 13, color: c.textMuted },
+    headerSub: { marginTop: 4, fontSize: 13.5, color: c.textMuted },
     metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 28, marginTop: 16 },
     metaCol: { gap: 3 },
     metaLabel: {
-      fontSize: 10.5,
+      fontSize: 11.5,
       fontWeight: "700",
       letterSpacing: 0.6,
       color: c.textMuted,
       textTransform: "uppercase",
+      fontFamily: "monospace",
     },
-    metaValue: { fontSize: 14, fontWeight: "700", color: c.text },
+    metaValue: { fontSize: 14.5, fontWeight: "700", color: c.text },
     totalLabel: { fontSize: 12.5, color: c.textSecondary, marginBottom: 4, textAlign: "right" },
     totalAmount: {
       fontSize: 32,
@@ -568,21 +569,28 @@ function makeStyles(c: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: c.border,
     },
-    hCell: { fontSize: 10.5, fontWeight: "700", letterSpacing: 0.4, color: c.textMuted },
+    hCell: {
+      fontSize: 11.5,
+      fontWeight: "700",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      color: c.textMuted,
+      fontFamily: "monospace",
+    },
     tableRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      paddingVertical: 11,
+      paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
-    cell: { fontSize: 13, color: c.textLabel },
+    cell: { fontSize: 14.5, color: c.textLabel },
     colRep: { flex: 2.2, minWidth: 0 },
     colNum: { flex: 0.8, textAlign: "center", fontVariant: ["tabular-nums"] },
     colEstado: { flex: 1.1, alignItems: "flex-end" },
-    lineBadge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999 },
-    lineBadgeText: { fontSize: 10.5, fontWeight: "700" },
+    lineBadge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
+    lineBadgeText: { fontSize: 12.5, fontWeight: "700" },
 
     remitosHeader: {
       flexDirection: "row",
@@ -597,7 +605,7 @@ function makeStyles(c: ThemeColors) {
       gap: 20,
     },
     emptyText: {
-      fontSize: 13,
+      fontSize: 13.5,
       color: c.textMuted,
       textAlign: "center",
     },
@@ -622,7 +630,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       backgroundColor: c.eqOperational.bg,
     },
-    completeBannerText: { fontSize: 12.5, fontWeight: "600" },
+    completeBannerText: { fontSize: 13.5, fontWeight: "600" },
 
     remitosListWrap: { marginTop: 8 },
     remitoRow: {
@@ -635,12 +643,12 @@ function makeStyles(c: ThemeColors) {
       borderBottomColor: c.borderRow,
     },
     remitoInfo: { flex: 1, minWidth: 0 },
-    remitoDate: { fontSize: 13, fontWeight: "600", color: c.text },
-    remitoItems: { marginTop: 2, fontSize: 12, color: c.textMuted },
+    remitoDate: { fontSize: 14.5, fontWeight: "600", color: c.text },
+    remitoItems: { marginTop: 2, fontSize: 13, color: c.textMuted },
     remitoActions: { flexDirection: "row", gap: 8 },
     remitoActionBtn: {
-      width: 30,
-      height: 30,
+      width: 36,
+      height: 36,
       borderRadius: 8,
       alignItems: "center",
       justifyContent: "center",

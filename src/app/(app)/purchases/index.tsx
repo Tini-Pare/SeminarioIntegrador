@@ -431,7 +431,7 @@ export default function PurchasesScreen() {
                       }
                       accessibilityLabel="Ver compra"
                     >
-                      <EyeIcon size={20} color={colors.accent} />
+                      <EyeIcon size={17} color={colors.accent} />
                     </Pressable>
                   </View>
                 </View>
@@ -590,11 +590,11 @@ function makeStyles(c: ThemeColors) {
     },
     estadoBadge: {
       alignSelf: "flex-start",
-      paddingHorizontal: 12,
-      paddingVertical: 5,
+      paddingHorizontal: 11,
+      paddingVertical: 3.5,
       borderRadius: 999,
     },
-    estadoBadgeText: { fontSize: 14.5, fontWeight: "600" },
+    estadoBadgeText: { fontSize: 12.5, fontWeight: "600" },
     empty: {
       color: c.textMuted,
       fontSize: 14,
@@ -612,25 +612,25 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       paddingHorizontal: 18,
-      paddingVertical: 14,
+      paddingVertical: 12,
       backgroundColor: c.accent,
       borderTopLeftRadius: 13,
       borderTopRightRadius: 13,
     },
     headerCell: {
-      fontSize: 13.5,
+      fontSize: 11.5,
       fontWeight: "700",
-      letterSpacing: 0.6,
+      letterSpacing: 0.5,
       textTransform: "uppercase",
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 60, flexShrink: 0, alignItems: "center", justifyContent: "center" },
+    actionsCol: { width: 54, flexShrink: 0, alignItems: "center", justifyContent: "center" },
     row: {
       flexDirection: "row",
       alignItems: "center",
       paddingHorizontal: 18,
-      paddingVertical: 18,
+      paddingVertical: 14,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
@@ -638,21 +638,21 @@ function makeStyles(c: ThemeColors) {
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     nameRow: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 },
     tipoBadge: {
-      paddingHorizontal: 9,
-      paddingVertical: 3,
+      paddingHorizontal: 8,
+      paddingVertical: 2.5,
       borderRadius: 999,
       backgroundColor: c.bgNested,
       flexShrink: 0,
     },
     tipoBadgeText: { fontSize: 11.5, fontWeight: "700", color: c.textLabel },
-    name: { fontWeight: "600", fontSize: 16, color: c.text },
-    sub: { marginTop: 2, fontSize: 14, color: c.textMuted },
-    dateCell: { fontSize: 16, color: c.text, fontWeight: "500" },
-    total: { fontSize: 16, color: c.text, fontWeight: "600", fontFamily: "monospace" },
+    name: { fontWeight: "600", fontSize: 14.5, color: c.text },
+    sub: { marginTop: 2, fontSize: 13, color: c.textMuted },
+    dateCell: { fontSize: 14.5, color: c.text, fontWeight: "500" },
+    total: { fontSize: 14.5, color: c.text, fontWeight: "600", fontFamily: "monospace" },
     viewBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 9,
+      width: 36,
+      height: 36,
+      borderRadius: 8,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: c.bgCard,
