@@ -1,9 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { getProfile } from "../lib/auth";
 import { createPurchaseOrder } from "../lib/queries/purchaseOrders";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Repuesto } from "../types/database";
+import { getTodayDateString } from "./CustomDatePicker";
+import { TrashIcon } from "./icons";
 import { Select } from "./Select";
 
 type LineDraft = { key: string; repId: number | null; cantidad: string };
@@ -16,27 +28,42 @@ export function PurchaseOrderModal({
   onClose,
   onSaved,
   spareParts,
+  techName: techNameProp,
 }: {
   visible: boolean;
   onClose: () => void;
   onSaved: () => void;
   spareParts: Repuesto[];
+  techName?: string | null;
 }) {
   const [observacion, setObservacion] = useState("");
   const [lines, setLines] = useState<LineDraft[]>([newLine()]);
   const [openField, setOpenField] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [techName, setTechName] = useState<string>(techNameProp ?? "");
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  const partOptions = useMemo(
-    () =>
-      spareParts
-        .filter((p) => p.rep_estado === "activo")
-        .map((p) => ({ value: p.rep_id, label: p.rep_nombre })),
-    [spareParts],
-  );
+  const todayDate = useMemo(() => getTodayDateString(), [visible]);
+
+  const totalItems = useMemo(() => {
+    return lines.reduce((acc, l) => {
+      const qty = parseInt(l.cantidad, 10);
+      return acc + (Number.isInteger(qty) && qty > 0 ? qty : 0);
+    }, 0);
+  }, [lines]);
+
+  function getPartOptionsForLine(currentRepId: number | null) {
+    const selectedOtherIds = new Set(
+      lines
+        .map((l) => l.repId)
+        .filter((id): id is number => id !== null && id !== currentRepId),
+    );
+    return spareParts
+      .filter((p) => p.rep_estado === "activo" && !selectedOtherIds.has(p.rep_id))
+      .map((p) => ({ value: p.rep_id, label: p.rep_nombre }));
+  }
 
   useEffect(() => {
     if (!visible) return;
@@ -44,7 +71,14 @@ export function PurchaseOrderModal({
     setLines([newLine()]);
     setOpenField(null);
     setError(null);
-  }, [visible]);
+    if (techNameProp) {
+      setTechName(techNameProp);
+    } else {
+      getProfile().then((p) => {
+        if (p?.name) setTechName(p.name);
+      });
+    }
+  }, [visible, techNameProp]);
 
   function updateLine(key: string, patch: Partial<LineDraft>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -100,51 +134,112 @@ export function PurchaseOrderModal({
           </Text>
 
           <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
-            <View style={styles.linesHeader}>
-              <Text style={styles.label}>Repuestos</Text>
+            <View style={styles.ticketHeader}>
+              <View style={styles.ticketColLeft}>
+                <Text style={styles.ticketLabel}>FECHA</Text>
 
-              <Pressable onPress={() => setLines((prev) => [...prev, newLine()])}>
+                <Text style={styles.ticketValue}>{todayDate}</Text>
+              </View>
+
+              <View style={styles.ticketColRight}>
+                <Text style={[styles.ticketLabel, styles.textRight]}>TÉCNICO</Text>
+
+                <Text style={[styles.ticketValue, styles.textRight]} numberOfLines={1}>
+                  {techName || "Técnico"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.linesHeader}>
+              <Text style={styles.sectionTitle}>Repuestos</Text>
+
+              <Pressable
+                onPress={() => {
+                  setLines((prev) => [newLine(), ...prev]);
+                  if (error) setError(null);
+                }}
+              >
                 <Text style={styles.addLine}>+ Agregar línea</Text>
               </Pressable>
             </View>
 
-            {lines.map((l, idx) => (
-              <View
-                key={l.key}
-                style={[styles.lineCard, openField === `rep-${l.key}` && styles.lineCardRaised]}
-              >
-                <View style={styles.lineTop}>
-                  <Text style={styles.lineNum}>Línea {idx + 1}</Text>
+            <View style={styles.tableCard}>
+              <View style={styles.tableHeadRow}>
+                <Text style={[styles.tableHeadText, styles.colNum]}>#</Text>
 
-                  {lines.length > 1 && (
-                    <Pressable onPress={() => removeLine(l.key)}>
-                      <Text style={styles.removeLine}>Quitar</Text>
-                    </Pressable>
-                  )}
-                </View>
+                <Text style={[styles.tableHeadText, styles.colRepFlex]}>REPUESTO</Text>
 
-                <Select
-                  value={l.repId}
-                  onChange={(v) => updateLine(l.key, { repId: v })}
-                  options={partOptions}
-                  placeholder="Elegí un repuesto"
-                  open={openField === `rep-${l.key}`}
-                  onOpenChange={(o) => setOpenField(o ? `rep-${l.key}` : null)}
-                />
+                <Text style={[styles.tableHeadText, styles.colCant, styles.textCenter]}>
+                  CANTIDAD
+                </Text>
 
-                <Text style={styles.smallLabel}>Cantidad</Text>
-                <TextInput
-                  style={styles.input}
-                  value={l.cantidad}
-                  onChangeText={(v) => updateLine(l.key, { cantidad: v })}
-                  placeholder="0"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                />
+                <View style={styles.colRemove} />
               </View>
-            ))}
 
-            <Text style={styles.label}>Observación</Text>
+              {lines.map((l, idx) => (
+                <View
+                  key={l.key}
+                  style={[
+                    styles.tableRow,
+                    openField === `rep-${l.key}` && styles.tableRowRaised,
+                    { zIndex: lines.length - idx + (openField === `rep-${l.key}` ? 50 : 0) },
+                  ]}
+                >
+                  <Text style={[styles.cellNum, styles.colNum]}>{idx + 1}</Text>
+
+                  <View style={styles.colRepFlex}>
+                    <Select
+                      value={l.repId}
+                      onChange={(v) => {
+                        updateLine(l.key, { repId: v });
+                        if (error) setError(null);
+                      }}
+                      options={getPartOptionsForLine(l.repId)}
+                      placeholder="Elegí un repuesto"
+                      open={openField === `rep-${l.key}`}
+                      onOpenChange={(o) => setOpenField(o ? `rep-${l.key}` : null)}
+                    />
+                  </View>
+
+                  <View style={styles.colCant}>
+                    <TextInput
+                      style={styles.qtyInput}
+                      value={l.cantidad}
+                      onChangeText={(v) => {
+                        updateLine(l.key, { cantidad: v.replace(/[^0-9]/g, "") });
+                        if (error) setError(null);
+                      }}
+                      placeholder="1"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.colRemove}>
+                    <Pressable
+                      style={[styles.removeBtn, lines.length === 1 && styles.removeBtnDisabled]}
+                      onPress={() => removeLine(l.key)}
+                      disabled={lines.length === 1}
+                      accessibilityLabel="Quitar línea"
+                    >
+                      <TrashIcon
+                        size={16}
+                        color={lines.length === 1 ? colors.textMuted : "#c53030"}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+
+              <View style={styles.tableFooter}>
+                <Text style={styles.summaryLinesText}>Líneas cargadas: {lines.length}</Text>
+
+                <Text style={styles.summaryTotalText}>Total de artículos: {totalItems}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.obsLabel}>Observación</Text>
+
             <TextInput
               style={[styles.input, styles.inputMultiline]}
               value={observacion}
@@ -165,7 +260,7 @@ export function PurchaseOrderModal({
             </Pressable>
 
             <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Enviando…" : "Enviar pedido"}</Text>
+              <Text style={styles.saveText}>{saving ? "Enviando…" : "Hacer pedido"}</Text>
             </Pressable>
           </View>
         </View>
@@ -187,25 +282,156 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 16,
       padding: 24,
       width: "100%",
-      maxWidth: 460,
-      maxHeight: "88%",
+      maxWidth: 560,
+      maxHeight: "90%",
       alignSelf: "center",
     },
-    title: { fontSize: 18, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
+    title: { fontSize: 20, fontWeight: "700", color: c.text },
+    subtitle: { marginTop: 4, fontSize: 13, color: c.textMuted },
     body: { marginTop: 4 },
-    label: {
-      fontSize: 12.5,
-      fontWeight: "600",
-      color: c.textLabel,
-      marginTop: 18,
-      marginBottom: 8,
+    ticketHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: c.bgNested,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      marginTop: 14,
+      marginBottom: 16,
     },
-    smallLabel: {
-      fontSize: 11.5,
-      fontWeight: "600",
+    ticketColLeft: { flex: 1 },
+    ticketColRight: { flex: 1, alignItems: "flex-end" },
+    ticketLabel: {
+      fontSize: 11,
+      fontWeight: "700",
       color: c.textMuted,
-      marginTop: 12,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      marginBottom: 3,
+    },
+    ticketValue: {
+      fontSize: 14.5,
+      fontWeight: "700",
+      color: c.text,
+    },
+    textRight: { textAlign: "right" },
+    textCenter: { textAlign: "center" },
+    linesHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 10,
+    },
+    sectionTitle: { fontSize: 15, fontWeight: "700", color: c.text },
+    addLine: { color: c.accent, fontWeight: "700", fontSize: 13 },
+    tableCard: {
+      borderRadius: 12,
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      position: "relative",
+      zIndex: 40,
+    },
+    tableHeadRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      backgroundColor: c.accent,
+      borderTopLeftRadius: 11,
+      borderTopRightRadius: 11,
+    },
+    tableHeadText: {
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      color: "#fff",
+      fontFamily: "monospace",
+    },
+    tableRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+      position: "relative",
+      zIndex: 40,
+    },
+    tableRowRaised: {
+      zIndex: 60,
+    },
+    colNum: {
+      width: 24,
+      fontSize: 13.5,
+      fontWeight: "700",
+      color: c.text,
+      fontVariant: ["tabular-nums"],
+    },
+    colRepFlex: { flex: 1 },
+    colCant: { width: 76 },
+    colRemove: {
+      width: 32,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cellNum: { color: c.text },
+    qtyInput: {
+      height: 44,
+      paddingHorizontal: 8,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 10,
+      backgroundColor: c.bgInput,
+      fontSize: 14,
+      fontWeight: "600",
+      color: c.text,
+      textAlign: "center",
+      fontVariant: ["tabular-nums"],
+    },
+    removeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      ...(Platform.OS === "web" ? ({ cursor: "pointer" } as object) : {}),
+    },
+    removeBtnDisabled: {
+      opacity: 0.3,
+      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as object) : {}),
+    },
+    tableFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: c.eqOperational.bg,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderBottomLeftRadius: 11,
+      borderBottomRightRadius: 11,
+    },
+    summaryLinesText: {
+      fontSize: 13.5,
+      fontWeight: "700",
+      color: "#2c5339",
+    },
+    summaryTotalText: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: "#2c5339",
+    },
+    obsLabel: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: c.textLabel,
+      marginTop: 16,
       marginBottom: 6,
     },
     input: {
@@ -216,41 +442,11 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.borderInput,
       borderRadius: 10,
       backgroundColor: c.bgInput,
-      fontSize: 14,
+      fontSize: 13.5,
       color: c.text,
     },
-    inputMultiline: { minHeight: 76, textAlignVertical: "top" },
-    linesHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    addLine: { color: c.accent, fontWeight: "600", fontSize: 13, marginTop: 18 },
-    lineCard: {
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 12,
-      padding: 12,
-      marginTop: 10,
-      backgroundColor: c.bgCard,
-      position: "relative",
-      zIndex: 40,
-    },
-    // Raised above later lines/the Observación field while this line's
-    // repuesto dropdown is open, so its absolutely-positioned option list
-    // doesn't get painted over by content that comes after it in the form.
-    lineCardRaised: {
-      zIndex: 50,
-    },
-    lineTop: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 8,
-    },
-    lineNum: { fontSize: 12, fontWeight: "700", color: c.textMuted },
-    removeLine: { fontSize: 12, fontWeight: "600", color: c.destructive },
-    error: { color: c.destructive, marginTop: 12, fontSize: 13 },
+    inputMultiline: { minHeight: 72, textAlignVertical: "top" },
+    error: { color: c.destructive, marginTop: 12, fontSize: 13, fontWeight: "600" },
     actions: { flexDirection: "row", gap: 10, marginTop: 20 },
     cancelButton: {
       flex: 1,
@@ -260,7 +456,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    cancelText: { color: "#fff", fontWeight: "600" },
+    cancelText: { color: "#fff", fontWeight: "700", fontSize: 14 },
     saveButton: {
       flex: 1,
       height: 44,
@@ -269,6 +465,6 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    saveText: { color: "#fff", fontWeight: "600" },
+    saveText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   });
 }
