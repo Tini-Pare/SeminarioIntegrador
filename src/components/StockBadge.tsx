@@ -30,10 +30,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
+    paddingHorizontal: 11,
+    paddingVertical: 3.5,
     borderRadius: 999,
   },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  text: { fontSize: 12, fontWeight: "600" },
+  text: { fontSize: 12.5, fontWeight: "600" },
 });

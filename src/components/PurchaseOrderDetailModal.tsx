@@ -45,7 +45,7 @@ export function PurchaseOrderDetailModal({
     order?.ped_estado === "rechazado"
       ? colors.eqRepair
       : order?.ped_estado === "recibido"
-        ? colors.eqOperational
+        ? colors.orderReceived
         : order?.ped_estado === "aprobado"
           ? colors.faultAssigned
           : colors.eqWaiting;
@@ -161,8 +161,8 @@ function makeStyles(c: ThemeColors) {
       gap: 8,
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
-    badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
-    badgeText: { fontSize: 11.5, fontWeight: "600" },
+    badge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999 },
+    badgeText: { fontSize: 13, fontWeight: "600" },
     subtitle: { marginTop: 4, fontSize: 13, color: c.textMuted },
     body: { marginTop: 14 },
     tableHead: {

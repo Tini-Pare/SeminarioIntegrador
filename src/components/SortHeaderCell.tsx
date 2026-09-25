@@ -47,9 +47,9 @@ function makeStyles(_c: ThemeColors) {
   return StyleSheet.create({
     cell: { flexDirection: "row", alignItems: "center", gap: 5 },
     text: {
-      fontSize: 13.5,
+      fontSize: 11.5,
       fontWeight: "700",
-      letterSpacing: 0.6,
+      letterSpacing: 0.5,
       textTransform: "uppercase",
       color: "#fff",
       fontFamily: "monospace",
@@ -57,11 +57,11 @@ function makeStyles(_c: ThemeColors) {
     // Triangle glyphs render a hair below the text baseline; nudge them up
     // so they line up with the label.
     arrow: {
-      fontSize: 13,
+      fontSize: 11,
       color: "#fff",
       fontWeight: "700",
-      lineHeight: 13,
-      transform: [{ translateY: -1.5 }],
+      lineHeight: 11,
+      transform: [{ translateY: -1 }],
     },
     arrowInactive: { opacity: 0.55 },
   });

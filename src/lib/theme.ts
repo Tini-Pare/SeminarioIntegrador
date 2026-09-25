@@ -61,6 +61,8 @@ export type ThemeColors = {
   histAsignada: { dot: string; bg: string; fg: string };
   histEnCurso: { dot: string; bg: string; fg: string };
   histResuelta: { dot: string; bg: string; fg: string };
+
+  orderReceived: { bg: string; fg: string };
 };
 
 // Green "sobria" variant: flat surfaces with hairline borders instead of
@@ -130,4 +132,6 @@ export const light: ThemeColors = {
   histAsignada: { dot: "#2f7d5b", bg: "#dfeae4", fg: "#2f7d5b" },
   histEnCurso: { dot: "#12706a", bg: "#dcece9", fg: "#12706a" },
   histResuelta: { dot: "#256a4e", bg: "#dcecdf", fg: "#256a4e" },
+
+  orderReceived: { bg: "#e0ecf8", fg: "#1d5287" },
 };

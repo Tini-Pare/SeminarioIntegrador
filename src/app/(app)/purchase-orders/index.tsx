@@ -18,7 +18,7 @@ import {
   toDbDate,
   toDay,
 } from "../../../components/CustomDatePicker";
-import { EyeIcon, ReviewIcon, SearchIcon } from "../../../components/icons";
+import { EyeIcon, FunnelIcon, ReviewIcon, SearchIcon } from "../../../components/icons";
 import { Tooltip } from "../../../components/Tooltip";
 import { Pagination } from "../../../components/Pagination";
 import { PurchaseOrderDetailModal } from "../../../components/PurchaseOrderDetailModal";
@@ -169,14 +169,14 @@ const dropdownStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
-    height: 38,
+    height: 40,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderRadius: 9,
     minWidth: 160,
-    maxWidth: 200,
+    maxWidth: 240,
   },
-  btnText: { fontSize: 13, flex: 1 },
+  btnText: { fontSize: 13.5, flex: 1 },
   chevron: { fontSize: 10 },
   backdrop: {
     position: Platform.OS === "web" ? "fixed" : "absolute",
@@ -189,9 +189,9 @@ const dropdownStyles = StyleSheet.create({
   },
   menu: {
     position: "absolute",
-    top: 42,
+    top: 44,
     left: 0,
-    minWidth: 200,
+    minWidth: 220,
     borderWidth: 1,
     borderRadius: 10,
     overflow: "hidden",
@@ -204,7 +204,7 @@ const dropdownStyles = StyleSheet.create({
     ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)" } : {}),
   },
   option: { paddingHorizontal: 14, paddingVertical: 10 },
-  optionText: { fontSize: 13 },
+  optionText: { fontSize: 13.5 },
 });
 
 export default function PurchaseOrdersScreen() {
@@ -221,6 +221,8 @@ export default function PurchaseOrdersScreen() {
   const [techFilter, setTechFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<PurchaseOrderWithLines | null>(null);
@@ -272,8 +274,6 @@ export default function PurchaseOrdersScreen() {
     setRefreshing(false);
   }
 
-
-
   function openReject(order: PurchaseOrderWithLines) {
     setViewing(null);
     setRejecting(order.ped_id_ped_compra);
@@ -297,44 +297,39 @@ export default function PurchaseOrdersScreen() {
     ];
   }, [orders, techNames]);
 
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      all: orders.length,
-      pendiente: 0,
-      aprobado: 0,
-      recibido: 0,
-      rechazado: 0,
-    };
-    orders.forEach((o) => {
-      if (counts[o.ped_estado] !== undefined) {
-        counts[o.ped_estado]++;
-      }
-    });
-    return counts;
-  }, [orders]);
-
-  const statusChips = useMemo(() => {
-    const list = [
+  const statusChips = useMemo(
+    () => [
       { key: "", label: "Todos" },
       { key: "pendiente", label: "Pendiente" },
-    ];
-    if (orders.some((o) => o.ped_estado === "aprobado")) {
-      list.push({ key: "aprobado", label: "Aprobado" });
-    }
-    list.push({ key: "recibido", label: "Recibido" });
-    list.push({ key: "rechazado", label: "Rechazado" });
-    return list;
-  }, [orders]);
+      { key: "aprobado", label: "Aprobado" },
+      { key: "recibido", label: "Recibido" },
+      { key: "rechazado", label: "Rechazado" },
+    ],
+    [],
+  );
 
   const today = useMemo(() => toDay(new Date()), []);
   const parsedDateFrom = useMemo(() => parseDateString(dateFrom), [dateFrom]);
   const parsedDateTo = useMemo(() => parseDateString(dateTo), [dateTo]);
-  const hasDateFilter = dateFrom.length > 0 || dateTo.length > 0;
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (statusFilter) count++;
+    if (dateFrom || dateTo) count++;
+    if (techFilter) count++;
+    return count;
+  }, [statusFilter, dateFrom, dateTo, techFilter]);
+  const hasActiveFilters = activeFiltersCount > 0;
+
+  function handleToggleFilters() {
+    setFiltersOpen((prev) => !prev);
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const dbFrom = isValidDateString(dateFrom) ? toDbDate(dateFrom) : null;
     const dbTo = isValidDateString(dateTo) ? toDbDate(dateTo) : null;
+    const cleanStatusFilter = statusFilter.trim().toLowerCase();
 
     return orders.filter((o) => {
       // 1. Search by technician name or spare part name
@@ -345,7 +340,8 @@ export default function PurchaseOrdersScreen() {
         o.linea_pedido.some((l) => l.repuesto?.rep_nombre?.toLowerCase().includes(q));
 
       // 2. Status filter
-      const matchStatus = !statusFilter || o.ped_estado === statusFilter;
+      const oStatus = (o.ped_estado ?? "").toLowerCase().trim();
+      const matchStatus = !cleanStatusFilter || oStatus === cleanStatusFilter;
 
       // 3. Technician filter (for admin)
       const matchTech = !techFilter || o.p_id_tecnico === techFilter;
@@ -394,7 +390,7 @@ export default function PurchaseOrdersScreen() {
       pendiente: colors.eqWaiting,
       aprobado: colors.faultAssigned,
       rechazado: colors.eqRepair,
-      recibido: colors.eqOperational,
+      recibido: colors.orderReceived,
     }),
     [colors],
   );
@@ -440,7 +436,7 @@ export default function PurchaseOrdersScreen() {
 
       <View style={styles.filterBar}>
         <View style={styles.searchBox}>
-          <SearchIcon size={15} color={colors.textMuted} />
+          <SearchIcon size={16} color={colors.textMuted} />
 
           <TextInput
             style={styles.searchInput}
@@ -458,56 +454,17 @@ export default function PurchaseOrdersScreen() {
           )}
         </View>
 
-        {isAdmin && techOptions.length > 2 && (
-          <TechFilterDropdown
-            value={techFilter}
-            onChange={setTechFilter}
-            options={techOptions}
-            colors={colors}
-          />
-        )}
+        <Pressable
+          style={[styles.funnelBtn, (filtersOpen || hasActiveFilters) && styles.funnelBtnActive]}
+          onPress={handleToggleFilters}
+          accessibilityLabel="Filtros"
+        >
+          <FunnelIcon size={15} color={hasActiveFilters ? "#fff" : colors.textLabel} />
 
-        <View style={styles.dateRangeWrap}>
-          <View style={styles.dateInputWrap}>
-            <CustomDatePicker
-              value={dateFrom}
-              onChange={setDateFrom}
-              placeholder="Desde"
-              compact
-              maxDate={
-                parsedDateTo && parsedDateTo.getTime() < today.getTime() ? parsedDateTo : today
-              }
-              alignDropdown="left"
-            />
-          </View>
-
-          <Text style={styles.dateArrow}>→</Text>
-
-          <View style={styles.dateInputWrap}>
-            <CustomDatePicker
-              value={dateTo}
-              onChange={setDateTo}
-              placeholder="Hasta"
-              compact
-              minDate={parsedDateFrom ?? undefined}
-              maxDate={today}
-              alignDropdown="right"
-            />
-          </View>
-
-          {hasDateFilter && (
-            <Pressable
-              style={styles.clearDateBtn}
-              onPress={() => {
-                setDateFrom("");
-                setDateTo("");
-              }}
-              accessibilityLabel="Limpiar filtro de fecha"
-            >
-              <Text style={styles.clearDateText}>Limpiar</Text>
-            </Pressable>
-          )}
-        </View>
+          <Text style={[styles.funnelText, hasActiveFilters && styles.funnelTextActive]}>
+            {hasActiveFilters ? `Filtros (${activeFiltersCount})` : "Filtros"}
+          </Text>
+        </Pressable>
 
         <View style={styles.spacer} />
 
@@ -516,23 +473,104 @@ export default function PurchaseOrdersScreen() {
         </Text>
       </View>
 
-      <View style={styles.chipsRow}>
-        {statusChips.map((chip) => {
-          const active = statusFilter === chip.key;
-          const count = statusCounts[chip.key || "all"] ?? 0;
-          return (
+      {filtersOpen && (
+        <View style={styles.filterPanel}>
+          <View style={styles.filterSection}>
+            <Text style={styles.filterSectionTitle}>Estado</Text>
+
+            <View style={styles.chipsRow}>
+              {statusChips.map((chip) => {
+                const active = statusFilter === chip.key;
+                return (
+                  <Pressable
+                    key={chip.key}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => setStatusFilter(chip.key)}
+                    accessibilityLabel={`Filtrar por ${chip.label}`}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {chip.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.filterSection}>
+            <Text style={styles.filterSectionTitle}>Rango de fechas</Text>
+
+            <View style={styles.dateRangeRow}>
+              <View style={styles.dateInputCol}>
+                <Text style={styles.dateInputLabel}>Desde</Text>
+
+                <CustomDatePicker
+                  value={dateFrom}
+                  onChange={setDateFrom}
+                  placeholder="DD/MM/AAAA"
+                  maxDate={
+                    parsedDateTo && parsedDateTo.getTime() < today.getTime()
+                      ? parsedDateTo
+                      : today
+                  }
+                  alignDropdown="left"
+                />
+              </View>
+
+              <View style={styles.dateInputCol}>
+                <Text style={styles.dateInputLabel}>Hasta</Text>
+
+                <CustomDatePicker
+                  value={dateTo}
+                  onChange={setDateTo}
+                  placeholder="DD/MM/AAAA"
+                  minDate={parsedDateFrom ?? undefined}
+                  maxDate={today}
+                  alignDropdown="right"
+                />
+              </View>
+            </View>
+          </View>
+
+          {isAdmin && techOptions.length > 2 && (
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Técnico</Text>
+
+              <TechFilterDropdown
+                value={techFilter}
+                onChange={setTechFilter}
+                options={techOptions}
+                colors={colors}
+              />
+            </View>
+          )}
+
+          <View style={styles.panelActions}>
+            {hasActiveFilters ? (
+              <Pressable
+                style={styles.clearFiltersBtn}
+                onPress={() => {
+                  setStatusFilter("");
+                  setDateFrom("");
+                  setDateTo("");
+                  setTechFilter("");
+                }}
+              >
+                <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
+              </Pressable>
+            ) : (
+              <View />
+            )}
+
             <Pressable
-              key={chip.key}
-              style={[styles.chip, active && styles.chipActive]}
-              onPress={() => setStatusFilter(chip.key)}
+              style={styles.applyFiltersBtn}
+              onPress={() => setFiltersOpen(false)}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {chip.label} ({count})
-              </Text>
+              <Text style={styles.applyFiltersText}>Cerrar</Text>
             </Pressable>
-          );
-        })}
-      </View>
+          </View>
+        </View>
+      )}
 
       {sorted.length === 0 ? (
         <Text style={styles.empty}>
@@ -551,7 +589,7 @@ export default function PurchaseOrdersScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 1.2 }}
+              style={{ flex: 1.4 }}
             />
 
             <SortHeaderCell
@@ -586,10 +624,10 @@ export default function PurchaseOrdersScreen() {
                 <View style={styles.rowMain}>
                   <View
                     style={{
-                      flex: 1.2,
+                      flex: 1.4,
                       justifyContent: "center",
                       alignItems: "flex-start",
-                      paddingRight: 8,
+                      paddingRight: 12,
                     }}
                   >
                     <View style={[styles.badge, { backgroundColor: st.bg }]}>
@@ -598,7 +636,7 @@ export default function PurchaseOrdersScreen() {
                       </Text>
                     </View>
 
-                    <Text style={styles.sub} numberOfLines={1}>
+                    <Text style={styles.sub} numberOfLines={2}>
                       {itemsSummary(o)}
                     </Text>
                   </View>
@@ -617,10 +655,6 @@ export default function PurchaseOrdersScreen() {
                 </View>
 
                 <View style={styles.actionsCol}>
-                  {/* Approve/reject live in the detail modal so the admin sees the
-                      lines first; a pending order just flags that a decision is due.
-                      Icon-only like every other row action, so the tooltip carries
-                      the wording. */}
                   {isAdmin && o.ped_estado === "pendiente" ? (
                     <Tooltip text="Revisar pedido">
                       <Pressable
@@ -628,7 +662,7 @@ export default function PurchaseOrdersScreen() {
                         onPress={() => setViewing(o)}
                         accessibilityLabel="Revisar pedido"
                       >
-                        <ReviewIcon size={16} color={colors.accent} />
+                        <ReviewIcon size={17} color={colors.accent} />
                       </Pressable>
                     </Tooltip>
                   ) : (
@@ -638,7 +672,7 @@ export default function PurchaseOrdersScreen() {
                         onPress={() => setViewing(o)}
                         accessibilityLabel="Ver pedido"
                       >
-                        <EyeIcon size={16} color={colors.accent} />
+                        <EyeIcon size={17} color={colors.accent} />
                       </Pressable>
                     </Tooltip>
                   )}
@@ -696,8 +730,8 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 16,
     },
     headerText: { flexShrink: 1, minWidth: 0 },
-    title: { fontSize: 22, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    title: { fontSize: 22, fontWeight: "700", color: c.text },
+    subtitle: { marginTop: 3, fontSize: 14, color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },
     addButton: {
       backgroundColor: c.accent,
@@ -714,7 +748,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       flexWrap: "wrap",
       gap: 10,
-      marginBottom: 10,
+      marginBottom: 12,
       zIndex: 50,
     },
     searchBox: {
@@ -725,7 +759,7 @@ function makeStyles(c: ThemeColors) {
       flexGrow: 1,
       minWidth: 180,
       maxWidth: 340,
-      height: 38,
+      height: 40,
       paddingHorizontal: 12,
       borderWidth: 1,
       borderColor: c.borderInput,
@@ -735,7 +769,7 @@ function makeStyles(c: ThemeColors) {
     searchInput: {
       flex: 1,
       height: "100%",
-      fontSize: 13.5,
+      fontSize: 14,
       color: c.text,
       padding: 0,
       ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
@@ -745,73 +779,135 @@ function makeStyles(c: ThemeColors) {
       color: c.textMuted,
       fontWeight: "600",
     },
-    dateRangeWrap: {
+    funnelBtn: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      zIndex: 60,
-    },
-    dateInputWrap: {
-      width: 140,
-    },
-    dateArrow: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: c.textMuted,
-    },
-    clearDateBtn: {
-      height: 38,
-      paddingHorizontal: 12,
+      gap: 7,
+      height: 40,
+      paddingHorizontal: 14,
       borderRadius: 9,
       borderWidth: 1,
       borderColor: c.borderInput,
       backgroundColor: c.bgCard,
-      alignItems: "center",
-      justifyContent: "center",
     },
-    clearDateText: {
-      fontSize: 12.5,
+    funnelBtnActive: {
+      borderColor: c.accent,
+      backgroundColor: c.accent,
+    },
+    funnelText: {
+      fontSize: 14,
       fontWeight: "600",
-      color: c.accent,
+      color: c.textLabel,
+    },
+    funnelTextActive: {
+      color: "#fff",
     },
     spacer: {
       flex: 1,
       minWidth: 0,
     },
     count: {
-      fontSize: 13,
+      fontSize: 14,
       fontWeight: "500",
       color: c.textSecondary,
     },
     chipsRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 7,
-      marginBottom: 14,
+      gap: 8,
     },
     chip: {
-      paddingHorizontal: 13,
+      paddingHorizontal: 14,
       paddingVertical: 7,
       borderRadius: 999,
       borderWidth: 1,
       borderColor: c.borderInput,
       backgroundColor: c.bgStatCard,
+      ...(Platform.OS === "web" ? ({ cursor: "pointer" } as object) : {}),
     },
     chipActive: {
       backgroundColor: c.accent,
       borderColor: c.accent,
     },
     chipText: {
-      fontSize: 12.5,
+      fontSize: 13.5,
       fontWeight: "600",
       color: c.textLabel,
     },
     chipTextActive: {
       color: "#fff",
+      fontWeight: "700",
+    },
+    filterPanel: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      padding: 18,
+      marginBottom: 16,
+      gap: 16,
+      zIndex: 80,
+    },
+    filterSection: {
+      gap: 8,
+    },
+    filterSectionTitle: {
+      fontSize: 12.5,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: c.textMuted,
+    },
+    dateRangeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      flexWrap: "wrap",
+    },
+    dateInputCol: {
+      flex: 1,
+      minWidth: 140,
+      maxWidth: 220,
+      gap: 4,
+    },
+    dateInputLabel: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: c.textSecondary,
+    },
+    panelActions: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+    },
+    clearFiltersBtn: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+    },
+    clearFiltersText: {
+      fontSize: 13.5,
+      fontWeight: "600",
+      color: c.accent,
+    },
+    applyFiltersBtn: {
+      backgroundColor: c.accent,
+      paddingHorizontal: 20,
+      height: 38,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    applyFiltersText: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 13.5,
     },
     empty: {
       color: c.textMuted,
-      fontSize: 13.5,
+      fontSize: 14,
       marginTop: 4,
     },
     table: {
@@ -825,26 +921,26 @@ function makeStyles(c: ThemeColors) {
     tableHeader: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 13,
+      paddingHorizontal: 18,
+      paddingVertical: 12,
       backgroundColor: c.accent,
       borderTopLeftRadius: 13,
       borderTopRightRadius: 13,
     },
     headerCell: {
-      fontSize: 13.5,
+      fontSize: 11.5,
       fontWeight: "700",
-      letterSpacing: 0.6,
+      letterSpacing: 0.5,
       textTransform: "uppercase",
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 56, flexShrink: 0, alignItems: "center", justifyContent: "center" },
+    actionsCol: { width: 54, flexShrink: 0, alignItems: "center", justifyContent: "center" },
     row: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: 18,
+      paddingVertical: 14,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
@@ -852,17 +948,17 @@ function makeStyles(c: ThemeColors) {
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     badge: {
       alignSelf: "flex-start",
-      paddingHorizontal: 10,
-      paddingVertical: 3,
+      paddingHorizontal: 11,
+      paddingVertical: 3.5,
       borderRadius: 999,
     },
-    badgeText: { fontSize: 11.5, fontWeight: "600" },
-    sub: { marginTop: 3, fontSize: 12, color: c.textMuted },
-    dateCell: { fontSize: 13, color: c.textLabel },
-    tech: { fontSize: 13, color: c.textLabel, fontWeight: "500" },
+    badgeText: { fontSize: 12.5, fontWeight: "600" },
+    sub: { marginTop: 3, fontSize: 13, color: c.textSecondary, fontWeight: "500" },
+    dateCell: { fontSize: 14.5, color: c.text, fontWeight: "500" },
+    tech: { fontSize: 14.5, color: c.text, fontWeight: "500" },
     viewBtn: {
-      width: 32,
-      height: 32,
+      width: 36,
+      height: 36,
       borderRadius: 8,
       alignItems: "center",
       justifyContent: "center",
@@ -870,7 +966,7 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1,
       borderColor: c.border,
     },
-    // Same square as viewBtn; only the accent border marks a pending review.
     reviewBtn: { borderColor: c.accent },
   });
 }
+
