@@ -18,18 +18,15 @@ import {
   compressToWebp,
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
-import type { Equipo, Solicitud } from "../types/database";
+import type { Equipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
 type EquipmentOption = Pick<Equipo, "id" | "code" | "name">;
 
-const URGENCIES: Solicitud["urgency"][] = ["low", "medium", "high"];
-const URGENCY_LABELS: Record<Solicitud["urgency"], string> = {
-  low: "Baja",
-  medium: "Media",
-  high: "Alta",
-};
+// A solicitud can carry several photos; capped so reporting a fault stays
+// quick and the upload doesn't take forever on a phone connection.
+const MAX_PHOTOS = 6;
 
 export function ReportFaultModal({
   visible,
@@ -47,8 +44,7 @@ export function ReportFaultModal({
   const [selectedId, setSelectedId] = useState<number | undefined>(equipment?.id);
   const [search, setSearch] = useState("");
   const [description, setDescription] = useState("");
-  const [urgency, setUrgency] = useState<Solicitud["urgency"]>("medium");
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [processingPhoto, setProcessingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,8 +56,7 @@ export function ReportFaultModal({
     setSelectedId(equipment?.id);
     setSearch("");
     setDescription("");
-    setUrgency("medium");
-    setPhotoUri(null);
+    setPhotoUris([]);
     setError(null);
     setProcessingPhoto(false);
     setSubmitting(false);
@@ -74,15 +69,19 @@ export function ReportFaultModal({
     query.length === 0
       ? []
       : (equipmentOptions ?? []).filter(
-          (e) => e.code.toLowerCase().includes(query) || e.name.toLowerCase().includes(query)
+          (e) => e.code.toLowerCase().includes(query) || e.name.toLowerCase().includes(query),
         );
 
   async function handlePickPhoto() {
+    if (photoUris.length >= MAX_PHOTOS) return;
     setError(null);
     setProcessingPhoto(true);
     try {
       const uri = await pickFaultPhoto();
-      if (uri) setPhotoUri(await compressToWebp(uri));
+      if (uri) {
+        const compressed = await compressToWebp(uri);
+        setPhotoUris((prev) => [...prev, compressed]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -91,16 +90,24 @@ export function ReportFaultModal({
   }
 
   async function handleTakePhoto() {
+    if (photoUris.length >= MAX_PHOTOS) return;
     setError(null);
     setProcessingPhoto(true);
     try {
       const uri = await takeFaultPhoto();
-      if (uri) setPhotoUri(await compressToWebp(uri));
+      if (uri) {
+        const compressed = await compressToWebp(uri);
+        setPhotoUris((prev) => [...prev, compressed]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setProcessingPhoto(false);
     }
+  }
+
+  function handleRemovePhoto(index: number) {
+    setPhotoUris((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleSubmit() {
@@ -119,18 +126,16 @@ export function ReportFaultModal({
     setSubmitting(true);
     setError(null);
     try {
-      const photoUrl = photoUri ? await uploadFaultPhoto(photoUri) : undefined;
+      const photoUrls = await Promise.all(photoUris.map((uri) => uploadFaultPhoto(uri)));
       await createFault({
         equipmentId: effectiveEquipmentId,
         description: description.trim(),
-        urgency,
-        photoUrl,
+        photoUrls,
       });
       setDescription("");
-      setUrgency("medium");
       setSelectedId(equipment?.id);
       setSearch("");
-      setPhotoUri(null);
+      setPhotoUris([]);
       onSubmitted();
       onClose();
     } catch (e) {
@@ -233,33 +238,28 @@ export function ReportFaultModal({
               maxLength={2000}
             />
 
-            <Text style={styles.label}>Urgencia</Text>
-            <View style={styles.chipsRow}>
-              {URGENCIES.map((u) => (
-                <Pressable
-                  key={u}
-                  style={[
-                    styles.chip,
-                    urgency === u && { backgroundColor: colors.accent, borderColor: colors.accent },
-                  ]}
-                  onPress={() => setUrgency(u)}
-                >
-                  <Text style={[styles.chipText, urgency === u && styles.chipTextSelected]}>
-                    {URGENCY_LABELS[u]}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <Text style={styles.label}>Fotos (opcional, hasta {MAX_PHOTOS})</Text>
 
-            <Text style={styles.label}>Foto (opcional)</Text>
-            {photoUri ? (
-              <View style={styles.photoPreviewWrap}>
-                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-                <Pressable style={styles.photoRemoveButton} onPress={() => setPhotoUri(null)}>
-                  <Text style={styles.photoRemoveText}>Quitar foto</Text>
-                </Pressable>
-              </View>
-            ) : (
+            {photoUris.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.photoStrip}
+                contentContainerStyle={styles.photoStripContent}
+              >
+                {photoUris.map((uri, i) => (
+                  <View key={`${i}-${uri.length}`} style={styles.photoPreviewWrap}>
+                    <Image source={{ uri }} style={styles.photoPreview} />
+
+                    <Pressable style={styles.photoRemoveBadge} onPress={() => handleRemovePhoto(i)}>
+                      <Text style={styles.photoRemoveBadgeText}>✕</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            {photoUris.length < MAX_PHOTOS && (
               <View style={styles.photoButtonsRow}>
                 <Pressable
                   style={styles.photoButton}
@@ -287,7 +287,10 @@ export function ReportFaultModal({
 
             <View style={styles.actions}>
               <Pressable
-                style={[styles.cancelButton, (submitting || processingPhoto) && styles.disabledButton]}
+                style={[
+                  styles.cancelButton,
+                  (submitting || processingPhoto) && styles.disabledButton,
+                ]}
                 onPress={onClose}
                 disabled={submitting || processingPhoto}
               >
@@ -307,7 +310,12 @@ export function ReportFaultModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", padding: 20 },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      padding: 20,
+    },
     sheet: {
       backgroundColor: c.bgModal,
       borderRadius: 16,
@@ -317,7 +325,13 @@ function makeStyles(c: ThemeColors) {
       alignSelf: "center",
     },
     title: { fontSize: 20, fontWeight: "600", color: c.text, marginBottom: 16 },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel, marginBottom: 6, marginTop: 12 },
+    label: {
+      fontSize: 12.5,
+      fontWeight: "600",
+      color: c.textLabel,
+      marginBottom: 6,
+      marginTop: 12,
+    },
     fixedEquipment: { fontSize: 14, color: c.text, fontWeight: "600" },
     pickerWrap: { marginBottom: 4 },
     searchInput: {
@@ -362,17 +376,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       color: c.text,
     },
-    chipsRow: { flexDirection: "row", gap: 8 },
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgInput,
-    },
-    chipText: { fontSize: 13, color: c.textLabel },
-    chipTextSelected: { color: "#fff", fontWeight: "600" },
     error: { color: c.destructive, marginTop: 12 },
     photoButtonsRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
     photoButton: {
@@ -383,10 +386,24 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.borderInput,
     },
     photoButtonText: { fontSize: 13, fontWeight: "600", color: c.textLabel },
-    photoPreviewWrap: { flexDirection: "row", alignItems: "center", gap: 12 },
+    // Horizontal, side-scrolling strip of thumbnails — same "scroll sideways
+    // to see every photo" pattern requested for viewing a solicitud's photos.
+    photoStrip: { marginBottom: 10 },
+    photoStripContent: { gap: 10, paddingRight: 4 },
+    photoPreviewWrap: { position: "relative" },
     photoPreview: { width: 72, height: 72, borderRadius: 10, backgroundColor: c.bgNested },
-    photoRemoveButton: { paddingVertical: 6 },
-    photoRemoveText: { color: c.destructive, fontSize: 13, fontWeight: "600" },
+    photoRemoveBadge: {
+      position: "absolute",
+      top: -6,
+      right: -6,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: c.destructive,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    photoRemoveBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
     actions: { flexDirection: "row", gap: 10, marginTop: 20 },
     cancelButton: {
       flex: 1,

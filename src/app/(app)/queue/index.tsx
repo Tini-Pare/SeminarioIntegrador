@@ -16,6 +16,7 @@ import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { usePagination } from "../../../lib/usePagination";
+import { AssignOrderModal } from "../../../components/AssignOrderModal";
 import { LocationIcon, WarningIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import type { ThemeColors } from "../../../lib/theme";
@@ -27,8 +28,12 @@ type Item = Solicitud & {
   reporterName: string;
 };
 
+type Priority = Exclude<Solicitud["priority"], null>;
+
 type Scope = "all" | "mine" | "unassigned";
-type UrgencyFilter = "all" | Solicitud["urgency"];
+// "none" is a solicitud still pending evaluation (no orden_de_trabajo yet,
+// so no priority to filter by).
+type PriorityFilter = "all" | "none" | Priority;
 
 const STATUS_LABELS: Record<Solicitud["status"], string> = {
   new: "Nueva",
@@ -42,7 +47,7 @@ const STATUS_ORDER: Record<Solicitud["status"], number> = {
   in_progress: 2,
   resolved: 3,
 };
-const URGENCY_LABELS: Record<Solicitud["urgency"], string> = {
+const PRIORITY_LABELS: Record<Priority, string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
@@ -52,7 +57,7 @@ const SCOPE_OPTIONS: { key: Scope; label: string }[] = [
   { key: "unassigned", label: "Sin asignar" },
   { key: "all", label: "Todas" },
 ];
-const URGENCY_OPTIONS: UrgencyFilter[] = ["all", "high", "medium", "low"];
+const PRIORITY_OPTIONS: PriorityFilter[] = ["all", "high", "medium", "low", "none"];
 
 export default function QueueScreen() {
   const [loading, setLoading] = useState(true);
@@ -61,8 +66,9 @@ export default function QueueScreen() {
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actingOn, setActingOn] = useState<number | null>(null);
+  const [assigningItem, setAssigningItem] = useState<Item | null>(null);
   const [scope, setScope] = useState<Scope>("all");
-  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>("all");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -118,12 +124,31 @@ export default function QueueScreen() {
   }
 
   async function handleAction(item: Item) {
+    // Taking a new solicitud goes through AssignOrderModal instead — that's
+    // where the fallo genérico and priority get set, so it needs its own step.
+    if (item.status === "new") {
+      setAssigningItem(item);
+      return;
+    }
     setActingOn(item.id);
     try {
-      if (item.status === "new") await assignToMe(item.id);
-      else if (item.status === "assigned") await advanceStatus(item.id, "in_progress");
+      if (item.status === "assigned") await advanceStatus(item.id, "in_progress");
       else if (item.status === "in_progress") await advanceStatus(item.id, "resolved");
       await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setActingOn(null);
+    }
+  }
+
+  async function confirmAssign(input: { faultTypeId: number | null; priority: Priority }) {
+    if (!assigningItem) return;
+    setActingOn(assigningItem.id);
+    try {
+      await assignToMe(assigningItem.id, input);
+      await load();
+      setAssigningItem(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -149,10 +174,12 @@ export default function QueueScreen() {
         scope === "all" ||
         (scope === "mine" && item.technician_id === userId) ||
         (scope === "unassigned" && item.status === "new");
-      const matchUrgency = urgencyFilter === "all" || item.urgency === urgencyFilter;
-      return matchScope && matchUrgency;
+      const matchPriority =
+        priorityFilter === "all" ||
+        (priorityFilter === "none" ? item.priority === null : item.priority === priorityFilter);
+      return matchScope && matchPriority;
     });
-  }, [items, scope, urgencyFilter, userId]);
+  }, [items, scope, priorityFilter, userId]);
 
   const statusColors: Record<Solicitud["status"], { bg: string; fg: string }> = {
     new: colors.faultNew,
@@ -160,15 +187,18 @@ export default function QueueScreen() {
     in_progress: colors.faultInProgress,
     resolved: colors.faultResolved,
   };
-  const urgencyColors: Record<Solicitud["urgency"], { bg: string; fg: string }> = {
+  const priorityColors: Record<Priority, { bg: string; fg: string }> = {
     low: colors.urgencyLow,
     medium: colors.urgencyMedium,
     high: colors.urgencyHigh,
   };
+  // Neutral placeholder for solicitudes still pending evaluation — no
+  // orden_de_trabajo yet means no priority to color-code by.
+  const noPriorityColor = { bg: colors.bgToggle, fg: colors.textMuted };
 
   const { pageItems, page, pageCount, setPage } = usePagination(
     visibleItems,
-    `${scope}|${urgencyFilter}`,
+    `${scope}|${priorityFilter}`,
   );
 
   if (loading) return <ActivityIndicator style={styles.center} />;
@@ -204,12 +234,12 @@ export default function QueueScreen() {
         </View>
 
         <View style={styles.urgencyChips}>
-          {URGENCY_OPTIONS.map((u) => {
-            const active = urgencyFilter === u;
-            const meta = u === "all" ? null : urgencyColors[u];
+          {PRIORITY_OPTIONS.map((p) => {
+            const active = priorityFilter === p;
+            const meta = p === "all" || p === "none" ? null : priorityColors[p];
             return (
               <Pressable
-                key={u}
+                key={p}
                 style={[
                   styles.urgencyChip,
                   active && {
@@ -217,7 +247,7 @@ export default function QueueScreen() {
                     borderColor: meta?.fg ?? colors.textMuted,
                   },
                 ]}
-                onPress={() => setUrgencyFilter(u)}
+                onPress={() => setPriorityFilter(p)}
               >
                 <Text
                   style={[
@@ -225,7 +255,11 @@ export default function QueueScreen() {
                     active && { color: meta?.fg ?? colors.text, fontWeight: "700" },
                   ]}
                 >
-                  {u === "all" ? "Toda urgencia" : URGENCY_LABELS[u]}
+                  {p === "all"
+                    ? "Toda prioridad"
+                    : p === "none"
+                      ? "Sin evaluar"
+                      : PRIORITY_LABELS[p]}
                 </Text>
               </Pressable>
             );
@@ -241,7 +275,7 @@ export default function QueueScreen() {
         pageItems.map((item) => {
           const label = actionLabel(item);
           const st = statusColors[item.status];
-          const urg = urgencyColors[item.urgency];
+          const prio = item.priority ? priorityColors[item.priority] : noPriorityColor;
           const locColor = locationColors.get(item.equipment.location) ?? "#6a7b62";
           return (
             <View key={item.id} style={styles.card}>
@@ -249,8 +283,8 @@ export default function QueueScreen() {
                 {item.photo_url ? (
                   <Image source={{ uri: item.photo_url }} style={styles.photo} />
                 ) : (
-                  <View style={[styles.photoPlaceholder, { backgroundColor: urg.bg }]}>
-                    <WarningIcon size={20} color={urg.fg} />
+                  <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
+                    <WarningIcon size={20} color={prio.fg} />
                   </View>
                 )}
 
@@ -267,9 +301,11 @@ export default function QueueScreen() {
                       </Text>
                     </View>
 
-                    <View style={[styles.badge, { backgroundColor: urg.bg }]}>
-                      <Text style={[styles.badgeText, { color: urg.fg }]}>
-                        Urgencia {URGENCY_LABELS[item.urgency]}
+                    <View style={[styles.badge, { backgroundColor: prio.bg }]}>
+                      <Text style={[styles.badgeText, { color: prio.fg }]}>
+                        {item.priority
+                          ? `Prioridad ${PRIORITY_LABELS[item.priority]}`
+                          : "Sin evaluar"}
                       </Text>
                     </View>
                   </View>
@@ -277,6 +313,19 @@ export default function QueueScreen() {
               </View>
 
               <Text style={styles.desc}>{item.description}</Text>
+
+              {item.photo_urls.length > 1 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.gallery}
+                  contentContainerStyle={styles.galleryContent}
+                >
+                  {item.photo_urls.map((url) => (
+                    <Image key={url} source={{ uri: url }} style={styles.galleryPhoto} />
+                  ))}
+                </ScrollView>
+              )}
 
               <View style={styles.metaRow}>
                 <View style={styles.locationRow}>
@@ -314,6 +363,15 @@ export default function QueueScreen() {
       )}
 
       <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+
+      <AssignOrderModal
+        visible={!!assigningItem}
+        onClose={() => setAssigningItem(null)}
+        onConfirm={confirmAssign}
+        equipmentLabel={
+          assigningItem ? `${assigningItem.equipment.code} · ${assigningItem.equipment.name}` : ""
+        }
+      />
     </ScrollView>
   );
 }
@@ -387,6 +445,10 @@ function makeStyles(c: ThemeColors) {
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     badgeText: { fontSize: 12.5, fontWeight: "600" },
     desc: { marginTop: 12, fontSize: 13.5, color: c.textLabel, lineHeight: 19 },
+    // Twitter-style side-scroll: all the solicitud's photos, swipeable.
+    gallery: { marginTop: 10 },
+    galleryContent: { gap: 8, paddingRight: 4 },
+    galleryPhoto: { width: 96, height: 96, borderRadius: 10, backgroundColor: c.bgNested },
     metaRow: {
       marginTop: 10,
       flexDirection: "row",

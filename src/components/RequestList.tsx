@@ -1,4 +1,4 @@
-import { View, Text, Image, StyleSheet } from "react-native";
+import { View, Text, Image, ScrollView, StyleSheet } from "react-native";
 import type { Solicitud, Equipo } from "../types/database";
 import { WarningIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
@@ -16,6 +16,11 @@ const STATUS_LABELS: Record<Solicitud["status"], string> = {
   in_progress: "En curso",
   resolved: "Resuelta",
 };
+const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+};
 
 export function RequestList({ items }: { items: Item[] }) {
   const { colors } = useTheme();
@@ -28,7 +33,7 @@ export function RequestList({ items }: { items: Item[] }) {
     resolved: colors.faultResolved,
   };
 
-  const urgency = {
+  const priorityColors = {
     low: colors.urgencyLow,
     medium: colors.urgencyMedium,
     high: colors.urgencyHigh,
@@ -48,14 +53,16 @@ export function RequestList({ items }: { items: Item[] }) {
     <View style={styles.list}>
       {items.map((item) => {
         const st = faultStatus[item.status];
-        const urg = urgency[item.urgency];
+        // No priority yet means nobody has evaluated the solicitud, so the
+        // icon stays neutral instead of implying an urgency no one set.
+        const prio = item.priority ? priorityColors[item.priority] : null;
         return (
           <View key={item.id} style={styles.card}>
             {item.photo_url ? (
               <Image source={{ uri: item.photo_url }} style={styles.photo} />
             ) : (
-              <View style={[styles.iconWrap, { backgroundColor: urg.bg }]}>
-                <WarningIcon size={20} color={urg.fg} />
+              <View style={[styles.iconWrap, prio && { backgroundColor: prio.bg }]}>
+                <WarningIcon size={20} color={prio?.fg ?? colors.textMuted} />
               </View>
             )}
 
@@ -69,9 +76,30 @@ export function RequestList({ items }: { items: Item[] }) {
                     {STATUS_LABELS[item.status]}
                   </Text>
                 </View>
+
+                {item.priority && (
+                  <View style={[styles.badge, { backgroundColor: prio!.bg }]}>
+                    <Text style={[styles.badgeText, { color: prio!.fg }]}>
+                      Prioridad {PRIORITY_LABELS[item.priority]}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <Text style={styles.desc}>{item.description}</Text>
+
+              {item.photo_urls.length > 1 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.gallery}
+                  contentContainerStyle={styles.galleryContent}
+                >
+                  {item.photo_urls.map((url) => (
+                    <Image key={url} source={{ uri: url }} style={styles.galleryPhoto} />
+                  ))}
+                </ScrollView>
+              )}
 
               <View style={styles.metaRow}>
                 <Text style={styles.meta}>Reportó · {item.reporterName}</Text>
@@ -115,6 +143,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: c.bgNested,
     },
     photo: { width: 42, height: 42, borderRadius: 10, backgroundColor: c.bgNested },
     row: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
@@ -123,6 +152,10 @@ function makeStyles(c: ThemeColors) {
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     badgeText: { fontSize: 12.5, fontWeight: "600" },
     desc: { marginTop: 6, fontSize: 13.5, color: c.textLabel, lineHeight: 19 },
+    // Twitter-style side-scroll: all the solicitud's photos, swipeable.
+    gallery: { marginTop: 10 },
+    galleryContent: { gap: 8, paddingRight: 4 },
+    galleryPhoto: { width: 96, height: 96, borderRadius: 10, backgroundColor: c.bgNested },
     metaRow: { marginTop: 8, flexDirection: "row", gap: 16, flexWrap: "wrap" },
     meta: { fontSize: 13, color: c.textMuted },
   });

@@ -1,19 +1,26 @@
+import type { ReactNode } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 
-// Read-only detail popup for catalog rows: shows the name and the full
-// description that no longer lives in the table itself.
+export type DetailField = { label: string; value: ReactNode };
+
+// Read-only detail popup for catalog rows: shows the name, the full
+// description that no longer lives in the table itself, and (via `fields`)
+// any other attribute the grid row already shows — a "Ver" popup should
+// never show less than the grid it opens from.
 export function DetailModal({
   visible,
   onClose,
   title,
   description,
+  fields,
 }: {
   visible: boolean;
   onClose: () => void;
   title: string;
   description?: string | null;
+  fields?: DetailField[];
 }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -23,6 +30,22 @@ export function DetailModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>{title}</Text>
+
+          {fields && fields.length > 0 && (
+            <View style={styles.fieldsRow}>
+              {fields.map((f) => (
+                <View key={f.label} style={styles.fieldCell}>
+                  <Text style={styles.label}>{f.label}</Text>
+
+                  {typeof f.value === "string" ? (
+                    <Text style={styles.fieldValue}>{f.value}</Text>
+                  ) : (
+                    f.value
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
 
           <Text style={styles.label}>Descripción</Text>
 
@@ -65,6 +88,9 @@ function makeStyles(c: ThemeColors) {
       marginTop: 18,
       marginBottom: 8,
     },
+    fieldsRow: { flexDirection: "row", flexWrap: "wrap", gap: 20 },
+    fieldCell: { minWidth: 90 },
+    fieldValue: { fontSize: 14, color: c.text },
     descScroll: { maxHeight: 240 },
     desc: { fontSize: 14, color: c.textLabel, lineHeight: 20 },
     closeButton: {

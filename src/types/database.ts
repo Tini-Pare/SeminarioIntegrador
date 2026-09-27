@@ -218,7 +218,6 @@ export type Database = {
           p_legajo_solicitante: string;
           p_legajo_admin: string | null;
           sol_descripcion: string;
-          sol_urgencia: "low" | "medium" | "high";
           sol_foto_url: string | null;
           sol_estado: "pendiente" | "en_proceso" | "resuelta";
           sol_fecha_hora: string;
@@ -229,7 +228,6 @@ export type Database = {
           p_legajo_solicitante: string;
           p_legajo_admin?: string | null;
           sol_descripcion: string;
-          sol_urgencia?: "low" | "medium" | "high";
           sol_foto_url?: string | null;
           sol_estado?: "pendiente" | "en_proceso" | "resuelta";
           sol_fecha_hora?: string;
@@ -240,7 +238,6 @@ export type Database = {
           p_legajo_solicitante?: string;
           p_legajo_admin?: string | null;
           sol_descripcion?: string;
-          sol_urgencia?: "low" | "medium" | "high";
           sol_foto_url?: string | null;
           sol_estado?: "pendiente" | "en_proceso" | "resuelta";
           sol_fecha_hora?: string;
@@ -259,6 +256,71 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
+          },
+        ];
+      };
+      solicitud_foto: {
+        Row: {
+          sf_id: number;
+          sol_id_solicitud: number;
+          sf_foto_url: string;
+          sf_orden: number;
+          sf_creado_en: string;
+        };
+        Insert: {
+          sf_id?: number;
+          sol_id_solicitud: number;
+          sf_foto_url: string;
+          sf_orden?: number;
+          sf_creado_en?: string;
+        };
+        Update: {
+          sf_id?: number;
+          sol_id_solicitud?: number;
+          sf_foto_url?: string;
+          sf_orden?: number;
+          sf_creado_en?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "solicitud_foto_sol_id_solicitud_fkey";
+            columns: ["sol_id_solicitud"];
+            isOneToOne: false;
+            referencedRelation: "solicitudes";
+            referencedColumns: ["sol_id_solicitud"];
+          },
+        ];
+      };
+      fallo_por_orden: {
+        Row: {
+          fa_id_fallo: number;
+          ot_id_orden: number;
+          fpo_fecha_deteccion: string | null;
+        };
+        Insert: {
+          fa_id_fallo: number;
+          ot_id_orden: number;
+          fpo_fecha_deteccion?: string | null;
+        };
+        Update: {
+          fa_id_fallo?: number;
+          ot_id_orden?: number;
+          fpo_fecha_deteccion?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "fallo_por_orden_fa_id_fallo_fkey";
+            columns: ["fa_id_fallo"];
+            isOneToOne: false;
+            referencedRelation: "fallo";
+            referencedColumns: ["fa_id_fallo"];
+          },
+          {
+            foreignKeyName: "fallo_por_orden_ot_id_orden_fkey";
+            columns: ["ot_id_orden"];
+            isOneToOne: false;
+            referencedRelation: "orden_de_trabajo";
+            referencedColumns: ["ot_id_orden"];
           },
         ];
       };
@@ -698,10 +760,17 @@ export type Solicitud = {
   equipment_id: number;
   reported_by: string;
   description: string;
-  urgency: "low" | "medium" | "high";
   status: "new" | "assigned" | "in_progress" | "resolved";
   technician_id: string | null;
+  // Priority is never set by the reporting employee (they'd always pick
+  // "alta") — it only exists once someone evaluates the solicitud and
+  // creates the orden_de_trabajo, so it's null until then.
+  priority: "low" | "medium" | "high" | null;
+  // photo_url is kept as photo_urls[0] for screens that only show a single
+  // thumbnail (list rows, the equipment detail's fault card); photo_urls
+  // holds every photo attached to the solicitud, in gallery order.
   photo_url: string | null;
+  photo_urls: string[];
   created_at: string;
 };
 

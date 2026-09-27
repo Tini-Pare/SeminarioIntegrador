@@ -21,7 +21,7 @@ import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import type { Equipo, Solicitud, HistorialEntry } from "../../../types/database";
 
-const URGENCY_LABEL: Record<Solicitud["urgency"], string> = {
+const PRIORITY_LABEL: Record<Exclude<Solicitud["priority"], null>, string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
@@ -123,8 +123,6 @@ export default function EquipmentDetail() {
     };
   }, [id, equipoId, loadEquipmentData]);
 
-
-
   if (loading) {
     return (
       <>
@@ -224,8 +222,8 @@ export default function EquipmentDetail() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.faultText}>{f.description}</Text>
                     <Text style={styles.faultMeta}>
-                      Reportado {new Date(f.created_at).toLocaleDateString("es-AR")} · Urgencia{" "}
-                      {URGENCY_LABEL[f.urgency]}
+                      Reportado {new Date(f.created_at).toLocaleDateString("es-AR")}
+                      {f.priority ? ` · Prioridad ${PRIORITY_LABEL[f.priority]}` : " · Sin evaluar"}
                     </Text>
                   </View>
                 </View>
@@ -271,8 +269,6 @@ export default function EquipmentDetail() {
             })}
           </View>
         )}
-
-
       </ScrollView>
     </>
   );

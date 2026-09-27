@@ -232,6 +232,16 @@ export default function TasksScreen() {
         onClose={() => setViewingTask(null)}
         title={viewingTask?.tag_nombre_tarea ?? ""}
         description={viewingTask?.tag_descripcion_tarea}
+        fields={
+          viewingTask
+            ? [
+                {
+                  label: "Estado",
+                  value: viewingTask.tag_estado === "inactivo" ? "Inactivo" : "Activo",
+                },
+              ]
+            : undefined
+        }
       />
 
       {dialog}

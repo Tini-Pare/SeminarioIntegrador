@@ -270,6 +270,17 @@ export default function FaultsScreen() {
         onClose={() => setViewingFault(null)}
         title={viewingFault?.fa_nombre ?? ""}
         description={viewingFault?.fa_desperfecto}
+        fields={
+          viewingFault
+            ? [
+                { label: "Gravedad", value: <GravedadBadge raw={viewingFault.fa_gravedad} /> },
+                {
+                  label: "Estado",
+                  value: viewingFault.fa_estado === "inactivo" ? "Inactivo" : "Activo",
+                },
+              ]
+            : undefined
+        }
       />
 
       {dialog}
