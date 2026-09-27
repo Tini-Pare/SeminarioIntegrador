@@ -18,7 +18,7 @@ import {
   compressToWebp,
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
-import type { Equipo, Solicitud } from "../types/database";
+import type { Equipo, Profile, Solicitud } from "../types/database";
 import { StatusBadge } from "./StatusBadge";
 import { Select } from "./Select";
 import { useTheme } from "../lib/ThemeContext";
@@ -37,12 +37,14 @@ export function ReportFaultModal({
   onSubmitted,
   equipmentOptions,
   reporterName,
+  role,
 }: {
   visible: boolean;
   onClose: () => void;
   onSubmitted: () => void | Promise<void>;
   equipmentOptions: Equipo[];
   reporterName: string | null;
+  role: Profile["role"] | null;
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [equipmentSelectOpen, setEquipmentSelectOpen] = useState(false);
@@ -101,6 +103,11 @@ export function ReportFaultModal({
   }
 
   async function handleSubmit() {
+    if (role !== "user") {
+      setError("No tenés permisos para registrar esta solicitud.");
+      return;
+    }
+
     if (!reporterName) {
       setError("No se pudo obtener el usuario actual. Volvé a iniciar sesión.");
       return;
@@ -142,7 +149,7 @@ export function ReportFaultModal({
 
   return (
     <Modal
-      visible={visible}
+      visible={visible && role === "user"}
       transparent
       animationType="fade"
       onRequestClose={() => {
@@ -260,9 +267,26 @@ export function ReportFaultModal({
             {photoUri ? (
               <View style={styles.photoPreviewWrap}>
                 <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-                <Pressable style={styles.photoRemoveButton} onPress={() => setPhotoUri(null)}>
-                  <Text style={styles.photoRemoveText}>Quitar foto</Text>
-                </Pressable>
+
+                <View style={styles.photoPreviewActions}>
+                  <Pressable
+                    style={styles.photoButton}
+                    onPress={handlePickPhoto}
+                    disabled={processingPhoto || submitting}
+                  >
+                    <Text style={styles.photoButtonText}>Cambiar foto</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.photoRemoveButton}
+                    onPress={() => setPhotoUri(null)}
+                    disabled={processingPhoto || submitting}
+                  >
+                    <Text style={styles.photoRemoveText}>Quitar foto</Text>
+                  </Pressable>
+
+                  {processingPhoto && <ActivityIndicator size="small" />}
+                </View>
               </View>
             ) : (
               <View style={styles.photoButtonsRow}>
@@ -322,7 +346,14 @@ export function ReportFaultModal({
                 <Text style={styles.cancelText}>Cancelar</Text>
               </Pressable>
 
-              <Pressable style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
+              <Pressable
+                style={[
+                  styles.submitButton,
+                  (submitting || processingPhoto) && styles.disabledButton,
+                ]}
+                onPress={handleSubmit}
+                disabled={submitting || processingPhoto}
+              >
                 <Text style={styles.submitText}>
                   {submitting ? "Enviando…" : "Reportar solicitud"}
                 </Text>
@@ -435,6 +466,7 @@ function makeStyles(c: ThemeColors) {
     photoHelp: { marginTop: 6, fontSize: 12, color: c.textMuted },
     photoPreviewWrap: { flexDirection: "row", alignItems: "center", gap: 12 },
     photoPreview: { width: 72, height: 72, borderRadius: 10, backgroundColor: c.bgNested },
+    photoPreviewActions: { flex: 1, alignItems: "flex-start", gap: 6 },
     photoRemoveButton: { paddingVertical: 6 },
     photoRemoveText: { color: c.destructive, fontSize: 13, fontWeight: "600" },
     reportInfo: {

@@ -17,7 +17,13 @@ const STATUS_LABELS: Record<Solicitud["status"], string> = {
   resolved: "Resuelta",
 };
 
-export function RequestList({ items }: { items: Item[] }) {
+export function RequestList({
+  items,
+  emptyMessage = "No hay solicitudes todavía. Reportá una falla con el botón de arriba.",
+}: {
+  items: Item[];
+  emptyMessage?: string;
+}) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -37,9 +43,7 @@ export function RequestList({ items }: { items: Item[] }) {
   if (items.length === 0) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyText}>
-          No hay solicitudes todavía. Reportá una falla con el botón de arriba.
-        </Text>
+        <Text style={styles.emptyText}>{emptyMessage}</Text>
       </View>
     );
   }

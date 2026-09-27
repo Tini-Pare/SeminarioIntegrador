@@ -30,7 +30,6 @@ type Item = Solicitud & {
 export default function RequestsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [equipmentOptions, setEquipmentOptions] = useState<Equipo[]>([]);
@@ -44,8 +43,11 @@ export default function RequestsScreen() {
     setError(null);
     try {
       const profile = await getProfile();
-      const admin = profile?.role === "admin";
-      setIsAdmin(admin);
+      if (!profile) {
+        throw new Error("No se pudo obtener el perfil del usuario actual.");
+      }
+
+      const admin = profile.role === "admin";
       setProfile(profile);
       const [faults, equipment, profiles] = await Promise.all([
         admin ? listAllRequests() : listMyRequests(),
@@ -100,6 +102,8 @@ export default function RequestsScreen() {
     setSuccessMessage("Solicitud registrada con éxito");
   }
 
+  const isAdmin = profile?.role === "admin";
+  const canCreateRequest = profile?.role === "user";
   const { pageItems, page, pageCount, setPage } = usePagination(items, isAdmin ? "admin" : "mine");
 
   if (loading) return <ActivityIndicator style={styles.center} />;
@@ -120,25 +124,35 @@ export default function RequestsScreen() {
           </Text>
         </View>
 
-        <Pressable style={styles.reportButton} onPress={() => setReportOpen(true)}>
-          <Text style={styles.reportButtonText}>+ Nuevo</Text>
-        </Pressable>
+        {canCreateRequest && (
+          <Pressable style={styles.reportButton} onPress={() => setReportOpen(true)}>
+            <Text style={styles.reportButtonText}>+ Nuevo</Text>
+          </Pressable>
+        )}
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
       {successMessage && <Text style={styles.success}>{successMessage}</Text>}
 
-      <RequestList items={pageItems} />
+      <RequestList
+        items={pageItems}
+        emptyMessage={
+          isAdmin
+            ? "No hay solicitudes registradas todavía."
+            : "No hay solicitudes todavía. Reportá una falla con el botón de arriba."
+        }
+      />
 
       <Pagination page={page} pageCount={pageCount} onPage={setPage} />
 
       <ReportFaultModal
-        visible={reportOpen}
+        visible={canCreateRequest && reportOpen}
         onClose={() => setReportOpen(false)}
         onSubmitted={handleSubmitted}
         equipmentOptions={equipmentOptions}
         reporterName={profile?.name ?? null}
+        role={profile?.role ?? null}
       />
     </ScrollView>
   );
