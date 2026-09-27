@@ -1,10 +1,13 @@
 import { getTodayDbDate } from "../../components/CustomDatePicker";
 import { supabase } from "../supabase";
-import type { Database } from "../../types/database";
-import type { Solicitud } from "../../types/database";
+import type { Database, Solicitud } from "../../types/database";
 
 type SolicitudRow = Database["public"]["Tables"]["solicitudes"]["Row"];
 type OrdenRow = Database["public"]["Tables"]["orden_de_trabajo"]["Row"];
+
+export function normalizeRequestUrgency(value: unknown): Solicitud["urgency"] {
+  return value === "low" || value === "high" ? value : "medium";
+}
 
 // A solicitud in this app gets at most one orden_de_trabajo (created once
 // by assignToMe) — the embedded array from PostgREST only ever has 0 or 1
@@ -22,7 +25,7 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
     equipment_id: row.eq_id_equipo,
     reported_by: row.p_legajo_solicitante,
     description: row.sol_descripcion,
-    urgency: row.sol_urgencia,
+    urgency: normalizeRequestUrgency(row.sol_urgencia),
     status: orden ? orden.ot_estado : "new",
     technician_id: orden?.ot_p_id_responsable ?? null,
     photo_url: row.sol_foto_url,

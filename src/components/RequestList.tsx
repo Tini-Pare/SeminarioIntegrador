@@ -51,8 +51,9 @@ export function RequestList({
   return (
     <View style={styles.list}>
       {items.map((item) => {
-        const st = faultStatus[item.status];
-        const urg = urgency[item.urgency];
+        const st = faultStatus[item.status] ?? colors.faultNew;
+        const urg = urgency[item.urgency] ?? colors.urgencyMedium;
+        const statusLabel = STATUS_LABELS[item.status] ?? "Nueva";
         return (
           <View key={item.id} style={styles.card}>
             {item.photo_url ? (
@@ -69,9 +70,7 @@ export function RequestList({
                 <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
 
                 <View style={[styles.badge, { backgroundColor: st.bg }]}>
-                  <Text style={[styles.badgeText, { color: st.fg }]}>
-                    {STATUS_LABELS[item.status]}
-                  </Text>
+                  <Text style={[styles.badgeText, { color: st.fg }]}>{statusLabel}</Text>
                 </View>
               </View>
 
