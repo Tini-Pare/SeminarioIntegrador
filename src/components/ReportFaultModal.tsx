@@ -174,6 +174,7 @@ export function ReportFaultModal({
                 value={selectedId}
                 onChange={setSelectedId}
                 options={equipmentSelectOptions}
+                inline
                 open={equipmentSelectOpen}
                 onOpenChange={setEquipmentSelectOpen}
                 placeholder={
