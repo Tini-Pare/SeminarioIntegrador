@@ -14,18 +14,16 @@ import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { Pagination } from "../../../components/Pagination";
 import { ReportFaultModal } from "../../../components/ReportFaultModal";
-import { RequestList } from "../../../components/RequestList";
+import { RequestDetailModal } from "../../../components/RequestDetailModal";
+import { RequestList, type RequestListItem } from "../../../components/RequestList";
+import { TableFilterBar } from "../../../components/TableFilterBar";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
-import type { Profile, Solicitud, Equipo } from "../../../types/database";
+import type { Profile, Equipo } from "../../../types/database";
 
-type Item = Solicitud & {
-  equipment: Pick<Equipo, "code" | "name">;
-  reporterName: string;
-  technicianName: string | null;
-};
+type Item = RequestListItem;
 
 export default function RequestsScreen() {
   const [loading, setLoading] = useState(true);
@@ -36,6 +34,10 @@ export default function RequestsScreen() {
   const [reportOpen, setReportOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [urgencyFilter, setUrgencyFilter] = useState("all");
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -66,7 +68,11 @@ export default function RequestsScreen() {
         })),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof Error && e.message === "No se pudo obtener el perfil del usuario actual.") {
+        setError(e.message);
+      } else {
+        setError("No pudimos cargar las solicitudes. Intentá nuevamente.");
+      }
     }
   }, []);
 
@@ -104,7 +110,24 @@ export default function RequestsScreen() {
 
   const isAdmin = profile?.role === "admin";
   const canCreateRequest = profile?.role === "user";
-  const { pageItems, page, pageCount, setPage } = usePagination(items, isAdmin ? "admin" : "mine");
+  const normalizedSearch = search.trim().toLocaleLowerCase("es");
+  const filteredItems = items.filter((item) => {
+    const matchesSearch =
+      !normalizedSearch ||
+      item.equipment.code.toLocaleLowerCase("es").includes(normalizedSearch) ||
+      item.equipment.name.toLocaleLowerCase("es").includes(normalizedSearch) ||
+      (item.equipment.location ?? "").toLocaleLowerCase("es").includes(normalizedSearch) ||
+      item.description.toLocaleLowerCase("es").includes(normalizedSearch) ||
+      String(item.id).includes(normalizedSearch);
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    const matchesUrgency = urgencyFilter === "all" || item.urgency === urgencyFilter;
+    return matchesSearch && matchesStatus && matchesUrgency;
+  });
+  const filterKey = `${isAdmin ? "admin" : "mine"}:${search}:${statusFilter}:${urgencyFilter}`;
+  const { pageItems, page, pageCount, setPage } = usePagination(filteredItems, filterKey);
+  const selectedRequest = items.find((item) => item.id === selectedRequestId) ?? null;
+  const hasActiveFilters =
+    Boolean(normalizedSearch) || statusFilter !== "all" || urgencyFilter !== "all";
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
@@ -117,6 +140,7 @@ export default function RequestsScreen() {
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.title}>{isAdmin ? "Solicitudes" : "Mis solicitudes"}</Text>
+
           <Text style={styles.subtitle}>
             {isAdmin
               ? "Todas las fallas reportadas en la organización"
@@ -131,20 +155,68 @@ export default function RequestsScreen() {
         )}
       </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.error}>{error}</Text>
+
+          <Pressable style={styles.retryButton} onPress={load}>
+            <Text style={styles.retryText}>Reintentar</Text>
+          </Pressable>
+        </View>
+      )}
 
       {successMessage && <Text style={styles.success}>{successMessage}</Text>}
 
-      <RequestList
-        items={pageItems}
-        emptyMessage={
-          isAdmin
-            ? "No hay solicitudes registradas todavía."
-            : "No hay solicitudes todavía. Reportá una falla con el botón de arriba."
-        }
+      <TableFilterBar
+        searchValue={search}
+        onSearch={setSearch}
+        searchPlaceholder="Buscar por solicitud, equipo o descripción…"
+        filters={[
+          {
+            key: "status",
+            label: "Estado",
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { value: "all", label: "Todos" },
+              { value: "new", label: "Pendiente" },
+              { value: "assigned", label: "Asignada" },
+              { value: "in_progress", label: "En curso" },
+              { value: "resolved", label: "Resuelta" },
+            ],
+          },
+          {
+            key: "urgency",
+            label: "Urgencia",
+            value: urgencyFilter,
+            onChange: setUrgencyFilter,
+            options: [
+              { value: "all", label: "Todas" },
+              { value: "low", label: "Baja" },
+              { value: "medium", label: "Media" },
+              { value: "high", label: "Alta" },
+            ],
+          },
+        ]}
       />
 
+      {(!error || items.length > 0) && (
+        <RequestList
+          items={pageItems}
+          onOpen={(item) => setSelectedRequestId(item.id)}
+          emptyMessage={
+            hasActiveFilters
+              ? "No hay solicitudes que coincidan con la búsqueda o los filtros."
+              : isAdmin
+                ? "No hay solicitudes registradas todavía."
+                : "No hay solicitudes todavía. Reportá una falla con el botón de arriba."
+          }
+        />
+      )}
+
       <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+
+      <RequestDetailModal item={selectedRequest} onClose={() => setSelectedRequestId(null)} />
 
       <ReportFaultModal
         visible={canCreateRequest && reportOpen}
@@ -161,7 +233,7 @@ export default function RequestsScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { backgroundColor: c.bg },
-    content: { padding: 20, maxWidth: 920 },
+    content: { width: "100%", padding: 20, maxWidth: 980 },
     center: { flex: 1 },
     header: {
       flexDirection: "row",
@@ -183,7 +255,26 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     reportButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-    error: { color: c.destructive, marginBottom: 12 },
+    errorBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      marginBottom: 14,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: c.destructive,
+      borderRadius: 10,
+      backgroundColor: c.bgCard,
+    },
+    error: { flex: 1, color: c.destructive, fontSize: 13 },
+    retryButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 8,
+      backgroundColor: c.destructive,
+    },
+    retryText: { color: "#fff", fontSize: 12.5, fontWeight: "600" },
     success: { color: c.success, fontWeight: "600", marginBottom: 12 },
   });
 }
