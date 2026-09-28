@@ -17,7 +17,13 @@ const STATUS_LABELS: Record<Solicitud["status"], string> = {
   resolved: "Resuelta",
 };
 
-export function RequestList({ items }: { items: Item[] }) {
+export function RequestList({
+  items,
+  emptyMessage = "No hay solicitudes todavía. Reportá una falla con el botón de arriba.",
+}: {
+  items: Item[];
+  emptyMessage?: string;
+}) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -37,9 +43,7 @@ export function RequestList({ items }: { items: Item[] }) {
   if (items.length === 0) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyText}>
-          No hay solicitudes todavía. Reportá una falla con el botón de arriba.
-        </Text>
+        <Text style={styles.emptyText}>{emptyMessage}</Text>
       </View>
     );
   }
@@ -47,8 +51,9 @@ export function RequestList({ items }: { items: Item[] }) {
   return (
     <View style={styles.list}>
       {items.map((item) => {
-        const st = faultStatus[item.status];
-        const urg = urgency[item.urgency];
+        const st = faultStatus[item.status] ?? colors.faultNew;
+        const urg = urgency[item.urgency] ?? colors.urgencyMedium;
+        const statusLabel = STATUS_LABELS[item.status] ?? "Nueva";
         return (
           <View key={item.id} style={styles.card}>
             {item.photo_url ? (
@@ -65,9 +70,7 @@ export function RequestList({ items }: { items: Item[] }) {
                 <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
 
                 <View style={[styles.badge, { backgroundColor: st.bg }]}>
-                  <Text style={[styles.badgeText, { color: st.fg }]}>
-                    {STATUS_LABELS[item.status]}
-                  </Text>
+                  <Text style={[styles.badgeText, { color: st.fg }]}>{statusLabel}</Text>
                 </View>
               </View>
 

@@ -19,7 +19,7 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
-import type { Solicitud, Equipo } from "../../../types/database";
+import type { Profile, Solicitud, Equipo } from "../../../types/database";
 
 type Item = Solicitud & {
   equipment: Pick<Equipo, "code" | "name">;
@@ -27,16 +27,15 @@ type Item = Solicitud & {
   technicianName: string | null;
 };
 
-type EquipmentOption = Pick<Equipo, "id" | "code" | "name">;
-
 export default function RequestsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [items, setItems] = useState<Item[]>([]);
-  const [equipmentOptions, setEquipmentOptions] = useState<EquipmentOption[]>([]);
+  const [equipmentOptions, setEquipmentOptions] = useState<Equipo[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -44,14 +43,18 @@ export default function RequestsScreen() {
     setError(null);
     try {
       const profile = await getProfile();
-      const admin = profile?.role === "admin";
-      setIsAdmin(admin);
+      if (!profile) {
+        throw new Error("No se pudo obtener el perfil del usuario actual.");
+      }
+
+      const admin = profile.role === "admin";
+      setProfile(profile);
       const [faults, equipment, profiles] = await Promise.all([
         admin ? listAllRequests() : listMyRequests(),
         listEquipment(),
         listProfiles(),
       ]);
-      setEquipmentOptions(equipment.map(({ id, code, name }) => ({ id, code, name })));
+      setEquipmentOptions(equipment);
       const equipmentById = new Map(equipment.map((e) => [e.id, e]));
       const profileById = new Map(profiles.map((p) => [p.id, p]));
       setItems(
@@ -72,6 +75,12 @@ export default function RequestsScreen() {
   }, [load]);
 
   useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(null), 4000);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
+
+  useEffect(() => {
     const channel = supabase
       .channel(`requests-faults-changes-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes" }, load)
@@ -88,6 +97,13 @@ export default function RequestsScreen() {
     setRefreshing(false);
   }
 
+  async function handleSubmitted() {
+    await load();
+    setSuccessMessage("Solicitud registrada con éxito");
+  }
+
+  const isAdmin = profile?.role === "admin";
+  const canCreateRequest = profile?.role === "user";
   const { pageItems, page, pageCount, setPage } = usePagination(items, isAdmin ? "admin" : "mine");
 
   if (loading) return <ActivityIndicator style={styles.center} />;
@@ -108,22 +124,35 @@ export default function RequestsScreen() {
           </Text>
         </View>
 
-        <Pressable style={styles.reportButton} onPress={() => setReportOpen(true)}>
-          <Text style={styles.reportButtonText}>+ Reportar falla</Text>
-        </Pressable>
+        {canCreateRequest && (
+          <Pressable style={styles.reportButton} onPress={() => setReportOpen(true)}>
+            <Text style={styles.reportButtonText}>+ Nuevo</Text>
+          </Pressable>
+        )}
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <RequestList items={pageItems} />
+      {successMessage && <Text style={styles.success}>{successMessage}</Text>}
+
+      <RequestList
+        items={pageItems}
+        emptyMessage={
+          isAdmin
+            ? "No hay solicitudes registradas todavía."
+            : "No hay solicitudes todavía. Reportá una falla con el botón de arriba."
+        }
+      />
 
       <Pagination page={page} pageCount={pageCount} onPage={setPage} />
 
       <ReportFaultModal
-        visible={reportOpen}
+        visible={canCreateRequest && reportOpen}
         onClose={() => setReportOpen(false)}
-        onSubmitted={load}
+        onSubmitted={handleSubmitted}
         equipmentOptions={equipmentOptions}
+        reporterName={profile?.name ?? null}
+        role={profile?.role ?? null}
       />
     </ScrollView>
   );
@@ -155,5 +184,6 @@ function makeStyles(c: ThemeColors) {
     },
     reportButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
     error: { color: c.destructive, marginBottom: 12 },
+    success: { color: c.success, fontWeight: "600", marginBottom: 12 },
   });
 }

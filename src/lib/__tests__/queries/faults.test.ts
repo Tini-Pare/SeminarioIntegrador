@@ -13,11 +13,23 @@ import {
   listAllRequests,
   listMyRequests,
   listWorkQueue,
+  normalizeRequestUrgency,
 } from "../../queries/faults";
 import { supabase } from "../../supabase";
 
 beforeEach(() => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
+});
+
+describe("normalizeRequestUrgency", () => {
+  it("keeps valid values and defaults missing or legacy values to medium", () => {
+    expect(normalizeRequestUrgency("low")).toBe("low");
+    expect(normalizeRequestUrgency("high")).toBe("high");
+    expect(normalizeRequestUrgency("medium")).toBe("medium");
+    expect(normalizeRequestUrgency(undefined)).toBe("medium");
+    expect(normalizeRequestUrgency(null)).toBe("medium");
+    expect(normalizeRequestUrgency("media")).toBe("medium");
+  });
 });
 
 describe("createFault", () => {
@@ -74,23 +86,61 @@ describe("createFault", () => {
 
   it("throws when there is no session", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({ data: { session: null } });
-    await expect(
-      createFault({ equipmentId: 5, description: "x", urgency: "low" }),
-    ).rejects.toThrow("Necesitás iniciar sesión para reportar una falla.");
+    await expect(createFault({ equipmentId: 5, description: "x", urgency: "low" })).rejects.toThrow(
+      "Necesitás iniciar sesión para reportar una falla.",
+    );
   });
 
   it("rejects invalid equipment and blank descriptions before writing", async () => {
     (supabase.auth.getSession as jest.Mock).mockClear();
 
-    await expect(
-      createFault({ equipmentId: 0, description: "x", urgency: "low" }),
-    ).rejects.toThrow("El equipo seleccionado no es válido.");
+    await expect(createFault({ equipmentId: 0, description: "x", urgency: "low" })).rejects.toThrow(
+      "El equipo seleccionado no es válido.",
+    );
 
     await expect(
       createFault({ equipmentId: 5, description: "   ", urgency: "low" }),
     ).rejects.toThrow("Describí la falla para poder registrarla.");
 
     expect(supabase.auth.getSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects descriptions over 2000 characters and invalid urgency before writing", async () => {
+    (supabase.auth.getSession as jest.Mock).mockClear();
+
+    await expect(
+      createFault({ equipmentId: 5, description: "x".repeat(2001), urgency: "low" }),
+    ).rejects.toThrow("La descripción no puede superar los 2000 caracteres.");
+
+    await expect(
+      createFault({
+        equipmentId: 5,
+        description: "No enciende",
+        urgency: "critical" as never,
+      }),
+    ).rejects.toThrow("La urgencia seleccionada no es válida.");
+
+    expect(supabase.auth.getSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      { code: "23503", message: "violates solicitudes_eq_id_equipo_fkey" },
+      "El equipo seleccionado no existe.",
+    ],
+    [{ code: "42501", message: "row violates row-level security policy" }, "No tenés permisos"],
+  ])("surfaces a friendly persistence error for %o", async (databaseError, expectedMessage) => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "u1" } } },
+    });
+    const single = jest.fn().mockResolvedValue({ data: null, error: databaseError });
+    const select = jest.fn().mockReturnValue({ single });
+    const insert = jest.fn().mockReturnValue({ select });
+    (supabase.from as jest.Mock).mockReturnValue({ insert });
+
+    await expect(
+      createFault({ equipmentId: 999, description: "No enciende", urgency: "medium" }),
+    ).rejects.toThrow(expectedMessage);
   });
 });
 
