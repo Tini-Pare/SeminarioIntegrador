@@ -65,8 +65,11 @@ export default function EquipmentDetail() {
   const historyTypeColor: Record<string, { dot: string; bg: string; fg: string }> = {
     Reporte: colors.histReporte,
     Asignada: colors.histAsignada,
+    Reasignada: colors.histAsignada,
+    Replanificada: colors.histAsignada,
     "En curso": colors.histEnCurso,
     Resuelta: colors.histResuelta,
+    Cerrada: colors.histResuelta,
     Preventivo: colors.histResuelta,
   };
 
@@ -224,6 +227,7 @@ export default function EquipmentDetail() {
                     <Text style={styles.faultMeta}>
                       Reportado {new Date(f.created_at).toLocaleDateString("es-AR")}
                       {f.priority ? ` · Prioridad ${PRIORITY_LABEL[f.priority]}` : " · Sin evaluar"}
+                      {f.fault_type_name ? ` · ${f.fault_type_name}` : ""}
                     </Text>
                   </View>
                 </View>

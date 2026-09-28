@@ -9,65 +9,54 @@ import {
   StyleSheet,
   RefreshControl,
 } from "react-native";
-import { getProfile } from "../../../lib/auth";
-import { listWorkQueue, assignToMe, advanceStatus } from "../../../lib/queries/faults";
+import { finishTask, listMyTasks, startTask, type MyTask } from "../../../lib/queries/faults";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { usePagination } from "../../../lib/usePagination";
-import { AssignOrderModal } from "../../../components/AssignOrderModal";
 import { LocationIcon, WarningIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Solicitud, Equipo } from "../../../types/database";
+import type { Equipo, Solicitud } from "../../../types/database";
 
-type Item = Solicitud & {
+// A técnico's queue is one row per tarea assigned to them — not one row
+// per OT. A solicitud/OT isn't work a técnico "has"; a tarea is (see
+// generateOrder in faults.ts).
+type Item = MyTask & {
   equipment: Pick<Equipo, "code" | "name" | "location">;
   reporterName: string;
 };
 
 type Priority = Exclude<Solicitud["priority"], null>;
+type PriorityFilter = "all" | Priority;
 
-type Scope = "all" | "mine" | "unassigned";
-// "none" is a solicitud still pending evaluation (no orden_de_trabajo yet,
-// so no priority to filter by).
-type PriorityFilter = "all" | "none" | Priority;
-
-const STATUS_LABELS: Record<Solicitud["status"], string> = {
-  new: "Nueva",
-  assigned: "Asignada",
-  in_progress: "En curso",
-  resolved: "Resuelta",
-};
-const STATUS_ORDER: Record<Solicitud["status"], number> = {
-  new: 0,
-  assigned: 1,
-  in_progress: 2,
-  resolved: 3,
-};
 const PRIORITY_LABELS: Record<Priority, string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
 };
-const SCOPE_OPTIONS: { key: Scope; label: string }[] = [
-  { key: "mine", label: "Mías" },
-  { key: "unassigned", label: "Sin asignar" },
-  { key: "all", label: "Todas" },
-];
-const PRIORITY_OPTIONS: PriorityFilter[] = ["all", "high", "medium", "low", "none"];
+const PRIORITY_OPTIONS: PriorityFilter[] = ["all", "high", "medium", "low"];
+
+function taskStatusLabel(task: MyTask): string {
+  if (task.endDate) return "Finalizada";
+  if (task.startDate) return "En curso";
+  return "Pendiente";
+}
+
+function taskRank(task: MyTask): number {
+  if (task.endDate) return 2;
+  if (task.startDate) return 1;
+  return 0;
+}
 
 export default function QueueScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actingOn, setActingOn] = useState<number | null>(null);
-  const [assigningItem, setAssigningItem] = useState<Item | null>(null);
-  const [scope, setScope] = useState<Scope>("all");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -75,27 +64,25 @@ export default function QueueScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const profile = await getProfile();
-      setUserId(profile?.id ?? null);
-      const [faults, equipment, profiles] = await Promise.all([
-        listWorkQueue(),
+      const [tasks, equipment, profiles] = await Promise.all([
+        listMyTasks(),
         listEquipment(),
         listProfiles(),
       ]);
       const equipmentById = new Map(equipment.map((e) => [e.id, e]));
       const profileById = new Map(profiles.map((p) => [p.id, p]));
       setItems(
-        faults
-          .map((f) => ({
-            ...f,
-            equipment: equipmentById.get(f.equipment_id) ?? {
+        tasks
+          .map((t) => ({
+            ...t,
+            equipment: equipmentById.get(t.equipmentId) ?? {
               code: "—",
               name: "Equipo desconocido",
               location: "",
             },
-            reporterName: profileById.get(f.reported_by)?.name ?? "Desconocido",
+            reporterName: profileById.get(t.reportedBy)?.name ?? "Desconocido",
           }))
-          .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]),
+          .sort((a, b) => taskRank(a) - taskRank(b)),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -108,9 +95,14 @@ export default function QueueScreen() {
 
   useEffect(() => {
     const channel = supabase
-      .channel(`queue-faults-changes-${Math.random().toString(36).slice(2)}`)
+      .channel(`queue-tasks-changes-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "orden_de_trabajo" }, load)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tareas_realizadas_orden" },
+        load,
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -124,31 +116,11 @@ export default function QueueScreen() {
   }
 
   async function handleAction(item: Item) {
-    // Taking a new solicitud goes through AssignOrderModal instead — that's
-    // where the fallo genérico and priority get set, so it needs its own step.
-    if (item.status === "new") {
-      setAssigningItem(item);
-      return;
-    }
-    setActingOn(item.id);
+    setActingOn(item.taskRowId);
     try {
-      if (item.status === "assigned") await advanceStatus(item.id, "in_progress");
-      else if (item.status === "in_progress") await advanceStatus(item.id, "resolved");
+      if (!item.startDate) await startTask(item.taskRowId);
+      else if (!item.endDate) await finishTask(item.taskRowId);
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setActingOn(null);
-    }
-  }
-
-  async function confirmAssign(input: { faultTypeId: number | null; priority: Priority }) {
-    if (!assigningItem) return;
-    setActingOn(assigningItem.id);
-    try {
-      await assignToMe(assigningItem.id, input);
-      await load();
-      setAssigningItem(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -157,9 +129,8 @@ export default function QueueScreen() {
   }
 
   function actionLabel(item: Item): string | null {
-    if (item.status === "new") return "Asignarme";
-    if (item.status === "assigned" && item.technician_id === userId) return "Iniciar trabajo";
-    if (item.status === "in_progress" && item.technician_id === userId) return "Marcar resuelta";
+    if (!item.startDate) return "Iniciar tarea";
+    if (!item.endDate) return "Finalizar tarea";
     return null;
   }
 
@@ -169,37 +140,16 @@ export default function QueueScreen() {
   );
 
   const visibleItems = useMemo(() => {
-    return items.filter((item) => {
-      const matchScope =
-        scope === "all" ||
-        (scope === "mine" && item.technician_id === userId) ||
-        (scope === "unassigned" && item.status === "new");
-      const matchPriority =
-        priorityFilter === "all" ||
-        (priorityFilter === "none" ? item.priority === null : item.priority === priorityFilter);
-      return matchScope && matchPriority;
-    });
-  }, [items, scope, priorityFilter, userId]);
+    return items.filter((item) => priorityFilter === "all" || item.priority === priorityFilter);
+  }, [items, priorityFilter]);
 
-  const statusColors: Record<Solicitud["status"], { bg: string; fg: string }> = {
-    new: colors.faultNew,
-    assigned: colors.faultAssigned,
-    in_progress: colors.faultInProgress,
-    resolved: colors.faultResolved,
-  };
   const priorityColors: Record<Priority, { bg: string; fg: string }> = {
     low: colors.urgencyLow,
     medium: colors.urgencyMedium,
     high: colors.urgencyHigh,
   };
-  // Neutral placeholder for solicitudes still pending evaluation — no
-  // orden_de_trabajo yet means no priority to color-code by.
-  const noPriorityColor = { bg: colors.bgToggle, fg: colors.textMuted };
 
-  const { pageItems, page, pageCount, setPage } = usePagination(
-    visibleItems,
-    `${scope}|${priorityFilter}`,
-  );
+  const { pageItems, page, pageCount, setPage } = usePagination(visibleItems, priorityFilter);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
@@ -212,31 +162,17 @@ export default function QueueScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Cola de trabajo</Text>
-          <Text style={styles.subtitle}>Órdenes asignadas y fallas sin asignar</Text>
+          <Text style={styles.subtitle}>Tus tareas asignadas</Text>
         </View>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
       <View style={styles.filtersRow}>
-        <View style={styles.scopeToggle}>
-          {SCOPE_OPTIONS.map((o) => (
-            <Pressable
-              key={o.key}
-              style={[styles.scopeOption, scope === o.key && styles.scopeOptionActive]}
-              onPress={() => setScope(o.key)}
-            >
-              <Text style={[styles.scopeText, scope === o.key && styles.scopeTextActive]}>
-                {o.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
         <View style={styles.urgencyChips}>
           {PRIORITY_OPTIONS.map((p) => {
             const active = priorityFilter === p;
-            const meta = p === "all" || p === "none" ? null : priorityColors[p];
+            const meta = p === "all" ? null : priorityColors[p];
             return (
               <Pressable
                 key={p}
@@ -255,11 +191,7 @@ export default function QueueScreen() {
                     active && { color: meta?.fg ?? colors.text, fontWeight: "700" },
                   ]}
                 >
-                  {p === "all"
-                    ? "Toda prioridad"
-                    : p === "none"
-                      ? "Sin evaluar"
-                      : PRIORITY_LABELS[p]}
+                  {p === "all" ? "Toda prioridad" : PRIORITY_LABELS[p]}
                 </Text>
               </Pressable>
             );
@@ -269,19 +201,18 @@ export default function QueueScreen() {
 
       {visibleItems.length === 0 ? (
         <Text style={styles.empty}>
-          {items.length === 0 ? "No hay órdenes en tu cola." : "Nada coincide con este filtro."}
+          {items.length === 0 ? "No tenés tareas asignadas." : "Nada coincide con este filtro."}
         </Text>
       ) : (
         pageItems.map((item) => {
           const label = actionLabel(item);
-          const st = statusColors[item.status];
-          const prio = item.priority ? priorityColors[item.priority] : noPriorityColor;
+          const prio = priorityColors[item.priority];
           const locColor = locationColors.get(item.equipment.location) ?? "#6a7b62";
           return (
-            <View key={item.id} style={styles.card}>
+            <View key={item.taskRowId} style={styles.card}>
               <View style={styles.cardTop}>
-                {item.photo_url ? (
-                  <Image source={{ uri: item.photo_url }} style={styles.photo} />
+                {item.photoUrl ? (
+                  <Image source={{ uri: item.photoUrl }} style={styles.photo} />
                 ) : (
                   <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
                     <WarningIcon size={20} color={prio.fg} />
@@ -289,39 +220,43 @@ export default function QueueScreen() {
                 )}
 
                 <View style={styles.cardMain}>
+                  <Text style={styles.taskName}>{item.taskName}</Text>
+
                   <View style={styles.row}>
                     <Text style={styles.equipmentName}>{item.equipment.name}</Text>
                     <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
                   </View>
 
                   <View style={styles.row}>
-                    <View style={[styles.badge, { backgroundColor: st.bg }]}>
-                      <Text style={[styles.badgeText, { color: st.fg }]}>
-                        {STATUS_LABELS[item.status]}
+                    <View style={[styles.badge, { backgroundColor: colors.bgToggle }]}>
+                      <Text style={[styles.badgeText, { color: colors.textLabel }]}>
+                        {taskStatusLabel(item)}
                       </Text>
                     </View>
 
                     <View style={[styles.badge, { backgroundColor: prio.bg }]}>
                       <Text style={[styles.badgeText, { color: prio.fg }]}>
-                        {item.priority
-                          ? `Prioridad ${PRIORITY_LABELS[item.priority]}`
-                          : "Sin evaluar"}
+                        Prioridad {PRIORITY_LABELS[item.priority]}
                       </Text>
                     </View>
                   </View>
+
+                  {item.faultTypeName && (
+                    <Text style={styles.faultTypeText}>Falla: {item.faultTypeName}</Text>
+                  )}
                 </View>
               </View>
 
               <Text style={styles.desc}>{item.description}</Text>
 
-              {item.photo_urls.length > 1 && (
+              {item.photoUrls.length > 1 && (
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   style={styles.gallery}
                   contentContainerStyle={styles.galleryContent}
                 >
-                  {item.photo_urls.map((url) => (
+                  {item.photoUrls.map((url) => (
                     <Image key={url} source={{ uri: url }} style={styles.galleryPhoto} />
                   ))}
                 </ScrollView>
@@ -336,23 +271,23 @@ export default function QueueScreen() {
 
                 <Text style={styles.meta}>
                   Reportó {item.reporterName} ·{" "}
-                  {new Date(item.created_at).toLocaleDateString("es-AR")}
+                  {item.createdAt ? new Date(item.createdAt).toLocaleDateString("es-AR") : "—"}
                 </Text>
               </View>
 
-              {item.status === "resolved" ? (
+              {item.endDate ? (
                 <View style={styles.doneRow}>
-                  <Text style={styles.doneText}>✓ Resuelta</Text>
+                  <Text style={styles.doneText}>✓ Finalizada</Text>
                 </View>
               ) : (
                 label && (
                   <Pressable
                     style={styles.actionButton}
                     onPress={() => handleAction(item)}
-                    disabled={actingOn === item.id}
+                    disabled={actingOn === item.taskRowId}
                   >
                     <Text style={styles.actionText}>
-                      {actingOn === item.id ? "Procesando…" : label}
+                      {actingOn === item.taskRowId ? "Procesando…" : label}
                     </Text>
                   </Pressable>
                 )
@@ -363,15 +298,6 @@ export default function QueueScreen() {
       )}
 
       <Pagination page={page} pageCount={pageCount} onPage={setPage} />
-
-      <AssignOrderModal
-        visible={!!assigningItem}
-        onClose={() => setAssigningItem(null)}
-        onConfirm={confirmAssign}
-        equipmentLabel={
-          assigningItem ? `${assigningItem.equipment.code} · ${assigningItem.equipment.name}` : ""
-        }
-      />
     </ScrollView>
   );
 }
@@ -400,17 +326,6 @@ function makeStyles(c: ThemeColors) {
       gap: 10,
       marginBottom: 18,
     },
-    scopeToggle: {
-      flexDirection: "row",
-      backgroundColor: c.bgToggle,
-      borderRadius: 9,
-      padding: 3,
-      gap: 2,
-    },
-    scopeOption: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 7 },
-    scopeOptionActive: { backgroundColor: c.bgToggleActive },
-    scopeText: { fontSize: 12.5, fontWeight: "600", color: c.textMuted },
-    scopeTextActive: { color: c.text },
     urgencyChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
     urgencyChip: {
       paddingHorizontal: 12,
@@ -431,6 +346,7 @@ function makeStyles(c: ThemeColors) {
     },
     cardTop: { flexDirection: "row", gap: 12 },
     cardMain: { flex: 1, minWidth: 0, gap: 6 },
+    taskName: { fontSize: 13, fontWeight: "700", color: c.accent },
     photo: { width: 48, height: 48, borderRadius: 10, backgroundColor: c.bgNested },
     photoPlaceholder: {
       width: 48,
@@ -438,12 +354,14 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: c.bgNested,
     },
     row: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
     equipmentName: { fontWeight: "600", fontSize: 14.5, color: c.text },
     equipmentCode: { fontFamily: "monospace", fontSize: 12.5, color: c.textMuted },
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     badgeText: { fontSize: 12.5, fontWeight: "600" },
+    faultTypeText: { fontSize: 12.5, color: c.textLabel, fontWeight: "500" },
     desc: { marginTop: 12, fontSize: 13.5, color: c.textLabel, lineHeight: 19 },
     // Twitter-style side-scroll: all the solicitud's photos, swipeable.
     gallery: { marginTop: 10 },

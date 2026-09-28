@@ -1,51 +1,102 @@
 import { getTodayDbDate } from "../../components/CustomDatePicker";
 import { supabase } from "../supabase";
 import type { Database } from "../../types/database";
-import type { Solicitud } from "../../types/database";
+import type { Solicitud, SolicitudTask } from "../../types/database";
 
 type SolicitudRow = Database["public"]["Tables"]["solicitudes"]["Row"];
 type OrdenRow = Database["public"]["Tables"]["orden_de_trabajo"]["Row"];
 type SolicitudFotoRow = Database["public"]["Tables"]["solicitud_foto"]["Row"];
+type FalloRow = Database["public"]["Tables"]["fallo"]["Row"];
+type TareaRow = Database["public"]["Tables"]["tareas_realizadas_orden"]["Row"];
 
 // A solicitud in this app gets at most one orden_de_trabajo (created once
-// by assignToMe) — the embedded array from PostgREST only ever has 0 or 1
-// entries in practice.
+// by generateOrder) — the embedded array from PostgREST only ever has 0 or
+// 1 entries in practice. Same for fallo_por_orden under it: the app only
+// ever links one fallo genérico per order. tareas_realizadas_orden is the
+// actual many side: an OT has no single responsable anymore (see
+// migration 0017's header comment) — each tarea genérica added to it has
+// its own técnico. Rows with pe_cuit_cuil (external provider) instead of
+// p_id_tecnico are filtered out below — no UI yet to manage those.
+type TareaWithGeneral = TareaRow & { tareas_generales: { tag_nombre_tarea: string } | null };
+type OrdenWithTasks = OrdenRow & {
+  fallo_por_orden?: { fallo: FalloRow }[];
+  tareas_realizadas_orden?: TareaWithGeneral[];
+};
 export type SolicitudWithOrden = SolicitudRow & {
-  orden_de_trabajo: OrdenRow[];
+  orden_de_trabajo: OrdenWithTasks[];
   solicitud_foto?: SolicitudFotoRow[];
 };
 
 // The select string every read below uses: the solicitud, its (at most
-// one) orden_de_trabajo, and every photo attached to it.
-const SOLICITUD_SELECT = "*, orden_de_trabajo(*), solicitud_foto(*)";
+// one) orden_de_trabajo with the fallo genérico diagnosed on it and every
+// tarea added to it (with the técnico's id and the tarea's name), and
+// every photo attached to the solicitud.
+const SOLICITUD_SELECT =
+  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea))), solicitud_foto(*)";
 
-// Maps solicitud+orden_de_trabajo onto the old flat "Fault" shape (id,
-// status, technician_id, etc.) so screens/components barely change: no
-// orden_de_trabajo row yet means status "new", otherwise status/technician
-// come straight from the order.
-export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
-  const orden = row.orden_de_trabajo[0] ?? null;
-  const photoUrls = (row.solicitud_foto ?? [])
+function resolvePhotoUrls(
+  fotos: SolicitudFotoRow[] | undefined,
+  legacyUrl: string | null,
+): string[] {
+  const photoUrls = (fotos ?? [])
     .slice()
     .sort((a, b) => a.sf_orden - b.sf_orden)
     .map((f) => f.sf_foto_url);
   // Rows written before solicitud_foto existed (migration 0015) only have
   // the legacy sol_foto_url column — fall back to it so old solicitudes
   // don't lose their photo.
-  const effectivePhotoUrls =
-    photoUrls.length > 0 ? photoUrls : row.sol_foto_url ? [row.sol_foto_url] : [];
+  return photoUrls.length > 0 ? photoUrls : legacyUrl ? [legacyUrl] : [];
+}
+
+// Maps solicitud+orden_de_trabajo onto the old flat "Fault" shape (id,
+// status, tasks, etc.) so screens/components barely change.
+export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
+  const orden = row.orden_de_trabajo[0] ?? null;
+  const tasks: SolicitudTask[] = (orden?.tareas_realizadas_orden ?? [])
+    .filter((t): t is TareaWithGeneral & { p_id_tecnico: string } => t.p_id_tecnico !== null)
+    .map((t) => ({
+      id: t.taro_id_tarea_orden,
+      taskId: t.tag_id_tarea,
+      taskName: t.tareas_generales?.tag_nombre_tarea ?? "Tarea",
+      technicianId: t.p_id_tecnico,
+      startDate: t.taro_fecha_inicio,
+      endDate: t.taro_fecha_fin,
+    }));
   return {
     id: row.sol_id_solicitud,
     equipment_id: row.eq_id_equipo,
     reported_by: row.p_legajo_solicitante,
     description: row.sol_descripcion,
-    status: orden ? orden.ot_estado : "new",
-    technician_id: orden?.ot_p_id_responsable ?? null,
+    // No orden yet: "new" while the solicitud is still pendiente, or
+    // "resolved" if the admin closed it without generating one (closeSolicitud
+    // sets sol_estado to resuelta directly — see SCRUM-27). Otherwise it's
+    // whatever sync_orden_estado (0017) computed from the OT's tareas.
+    status: orden ? orden.ot_estado : row.sol_estado === "resuelta" ? "resolved" : "new",
     priority: orden?.ot_prioridad ?? null,
-    photo_url: effectivePhotoUrls[0] ?? null,
-    photo_urls: effectivePhotoUrls,
+    order_id: orden?.ot_id_orden ?? null,
+    order_start_date: orden?.ot_fecha_inicio ?? null,
+    order_end_date: orden?.ot_fecha_fin ?? null,
+    fault_type_name: orden?.fallo_por_orden?.[0]?.fallo.fa_nombre ?? null,
+    tasks,
+    photo_url: resolvePhotoUrls(row.solicitud_foto, row.sol_foto_url)[0] ?? null,
+    photo_urls: resolvePhotoUrls(row.solicitud_foto, row.sol_foto_url),
     created_at: row.sol_fecha_hora,
   };
+}
+
+// Compact "quién está en esto" label for list rows that don't have room
+// for a full tareas breakdown (RequestList, work-orders table, dashboard).
+// null (like the old technician_id-based one) means "nadie todavía".
+export function summarizeTechnicians(
+  tasks: SolicitudTask[],
+  profileById: Map<string, { name: string }>,
+): string | null {
+  if (tasks.length === 0) return null;
+  const uniqueIds = [...new Set(tasks.map((t) => t.technicianId))];
+  if (uniqueIds.length === 1) {
+    return profileById.get(uniqueIds[0])?.name ?? "Técnico desconocido";
+  }
+  return `${uniqueIds.length} técnicos`;
 }
 
 async function currentUserId(errorMessage = "no session"): Promise<string> {
@@ -127,6 +178,7 @@ export async function createFault(input: {
   return { ...solicitud, photo_url: photoUrls[0] ?? null, photo_urls: photoUrls };
 }
 
+// SCRUM-31: el personal de la tienda solo ve SUS propias solicitudes.
 export async function listMyRequests(): Promise<Solicitud[]> {
   const userId = await currentUserId();
   const { data, error } = await supabase
@@ -138,6 +190,8 @@ export async function listMyRequests(): Promise<Solicitud[]> {
   return (data as SolicitudWithOrden[]).map(mapSolicitudRow);
 }
 
+// El admin es el único que ve todas las solicitudes — es quien las gestiona
+// (generar OT, cerrar, agregar/reasignar tareas, etc.).
 export async function listAllRequests(): Promise<Solicitud[]> {
   const { data, error } = await supabase
     .from("solicitudes")
@@ -147,49 +201,68 @@ export async function listAllRequests(): Promise<Solicitud[]> {
   return (data as SolicitudWithOrden[]).map(mapSolicitudRow);
 }
 
-// Mirrors the old `.or("technician_id.eq.me,status.eq.new")` filter, split
-// into two queries since PostgREST can't express "child row missing OR
-// child row matches" against an embedded relationship in one call:
-// solicitudes still pending (no orden_de_trabajo at all) plus orders
-// already assigned to me.
-export async function listWorkQueue(): Promise<Solicitud[]> {
-  const userId = await currentUserId();
-  const [pending, mine] = await Promise.all([
-    supabase
-      .from("solicitudes")
-      .select(SOLICITUD_SELECT)
-      .eq("sol_estado", "pendiente")
-      .order("sol_fecha_hora", { ascending: false }),
-    supabase
-      .from("solicitudes")
-      .select("*, orden_de_trabajo!inner(*), solicitud_foto(*)")
-      .eq("orden_de_trabajo.ot_p_id_responsable", userId)
-      .order("sol_fecha_hora", { ascending: false }),
-  ]);
-  if (pending.error) throw new Error(pending.error.message);
-  if (mine.error) throw new Error(mine.error.message);
-
-  const byId = new Map<number, Solicitud>();
-  for (const row of pending.data as SolicitudWithOrden[]) {
-    byId.set(row.sol_id_solicitud, mapSolicitudRow(row));
+// The OT full-screen page (work-orders/[id]) loads one solicitud/OT by id
+// instead of the whole list.
+export async function getSolicitudById(solicitudId: number): Promise<Solicitud | null> {
+  const { data, error } = await supabase
+    .from("solicitudes")
+    .select(SOLICITUD_SELECT)
+    .eq("sol_id_solicitud", solicitudId)
+    .single();
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw new Error(error.message);
   }
-  for (const row of mine.data as SolicitudWithOrden[]) {
-    byId.set(row.sol_id_solicitud, mapSolicitudRow(row));
-  }
-  return [...byId.values()];
+  return mapSolicitudRow(data as SolicitudWithOrden);
 }
 
-// faultTypeId and priority are both decided *now*, by whoever is taking
-// the solicitud — the reporting employee only described symptoms ("no
-// enfría"), they don't know the actual fault, and everyone reporting one
-// has an incentive to always call it urgent, so neither ever came from
-// them. faultTypeId is optional (the order can be taken before a
-// diagnosis); priority defaults to "medium" like it always has.
-export async function assignToMe(
+// SCRUM-27: el admin puede cerrar una solicitud pendiente sin generar una
+// OT (duplicada, falsa alarma, se resolvió sin intervención técnica). Solo
+// válida para solicitudes que todavía no tienen orden.
+export async function closeSolicitud(solicitudId: number, reason: string): Promise<void> {
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) throw new Error("Indicá el motivo del cierre.");
+
+  const { data: sol, error: solError } = await supabase
+    .from("solicitudes")
+    .select("eq_id_equipo, sol_estado")
+    .eq("sol_id_solicitud", solicitudId)
+    .single();
+  if (solError) throw new Error(solError.message);
+  if (sol.sol_estado !== "pendiente") {
+    throw new Error("Esta solicitud ya no está pendiente.");
+  }
+
+  const { error: updateError } = await supabase
+    .from("solicitudes")
+    .update({ sol_estado: "resuelta" })
+    .eq("sol_id_solicitud", solicitudId);
+  if (updateError) throw new Error(updateError.message);
+
+  await syncEquipoEstado(sol.eq_id_equipo);
+  await logHistorial(
+    sol.eq_id_equipo,
+    "Cerrada",
+    `Solicitud cerrada sin orden de trabajo: ${trimmedReason}`,
+  );
+}
+
+// SCRUM-24: el admin evalúa la solicitud y genera la OT agregándole una o
+// más tareas genéricas, cada una con su propio técnico — la OT en sí no
+// tiene "un" responsable (ver 0017). La prioridad y, si ya lo sabe, el
+// fallo genérico también se definen acá, nunca por quien reportó la falla.
+export async function generateOrder(
   solicitudId: number,
-  options?: { faultTypeId?: number | null; priority?: Exclude<Solicitud["priority"], null> },
+  input: {
+    tasks: { taskId: number; technicianId: string }[];
+    faultTypeId?: number | null;
+    priority?: Exclude<Solicitud["priority"], null>;
+  },
 ): Promise<void> {
-  const userId = await currentUserId();
+  if (input.tasks.length === 0) {
+    throw new Error("Agregá al menos una tarea con su técnico.");
+  }
+
   const { data: sol, error: solError } = await supabase
     .from("solicitudes")
     .select("eq_id_equipo, sol_descripcion")
@@ -202,19 +275,27 @@ export async function assignToMe(
     .insert({
       sol_id_solicitud: solicitudId,
       eq_id_equipo: sol.eq_id_equipo,
-      ot_p_id_responsable: userId,
-      ot_prioridad: options?.priority ?? "medium",
+      ot_prioridad: input.priority ?? "medium",
     })
     .select("ot_id_orden")
     .single();
   if (insertError) throw new Error(insertError.message);
 
+  const { error: tasksError } = await supabase.from("tareas_realizadas_orden").insert(
+    input.tasks.map((t) => ({
+      ot_id_orden: orden.ot_id_orden,
+      tag_id_tarea: t.taskId,
+      p_id_tecnico: t.technicianId,
+    })),
+  );
+  if (tasksError) throw new Error(tasksError.message);
+
   // Links the diagnosed fallo genérico to the new order, through the
   // fallo_por_orden catalog link (0003) — fallo <-> orden_de_trabajo, not
   // fallo <-> solicitud, on purpose (see 0015's header comment).
-  if (options?.faultTypeId) {
+  if (input.faultTypeId) {
     const { error: falloError } = await supabase.from("fallo_por_orden").insert({
-      fa_id_fallo: options.faultTypeId,
+      fa_id_fallo: input.faultTypeId,
       ot_id_orden: orden.ot_id_orden,
       fpo_fecha_deteccion: getTodayDbDate(),
     });
@@ -231,39 +312,232 @@ export async function assignToMe(
   await logHistorial(sol.eq_id_equipo, "Asignada", `Falla asignada: ${sol.sol_descripcion}`);
 }
 
-export async function advanceStatus(
+// Adds one more tarea to an OT that already exists — e.g. the admin
+// realizes mid-repair that another tarea genérica is needed.
+export async function addTaskToOrder(
   solicitudId: number,
-  nextStatus: Solicitud["status"],
+  input: { taskId: number; technicianId: string },
 ): Promise<void> {
-  if (nextStatus === "new") throw new Error("cannot advance a solicitud back to 'new'");
-
-  const { data: orden, error: ordenError } = await supabase
+  const { data: orden, error: selectError } = await supabase
     .from("orden_de_trabajo")
-    .update({
-      ot_estado: nextStatus,
-      ...(nextStatus === "resolved" ? { ot_fecha_fin: getTodayDbDate() } : {}),
-    })
+    .select("ot_id_orden, eq_id_equipo")
     .eq("sol_id_solicitud", solicitudId)
-    .select("eq_id_equipo, solicitudes(sol_descripcion)")
     .single();
-  if (ordenError) throw new Error(ordenError.message);
+  if (selectError) throw new Error(selectError.message);
 
-  if (nextStatus === "resolved") {
-    const { error: solError } = await supabase
-      .from("solicitudes")
-      .update({ sol_estado: "resuelta" })
-      .eq("sol_id_solicitud", solicitudId);
-    if (solError) throw new Error(solError.message);
+  const { data: task, error: insertError } = await supabase
+    .from("tareas_realizadas_orden")
+    .insert({
+      ot_id_orden: orden.ot_id_orden,
+      tag_id_tarea: input.taskId,
+      p_id_tecnico: input.technicianId,
+    })
+    .select("*, tareas_generales(tag_nombre_tarea)")
+    .single();
+  if (insertError) throw new Error(insertError.message);
+
+  const taskName =
+    (task.tareas_generales as { tag_nombre_tarea: string } | null)?.tag_nombre_tarea ?? "Tarea";
+  await logHistorial(orden.eq_id_equipo, "Asignada", `Tarea agregada a la orden: ${taskName}`);
+}
+
+// SCRUM-26: reasignar el técnico de una tarea puntual (no de toda la OT —
+// cada tarea tiene el suyo).
+export async function reassignTaskTechnician(taskId: number, technicianId: string): Promise<void> {
+  const { data: task, error: updateError } = await supabase
+    .from("tareas_realizadas_orden")
+    .update({ p_id_tecnico: technicianId })
+    .eq("taro_id_tarea_orden", taskId)
+    .select("*, tareas_generales(tag_nombre_tarea), orden_de_trabajo(eq_id_equipo)")
+    .single();
+  if (updateError) throw new Error(updateError.message);
+
+  const eqId = (task.orden_de_trabajo as { eq_id_equipo: number } | null)?.eq_id_equipo;
+  const taskName =
+    (task.tareas_generales as { tag_nombre_tarea: string } | null)?.tag_nombre_tarea ?? "Tarea";
+  if (eqId) {
+    await logHistorial(eqId, "Reasignada", `Tarea reasignada: ${taskName}`);
+  }
+}
+
+// Counts open (not yet finished) tareas per técnico, so the admin can see
+// who's overloaded before assigning one to a new tarea (feedback:
+// "estaría bueno ver la carga actual de ese técnico").
+export async function listActiveTaskCountsByTechnician(): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from("tareas_realizadas_orden")
+    .select("p_id_tecnico")
+    .is("taro_fecha_fin", null)
+    .not("p_id_tecnico", "is", null);
+  if (error) throw new Error(error.message);
+
+  const counts: Record<string, number> = {};
+  for (const row of data as { p_id_tecnico: string }[]) {
+    counts[row.p_id_tecnico] = (counts[row.p_id_tecnico] ?? 0) + 1;
+  }
+  return counts;
+}
+
+// SCRUM-28: reprogramar cuándo arranca la orden en su conjunto (planificación
+// del admin) — independiente de cuándo cada técnico arranca su propia tarea.
+export async function updateOrderStartDate(solicitudId: number, newDate: string): Promise<void> {
+  const { data: orden, error: updateError } = await supabase
+    .from("orden_de_trabajo")
+    .update({ ot_fecha_inicio: newDate })
+    .eq("sol_id_solicitud", solicitudId)
+    .select("eq_id_equipo")
+    .single();
+  if (updateError) throw new Error(updateError.message);
+
+  await logHistorial(
+    orden.eq_id_equipo,
+    "Replanificada",
+    `Fecha de inicio de la orden reprogramada al ${newDate}.`,
+  );
+}
+
+// A técnico's own view of their work: one row per tarea assigned to them,
+// with just enough of the parent OT/solicitud/equipo to show it — a
+// solicitud isn't a work item a técnico "has", a tarea is.
+export type MyTask = {
+  taskRowId: number;
+  taskName: string;
+  orderId: number;
+  orderStatus: Solicitud["status"];
+  priority: Exclude<Solicitud["priority"], null>;
+  startDate: string | null;
+  endDate: string | null;
+  equipmentId: number;
+  description: string;
+  reportedBy: string;
+  createdAt: string;
+  photoUrl: string | null;
+  photoUrls: string[];
+  faultTypeName: string | null;
+};
+
+type MyTaskRow = TareaRow & {
+  tareas_generales: { tag_nombre_tarea: string } | null;
+  orden_de_trabajo:
+    | (OrdenRow & {
+        fallo_por_orden?: { fallo: FalloRow }[];
+        solicitudes:
+          | (Pick<
+              SolicitudRow,
+              "sol_descripcion" | "p_legajo_solicitante" | "sol_fecha_hora" | "sol_foto_url"
+            > & { solicitud_foto?: SolicitudFotoRow[] })
+          | null;
+      })
+    | null;
+};
+
+export async function listMyTasks(): Promise<MyTask[]> {
+  const userId = await currentUserId();
+  const { data, error } = await supabase
+    .from("tareas_realizadas_orden")
+    .select(
+      "*, tareas_generales(tag_nombre_tarea), orden_de_trabajo(*, fallo_por_orden(fallo(*)), solicitudes(sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)))",
+    )
+    .eq("p_id_tecnico", userId);
+  if (error) throw new Error(error.message);
+
+  return (data as MyTaskRow[]).map((row) => {
+    const orden = row.orden_de_trabajo;
+    const sol = orden?.solicitudes ?? null;
+    const photoUrls = resolvePhotoUrls(sol?.solicitud_foto, sol?.sol_foto_url ?? null);
+    return {
+      taskRowId: row.taro_id_tarea_orden,
+      taskName: row.tareas_generales?.tag_nombre_tarea ?? "Tarea",
+      orderId: row.ot_id_orden,
+      orderStatus: orden?.ot_estado ?? "assigned",
+      priority: orden?.ot_prioridad ?? "medium",
+      startDate: row.taro_fecha_inicio,
+      endDate: row.taro_fecha_fin,
+      equipmentId: orden?.eq_id_equipo ?? 0,
+      description: sol?.sol_descripcion ?? "",
+      reportedBy: sol?.p_legajo_solicitante ?? "",
+      createdAt: sol?.sol_fecha_hora ?? "",
+      photoUrl: photoUrls[0] ?? null,
+      photoUrls,
+      faultTypeName: orden?.fallo_por_orden?.[0]?.fallo.fa_nombre ?? null,
+    };
+  });
+}
+
+// El técnico arranca su propia tarea — nadie más puede hacerlo por él/ella
+// (ni el admin), se valida acá y no solo ocultando el botón en la UI. El
+// estado de la OT (y de la solicitud) se recalcula solo (sync_orden_estado,
+// 0017) apenas esto cambia.
+export async function startTask(taskId: number): Promise<void> {
+  const userId = await currentUserId();
+  const { data: task, error: checkError } = await supabase
+    .from("tareas_realizadas_orden")
+    .select(
+      "p_id_tecnico, ot_id_orden, tareas_generales(tag_nombre_tarea), orden_de_trabajo(eq_id_equipo)",
+    )
+    .eq("taro_id_tarea_orden", taskId)
+    .single();
+  if (checkError) throw new Error(checkError.message);
+  if (task.p_id_tecnico !== userId) {
+    throw new Error("Solo el técnico asignado puede iniciar esta tarea.");
   }
 
-  await syncEquipoEstado(orden.eq_id_equipo);
+  const { error: updateError } = await supabase
+    .from("tareas_realizadas_orden")
+    .update({ taro_fecha_inicio: getTodayDbDate() })
+    .eq("taro_id_tarea_orden", taskId);
+  if (updateError) throw new Error(updateError.message);
 
-  const description =
-    (orden.solicitudes as { sol_descripcion: string } | null)?.sol_descripcion ?? "";
-  if (nextStatus === "in_progress") {
-    await logHistorial(orden.eq_id_equipo, "En curso", `Reparación iniciada: ${description}`);
+  const eqId = (task.orden_de_trabajo as { eq_id_equipo: number } | null)?.eq_id_equipo;
+  const taskName =
+    (task.tareas_generales as { tag_nombre_tarea: string } | null)?.tag_nombre_tarea ?? "Tarea";
+  if (eqId) {
+    await logHistorial(eqId, "En curso", `Tarea iniciada: ${taskName}`);
   }
-  if (nextStatus === "resolved") {
-    await logHistorial(orden.eq_id_equipo, "Resuelta", `Falla resuelta: ${description}`);
+}
+
+// El técnico finaliza su propia tarea. Si era la última pendiente de la
+// OT, sync_orden_estado ya la dejó (y a la solicitud) como resuelta — acá
+// solo se agrega esa entrada al historial, igual que hacía el viejo
+// advanceStatus("resolved").
+export async function finishTask(taskId: number): Promise<void> {
+  const userId = await currentUserId();
+  const { data: task, error: checkError } = await supabase
+    .from("tareas_realizadas_orden")
+    .select(
+      "p_id_tecnico, ot_id_orden, taro_fecha_inicio, tareas_generales(tag_nombre_tarea), orden_de_trabajo(eq_id_equipo)",
+    )
+    .eq("taro_id_tarea_orden", taskId)
+    .single();
+  if (checkError) throw new Error(checkError.message);
+  if (task.p_id_tecnico !== userId) {
+    throw new Error("Solo el técnico asignado puede finalizar esta tarea.");
+  }
+  if (!task.taro_fecha_inicio) {
+    throw new Error("Iniciá la tarea antes de finalizarla.");
+  }
+
+  const { error: updateError } = await supabase
+    .from("tareas_realizadas_orden")
+    .update({ taro_fecha_fin: getTodayDbDate() })
+    .eq("taro_id_tarea_orden", taskId);
+  if (updateError) throw new Error(updateError.message);
+
+  const eqId = (task.orden_de_trabajo as { eq_id_equipo: number } | null)?.eq_id_equipo;
+  const taskName =
+    (task.tareas_generales as { tag_nombre_tarea: string } | null)?.tag_nombre_tarea ?? "Tarea";
+  if (!eqId) return;
+
+  await logHistorial(eqId, "Tarea finalizada", `Tarea finalizada: ${taskName}`);
+
+  const { data: siblings, error: siblingsError } = await supabase
+    .from("tareas_realizadas_orden")
+    .select("taro_fecha_fin")
+    .eq("ot_id_orden", task.ot_id_orden);
+  if (siblingsError) throw new Error(siblingsError.message);
+
+  const allDone = (siblings ?? []).every((t) => t.taro_fecha_fin !== null);
+  if (allDone) {
+    await logHistorial(eqId, "Resuelta", "Todas las tareas de la orden fueron completadas.");
   }
 }

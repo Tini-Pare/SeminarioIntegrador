@@ -330,7 +330,10 @@ export type Database = {
           sol_id_solicitud: number | null;
           plan_id_manequipo: number | null;
           eq_id_equipo: number;
-          ot_p_id_responsable: string;
+          // No longer "the" responsable — that now lives per tarea
+          // (tareas_realizadas_orden.p_id_tecnico). Kept nullable for old
+          // rows; never set on new ones (see 0017).
+          ot_p_id_responsable: string | null;
           ot_tipo_orden: string;
           ot_fecha_inicio: string;
           ot_fecha_fin: string | null;
@@ -343,7 +346,7 @@ export type Database = {
           sol_id_solicitud?: number | null;
           plan_id_manequipo?: number | null;
           eq_id_equipo: number;
-          ot_p_id_responsable: string;
+          ot_p_id_responsable?: string | null;
           ot_tipo_orden?: string;
           ot_fecha_inicio?: string;
           ot_fecha_fin?: string | null;
@@ -356,7 +359,7 @@ export type Database = {
           sol_id_solicitud?: number | null;
           plan_id_manequipo?: number | null;
           eq_id_equipo?: number;
-          ot_p_id_responsable?: string;
+          ot_p_id_responsable?: string | null;
           ot_tipo_orden?: string;
           ot_fecha_inicio?: string;
           ot_fecha_fin?: string | null;
@@ -382,6 +385,58 @@ export type Database = {
           {
             foreignKeyName: "orden_de_trabajo_ot_p_id_responsable_fkey";
             columns: ["ot_p_id_responsable"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tareas_realizadas_orden: {
+        Row: {
+          taro_id_tarea_orden: number;
+          ot_id_orden: number;
+          tag_id_tarea: number;
+          pe_cuit_cuil: string | null;
+          p_id_tecnico: string | null;
+          taro_fecha_inicio: string | null;
+          taro_fecha_fin: string | null;
+        };
+        Insert: {
+          taro_id_tarea_orden?: number;
+          ot_id_orden: number;
+          tag_id_tarea: number;
+          pe_cuit_cuil?: string | null;
+          p_id_tecnico?: string | null;
+          taro_fecha_inicio?: string | null;
+          taro_fecha_fin?: string | null;
+        };
+        Update: {
+          taro_id_tarea_orden?: number;
+          ot_id_orden?: number;
+          tag_id_tarea?: number;
+          pe_cuit_cuil?: string | null;
+          p_id_tecnico?: string | null;
+          taro_fecha_inicio?: string | null;
+          taro_fecha_fin?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tareas_realizadas_orden_ot_id_orden_fkey";
+            columns: ["ot_id_orden"];
+            isOneToOne: false;
+            referencedRelation: "orden_de_trabajo";
+            referencedColumns: ["ot_id_orden"];
+          },
+          {
+            foreignKeyName: "tareas_realizadas_orden_tag_id_tarea_fkey";
+            columns: ["tag_id_tarea"];
+            isOneToOne: false;
+            referencedRelation: "tareas_generales";
+            referencedColumns: ["tag_id_tarea"];
+          },
+          {
+            foreignKeyName: "tareas_realizadas_orden_p_id_tecnico_fkey";
+            columns: ["p_id_tecnico"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
@@ -755,17 +810,37 @@ export type Equipo = {
   warrantyDate: string | null;
 };
 
+// One tarea genérica added to an orden_de_trabajo, with its own técnico and
+// start/end dates — the OT itself has no single responsable anymore (see
+// migration 0017's header comment).
+export type SolicitudTask = {
+  id: number; // taro_id_tarea_orden
+  taskId: number; // tag_id_tarea
+  taskName: string;
+  technicianId: string;
+  startDate: string | null; // taro_fecha_inicio — null until the técnico starts it
+  endDate: string | null; // taro_fecha_fin — null until the técnico finishes it
+};
+
 export type Solicitud = {
   id: number;
   equipment_id: number;
   reported_by: string;
   description: string;
   status: "new" | "assigned" | "in_progress" | "resolved";
-  technician_id: string | null;
   // Priority is never set by the reporting employee (they'd always pick
   // "alta") — it only exists once someone evaluates the solicitud and
   // creates the orden_de_trabajo, so it's null until then.
   priority: "low" | "medium" | "high" | null;
+  // The orden_de_trabajo's own id/dates/diagnosis/tareas — null/empty while
+  // the solicitud has no order yet (status "new"). ot_estado (-> status
+  // above) and order_end_date are both derived from `tasks` by the DB
+  // (sync_orden_estado, 0017), never set directly by the app.
+  order_id: number | null;
+  order_start_date: string | null;
+  order_end_date: string | null;
+  fault_type_name: string | null;
+  tasks: SolicitudTask[];
   // photo_url is kept as photo_urls[0] for screens that only show a single
   // thumbnail (list rows, the equipment detail's fault card); photo_urls
   // holds every photo attached to the solicitud, in gallery order.

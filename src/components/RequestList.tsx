@@ -1,4 +1,4 @@
-import { View, Text, Image, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Image, Pressable, ScrollView, StyleSheet } from "react-native";
 import type { Solicitud, Equipo } from "../types/database";
 import { WarningIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
@@ -22,7 +22,16 @@ const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
   high: "Alta",
 };
 
-export function RequestList({ items }: { items: Item[] }) {
+// onSelect is only passed by the admin's "Solicitudes" screen — that's the
+// only role that can act on a solicitud (generar OT, cerrar, reasignar
+// técnico, etc.), so it's the only one that gets a "Ver más" affordance.
+export function RequestList({
+  items,
+  onSelect,
+}: {
+  items: Item[];
+  onSelect?: (item: Item) => void;
+}) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -56,8 +65,13 @@ export function RequestList({ items }: { items: Item[] }) {
         // No priority yet means nobody has evaluated the solicitud, so the
         // icon stays neutral instead of implying an urgency no one set.
         const prio = item.priority ? priorityColors[item.priority] : null;
+        const Card = onSelect ? Pressable : View;
         return (
-          <View key={item.id} style={styles.card}>
+          <Card
+            key={item.id}
+            style={styles.card}
+            {...(onSelect ? { onPress: () => onSelect(item) } : {})}
+          >
             {item.photo_url ? (
               <Image source={{ uri: item.photo_url }} style={styles.photo} />
             ) : (
@@ -106,10 +120,12 @@ export function RequestList({ items }: { items: Item[] }) {
                 <Text style={styles.meta}>
                   {new Date(item.created_at).toLocaleDateString("es-AR")}
                 </Text>
-                <Text style={styles.meta}>Técnico · {item.technicianName ?? "Sin asignar"}</Text>
+                <Text style={styles.meta}>Técnicos · {item.technicianName ?? "Sin asignar"}</Text>
+
+                {onSelect && <Text style={styles.viewMore}>Ver más →</Text>}
               </View>
             </View>
-          </View>
+          </Card>
         );
       })}
     </View>
@@ -158,5 +174,6 @@ function makeStyles(c: ThemeColors) {
     galleryPhoto: { width: 96, height: 96, borderRadius: 10, backgroundColor: c.bgNested },
     metaRow: { marginTop: 8, flexDirection: "row", gap: 16, flexWrap: "wrap" },
     meta: { fontSize: 13, color: c.textMuted },
+    viewMore: { fontSize: 13, color: c.accent, fontWeight: "600", marginLeft: "auto" },
   });
 }

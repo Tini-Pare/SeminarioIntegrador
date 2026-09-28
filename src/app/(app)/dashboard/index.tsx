@@ -16,7 +16,7 @@ import { StatusBarChart } from "../../../components/StatusBarChart";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import { listEquipment } from "../../../lib/queries/equipment";
-import { listAllRequests } from "../../../lib/queries/faults";
+import { listAllRequests, summarizeTechnicians } from "../../../lib/queries/faults";
 import { listProfiles } from "../../../lib/queries/profiles";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
@@ -68,7 +68,7 @@ export default function DashboardScreen() {
             name: "Equipo desconocido",
           },
           reporterName: profileById.get(f.reported_by)?.name ?? "Desconocido",
-          technicianName: f.technician_id ? (profileById.get(f.technician_id)?.name ?? null) : null,
+          technicianName: summarizeTechnicians(f.tasks, profileById),
         })),
       );
     } catch (e) {

@@ -27,6 +27,7 @@ import {
   SupplierIcon,
   UsersIcon,
   WarningIcon,
+  WorkOrderIcon,
 } from "../../components/icons";
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signOut } from "../../lib/auth";
@@ -121,6 +122,12 @@ export default function AppLayout() {
         Icon: EquipmentTypeIcon,
       },
       { key: "requests", label: "Solicitudes", href: "/requests", Icon: RequestsIcon },
+      {
+        key: "work-orders",
+        label: "Órdenes de trabajo",
+        href: "/work-orders",
+        Icon: WorkOrderIcon,
+      },
       { key: "faults", label: "Fallas", href: "/faults", Icon: WarningIcon },
       { key: "tasks", label: "Tareas", href: "/tasks", Icon: GeneralTaskIcon },
       { key: "spare-parts", label: "Repuestos", href: "/spare-parts", Icon: SparePartIcon },

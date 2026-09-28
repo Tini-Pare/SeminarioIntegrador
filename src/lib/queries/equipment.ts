@@ -135,7 +135,7 @@ export async function getEquipmentById(id: number): Promise<Equipo | null> {
 export async function listFaultsByEquipment(equipmentId: number): Promise<Solicitud[]> {
   const { data, error } = await supabase
     .from("solicitudes")
-    .select("*, orden_de_trabajo(*), solicitud_foto(*)")
+    .select("*, orden_de_trabajo(*, fallo_por_orden(fallo(*))), solicitud_foto(*)")
     .eq("eq_id_equipo", equipmentId)
     .order("sol_fecha_hora", { ascending: false });
   if (error) throw new Error(error.message);

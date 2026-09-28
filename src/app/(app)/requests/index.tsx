@@ -9,12 +9,13 @@ import {
   RefreshControl,
 } from "react-native";
 import { getProfile } from "../../../lib/auth";
-import { listMyRequests, listAllRequests } from "../../../lib/queries/faults";
+import { listMyRequests, listAllRequests, summarizeTechnicians } from "../../../lib/queries/faults";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { Pagination } from "../../../components/Pagination";
 import { ReportFaultModal } from "../../../components/ReportFaultModal";
 import { RequestList } from "../../../components/RequestList";
+import { SolicitudDetailModal } from "../../../components/SolicitudDetailModal";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
@@ -36,6 +37,7 @@ export default function RequestsScreen() {
   const [items, setItems] = useState<Item[]>([]);
   const [equipmentOptions, setEquipmentOptions] = useState<EquipmentOption[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
+  const [viewingItem, setViewingItem] = useState<Item | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -59,7 +61,7 @@ export default function RequestsScreen() {
           ...f,
           equipment: equipmentById.get(f.equipment_id) ?? { code: "—", name: "Equipo desconocido" },
           reporterName: profileById.get(f.reported_by)?.name ?? "Desconocido",
-          technicianName: f.technician_id ? (profileById.get(f.technician_id)?.name ?? null) : null,
+          technicianName: summarizeTechnicians(f.tasks, profileById),
         })),
       );
     } catch (e) {
@@ -115,7 +117,7 @@ export default function RequestsScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <RequestList items={pageItems} />
+      <RequestList items={pageItems} onSelect={isAdmin ? setViewingItem : undefined} />
 
       <Pagination page={page} pageCount={pageCount} onPage={setPage} />
 
@@ -125,6 +127,14 @@ export default function RequestsScreen() {
         onSubmitted={load}
         equipmentOptions={equipmentOptions}
       />
+
+      {isAdmin && (
+        <SolicitudDetailModal
+          solicitud={viewingItem}
+          onClose={() => setViewingItem(null)}
+          onChanged={load}
+        />
+      )}
     </ScrollView>
   );
 }
