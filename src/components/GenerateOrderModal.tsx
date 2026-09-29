@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { listActiveTaskCountsByTechnician } from "../lib/queries/faults";
 import { listFaultTypes } from "../lib/queries/faultTypes";
-import { listGeneralTasks } from "../lib/queries/generalTasks";
+import { createGeneralTask, listGeneralTasks } from "../lib/queries/generalTasks";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Fallo, Profile, Solicitud, TareaGeneral } from "../types/database";
-import { DropdownBackdrop } from "./DropdownBackdrop";
 import { Select } from "./Select";
+import { TaskCombobox } from "./TaskCombobox";
 
 type Priority = Exclude<Solicitud["priority"], null>;
 
@@ -19,17 +19,27 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   high: "Alta",
 };
 
-type TaskRow = { rowId: string; taskId: number | null; technicianId: string | null };
+type TaskRow = {
+  rowId: string;
+  taskId: number | null;
+  taskName: string;
+  technicianId: string | null;
+};
 
 function emptyRow(): TaskRow {
-  return { rowId: Math.random().toString(36).slice(2), taskId: null, technicianId: null };
+  return {
+    rowId: Math.random().toString(36).slice(2),
+    taskId: null,
+    taskName: "",
+    technicianId: null,
+  };
 }
 
 // SCRUM-24: shown when the admin generates una orden_de_trabajo from a
 // solicitud pendiente. La OT no le queda asignada entera a un técnico —
-// el admin le agrega una o más tareas genéricas y a cada una le asigna su
-// propio técnico. También es donde se define la prioridad y, si ya se
-// sabe, el fallo genérico — nada de esto lo elige quien reportó la falla.
+// el admin le agrega una o más tareas (genéricas del catálogo o cargadas a mano)
+// y a cada una le asigna su propio técnico. También es donde se define la
+// prioridad y, si ya se sabe, el fallo genérico.
 export function GenerateOrderModal({
   visible,
   onClose,
@@ -112,17 +122,46 @@ export function GenerateOrderModal({
   }
 
   async function handleConfirm() {
-    const tasks = rows
-      .filter((r) => r.taskId != null && r.technicianId != null)
-      .map((r) => ({ taskId: r.taskId as number, technicianId: r.technicianId as string }));
-    if (tasks.length === 0 || tasks.length !== rows.length) {
+    const invalidRow = rows.find((r) => !r.taskName.trim() || !r.technicianId);
+    if (invalidRow || rows.length === 0) {
       setError("Completá la tarea y el técnico en cada fila.");
       return;
     }
+
     setConfirming(true);
     setError(null);
+
     try {
-      await onConfirm({ tasks, faultTypeId, priority });
+      // Resolve task IDs: match existing generic task by name or create a new one on the fly.
+      const taskCatalog = [...generalTasks];
+      const resolvedTasks: { taskId: number; technicianId: string }[] = [];
+
+      for (const row of rows) {
+        const trimmed = row.taskName.trim();
+        const matched = taskCatalog.find(
+          (t) => t.tag_nombre_tarea.trim().toLowerCase() === trimmed.toLowerCase(),
+        );
+
+        let finalTaskId: number;
+        if (matched) {
+          finalTaskId = matched.tag_id_tarea;
+        } else {
+          const created = await createGeneralTask({
+            name: trimmed,
+            description: null,
+            estado: "activo",
+          });
+          taskCatalog.push(created);
+          finalTaskId = created.tag_id_tarea;
+        }
+
+        resolvedTasks.push({
+          taskId: finalTaskId,
+          technicianId: row.technicianId!,
+        });
+      }
+
+      await onConfirm({ tasks: resolvedTasks, faultTypeId, priority });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -139,9 +178,7 @@ export function GenerateOrderModal({
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <DropdownBackdrop open={openDropdown !== null} onPress={() => setOpenDropdown(null)} />
-
-          <ScrollView contentContainerStyle={{ padding: 24 }} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={{ padding: 24 }} keyboardShouldPersistTaps="always">
             <Text style={styles.title}>Generar orden de trabajo</Text>
 
             <Text style={styles.subtitle}>{equipmentLabel}</Text>
@@ -163,12 +200,16 @@ export function GenerateOrderModal({
                 >
                   <View style={styles.taskRowFields}>
                     <View style={[styles.fieldWrap, isTaskOpen && styles.fieldWrapRaised]}>
-                      <Select
-                        value={row.taskId}
-                        onChange={(v) => updateRow(row.rowId, { taskId: v })}
+                      <TaskCombobox
+                        value={row.taskName}
+                        onChangeText={(text) =>
+                          updateRow(row.rowId, { taskName: text, taskId: null })
+                        }
                         options={taskOptions}
-                        placeholder={taskOptions.length > 0 ? "Tarea" : "No hay tareas cargadas"}
-                        disabled={taskOptions.length === 0}
+                        onSelectOption={(opt) =>
+                          updateRow(row.rowId, { taskName: opt.label, taskId: opt.value })
+                        }
+                        placeholder="Escribí o elegí una tarea"
                         open={isTaskOpen}
                         onOpenChange={(o) => setOpenDropdown(o ? `${row.rowId}-task` : null)}
                       />
@@ -180,7 +221,9 @@ export function GenerateOrderModal({
                         onChange={(v) => updateRow(row.rowId, { technicianId: v })}
                         options={technicianOptions}
                         placeholder={
-                          technicianOptions.length > 0 ? "Técnico" : "No hay técnicos activos"
+                          technicianOptions.length > 0
+                            ? "Elegí un técnico"
+                            : "No hay técnicos activos"
                         }
                         disabled={technicianOptions.length === 0}
                         open={isTechOpen}

@@ -42,9 +42,15 @@ export function Select<T extends number | string = number>({
   hasError?: boolean;
 }) {
   const [openState, setOpenState] = useState(false);
-  const controlled = onOpenChange !== undefined;
+  const controlled = openProp !== undefined;
   const open = controlled ? !!openProp : openState;
-  const setOpen = (v: boolean) => (controlled ? onOpenChange!(v) : setOpenState(v));
+  const setOpen = (v: boolean) => {
+    if (controlled) {
+      onOpenChange?.(v);
+    } else {
+      setOpenState(v);
+    }
+  };
 
   const [query, setQuery] = useState("");
   const [flipVertical, setFlipVertical] = useState(false);
@@ -102,9 +108,9 @@ export function Select<T extends number | string = number>({
         <Text style={styles.chevron}>{open ? "▲" : "▼"}</Text>
       </Pressable>
 
-      {open && options.length > 0 && (
+      {open && (
         <>
-          {!controlled && <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />}
+          <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
 
           <View style={styles.dropdown}>
             <TextInput
@@ -120,7 +126,7 @@ export function Select<T extends number | string = number>({
             {filtered.length === 0 ? (
               <Text style={styles.noResults}>Sin resultados</Text>
             ) : (
-              <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+              <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
                 {filtered.map((opt) => (
                   <Pressable
                     key={opt.value}
@@ -180,7 +186,7 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       left: Platform.OS === "web" ? 0 : -1000,
       right: Platform.OS === "web" ? 0 : -1000,
       bottom: Platform.OS === "web" ? 0 : -1000,
-      zIndex: 30,
+      zIndex: 90,
       backgroundColor: "transparent",
     },
     dropdown: {
@@ -213,6 +219,7 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       backgroundColor: c.bgInput,
       fontSize: 13.5,
       color: c.text,
+      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
     },
     noResults: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 13, color: c.textMuted },
     option: { paddingHorizontal: 14, paddingVertical: 10 },

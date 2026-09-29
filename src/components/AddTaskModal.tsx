@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { listActiveTaskCountsByTechnician } from "../lib/queries/faults";
-import { listGeneralTasks } from "../lib/queries/generalTasks";
+import { createGeneralTask, listGeneralTasks } from "../lib/queries/generalTasks";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Profile, TareaGeneral } from "../types/database";
-import { DropdownBackdrop } from "./DropdownBackdrop";
 import { Select } from "./Select";
+import { TaskCombobox } from "./TaskCombobox";
 
-// Agrega una tarea genérica (con su propio técnico) a una OT que ya existe
-// — para cuando el admin se da cuenta a mitad de la reparación que hace
-// falta otra tarea más, sin tener que tocar las que ya están.
+// Agrega una tarea (genérica del catálogo o escrita a mano, con su propio técnico)
+// a una OT que ya existe.
 export function AddTaskModal({
   visible,
   onClose,
@@ -27,6 +26,7 @@ export function AddTaskModal({
   const [technicians, setTechnicians] = useState<Profile[]>([]);
   const [workload, setWorkload] = useState<Record<string, number>>({});
   const [taskId, setTaskId] = useState<number | null>(null);
+  const [taskName, setTaskName] = useState<string>("");
   const [technicianId, setTechnicianId] = useState<string | null>(null);
   const [openField, setOpenField] = useState<"task" | "technician" | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -37,6 +37,7 @@ export function AddTaskModal({
   useEffect(() => {
     if (!visible) return;
     setTaskId(null);
+    setTaskName("");
     setTechnicianId(null);
     setOpenField(null);
     setConfirming(false);
@@ -69,14 +70,33 @@ export function AddTaskModal({
   });
 
   async function handleConfirm() {
-    if (!taskId || !technicianId) {
-      setError("Elegí la tarea y el técnico.");
+    const trimmed = taskName.trim();
+    if (!trimmed || !technicianId) {
+      setError("Elegí o escribí una tarea y seleccioná un técnico.");
       return;
     }
+
     setConfirming(true);
     setError(null);
+
     try {
-      await onConfirm({ taskId, technicianId });
+      let finalTaskId: number;
+      const matched = generalTasks.find(
+        (t) => t.tag_nombre_tarea.trim().toLowerCase() === trimmed.toLowerCase(),
+      );
+
+      if (matched) {
+        finalTaskId = matched.tag_id_tarea;
+      } else {
+        const created = await createGeneralTask({
+          name: trimmed,
+          description: null,
+          estado: "activo",
+        });
+        finalTaskId = created.tag_id_tarea;
+      }
+
+      await onConfirm({ taskId: finalTaskId, technicianId });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -93,8 +113,6 @@ export function AddTaskModal({
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <DropdownBackdrop open={openField !== null} onPress={() => setOpenField(null)} />
-
           <Text style={styles.title}>Agregar tarea a la orden</Text>
 
           <Text style={styles.subtitle}>{equipmentLabel}</Text>
@@ -102,12 +120,18 @@ export function AddTaskModal({
           <Text style={styles.label}>Tarea</Text>
 
           <View style={[styles.fieldWrap, openField === "task" && styles.fieldWrapRaised]}>
-            <Select
-              value={taskId}
-              onChange={setTaskId}
+            <TaskCombobox
+              value={taskName}
+              onChangeText={(text) => {
+                setTaskName(text);
+                setTaskId(null);
+              }}
               options={taskOptions}
-              placeholder={taskOptions.length > 0 ? "Elegí una tarea" : "No hay tareas cargadas"}
-              disabled={taskOptions.length === 0}
+              onSelectOption={(opt) => {
+                setTaskName(opt.label);
+                setTaskId(opt.value);
+              }}
+              placeholder="Escribí o elegí una tarea"
               open={openField === "task"}
               onOpenChange={(o) => setOpenField(o ? "task" : null)}
             />
