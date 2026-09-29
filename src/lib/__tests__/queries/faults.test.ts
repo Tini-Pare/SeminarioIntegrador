@@ -19,6 +19,7 @@ import {
   listMyTasks,
   reassignTaskTechnician,
   startTask,
+  updateOrderPlannedEndDate,
   updateOrderStartDate,
 } from "../../queries/faults";
 import { supabase } from "../../supabase";
@@ -621,6 +622,50 @@ describe("updateOrderStartDate", () => {
     expect(eq).toHaveBeenCalledWith("sol_id_solicitud", 1);
     expect(insertHistorial).toHaveBeenCalledWith(
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
+    );
+  });
+});
+
+describe("updateOrderPlannedEndDate", () => {
+  it("updates ot_fecha_estimada_fin and logs historial", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "admin1" } } },
+    });
+    const single = jest.fn().mockResolvedValue({ data: { eq_id_equipo: 5 }, error: null });
+    const select = jest.fn().mockReturnValue({ single });
+    const eq = jest.fn().mockReturnValue({ select });
+    const update = jest.fn().mockReturnValue({ eq });
+    const insertHistorial = jest.fn().mockResolvedValue({ error: null });
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "historial" ? { insert: insertHistorial } : { update },
+    );
+
+    await updateOrderPlannedEndDate(1, "2026-02-01");
+
+    expect(update).toHaveBeenCalledWith({ ot_fecha_estimada_fin: "2026-02-01" });
+    expect(insertHistorial).toHaveBeenCalledWith(
+      expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
+    );
+  });
+
+  // Backstop for orden_fecha_estimada_chk (0018) — the UI already blocks this
+  // before it reaches the DB, this covers what happens if it doesn't.
+  it("translates the orden_fecha_estimada_chk violation to a friendly message", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "23514",
+        message:
+          'new row for relation "orden_de_trabajo" violates check constraint "orden_fecha_estimada_chk"',
+      },
+    });
+    const select = jest.fn().mockReturnValue({ single });
+    const eq = jest.fn().mockReturnValue({ select });
+    const update = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ update });
+
+    await expect(updateOrderPlannedEndDate(1, "2026-01-01")).rejects.toThrow(
+      "La fecha estimada no puede ser anterior a la fecha de inicio de la orden.",
     );
   });
 });

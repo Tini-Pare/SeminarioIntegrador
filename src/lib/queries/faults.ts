@@ -431,7 +431,16 @@ export async function updateOrderPlannedEndDate(
     .eq("sol_id_solicitud", solicitudId)
     .select("eq_id_equipo")
     .single();
-  if (updateError) throw new Error(updateError.message);
+  if (updateError) {
+    // Backstop for orden_fecha_estimada_chk (0018) — the UI already blocks
+    // this before it gets here, but a stale form or a second caller could
+    // still hit the constraint, and the raw "violates check constraint
+    // ..." message is meaningless to a user.
+    if (updateError.code === "23514" && updateError.message.includes("orden_fecha_estimada_chk")) {
+      throw new Error("La fecha estimada no puede ser anterior a la fecha de inicio de la orden.");
+    }
+    throw new Error(updateError.message);
+  }
 
   await logHistorial(
     orden.eq_id_equipo,

@@ -193,6 +193,14 @@ export default function WorkOrderDetail() {
       setError("Ingresá una fecha válida (dd/mm/aaaa).");
       return;
     }
+    if (
+      !clear &&
+      solicitud.order_start_date &&
+      toDbDate(plannedDraft) < solicitud.order_start_date
+    ) {
+      setError("La fecha estimada no puede ser anterior a la fecha de inicio de la orden.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
