@@ -337,6 +337,7 @@ export type Database = {
           ot_tipo_orden: string;
           ot_fecha_inicio: string;
           ot_fecha_fin: string | null;
+          ot_fecha_estimada_fin: string | null;
           ot_observacion: string | null;
           ot_estado: "assigned" | "in_progress" | "resolved";
           ot_prioridad: "low" | "medium" | "high";
@@ -350,6 +351,7 @@ export type Database = {
           ot_tipo_orden?: string;
           ot_fecha_inicio?: string;
           ot_fecha_fin?: string | null;
+          ot_fecha_estimada_fin?: string | null;
           ot_observacion?: string | null;
           ot_estado?: "assigned" | "in_progress" | "resolved";
           ot_prioridad?: "low" | "medium" | "high";
@@ -363,6 +365,7 @@ export type Database = {
           ot_tipo_orden?: string;
           ot_fecha_inicio?: string;
           ot_fecha_fin?: string | null;
+          ot_fecha_estimada_fin?: string | null;
           ot_observacion?: string | null;
           ot_estado?: "assigned" | "in_progress" | "resolved";
           ot_prioridad?: "low" | "medium" | "high";
@@ -839,6 +842,10 @@ export type Solicitud = {
   order_id: number | null;
   order_start_date: string | null;
   order_end_date: string | null;
+  // The admin's target date for closing the OT (HU 8). Unlike
+  // order_end_date it's set by hand and can be rescheduled while the order
+  // is open; null on orders planned before migration 0018.
+  order_planned_end_date: string | null;
   fault_type_name: string | null;
   tasks: SolicitudTask[];
   // photo_url is kept as photo_urls[0] for screens that only show a single

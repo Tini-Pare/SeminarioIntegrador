@@ -76,6 +76,7 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
     order_id: orden?.ot_id_orden ?? null,
     order_start_date: orden?.ot_fecha_inicio ?? null,
     order_end_date: orden?.ot_fecha_fin ?? null,
+    order_planned_end_date: orden?.ot_fecha_estimada_fin ?? null,
     fault_type_name: orden?.fallo_por_orden?.[0]?.fallo.fa_nombre ?? null,
     tasks,
     photo_url: resolvePhotoUrls(row.solicitud_foto, row.sol_foto_url)[0] ?? null,
@@ -393,6 +394,31 @@ export async function updateOrderStartDate(solicitudId: number, newDate: string)
     orden.eq_id_equipo,
     "Replanificada",
     `Fecha de inicio de la orden reprogramada al ${newDate}.`,
+  );
+}
+
+// The target date for closing the OT, set and rescheduled by the admin.
+// Separate from ot_fecha_fin (the real close date, written by
+// sync_orden_estado) so planning never fights the automatic calculation.
+// Passing null clears the estimate.
+export async function updateOrderPlannedEndDate(
+  solicitudId: number,
+  newDate: string | null,
+): Promise<void> {
+  const { data: orden, error: updateError } = await supabase
+    .from("orden_de_trabajo")
+    .update({ ot_fecha_estimada_fin: newDate })
+    .eq("sol_id_solicitud", solicitudId)
+    .select("eq_id_equipo")
+    .single();
+  if (updateError) throw new Error(updateError.message);
+
+  await logHistorial(
+    orden.eq_id_equipo,
+    "Replanificada",
+    newDate
+      ? `Fecha estimada de resolución fijada para el ${newDate}.`
+      : "Se quitó la fecha estimada de resolución de la orden.",
   );
 }
 
