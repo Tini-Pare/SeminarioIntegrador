@@ -555,7 +555,12 @@ export async function startTask(taskId: number): Promise<void> {
 // OT, sync_orden_estado ya la dejó (y a la solicitud) como resuelta — acá
 // solo se agrega esa entrada al historial, igual que hacía el viejo
 // advanceStatus("resolved").
-export async function finishTask(taskId: number): Promise<void> {
+export type ConsumedPart = { repId: number; cantidad: number };
+
+export async function finishTask(
+  taskId: number,
+  repuestos: ConsumedPart[] = [],
+): Promise<void> {
   const userId = await currentUserId();
   const { data: task, error: checkError } = await supabase
     .from("tareas_realizadas_orden")
@@ -572,11 +577,14 @@ export async function finishTask(taskId: number): Promise<void> {
     throw new Error("Iniciá la tarea antes de finalizarla.");
   }
 
-  const { error: updateError } = await supabase
-    .from("tareas_realizadas_orden")
-    .update({ taro_fecha_fin: getTodayDbDate() })
-    .eq("taro_id_tarea_orden", taskId);
-  if (updateError) throw new Error(updateError.message);
+  // security definer: registra el consumo de repuestos (resta stock) y
+  // marca la tarea finalizada en la misma transacción — si el stock no
+  // alcanza, ninguna de las dos cosas queda guardada (ver migración 0021).
+  const { error: rpcError } = await supabase.rpc("finalizar_tarea", {
+    p_taro_id_tarea_orden: taskId,
+    p_repuestos: repuestos.map((r) => ({ rep_id: r.repId, cantidad: r.cantidad })),
+  });
+  if (rpcError) throw new Error(rpcError.message);
 
   const eqId = (task.orden_de_trabajo as { eq_id_equipo: number } | null)?.eq_id_equipo;
   const taskName =

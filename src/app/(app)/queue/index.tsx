@@ -9,12 +9,19 @@ import {
   StyleSheet,
   RefreshControl,
 } from "react-native";
-import { finishTask, listMyTasks, startTask, type MyTask } from "../../../lib/queries/faults";
+import {
+  finishTask,
+  listMyTasks,
+  startTask,
+  type ConsumedPart,
+  type MyTask,
+} from "../../../lib/queries/faults";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { usePagination } from "../../../lib/usePagination";
+import { FinishTaskModal } from "../../../components/FinishTaskModal";
 import { LocationIcon, WarningIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import type { ThemeColors } from "../../../lib/theme";
@@ -57,6 +64,7 @@ export default function QueueScreen() {
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actingOn, setActingOn] = useState<number | null>(null);
+  const [finishingTask, setFinishingTask] = useState<Item | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -115,17 +123,30 @@ export default function QueueScreen() {
     setRefreshing(false);
   }
 
+  // Iniciar tarea sigue siendo inmediato; finalizar primero pregunta qué
+  // repuestos se usaron (FinishTaskModal), porque esa cantidad resta stock
+  // y no hay forma de deshacerlo con un solo tap.
   async function handleAction(item: Item) {
-    setActingOn(item.taskRowId);
-    try {
-      if (!item.startDate) await startTask(item.taskRowId);
-      else if (!item.endDate) await finishTask(item.taskRowId);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setActingOn(null);
+    if (!item.startDate) {
+      setActingOn(item.taskRowId);
+      try {
+        await startTask(item.taskRowId);
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setActingOn(null);
+      }
+      return;
     }
+    if (!item.endDate) setFinishingTask(item);
+  }
+
+  async function handleConfirmFinish(repuestos: ConsumedPart[]) {
+    if (!finishingTask) return;
+    await finishTask(finishingTask.taskRowId, repuestos);
+    await load();
+    setFinishingTask(null);
   }
 
   function actionLabel(item: Item): string | null {
@@ -154,11 +175,12 @@ export default function QueueScreen() {
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Cola de trabajo</Text>
@@ -298,7 +320,20 @@ export default function QueueScreen() {
       )}
 
       <Pagination page={page} pageCount={pageCount} onPage={setPage} />
-    </ScrollView>
+      </ScrollView>
+
+      <FinishTaskModal
+        visible={!!finishingTask}
+        onClose={() => setFinishingTask(null)}
+        onConfirm={handleConfirmFinish}
+        taskName={finishingTask?.taskName ?? ""}
+        equipmentLabel={
+          finishingTask
+            ? `${finishingTask.equipment.code} · ${finishingTask.equipment.name}`
+            : ""
+        }
+      />
+    </>
   );
 }
 

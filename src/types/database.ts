@@ -66,6 +66,13 @@ export type Database = {
         Args: { p_rc_id: number };
         Returns: void;
       };
+      finalizar_tarea: {
+        Args: {
+          p_taro_id_tarea_orden: number;
+          p_repuestos?: { rep_id: number; cantidad: number }[] | null;
+        };
+        Returns: void;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -449,6 +456,42 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
+          },
+        ];
+      };
+      repuesto_para_tarea: {
+        Row: {
+          taro_id_tarea_orden: number;
+          rep_id: number;
+          repta_canti_usada: number;
+          repta_desc_uso: string | null;
+        };
+        Insert: {
+          taro_id_tarea_orden: number;
+          rep_id: number;
+          repta_canti_usada: number;
+          repta_desc_uso?: string | null;
+        };
+        Update: {
+          taro_id_tarea_orden?: number;
+          rep_id?: number;
+          repta_canti_usada?: number;
+          repta_desc_uso?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "repuesto_para_tarea_taro_id_tarea_orden_fkey";
+            columns: ["taro_id_tarea_orden"];
+            isOneToOne: false;
+            referencedRelation: "tareas_realizadas_orden";
+            referencedColumns: ["taro_id_tarea_orden"];
+          },
+          {
+            foreignKeyName: "repuesto_para_tarea_rep_id_fkey";
+            columns: ["rep_id"];
+            isOneToOne: false;
+            referencedRelation: "repuestos";
+            referencedColumns: ["rep_id"];
           },
         ];
       };
