@@ -872,6 +872,9 @@ export type SolicitudTask = {
   technicianId: string;
   startDate: string | null; // taro_fecha_inicio — null until the técnico starts it
   endDate: string | null; // taro_fecha_fin — null until the técnico finishes it
+  // What the técnico registered as used on this tarea (finalizar_tarea,
+  // migration 0021) — empty until finished, and stays empty if none was used.
+  consumedParts: { repId: number; nombre: string; cantidad: number }[];
 };
 
 export type Solicitud = {

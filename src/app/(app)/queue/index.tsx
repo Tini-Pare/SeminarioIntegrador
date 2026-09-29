@@ -24,6 +24,7 @@ import { usePagination } from "../../../lib/usePagination";
 import { FinishTaskModal } from "../../../components/FinishTaskModal";
 import { LocationIcon, WarningIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
+import { TableFilterBar } from "../../../components/TableFilterBar";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import type { Equipo, Solicitud } from "../../../types/database";
@@ -44,12 +45,22 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   medium: "Media",
   high: "Alta",
 };
-const PRIORITY_OPTIONS: PriorityFilter[] = ["all", "high", "medium", "low"];
+type TaskStatus = "pending" | "in_progress" | "done";
+type TaskStatusFilter = "all" | TaskStatus;
+
+const STATUS_FILTER_LABELS: Record<TaskStatus, string> = {
+  pending: "Pendiente",
+  in_progress: "En curso",
+  done: "Finalizada",
+};
+function taskStatus(task: MyTask): TaskStatus {
+  if (task.endDate) return "done";
+  if (task.startDate) return "in_progress";
+  return "pending";
+}
 
 function taskStatusLabel(task: MyTask): string {
-  if (task.endDate) return "Finalizada";
-  if (task.startDate) return "En curso";
-  return "Pendiente";
+  return STATUS_FILTER_LABELS[taskStatus(task)];
 }
 
 function taskRank(task: MyTask): number {
@@ -66,6 +77,7 @@ export default function QueueScreen() {
   const [actingOn, setActingOn] = useState<number | null>(null);
   const [finishingTask, setFinishingTask] = useState<Item | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -161,8 +173,12 @@ export default function QueueScreen() {
   );
 
   const visibleItems = useMemo(() => {
-    return items.filter((item) => priorityFilter === "all" || item.priority === priorityFilter);
-  }, [items, priorityFilter]);
+    return items.filter(
+      (item) =>
+        (priorityFilter === "all" || item.priority === priorityFilter) &&
+        (statusFilter === "all" || taskStatus(item) === statusFilter),
+    );
+  }, [items, priorityFilter, statusFilter]);
 
   const priorityColors: Record<Priority, { bg: string; fg: string }> = {
     low: colors.urgencyLow,
@@ -170,7 +186,10 @@ export default function QueueScreen() {
     high: colors.urgencyHigh,
   };
 
-  const { pageItems, page, pageCount, setPage } = usePagination(visibleItems, priorityFilter);
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    visibleItems,
+    `${priorityFilter}|${statusFilter}`,
+  );
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
@@ -190,36 +209,39 @@ export default function QueueScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <View style={styles.filtersRow}>
-        <View style={styles.urgencyChips}>
-          {PRIORITY_OPTIONS.map((p) => {
-            const active = priorityFilter === p;
-            const meta = p === "all" ? null : priorityColors[p];
-            return (
-              <Pressable
-                key={p}
-                style={[
-                  styles.urgencyChip,
-                  active && {
-                    backgroundColor: meta?.bg ?? colors.bgToggle,
-                    borderColor: meta?.fg ?? colors.textMuted,
-                  },
-                ]}
-                onPress={() => setPriorityFilter(p)}
-              >
-                <Text
-                  style={[
-                    styles.urgencyChipText,
-                    active && { color: meta?.fg ?? colors.text, fontWeight: "700" },
-                  ]}
-                >
-                  {p === "all" ? "Toda prioridad" : PRIORITY_LABELS[p]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <TableFilterBar
+        filters={[
+          {
+            key: "prioridad",
+            label: "Prioridad",
+            value: priorityFilter,
+            onChange: (v) => setPriorityFilter(v as PriorityFilter),
+            options: [
+              { value: "all", label: "Todas" },
+              { value: "high", label: "Alta" },
+              { value: "medium", label: "Media" },
+              { value: "low", label: "Baja" },
+            ],
+          },
+          {
+            key: "estado",
+            label: "Estado",
+            value: statusFilter,
+            onChange: (v) => setStatusFilter(v as TaskStatusFilter),
+            options: [
+              { value: "all", label: "Todas" },
+              { value: "pending", label: "Pendiente" },
+              { value: "in_progress", label: "En curso" },
+              { value: "done", label: "Finalizada" },
+            ],
+          },
+        ]}
+        right={
+          <Text style={styles.count}>
+            {visibleItems.length} {visibleItems.length === 1 ? "tarea" : "tareas"}
+          </Text>
+        }
+      />
 
       {visibleItems.length === 0 ? (
         <Text style={styles.empty}>
@@ -300,6 +322,13 @@ export default function QueueScreen() {
               {item.endDate ? (
                 <View style={styles.doneRow}>
                   <Text style={styles.doneText}>✓ Finalizada</Text>
+
+                  {item.consumedParts.length > 0 && (
+                    <Text style={styles.consumedText}>
+                      Repuestos usados:{" "}
+                      {item.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                    </Text>
+                  )}
                 </View>
               ) : (
                 label && (
@@ -354,23 +383,7 @@ function makeStyles(c: ThemeColors) {
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },
     empty: { padding: 40, textAlign: "center", color: c.textMuted },
-    filtersRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      alignItems: "center",
-      gap: 10,
-      marginBottom: 18,
-    },
-    urgencyChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-    urgencyChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgStatCard,
-    },
-    urgencyChipText: { fontSize: 12.5, fontWeight: "600", color: c.textLabel },
+    count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
     card: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -423,7 +436,8 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     actionText: { color: "#fff", fontSize: 13.5, fontWeight: "600" },
-    doneRow: { marginTop: 14, flexDirection: "row", alignItems: "center" },
+    doneRow: { marginTop: 14, gap: 4 },
     doneText: { color: c.success, fontSize: 13.5, fontWeight: "600" },
+    consumedText: { fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
   });
 }

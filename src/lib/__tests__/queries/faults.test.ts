@@ -25,7 +25,7 @@ import {
 import { supabase } from "../../supabase";
 
 const SOLICITUD_SELECT =
-  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea))), solicitud_foto(*)";
+  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
 
 beforeEach(() => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
@@ -286,6 +286,7 @@ describe("listAllRequests", () => {
             technicianId: "tec1",
             startDate: null,
             endDate: null,
+            consumedParts: [],
           },
           {
             id: 21,
@@ -294,6 +295,7 @@ describe("listAllRequests", () => {
             technicianId: "tec2",
             startDate: "2026-01-04",
             endDate: null,
+            consumedParts: [],
           },
         ],
       }),
@@ -685,6 +687,9 @@ describe("listMyTasks", () => {
           taro_fecha_inicio: null,
           taro_fecha_fin: null,
           tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
+          repuesto_para_tarea: [
+            { rep_id: 4, repta_canti_usada: 2, repuestos: { rep_nombre: "Filtro de aire" } },
+          ],
           orden_de_trabajo: {
             ot_estado: "assigned",
             ot_prioridad: "high",
@@ -725,6 +730,7 @@ describe("listMyTasks", () => {
         photoUrl: null,
         photoUrls: [],
         faultTypeName: "Pérdida de gas",
+        consumedParts: [{ repId: 4, nombre: "Filtro de aire", cantidad: 2 }],
       },
     ]);
   });
