@@ -6,6 +6,7 @@ import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Profile, TareaGeneral } from "../types/database";
+import { DropdownBackdrop } from "./DropdownBackdrop";
 import { Select } from "./Select";
 
 // Agrega una tarea genérica (con su propio técnico) a una OT que ya existe
@@ -27,6 +28,7 @@ export function AddTaskModal({
   const [workload, setWorkload] = useState<Record<string, number>>({});
   const [taskId, setTaskId] = useState<number | null>(null);
   const [technicianId, setTechnicianId] = useState<string | null>(null);
+  const [openField, setOpenField] = useState<"task" | "technician" | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
@@ -36,6 +38,7 @@ export function AddTaskModal({
     if (!visible) return;
     setTaskId(null);
     setTechnicianId(null);
+    setOpenField(null);
     setConfirming(false);
     setError(null);
     Promise.all([listProfiles(), listActiveTaskCountsByTechnician()])
@@ -56,10 +59,14 @@ export function AddTaskModal({
     value: t.tag_id_tarea,
     label: t.tag_nombre_tarea,
   }));
-  const technicianOptions = technicians.map((t) => ({
-    value: t.id,
-    label: `${t.name} — ${workload[t.id] ?? 0} activa${(workload[t.id] ?? 0) === 1 ? "" : "s"}`,
-  }));
+  const technicianOptions = technicians.map((t) => {
+    const count = workload[t.id] ?? 0;
+    const countLabel = count === 1 ? "1 OT activa" : `${count} OT activas`;
+    return {
+      value: t.id,
+      label: `${t.name} · ${countLabel}`,
+    };
+  });
 
   async function handleConfirm() {
     if (!taskId || !technicianId) {
@@ -86,26 +93,39 @@ export function AddTaskModal({
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
+          <DropdownBackdrop open={openField !== null} onPress={() => setOpenField(null)} />
+
           <Text style={styles.title}>Agregar tarea a la orden</Text>
+
           <Text style={styles.subtitle}>{equipmentLabel}</Text>
 
           <Text style={styles.label}>Tarea</Text>
-          <Select
-            value={taskId}
-            onChange={setTaskId}
-            options={taskOptions}
-            placeholder={taskOptions.length > 0 ? "Elegí una tarea" : "No hay tareas cargadas"}
-            disabled={taskOptions.length === 0}
-          />
+
+          <View style={[styles.fieldWrap, openField === "task" && styles.fieldWrapRaised]}>
+            <Select
+              value={taskId}
+              onChange={setTaskId}
+              options={taskOptions}
+              placeholder={taskOptions.length > 0 ? "Elegí una tarea" : "No hay tareas cargadas"}
+              disabled={taskOptions.length === 0}
+              open={openField === "task"}
+              onOpenChange={(o) => setOpenField(o ? "task" : null)}
+            />
+          </View>
 
           <Text style={styles.label}>Técnico</Text>
-          <Select
-            value={technicianId}
-            onChange={setTechnicianId}
-            options={technicianOptions}
-            placeholder={technicianOptions.length > 0 ? "Elegí un técnico" : "No hay técnicos"}
-            disabled={technicianOptions.length === 0}
-          />
+
+          <View style={[styles.fieldWrap, openField === "technician" && styles.fieldWrapRaised]}>
+            <Select
+              value={technicianId}
+              onChange={setTechnicianId}
+              options={technicianOptions}
+              placeholder={technicianOptions.length > 0 ? "Elegí un técnico" : "No hay técnicos"}
+              disabled={technicianOptions.length === 0}
+              open={openField === "technician"}
+              onOpenChange={(o) => setOpenField(o ? "technician" : null)}
+            />
+          </View>
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -139,6 +159,7 @@ function makeStyles(c: ThemeColors) {
       width: "100%",
       maxWidth: 440,
       alignSelf: "center",
+      position: "relative",
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
@@ -148,6 +169,13 @@ function makeStyles(c: ThemeColors) {
       color: c.textLabel,
       marginTop: 18,
       marginBottom: 8,
+    },
+    fieldWrap: {
+      position: "relative",
+      zIndex: 1,
+    },
+    fieldWrapRaised: {
+      zIndex: 50,
     },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 24 },

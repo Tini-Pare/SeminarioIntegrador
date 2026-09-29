@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
@@ -38,10 +47,13 @@ export function Select<T extends number | string = number>({
   const setOpen = (v: boolean) => (controlled ? onOpenChange!(v) : setOpenState(v));
 
   const [query, setQuery] = useState("");
+  const [flipVertical, setFlipVertical] = useState(false);
   const searchRef = useRef<TextInput>(null);
+  const controlRef = useRef<View>(null);
 
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  const { height: windowHeight } = useWindowDimensions();
+  const styles = makeStyles(colors, flipVertical);
 
   const selected = options.find((o) => o.value === value) ?? null;
 
@@ -49,15 +61,36 @@ export function Select<T extends number | string = number>({
     if (open) {
       setQuery("");
       const t = setTimeout(() => searchRef.current?.focus(), 50);
+
+      if (
+        Platform.OS === "web" &&
+        typeof (controlRef.current as any)?.getBoundingClientRect === "function"
+      ) {
+        const rect = (controlRef.current as any).getBoundingClientRect();
+        const spaceBelow = windowHeight - rect.bottom;
+        const dropdownHeight = 240;
+        setFlipVertical(spaceBelow < dropdownHeight && rect.top > dropdownHeight);
+      } else {
+        controlRef.current?.measure((x, y, width, height, pageX, pageY) => {
+          const dropdownHeight = 240;
+          const spaceBelow = windowHeight - (pageY ?? 0) - (height ?? 44);
+          if (spaceBelow < dropdownHeight && (pageY ?? 0) > dropdownHeight) {
+            setFlipVertical(true);
+          } else {
+            setFlipVertical(false);
+          }
+        });
+      }
+
       return () => clearTimeout(t);
     }
-  }, [open]);
+  }, [open, windowHeight]);
 
   const q = query.trim().toLowerCase();
   const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
 
   return (
-    <View style={[styles.wrap, open && styles.wrapOpen]}>
+    <View ref={controlRef} style={[styles.wrap, open && styles.wrapOpen]}>
       <Pressable
         style={[styles.control, disabled && styles.disabled, hasError && styles.controlError]}
         onPress={() => !disabled && setOpen(!open)}
@@ -114,13 +147,13 @@ export function Select<T extends number | string = number>({
   );
 }
 
-function makeStyles(c: ThemeColors) {
+function makeStyles(c: ThemeColors, flipVertical: boolean) {
   return StyleSheet.create({
     // Closed fields stay above the backdrop so a single tap on a sibling
     // dropdown's control switches to it (instead of the first tap only
     // dismissing the one that was open).
     wrap: { position: "relative", zIndex: 40 },
-    wrapOpen: { zIndex: 50 },
+    wrapOpen: { zIndex: 100 },
     control: {
       height: 44,
       paddingHorizontal: 14,
@@ -152,7 +185,8 @@ function makeStyles(c: ThemeColors) {
     },
     dropdown: {
       position: "absolute",
-      top: 48,
+      top: flipVertical ? undefined : 48,
+      bottom: flipVertical ? 48 : undefined,
       left: 0,
       right: 0,
       backgroundColor: c.bgModal,
@@ -161,13 +195,13 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 10,
       maxHeight: 230,
       overflow: "hidden",
-      zIndex: 60,
+      zIndex: 110,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
-      shadowRadius: 5,
-      elevation: 5,
-      ...(Platform.OS === "web" ? { boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)" } : {}),
+      shadowRadius: 8,
+      elevation: 8,
+      ...(Platform.OS === "web" ? { boxShadow: "0px 6px 16px rgba(0, 0, 0, 0.35)" } : {}),
     },
     search: {
       height: 40,

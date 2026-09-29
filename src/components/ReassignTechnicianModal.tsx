@@ -5,6 +5,7 @@ import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Profile } from "../types/database";
+import { DropdownBackdrop } from "./DropdownBackdrop";
 import { Select } from "./Select";
 
 // SCRUM-26: reasigna el técnico de una tarea puntual dentro de una OT ya
@@ -29,6 +30,7 @@ export function ReassignTechnicianModal({
   const [technicians, setTechnicians] = useState<Profile[]>([]);
   const [workload, setWorkload] = useState<Record<string, number>>({});
   const [technicianId, setTechnicianId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
@@ -37,6 +39,7 @@ export function ReassignTechnicianModal({
   useEffect(() => {
     if (!visible) return;
     setTechnicianId(currentTechnicianId);
+    setOpen(false);
     setConfirming(false);
     setError(null);
     Promise.all([listProfiles(), listActiveTaskCountsByTechnician()])
@@ -50,10 +53,14 @@ export function ReassignTechnicianModal({
       });
   }, [visible, currentTechnicianId]);
 
-  const technicianOptions = technicians.map((t) => ({
-    value: t.id,
-    label: `${t.name} — ${workload[t.id] ?? 0} activa${(workload[t.id] ?? 0) === 1 ? "" : "s"}`,
-  }));
+  const technicianOptions = technicians.map((t) => {
+    const count = workload[t.id] ?? 0;
+    const countLabel = count === 1 ? "1 OT activa" : `${count} OT activas`;
+    return {
+      value: t.id,
+      label: `${t.name} · ${countLabel}`,
+    };
+  });
 
   async function handleConfirm() {
     if (!technicianId) {
@@ -80,21 +87,29 @@ export function ReassignTechnicianModal({
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
+          <DropdownBackdrop open={open} onPress={() => setOpen(false)} />
+
           <Text style={styles.title}>Reasignar técnico</Text>
+
           <Text style={styles.subtitle}>
             {equipmentLabel} · {taskLabel}
           </Text>
 
           <Text style={styles.label}>Técnico responsable</Text>
-          <Select
-            value={technicianId}
-            onChange={setTechnicianId}
-            options={technicianOptions}
-            placeholder={
-              technicianOptions.length > 0 ? "Elegí un técnico" : "No hay técnicos activos"
-            }
-            disabled={technicianOptions.length === 0}
-          />
+
+          <View style={[styles.fieldWrap, open && styles.fieldWrapRaised]}>
+            <Select
+              value={technicianId}
+              onChange={setTechnicianId}
+              options={technicianOptions}
+              placeholder={
+                technicianOptions.length > 0 ? "Elegí un técnico" : "No hay técnicos activos"
+              }
+              disabled={technicianOptions.length === 0}
+              open={open}
+              onOpenChange={setOpen}
+            />
+          </View>
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -128,6 +143,7 @@ function makeStyles(c: ThemeColors) {
       width: "100%",
       maxWidth: 440,
       alignSelf: "center",
+      position: "relative",
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
@@ -137,6 +153,13 @@ function makeStyles(c: ThemeColors) {
       color: c.textLabel,
       marginTop: 18,
       marginBottom: 8,
+    },
+    fieldWrap: {
+      position: "relative",
+      zIndex: 1,
+    },
+    fieldWrapRaised: {
+      zIndex: 50,
     },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 24 },

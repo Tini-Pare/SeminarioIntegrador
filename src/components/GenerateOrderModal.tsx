@@ -7,6 +7,7 @@ import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Fallo, Profile, Solicitud, TareaGeneral } from "../types/database";
+import { DropdownBackdrop } from "./DropdownBackdrop";
 import { Select } from "./Select";
 
 type Priority = Exclude<Solicitud["priority"], null>;
@@ -48,6 +49,7 @@ export function GenerateOrderModal({
   const [technicians, setTechnicians] = useState<Profile[]>([]);
   const [workload, setWorkload] = useState<Record<string, number>>({});
   const [rows, setRows] = useState<TaskRow[]>([emptyRow()]);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [faultTypes, setFaultTypes] = useState<Fallo[]>([]);
   const [faultTypeId, setFaultTypeId] = useState<number | null>(null);
   const [priority, setPriority] = useState<Priority>("medium");
@@ -59,6 +61,7 @@ export function GenerateOrderModal({
   useEffect(() => {
     if (!visible) return;
     setRows([emptyRow()]);
+    setOpenDropdown(null);
     setFaultTypeId(null);
     setPriority("medium");
     setConfirming(false);
@@ -82,10 +85,14 @@ export function GenerateOrderModal({
 
   // Shows current open-task count next to each técnico's name so the
   // admin can see who's overloaded before picking one.
-  const technicianOptions = technicians.map((t) => ({
-    value: t.id,
-    label: `${t.name} — ${workload[t.id] ?? 0} activa${(workload[t.id] ?? 0) === 1 ? "" : "s"}`,
-  }));
+  const technicianOptions = technicians.map((t) => {
+    const count = workload[t.id] ?? 0;
+    const countLabel = count === 1 ? "1 OT activa" : `${count} OT activas`;
+    return {
+      value: t.id,
+      label: `${t.name} · ${countLabel}`,
+    };
+  });
   const taskOptions = generalTasks.map((t) => ({
     value: t.tag_id_tarea,
     label: t.tag_nombre_tarea,
@@ -132,54 +139,89 @@ export function GenerateOrderModal({
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <ScrollView contentContainerStyle={{ padding: 24 }}>
+          <DropdownBackdrop open={openDropdown !== null} onPress={() => setOpenDropdown(null)} />
+
+          <ScrollView contentContainerStyle={{ padding: 24 }} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>Generar orden de trabajo</Text>
+
             <Text style={styles.subtitle}>{equipmentLabel}</Text>
 
             <Text style={styles.label}>Tareas y técnicos</Text>
 
-            {rows.map((row) => (
-              <View key={row.rowId} style={styles.taskRow}>
-                <View style={styles.taskRowFields}>
-                  <Select
-                    value={row.taskId}
-                    onChange={(v) => updateRow(row.rowId, { taskId: v })}
-                    options={taskOptions}
-                    placeholder={taskOptions.length > 0 ? "Tarea" : "No hay tareas cargadas"}
-                    disabled={taskOptions.length === 0}
-                  />
+            {rows.map((row, idx) => {
+              const isTaskOpen = openDropdown === `${row.rowId}-task`;
+              const isTechOpen = openDropdown === `${row.rowId}-tech`;
+              const isRowOpen = isTaskOpen || isTechOpen;
+              return (
+                <View
+                  key={row.rowId}
+                  style={[
+                    styles.taskRow,
+                    isRowOpen && styles.taskRowRaised,
+                    { zIndex: isRowOpen ? 100 : rows.length - idx },
+                  ]}
+                >
+                  <View style={styles.taskRowFields}>
+                    <View style={[styles.fieldWrap, isTaskOpen && styles.fieldWrapRaised]}>
+                      <Select
+                        value={row.taskId}
+                        onChange={(v) => updateRow(row.rowId, { taskId: v })}
+                        options={taskOptions}
+                        placeholder={taskOptions.length > 0 ? "Tarea" : "No hay tareas cargadas"}
+                        disabled={taskOptions.length === 0}
+                        open={isTaskOpen}
+                        onOpenChange={(o) => setOpenDropdown(o ? `${row.rowId}-task` : null)}
+                      />
+                    </View>
 
-                  <Select
-                    value={row.technicianId}
-                    onChange={(v) => updateRow(row.rowId, { technicianId: v })}
-                    options={technicianOptions}
-                    placeholder={technicianOptions.length > 0 ? "Técnico" : "No hay técnicos"}
-                    disabled={technicianOptions.length === 0}
-                  />
+                    <View style={[styles.fieldWrap, isTechOpen && styles.fieldWrapRaised]}>
+                      <Select
+                        value={row.technicianId}
+                        onChange={(v) => updateRow(row.rowId, { technicianId: v })}
+                        options={technicianOptions}
+                        placeholder={
+                          technicianOptions.length > 0 ? "Técnico" : "No hay técnicos activos"
+                        }
+                        disabled={technicianOptions.length === 0}
+                        open={isTechOpen}
+                        onOpenChange={(o) => setOpenDropdown(o ? `${row.rowId}-tech` : null)}
+                      />
+                    </View>
+                  </View>
+
+                  {rows.length > 1 && (
+                    <Pressable style={styles.removeRowButton} onPress={() => removeRow(row.rowId)}>
+                      <Text style={styles.removeRowText}>✕</Text>
+                    </Pressable>
+                  )}
                 </View>
-
-                {rows.length > 1 && (
-                  <Pressable style={styles.removeRowButton} onPress={() => removeRow(row.rowId)}>
-                    <Text style={styles.removeRowText}>✕</Text>
-                  </Pressable>
-                )}
-              </View>
-            ))}
+              );
+            })}
 
             <Pressable style={styles.addRowButton} onPress={addRow}>
               <Text style={styles.addRowText}>+ Agregar tarea</Text>
             </Pressable>
 
             <Text style={styles.label}>Falla genérica (opcional)</Text>
-            <Select
-              value={faultTypeId}
-              onChange={setFaultTypeId}
-              options={faultTypeOptions}
-              placeholder={
-                faultTypeOptions.length > 0 ? "Elegí un tipo de falla" : "No hay fallas cargadas"
-              }
-              disabled={faultTypeOptions.length === 0}
-            />
+
+            <View
+              style={[
+                styles.faultTypeWrap,
+                openDropdown === "faultType" && styles.faultTypeWrapRaised,
+              ]}
+            >
+              <Select
+                value={faultTypeId}
+                onChange={setFaultTypeId}
+                options={faultTypeOptions}
+                placeholder={
+                  faultTypeOptions.length > 0 ? "Elegí un tipo de falla" : "No hay fallas cargadas"
+                }
+                disabled={faultTypeOptions.length === 0}
+                open={openDropdown === "faultType"}
+                onOpenChange={(o) => setOpenDropdown(o ? "faultType" : null)}
+              />
+            </View>
 
             <Text style={styles.hint}>
               Elegila si ya evaluaste el equipo y sabés qué falla es. Si todavía no la
@@ -187,6 +229,7 @@ export function GenerateOrderModal({
             </Text>
 
             <Text style={styles.label}>Prioridad</Text>
+
             <View style={styles.chipsRow}>
               {PRIORITIES.map((p) => (
                 <Pressable
@@ -240,6 +283,7 @@ function makeStyles(c: ThemeColors) {
       maxWidth: 460,
       alignSelf: "center",
       maxHeight: "90%",
+      position: "relative",
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
@@ -251,8 +295,35 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 8,
     },
     hint: { marginTop: 8, fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
-    taskRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
-    taskRowFields: { flex: 1, gap: 8 },
+    taskRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+      marginBottom: 8,
+      position: "relative",
+      zIndex: 1,
+    },
+    taskRowRaised: {
+      zIndex: 100,
+    },
+    taskRowFields: {
+      flex: 1,
+      gap: 8,
+    },
+    fieldWrap: {
+      position: "relative",
+      zIndex: 1,
+    },
+    fieldWrapRaised: {
+      zIndex: 50,
+    },
+    faultTypeWrap: {
+      position: "relative",
+      zIndex: 1,
+    },
+    faultTypeWrapRaised: {
+      zIndex: 50,
+    },
     removeRowButton: {
       width: 32,
       height: 32,
