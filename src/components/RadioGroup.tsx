@@ -23,7 +23,7 @@ export function RadioGroup<T extends string | number>({
   disabled = false,
   style,
 }: {
-  value: T;
+  value?: T | null;
   onChange: (value: T) => void;
   options: RadioOption<T>[];
   name?: string;

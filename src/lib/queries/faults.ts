@@ -62,16 +62,30 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
       startDate: t.taro_fecha_inicio,
       endDate: t.taro_fecha_fin,
     }));
+  let status: Solicitud["status"] = "new";
+  if (row.sol_estado === "rechazada") {
+    status = "rejected";
+  } else if (orden) {
+    status = orden.ot_estado;
+  } else if (row.sol_estado === "resuelta") {
+    status = "resolved";
+  } else if (row.sol_estado === "en_proceso") {
+    status = "in_progress";
+  } else {
+    status = "new";
+  }
+
+  const isAtendida = row.sol_atendida ?? status !== "new";
+
   return {
     id: row.sol_id_solicitud,
     equipment_id: row.eq_id_equipo,
     reported_by: row.p_legajo_solicitante,
     description: row.sol_descripcion,
-    // No orden yet: "new" while the solicitud is still pendiente, or
-    // "resolved" if the admin closed it without generating one (closeSolicitud
-    // sets sol_estado to resuelta directly — see SCRUM-27). Otherwise it's
-    // whatever sync_orden_estado (0017) computed from the OT's tareas.
-    status: orden ? orden.ot_estado : row.sol_estado === "resuelta" ? "resolved" : "new",
+    status,
+    atendida: isAtendida,
+    motivo_rechazo: row.sol_motivo_rechazo ?? null,
+    comentario_rechazo: row.sol_comentario_rechazo ?? null,
     priority: orden?.ot_prioridad ?? null,
     order_id: orden?.ot_id_orden ?? null,
     order_start_date: orden?.ot_fecha_inicio ?? null,
@@ -220,7 +234,11 @@ export async function getSolicitudById(solicitudId: number): Promise<Solicitud |
 // SCRUM-27: el admin puede cerrar una solicitud pendiente sin generar una
 // OT (duplicada, falsa alarma, se resolvió sin intervención técnica). Solo
 // válida para solicitudes que todavía no tienen orden.
-export async function closeSolicitud(solicitudId: number, reason: string): Promise<void> {
+export async function closeSolicitud(
+  solicitudId: number,
+  reason: string,
+  comment?: string | null,
+): Promise<void> {
   const trimmedReason = reason.trim();
   if (!trimmedReason) throw new Error("Indicá el motivo del cierre.");
 
@@ -236,15 +254,21 @@ export async function closeSolicitud(solicitudId: number, reason: string): Promi
 
   const { error: updateError } = await supabase
     .from("solicitudes")
-    .update({ sol_estado: "resuelta" })
+    .update({
+      sol_estado: "rechazada",
+      sol_atendida: true,
+      sol_motivo_rechazo: trimmedReason,
+      sol_comentario_rechazo: comment?.trim() || null,
+    })
     .eq("sol_id_solicitud", solicitudId);
   if (updateError) throw new Error(updateError.message);
 
   await syncEquipoEstado(sol.eq_id_equipo);
+  const noteSuffix = comment?.trim() ? ` - ${comment.trim()}` : "";
   await logHistorial(
     sol.eq_id_equipo,
     "Cerrada",
-    `Solicitud cerrada sin orden de trabajo: ${trimmedReason}`,
+    `Solicitud cerrada sin orden de trabajo: ${trimmedReason}${noteSuffix}`,
   );
 }
 
@@ -305,7 +329,7 @@ export async function generateOrder(
 
   const { error: updateError } = await supabase
     .from("solicitudes")
-    .update({ sol_estado: "en_proceso" })
+    .update({ sol_estado: "en_proceso", sol_atendida: true })
     .eq("sol_id_solicitud", solicitudId);
   if (updateError) throw new Error(updateError.message);
 

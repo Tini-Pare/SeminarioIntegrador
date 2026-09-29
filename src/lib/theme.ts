@@ -48,6 +48,7 @@ export type ThemeColors = {
   faultAssigned: { bg: string; fg: string };
   faultInProgress: { bg: string; fg: string };
   faultResolved: { bg: string; fg: string };
+  faultRejected: { bg: string; fg: string };
 
   urgencyLow: { bg: string; fg: string };
   urgencyMedium: { bg: string; fg: string };
@@ -119,6 +120,7 @@ export const light: ThemeColors = {
   faultAssigned: { bg: "#dfeae4", fg: "#2f7d5b" },
   faultInProgress: { bg: "#dcece9", fg: "#12706a" },
   faultResolved: { bg: "#dcecdf", fg: "#256a4e" },
+  faultRejected: { bg: "#f7e7e1", fg: "#963924" },
 
   urgencyLow: { bg: "#eceae4", fg: "#5a6154" },
   urgencyMedium: { bg: "#f4eddc", fg: "#8a5d12" },

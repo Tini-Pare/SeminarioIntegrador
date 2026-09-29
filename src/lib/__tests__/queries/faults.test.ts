@@ -72,6 +72,9 @@ describe("createFault", () => {
       reported_by: "u1",
       description: "no enfría",
       status: "new",
+      atendida: false,
+      motivo_rechazo: null,
+      comentario_rechazo: null,
       priority: null,
       order_id: null,
       order_start_date: null,
@@ -184,6 +187,9 @@ describe("listMyRequests", () => {
         reported_by: "u1",
         description: "no enfría",
         status: "new",
+        atendida: false,
+        motivo_rechazo: null,
+        comentario_rechazo: null,
         priority: null,
         order_id: null,
         order_start_date: null,
@@ -363,16 +369,21 @@ describe("closeSolicitud", () => {
       table === "historial" ? { insert: insertHistorial } : { select, update },
     );
 
-    await closeSolicitud(1, "duplicada");
+    await closeSolicitud(1, "Duplicada", "Ya reportada por Juan");
 
-    expect(update).toHaveBeenCalledWith({ sol_estado: "resuelta" });
+    expect(update).toHaveBeenCalledWith({
+      sol_estado: "rechazada",
+      sol_atendida: true,
+      sol_motivo_rechazo: "Duplicada",
+      sol_comentario_rechazo: "Ya reportada por Juan",
+    });
     expect(updateEq).toHaveBeenCalledWith("sol_id_solicitud", 1);
     expect(supabase.rpc).toHaveBeenCalledWith("sync_equipo_estado", { p_eq_id: 5 });
     expect(insertHistorial).toHaveBeenCalledWith(
       expect.objectContaining({
         eq_id_equipo: 5,
         hi_tipo: "Cerrada",
-        hi_nota: expect.stringContaining("duplicada"),
+        hi_nota: expect.stringContaining("Duplicada"),
         hi_autor_id: "admin1",
       }),
     );
@@ -451,7 +462,7 @@ describe("generateOrder", () => {
       ot_id_orden: 7,
       fpo_fecha_deteccion: expect.any(String),
     });
-    expect(update).toHaveBeenCalledWith({ sol_estado: "en_proceso" });
+    expect(update).toHaveBeenCalledWith({ sol_estado: "en_proceso", sol_atendida: true });
     expect(supabase.rpc).toHaveBeenCalledWith("sync_equipo_estado", { p_eq_id: 5 });
     expect(insertHistorial).toHaveBeenCalledWith(
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Asignada", hi_autor_id: "admin1" }),

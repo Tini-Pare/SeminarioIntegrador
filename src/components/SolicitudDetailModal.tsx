@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { CustomDatePicker, fromDbDate, isValidDateString, toDbDate } from "./CustomDatePicker";
 import { AddTaskModal } from "./AddTaskModal";
-import { CloseSolicitudModal } from "./CloseSolicitudModal";
 import { GenerateOrderModal } from "./GenerateOrderModal";
 import { PhotoCarousel } from "./PhotoCarousel";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { ReassignTechnicianModal } from "./ReassignTechnicianModal";
 import {
   addTaskToOrder,
+  closeSolicitud,
   generateOrder,
   reassignTaskTechnician,
   updateOrderStartDate,
@@ -24,15 +34,27 @@ type Item = Solicitud & {
 
 const STATUS_LABELS: Record<Solicitud["status"], string> = {
   new: "Nueva",
-  assigned: "Asignada",
-  in_progress: "En curso",
+  assigned: "En proceso",
+  in_progress: "En proceso",
   resolved: "Resuelta",
+  rejected: "Rechazada",
 };
+
 const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
 };
+
+const MOTIVO_OPTIONS: RadioOption<string>[] = [
+  { value: "Duplicada", label: "Duplicada" },
+  { value: "Falsa alarma", label: "Falsa alarma" },
+  {
+    value: "Se resolvió sin OT (ajuste menor)",
+    label: "Se resolvió sin OT (ajuste menor)",
+  },
+  { value: "Otro", label: "Otro" },
+];
 
 function taskStatusLabel(task: SolicitudTask): string {
   if (task.endDate) return "Finalizada";
@@ -40,15 +62,16 @@ function taskStatusLabel(task: SolicitudTask): string {
   return "Pendiente";
 }
 
-// Admin "ver más" panel for a solicitud: shows every field the grid card
-// already shows (and then some — fotos, fallo diagnosticado, tareas) and,
-// depending on state, the actions that move it forward:
-//   - "new" (sin OT):  generar OT (SCRUM-24) / cerrar sin OT (SCRUM-27)
-//   - con OT:          agregar tarea, reasignar el técnico de una tarea
-//                       puntual (SCRUM-26), reprogramar fecha de inicio
-//                       (SCRUM-28) — el estado de la OT/tareas ya no se
-//                       toca a mano, lo calcula la base (0017): cada
-//                       técnico inicia/finaliza su propia tarea.
+// Admin "ver más" panel for a solicitud:
+//   - "new" (sin OT):
+//       - Switch "Atendida" toggle in header.
+//       - Switch OFF: shows "Cerrar sin OT" and "Generar OT".
+//       - Switch ON (or clicking "Cerrar sin OT"): reveals inline reason panel
+//         with RadioGroup + comment input and "Cancelar" / "Confirmar" actions.
+//       - Confirming rejection saves reason, sets atendida=true and status="rejected".
+//       - Generating an OT sets atendida=true and status="in_progress".
+//   - con OT: shows diagnosed fault, tareas with technician reassignment, start date.
+//   - rejected: shows rejection info box.
 export function SolicitudDetailModal({
   solicitud,
   onClose,
@@ -58,8 +81,10 @@ export function SolicitudDetailModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const [atendidaSwitch, setAtendidaSwitch] = useState(false);
+  const [motivo, setMotivo] = useState<string>("");
+  const [comentario, setComentario] = useState<string>("");
   const [generateOpen, setGenerateOpen] = useState(false);
-  const [closeOpen, setCloseOpen] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [reassigningTask, setReassigningTask] = useState<SolicitudTask | null>(null);
   const [editingDate, setEditingDate] = useState(false);
@@ -69,12 +94,15 @@ export function SolicitudDetailModal({
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+
   const statusColors: Record<Solicitud["status"], { bg: string; fg: string }> = {
     new: colors.faultNew,
     assigned: colors.faultAssigned,
     in_progress: colors.faultInProgress,
     resolved: colors.faultResolved,
+    rejected: colors.faultRejected,
   };
+
   const priorityColors: Record<Exclude<Solicitud["priority"], null>, { bg: string; fg: string }> = {
     low: colors.urgencyLow,
     medium: colors.urgencyMedium,
@@ -83,16 +111,20 @@ export function SolicitudDetailModal({
 
   useEffect(() => {
     setGenerateOpen(false);
-    setCloseOpen(false);
     setAddTaskOpen(false);
     setReassigningTask(null);
     setEditingDate(false);
     setError(null);
+    setMotivo("");
+    setComentario("");
     setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
     if (solicitud) {
+      setAtendidaSwitch(solicitud.atendida || solicitud.status !== "new");
       listProfiles()
         .then((profiles) => setProfileById(new Map(profiles.map((p) => [p.id, p]))))
         .catch(() => setProfileById(new Map()));
+    } else {
+      setAtendidaSwitch(false);
     }
   }, [solicitud]);
 
@@ -102,6 +134,40 @@ export function SolicitudDetailModal({
   function closeEverything() {
     onChanged();
     onClose();
+  }
+
+  function handleToggleSwitch(newValue: boolean) {
+    if (s.status !== "new") return;
+    setAtendidaSwitch(newValue);
+    setError(null);
+    if (!newValue) {
+      setMotivo("");
+      setComentario("");
+    }
+  }
+
+  async function handleConfirmCloseWithoutOt() {
+    if (!motivo) {
+      setError("Seleccioná un motivo.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await closeSolicitud(s.id, motivo, comentario);
+      closeEverything();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleCancelCloseWithoutOt() {
+    setAtendidaSwitch(false);
+    setMotivo("");
+    setComentario("");
+    setError(null);
   }
 
   async function handleGenerate(input: {
@@ -147,9 +213,24 @@ export function SolicitudDetailModal({
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             <ScrollView contentContainerStyle={{ padding: 22 }}>
-              <View style={styles.headerRow}>
-                <Text style={styles.equipmentName}>{s.equipment.name}</Text>
-                <Text style={styles.equipmentCode}>{s.equipment.code}</Text>
+              <View style={styles.topHeaderRow}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.equipmentName}>{s.equipment.name}</Text>
+
+                  <Text style={styles.equipmentCode}>{s.equipment.code}</Text>
+                </View>
+
+                <View style={styles.switchContainer}>
+                  <Switch
+                    value={atendidaSwitch}
+                    onValueChange={handleToggleSwitch}
+                    disabled={busy || s.status !== "new"}
+                    trackColor={{ false: colors.borderInput, true: colors.accent }}
+                    thumbColor="#fff"
+                  />
+
+                  <Text style={styles.switchLabel}>Atendida</Text>
+                </View>
               </View>
 
               <View style={styles.badgeRow}>
@@ -169,18 +250,69 @@ export function SolicitudDetailModal({
               </View>
 
               <Text style={styles.label}>Descripción</Text>
+
               <Text style={styles.value}>{s.description}</Text>
 
               <PhotoCarousel photoUrls={s.photo_urls} />
 
               <View style={styles.metaGrid}>
                 <MetaCell label="Reportó" value={s.reporterName} colors={colors} />
+
                 <MetaCell
                   label="Fecha de solicitud"
                   value={new Date(s.created_at).toLocaleDateString("es-AR")}
                   colors={colors}
                 />
               </View>
+
+              {s.status === "rejected" && (
+                <View style={styles.rejectedBox}>
+                  <Text style={styles.rejectedTitle}>Solicitud atendida sin orden de trabajo</Text>
+
+                  <Text style={styles.rejectedLabel}>Motivo</Text>
+
+                  <Text style={styles.rejectedValue}>
+                    {s.motivo_rechazo || "Sin motivo especificado"}
+                  </Text>
+
+                  {s.comentario_rechazo && (
+                    <>
+                      <Text style={styles.rejectedLabel}>Comentario</Text>
+
+                      <Text style={styles.rejectedValue}>{s.comentario_rechazo}</Text>
+                    </>
+                  )}
+                </View>
+              )}
+
+              {s.status === "new" && atendidaSwitch && (
+                <View style={styles.reasonBox}>
+                  <Text style={styles.reasonTitle}>¿Por qué se marca como atendida sin OT?</Text>
+
+                  <RadioGroup
+                    name="motivo-cierre"
+                    value={motivo}
+                    onChange={(v) => {
+                      setMotivo(v);
+                      if (error) setError(null);
+                    }}
+                    options={MOTIVO_OPTIONS}
+                    style={styles.radioGroupColumn}
+                  />
+
+                  <TextInput
+                    style={styles.commentInput}
+                    value={comentario}
+                    onChangeText={(t) => {
+                      setComentario(t);
+                      if (error) setError(null);
+                    }}
+                    placeholder="Comentario (opcional)"
+                    placeholderTextColor={colors.textMuted}
+                    maxLength={255}
+                  />
+                </View>
+              )}
 
               {s.order_id != null && (
                 <>
@@ -195,10 +327,12 @@ export function SolicitudDetailModal({
                   />
 
                   <Text style={styles.label}>Tareas</Text>
+
                   {s.tasks.map((task) => (
                     <View key={task.id} style={styles.taskRow}>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.taskName}>{task.taskName}</Text>
+
                         <Text style={styles.taskMeta}>
                           {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"} ·{" "}
                           {taskStatusLabel(task)}
@@ -220,9 +354,11 @@ export function SolicitudDetailModal({
                   )}
 
                   <Text style={styles.label}>Fecha de inicio</Text>
+
                   {editingDate ? (
                     <>
                       <CustomDatePicker value={dateDraft} onChange={setDateDraft} compact />
+
                       <View style={styles.dateActions}>
                         <Pressable
                           style={styles.dateCancelButton}
@@ -231,6 +367,7 @@ export function SolicitudDetailModal({
                         >
                           <Text style={styles.dateCancelText}>Cancelar</Text>
                         </Pressable>
+
                         <Pressable
                           style={styles.dateSaveButton}
                           onPress={handleSaveDate}
@@ -255,6 +392,7 @@ export function SolicitudDetailModal({
                   {s.status === "resolved" && s.order_end_date && (
                     <>
                       <Text style={styles.label}>Fecha de finalización</Text>
+
                       <Text style={styles.value}>{fromDbDate(s.order_end_date)}</Text>
                     </>
                   )}
@@ -269,11 +407,11 @@ export function SolicitudDetailModal({
 
               {error && <Text style={styles.error}>{error}</Text>}
 
-              {s.status === "new" && (
+              {s.status === "new" && !atendidaSwitch && (
                 <View style={styles.actions}>
                   <Pressable
                     style={styles.secondaryButton}
-                    onPress={() => setCloseOpen(true)}
+                    onPress={() => setAtendidaSwitch(true)}
                     disabled={busy}
                   >
                     <Text style={styles.secondaryButtonText}>Cerrar sin OT</Text>
@@ -289,9 +427,33 @@ export function SolicitudDetailModal({
                 </View>
               )}
 
-              <Pressable style={styles.closeButton} onPress={onClose} disabled={busy}>
-                <Text style={styles.closeButtonText}>Volver</Text>
-              </Pressable>
+              {s.status === "new" && atendidaSwitch && (
+                <View style={styles.actions}>
+                  <Pressable
+                    style={styles.secondaryButton}
+                    onPress={handleCancelCloseWithoutOt}
+                    disabled={busy}
+                  >
+                    <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.primaryButton}
+                    onPress={handleConfirmCloseWithoutOt}
+                    disabled={busy}
+                  >
+                    <Text style={styles.primaryButtonText}>
+                      {busy ? "Confirmando…" : "Confirmar"}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {(!atendidaSwitch || s.status !== "new") && (
+                <Pressable style={styles.closeButton} onPress={onClose} disabled={busy}>
+                  <Text style={styles.closeButtonText}>Cerrar</Text>
+                </Pressable>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -302,13 +464,6 @@ export function SolicitudDetailModal({
         onClose={() => setGenerateOpen(false)}
         onConfirm={handleGenerate}
         equipmentLabel={`${s.equipment.code} · ${s.equipment.name}`}
-      />
-
-      <CloseSolicitudModal
-        visible={closeOpen}
-        solicitudId={s.id}
-        onClose={() => setCloseOpen(false)}
-        onClosed={closeEverything}
       />
 
       <AddTaskModal
@@ -334,6 +489,7 @@ function MetaCell({ label, value, colors }: { label: string; value: string; colo
   return (
     <View style={{ minWidth: 140 }}>
       <Text style={{ fontSize: 11.5, fontWeight: "600", color: colors.textMuted }}>{label}</Text>
+
       <Text style={{ fontSize: 14, color: colors.text, marginTop: 2 }}>{value}</Text>
     </View>
   );
@@ -355,9 +511,23 @@ function makeStyles(c: ThemeColors) {
       maxWidth: 520,
       alignSelf: "center",
     },
-    headerRow: { flexDirection: "row", alignItems: "baseline", gap: 10, flexWrap: "wrap" },
+    topHeaderRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 12,
+    },
     equipmentName: { fontSize: 19, fontWeight: "600", color: c.text },
-    equipmentCode: { fontFamily: "monospace", fontSize: 13, color: c.textMuted },
+    equipmentCode: { fontFamily: "monospace", fontSize: 13, color: c.textMuted, marginTop: 2 },
+    switchContainer: {
+      alignItems: "center",
+      gap: 3,
+    },
+    switchLabel: {
+      fontSize: 11.5,
+      fontWeight: "600",
+      color: c.textLabel,
+    },
     badgeRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     badgeText: { fontSize: 12.5, fontWeight: "600" },
@@ -371,6 +541,60 @@ function makeStyles(c: ThemeColors) {
     value: { fontSize: 14, color: c.text, lineHeight: 20 },
     row: { flexDirection: "row", alignItems: "center", gap: 16 },
     metaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 18, marginTop: 16 },
+    reasonBox: {
+      backgroundColor: c.bgNested,
+      borderRadius: 14,
+      padding: 16,
+      marginTop: 18,
+    },
+    reasonTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: c.text,
+      marginBottom: 12,
+    },
+    radioGroupColumn: {
+      flexDirection: "column",
+      alignItems: "flex-start",
+      gap: 10,
+    },
+    commentInput: {
+      marginTop: 14,
+      backgroundColor: "#fff",
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      minHeight: 42,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      fontSize: 13.5,
+      color: c.text,
+    },
+    rejectedBox: {
+      backgroundColor: c.bgNested,
+      borderRadius: 14,
+      padding: 16,
+      marginTop: 18,
+      borderLeftWidth: 3,
+      borderLeftColor: c.destructive,
+    },
+    rejectedTitle: {
+      fontSize: 13.5,
+      fontWeight: "700",
+      color: c.text,
+      marginBottom: 8,
+    },
+    rejectedLabel: {
+      fontSize: 11.5,
+      fontWeight: "600",
+      color: c.textMuted,
+      marginTop: 6,
+    },
+    rejectedValue: {
+      fontSize: 13.5,
+      color: c.text,
+      marginTop: 2,
+    },
     divider: { height: 1, backgroundColor: c.borderRow, marginTop: 20 },
     sectionTitle: { fontSize: 14, fontWeight: "600", color: c.text, marginTop: 14 },
     taskRow: {
@@ -405,13 +629,13 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     dateSaveText: { color: "#fff", fontWeight: "600", fontSize: 13 },
-    error: { color: c.destructive, marginTop: 16, fontSize: 13 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 24 },
+    error: { color: c.destructive, marginTop: 16, fontSize: 13, fontWeight: "600" },
+    actions: { flexDirection: "row", gap: 10, marginTop: 22 },
     secondaryButton: {
       flex: 1,
       height: 44,
       borderRadius: 10,
-      backgroundColor: "#dc2626",
+      backgroundColor: "#b91c1c",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -425,7 +649,20 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     primaryButtonText: { color: "#fff", fontWeight: "600" },
-    closeButton: { marginTop: 14, alignSelf: "center", paddingVertical: 6 },
-    closeButtonText: { color: c.textMuted, fontSize: 13, fontWeight: "600" },
+    closeButton: {
+      marginTop: 20,
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: c.bgNested,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    closeButtonText: {
+      color: c.text,
+      fontSize: 14,
+      fontWeight: "600",
+    },
   });
 }

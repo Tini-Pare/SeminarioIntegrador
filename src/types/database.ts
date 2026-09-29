@@ -219,7 +219,10 @@ export type Database = {
           p_legajo_admin: string | null;
           sol_descripcion: string;
           sol_foto_url: string | null;
-          sol_estado: "pendiente" | "en_proceso" | "resuelta";
+          sol_estado: "pendiente" | "en_proceso" | "resuelta" | "rechazada";
+          sol_atendida: boolean;
+          sol_motivo_rechazo: string | null;
+          sol_comentario_rechazo: string | null;
           sol_fecha_hora: string;
         };
         Insert: {
@@ -229,7 +232,10 @@ export type Database = {
           p_legajo_admin?: string | null;
           sol_descripcion: string;
           sol_foto_url?: string | null;
-          sol_estado?: "pendiente" | "en_proceso" | "resuelta";
+          sol_estado?: "pendiente" | "en_proceso" | "resuelta" | "rechazada";
+          sol_atendida?: boolean;
+          sol_motivo_rechazo?: string | null;
+          sol_comentario_rechazo?: string | null;
           sol_fecha_hora?: string;
         };
         Update: {
@@ -239,7 +245,10 @@ export type Database = {
           p_legajo_admin?: string | null;
           sol_descripcion?: string;
           sol_foto_url?: string | null;
-          sol_estado?: "pendiente" | "en_proceso" | "resuelta";
+          sol_estado?: "pendiente" | "en_proceso" | "resuelta" | "rechazada";
+          sol_atendida?: boolean;
+          sol_motivo_rechazo?: string | null;
+          sol_comentario_rechazo?: string | null;
           sol_fecha_hora?: string;
         };
         Relationships: [
@@ -830,7 +839,10 @@ export type Solicitud = {
   equipment_id: number;
   reported_by: string;
   description: string;
-  status: "new" | "assigned" | "in_progress" | "resolved";
+  status: "new" | "assigned" | "in_progress" | "resolved" | "rejected";
+  atendida: boolean;
+  motivo_rechazo: string | null;
+  comentario_rechazo: string | null;
   // Priority is never set by the reporting employee (they'd always pick
   // "alta") — it only exists once someone evaluates the solicitud and
   // creates the orden_de_trabajo, so it's null until then.

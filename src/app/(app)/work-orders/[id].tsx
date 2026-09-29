@@ -27,9 +27,10 @@ import type { Equipo, Profile, Solicitud, SolicitudTask } from "../../../types/d
 
 const STATUS_LABELS: Record<Solicitud["status"], string> = {
   new: "Nueva",
-  assigned: "Asignada",
-  in_progress: "En curso",
+  assigned: "En proceso",
+  in_progress: "En proceso",
   resolved: "Resuelta",
+  rejected: "Rechazada",
 };
 const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
   low: "Baja",
@@ -81,6 +82,7 @@ export default function WorkOrderDetail() {
     assigned: colors.faultAssigned,
     in_progress: colors.faultInProgress,
     resolved: colors.faultResolved,
+    rejected: colors.faultRejected,
   };
   const priorityColors: Record<Exclude<Solicitud["priority"], null>, { bg: string; fg: string }> = {
     low: colors.urgencyLow,

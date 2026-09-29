@@ -98,14 +98,22 @@ export function TableFilterBar({
             </View>
           ))}
 
-          {hasActive && (
-            <Pressable
-              style={styles.clearBtn}
-              onPress={() => filters.forEach((f) => f.onChange(f.options[0].value))}
-            >
-              <Text style={styles.clearText}>Limpiar filtros</Text>
+          <View style={styles.panelFooter}>
+            {hasActive ? (
+              <Pressable
+                style={styles.clearBtn}
+                onPress={() => filters.forEach((f) => f.onChange(f.options[0].value))}
+              >
+                <Text style={styles.clearText}>Limpiar filtros</Text>
+              </Pressable>
+            ) : (
+              <View />
+            )}
+
+            <Pressable style={styles.applyBtn} onPress={() => setOpen(false)}>
+              <Text style={styles.applyText}>Aplicar</Text>
             </Pressable>
-          )}
+          </View>
         </View>
       )}
     </View>
@@ -121,7 +129,7 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
-      maxWidth: 320,
+      maxWidth: 340,
       flexGrow: 1,
       minWidth: 180,
       height: 38,
@@ -182,7 +190,22 @@ function makeStyles(c: ThemeColors) {
     chipActive: { backgroundColor: c.accent, borderColor: c.accent },
     chipText: { fontSize: 12.5, fontWeight: "600", color: c.textLabel },
     chipTextActive: { color: "#fff" },
-    clearBtn: { alignSelf: "flex-start" },
+    panelFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginTop: 2,
+    },
+    clearBtn: { alignSelf: "flex-start", paddingVertical: 4 },
     clearText: { fontSize: 12.5, fontWeight: "600", color: c.accent },
+    applyBtn: {
+      backgroundColor: c.accent,
+      paddingHorizontal: 16,
+      paddingVertical: 7,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    applyText: { fontSize: 12.5, fontWeight: "600", color: "#fff" },
   });
 }

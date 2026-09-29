@@ -12,9 +12,10 @@ type Item = Solicitud & {
 
 const STATUS_LABELS: Record<Solicitud["status"], string> = {
   new: "Nueva",
-  assigned: "Asignada",
-  in_progress: "En curso",
+  assigned: "En proceso",
+  in_progress: "En proceso",
   resolved: "Resuelta",
+  rejected: "Rechazada",
 };
 const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
   low: "Baja",
@@ -28,9 +29,11 @@ const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
 export function RequestList({
   items,
   onSelect,
+  emptyMessage = "No hay solicitudes todavía. Reportá una falla con el botón de arriba.",
 }: {
   items: Item[];
   onSelect?: (item: Item) => void;
+  emptyMessage?: string;
 }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -40,6 +43,7 @@ export function RequestList({
     assigned: colors.faultAssigned,
     in_progress: colors.faultInProgress,
     resolved: colors.faultResolved,
+    rejected: colors.faultRejected,
   };
 
   const priorityColors = {
@@ -51,9 +55,7 @@ export function RequestList({
   if (items.length === 0) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyText}>
-          No hay solicitudes todavía. Reportá una falla con el botón de arriba.
-        </Text>
+        <Text style={styles.emptyText}>{emptyMessage}</Text>
       </View>
     );
   }
