@@ -134,9 +134,7 @@ describe("validatePurchaseRegistration", () => {
     const result = validatePurchaseRegistration(validBaseForm);
     expect(result.valid).toBe(true);
     if (result.valid) {
-      expect(result.parsedLines).toEqual([
-        { repId: 10, cantidad: 2, costoUnitario: 1500 },
-      ]);
+      expect(result.parsedLines).toEqual([{ repId: 10, cantidad: 2, costoUnitario: 1500 }]);
     }
   });
 
@@ -258,17 +256,15 @@ describe("validatePurchaseRegistration", () => {
     });
   });
 
-  it("allows remito without costo unitario", () => {
+  it("validates tique requires costo unitario", () => {
     const result = validatePurchaseRegistration({
       ...validBaseForm,
-      tipoComprobante: "remito",
+      tipoComprobante: "tique",
       lines: [{ repId: 10, cantidad: "5", costo: "" }],
     });
-    expect(result.valid).toBe(true);
-    if (result.valid) {
-      expect(result.parsedLines).toEqual([
-        { repId: 10, cantidad: 5, costoUnitario: null },
-      ]);
-    }
+    expect(result).toEqual({
+      valid: false,
+      error: "Completá el campo obligatorio.",
+    });
   });
 });

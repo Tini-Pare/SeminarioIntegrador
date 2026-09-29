@@ -60,7 +60,6 @@ export function validatePurchaseRegistration(
     return { valid: false, error: "Elegí un tipo de comprobante." };
   }
 
-  const isRemito = form.tipoComprobante === "remito";
   let missingCount = 0;
 
   if (!form.puntoVenta.trim()) {
@@ -97,11 +96,9 @@ export function validatePurchaseRegistration(
         missingCount++;
       }
 
-      if (!isRemito) {
-        const costo = Number(l.costo);
-        if (!l.costo.trim() || !Number.isFinite(costo) || costo < 0) {
-          missingCount++;
-        }
+      const costo = Number(l.costo);
+      if (!l.costo.trim() || !Number.isFinite(costo) || costo < 0) {
+        missingCount++;
       }
     }
   }
@@ -128,7 +125,7 @@ export function validatePurchaseRegistration(
     }
 
     const qty = Number(l.cantidad);
-    const costo = isRemito ? null : Number(l.costo);
+    const costo = Number(l.costo);
     parsed.push({
       repId: l.repId!,
       cantidad: qty,
@@ -148,7 +145,7 @@ type DocOption = {
 };
 
 // Order matches the wizard's step 1: pick the document the supplier handed
-// over before touching any field, since it decides whether lines carry cost.
+// over before touching any field.
 const DOC_OPTIONS: DocOption[] = [
   {
     id: "factura",
@@ -156,13 +153,6 @@ const DOC_OPTIONS: DocOption[] = [
     note: "Cód. 11",
     title: "Factura",
     desc: "Trae precios. Se carga cantidad y costo unitario por línea, y queda el total de la compra.",
-  },
-  {
-    id: "remito",
-    code: "R",
-    note: "Cód. 91",
-    title: "Remito",
-    desc: "Sin precios. Solo cantidad y descripción de lo que entró al depósito.",
   },
   {
     id: "tique",
@@ -310,7 +300,6 @@ export default function RegisterPurchaseScreen() {
   const styles = makeStyles(colors);
 
   const today = useMemo(() => new Date(), []);
-  const isRemito = tipoComprobante === "remito";
 
   const puntoVentaError = submitted && !puntoVenta.trim();
   const numeroError = submitted && !numero.trim();
@@ -327,11 +316,7 @@ export default function RegisterPurchaseScreen() {
   };
   const costoError = (l: LineDraft) => {
     const cost = Number(l.costo);
-    return (
-      submitted &&
-      !isRemito &&
-      (!l.costo.trim() || !Number.isFinite(cost) || cost < 0)
-    );
+    return submitted && (!l.costo.trim() || !Number.isFinite(cost) || cost < 0);
   };
 
   useEffect(() => {
@@ -454,7 +439,7 @@ export default function RegisterPurchaseScreen() {
         <Text style={styles.pageSubtitle}>
           {tipoComprobante == null
             ? "Elegí el tipo de comprobante del proveedor."
-            : isRemito || tipoComprobante === "tique"
+            : tipoComprobante === "tique"
               ? pedidoId
                 ? "Al guardar se ingresa el stock y el pedido queda como recibido."
                 : "Al guardar se suma la cantidad de cada línea al stock del repuesto."
@@ -634,9 +619,7 @@ export default function RegisterPurchaseScreen() {
 
                   <View style={styles.cuitBox}>
                     <Text
-                      style={
-                        selectedSupplier?.prov_cuit ? styles.cuitText : styles.cuitPlaceholder
-                      }
+                      style={selectedSupplier?.prov_cuit ? styles.cuitText : styles.cuitPlaceholder}
                     >
                       {selectedSupplier?.prov_cuit || "Opcional"}
                     </Text>
@@ -650,7 +633,7 @@ export default function RegisterPurchaseScreen() {
                 <View>
                   <Text style={styles.label}>Detalle del comprobante</Text>
                   <Text style={styles.linesSub}>
-                    {isRemito || tipoComprobante === "tique"
+                    {tipoComprobante === "tique"
                       ? "Cada línea suma al stock del repuesto"
                       : "Cada línea define lo facturado; el stock se suma al cargar los remitos de recepción"}
                   </Text>
@@ -665,22 +648,16 @@ export default function RegisterPurchaseScreen() {
               </View>
 
               <View style={styles.tableHeadRow}>
-                {isRemito ? (
-                  <>
-                    <Text style={[styles.tableHeadText, styles.colCant]}>Cant.</Text>
-                    <Text style={[styles.tableHeadText, styles.colRepFlex]}>Repuesto</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={[styles.tableHeadText, styles.colNum, { color: "#fff" }]}>#</Text>
-                    <Text style={[styles.tableHeadText, styles.colRepFlex]}>Repuesto</Text>
-                    <Text style={[styles.tableHeadText, styles.colCant]}>Cant.</Text>
-                    <Text style={[styles.tableHeadText, styles.colCosto]}>Costo unit.</Text>
-                    <Text style={[styles.tableHeadText, styles.colTotal, styles.textRight]}>
-                      Total
-                    </Text>
-                  </>
-                )}
+                <Text style={[styles.tableHeadText, styles.colNum, { color: "#fff" }]}>#</Text>
+
+                <Text style={[styles.tableHeadText, styles.colRepFlex]}>Repuesto</Text>
+
+                <Text style={[styles.tableHeadText, styles.colCant]}>Cant.</Text>
+
+                <Text style={[styles.tableHeadText, styles.colCosto]}>Costo unit.</Text>
+
+                <Text style={[styles.tableHeadText, styles.colTotal, styles.textRight]}>Total</Text>
+
                 <View style={styles.colRemove} />
               </View>
 
@@ -689,76 +666,47 @@ export default function RegisterPurchaseScreen() {
                   key={l.key}
                   style={[styles.tableRow, openField === `rep-${l.key}` && styles.tableRowRaised]}
                 >
-                  {isRemito ? (
-                    <>
-                      <View style={styles.colCant}>
-                        <TextInput
-                          style={[styles.cellInput, cantError(l) && styles.cellInputError]}
-                          value={l.cantidad}
-                          onChangeText={(v) => updateLine(l.key, { cantidad: v })}
-                          placeholder="0"
-                          placeholderTextColor={colors.textMuted}
-                          keyboardType="numeric"
-                        />
-                      </View>
+                  <Text style={[styles.cellNum, styles.colNum]}>{idx + 1}</Text>
 
-                      <View style={styles.colRepFlex}>
-                        <Select
-                          value={l.repId}
-                          onChange={(v) => updateLine(l.key, { repId: v })}
-                          options={partOptions}
-                          placeholder="Elegí un repuesto"
-                          open={openField === `rep-${l.key}`}
-                          onOpenChange={(o) => setOpenField(o ? `rep-${l.key}` : null)}
-                          hasError={repError(l)}
-                        />
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={[styles.cellNum, styles.colNum]}>{idx + 1}</Text>
+                  <View style={styles.colRepFlex}>
+                    <Select
+                      value={l.repId}
+                      onChange={(v) => updateLine(l.key, { repId: v })}
+                      options={partOptions}
+                      placeholder="Elegí un repuesto"
+                      open={openField === `rep-${l.key}`}
+                      onOpenChange={(o) => setOpenField(o ? `rep-${l.key}` : null)}
+                      hasError={repError(l)}
+                    />
+                  </View>
 
-                      <View style={styles.colRepFlex}>
-                        <Select
-                          value={l.repId}
-                          onChange={(v) => updateLine(l.key, { repId: v })}
-                          options={partOptions}
-                          placeholder="Elegí un repuesto"
-                          open={openField === `rep-${l.key}`}
-                          onOpenChange={(o) => setOpenField(o ? `rep-${l.key}` : null)}
-                          hasError={repError(l)}
-                        />
-                      </View>
+                  <View style={styles.colCant}>
+                    <TextInput
+                      style={[styles.cellInput, cantError(l) && styles.cellInputError]}
+                      value={l.cantidad}
+                      onChangeText={(v) => updateLine(l.key, { cantidad: v })}
+                      placeholder="0"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="numeric"
+                    />
+                  </View>
 
-                      <View style={styles.colCant}>
-                        <TextInput
-                          style={[styles.cellInput, cantError(l) && styles.cellInputError]}
-                          value={l.cantidad}
-                          onChangeText={(v) => updateLine(l.key, { cantidad: v })}
-                          placeholder="0"
-                          placeholderTextColor={colors.textMuted}
-                          keyboardType="numeric"
-                        />
-                      </View>
+                  <View style={styles.colCosto}>
+                    <TextInput
+                      style={[styles.cellInput, costoError(l) && styles.cellInputError]}
+                      value={l.costo}
+                      onChangeText={(v) => updateLine(l.key, { costo: v })}
+                      placeholder="Ej: 1500"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="numeric"
+                    />
+                  </View>
 
-                      <View style={styles.colCosto}>
-                        <TextInput
-                          style={[styles.cellInput, costoError(l) && styles.cellInputError]}
-                          value={l.costo}
-                          onChangeText={(v) => updateLine(l.key, { costo: v })}
-                          placeholder="Ej: 1500"
-                          placeholderTextColor={colors.textMuted}
-                          keyboardType="numeric"
-                        />
-                      </View>
-
-                      <Text style={[styles.cellTotal, styles.colTotal, styles.textRight]}>
-                        {Number(l.cantidad) > 0 && l.costo.trim() !== ""
-                          ? `$${(Number(l.cantidad) * Number(l.costo)).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`
-                          : "—"}
-                      </Text>
-                    </>
-                  )}
+                  <Text style={[styles.cellTotal, styles.colTotal, styles.textRight]}>
+                    {Number(l.cantidad) > 0 && l.costo.trim() !== ""
+                      ? `$${(Number(l.cantidad) * Number(l.costo)).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`
+                      : "—"}
+                  </Text>
 
                   <LineDeleteButton
                     onPress={() => removeLine(l.key)}
@@ -774,14 +722,12 @@ export default function RegisterPurchaseScreen() {
                   Unidades a ingresar: <Text style={styles.summaryUnitsNum}>{units}</Text>
                 </Text>
 
-                {!isRemito && (
-                  <Text style={styles.summaryTotal}>
-                    Total del comprobante:{" "}
-                    <Text style={styles.summaryTotalAmount}>
-                      ${total.toLocaleString("es-AR", { maximumFractionDigits: 2 })}
-                    </Text>
+                <Text style={styles.summaryTotal}>
+                  Total del comprobante:{" "}
+                  <Text style={styles.summaryTotalAmount}>
+                    ${total.toLocaleString("es-AR", { maximumFractionDigits: 2 })}
                   </Text>
-                )}
+                </Text>
               </View>
             </View>
 
