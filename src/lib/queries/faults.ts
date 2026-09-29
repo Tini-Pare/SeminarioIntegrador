@@ -75,15 +75,12 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
     status = "new";
   }
 
-  const isAtendida = row.sol_atendida ?? status !== "new";
-
   return {
     id: row.sol_id_solicitud,
     equipment_id: row.eq_id_equipo,
     reported_by: row.p_legajo_solicitante,
     description: row.sol_descripcion,
     status,
-    atendida: isAtendida,
     motivo_rechazo: row.sol_motivo_rechazo ?? null,
     comentario_rechazo: row.sol_comentario_rechazo ?? null,
     priority: orden?.ot_prioridad ?? null,
@@ -256,7 +253,6 @@ export async function closeSolicitud(
     .from("solicitudes")
     .update({
       sol_estado: "rechazada",
-      sol_atendida: true,
       sol_motivo_rechazo: trimmedReason,
       sol_comentario_rechazo: comment?.trim() || null,
     })
@@ -329,7 +325,7 @@ export async function generateOrder(
 
   const { error: updateError } = await supabase
     .from("solicitudes")
-    .update({ sol_estado: "en_proceso", sol_atendida: true })
+    .update({ sol_estado: "en_proceso" })
     .eq("sol_id_solicitud", solicitudId);
   if (updateError) throw new Error(updateError.message);
 

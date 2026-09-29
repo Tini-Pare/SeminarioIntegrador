@@ -8,7 +8,12 @@ function formatAuthError(message: string): string {
     normalized.includes("invalid credentials") ||
     normalized.includes("user not found")
   ) {
-    return "El usuario se encuentra inhabilitado. Comuníquese con el administrador";
+    // Same generic message as an unknown legajo below — a wrong password and
+    // a disabled account are different problems (see the profile.active
+    // check further down, which owns "usuario inhabilitado"), and Supabase
+    // returns this exact same error for both a bad password and an unknown
+    // email, so it can't be told apart here either.
+    return "Legajo o contraseña incorrectos";
   }
   if (normalized.includes("email not confirmed")) {
     return "El correo electrónico no ha sido confirmado.";
@@ -41,12 +46,29 @@ export async function signIn(
     return { error: "Legajo o contraseña incorrectos" };
   }
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     return { error: formatAuthError(error.message) };
   }
 
-  const profile = await getProfile();
+  // Looked up by the user id signInWithPassword just returned, not via
+  // getProfile()/getSession() — _layout.tsx's onAuthStateChange listener
+  // reacts to this same sign-in and may sign the session back out (its own
+  // profile.active check) concurrently with this function's. Reading the
+  // session here would race it: if that signOut lands first, getSession()
+  // comes back empty and this check gets silently skipped, letting a
+  // disabled account in with no error at all.
+  const userId = data.user?.id;
+  if (!userId) {
+    return { error: "No se pudo iniciar sesión. Intentá nuevamente." };
+  }
+
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+  const profile = profileRow as Profile | null;
   if (profile && !profile.active) {
     await supabase.auth.signOut();
     return { error: "El usuario se encuentra inhabilitado. Comuníquese con el administrador" };

@@ -72,7 +72,6 @@ describe("createFault", () => {
       reported_by: "u1",
       description: "no enfría",
       status: "new",
-      atendida: false,
       motivo_rechazo: null,
       comentario_rechazo: null,
       priority: null,
@@ -187,7 +186,6 @@ describe("listMyRequests", () => {
         reported_by: "u1",
         description: "no enfría",
         status: "new",
-        atendida: false,
         motivo_rechazo: null,
         comentario_rechazo: null,
         priority: null,
@@ -373,7 +371,6 @@ describe("closeSolicitud", () => {
 
     expect(update).toHaveBeenCalledWith({
       sol_estado: "rechazada",
-      sol_atendida: true,
       sol_motivo_rechazo: "Duplicada",
       sol_comentario_rechazo: "Ya reportada por Juan",
     });
@@ -462,7 +459,7 @@ describe("generateOrder", () => {
       ot_id_orden: 7,
       fpo_fecha_deteccion: expect.any(String),
     });
-    expect(update).toHaveBeenCalledWith({ sol_estado: "en_proceso", sol_atendida: true });
+    expect(update).toHaveBeenCalledWith({ sol_estado: "en_proceso" });
     expect(supabase.rpc).toHaveBeenCalledWith("sync_equipo_estado", { p_eq_id: 5 });
     expect(insertHistorial).toHaveBeenCalledWith(
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Asignada", hi_autor_id: "admin1" }),

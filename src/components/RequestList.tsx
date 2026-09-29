@@ -104,6 +104,15 @@ export function RequestList({
 
               <Text style={styles.desc}>{item.description}</Text>
 
+              {item.status === "rejected" && item.motivo_rechazo && (
+                <View style={styles.rejectedBox}>
+                  <Text style={styles.rejectedText}>
+                    Motivo del rechazo: {item.motivo_rechazo}
+                    {item.comentario_rechazo ? ` — ${item.comentario_rechazo}` : ""}
+                  </Text>
+                </View>
+              )}
+
               {item.photo_urls.length > 1 && (
                 <ScrollView
                   horizontal
@@ -170,6 +179,16 @@ function makeStyles(c: ThemeColors) {
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     badgeText: { fontSize: 12.5, fontWeight: "600" },
     desc: { marginTop: 6, fontSize: 13.5, color: c.textLabel, lineHeight: 19 },
+    rejectedBox: {
+      marginTop: 8,
+      backgroundColor: c.bgNested,
+      borderRadius: 10,
+      borderLeftWidth: 3,
+      borderLeftColor: c.destructive,
+      paddingVertical: 7,
+      paddingHorizontal: 10,
+    },
+    rejectedText: { fontSize: 12.5, color: c.text, lineHeight: 17 },
     // Twitter-style side-scroll: all the solicitud's photos, swipeable.
     gallery: { marginTop: 10 },
     galleryContent: { gap: 8, paddingRight: 4 },

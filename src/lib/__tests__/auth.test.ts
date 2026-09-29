@@ -20,9 +20,9 @@ beforeEach(() => {
 describe("signIn", () => {
   it("returns no error on success when user is active", async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: "1234@legajo.local", error: null });
-    (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({ error: null });
-    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-      data: { session: { user: { id: "u1" } } },
+    (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
+      data: { user: { id: "u1" } },
+      error: null,
     });
     const single = jest
       .fn()
@@ -58,9 +58,9 @@ describe("signIn", () => {
 
   it("blocks login and signs out when account is disabled / inactive", async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: "1234@legajo.local", error: null });
-    (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({ error: null });
-    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-      data: { session: { user: { id: "u1" } } },
+    (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
+      data: { user: { id: "u1" } },
+      error: null,
     });
     const single = jest
       .fn()
@@ -76,15 +76,37 @@ describe("signIn", () => {
     );
   });
 
-  it("translates invalid login credentials to Spanish on failure", async () => {
+  it("blocks login and signs out even if the session got cleared concurrently (e.g. by the root layout's own active check) before this profile lookup runs", async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: "1234@legajo.local", error: null });
+    (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
+      data: { user: { id: "u1" } },
+      error: null,
+    });
+    // No session left by the time this runs — the fix must not depend on
+    // getSession()/getProfile() here, only on the user id signInWithPassword
+    // already returned.
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({ data: { session: null } });
+    const single = jest
+      .fn()
+      .mockResolvedValue({ data: { id: "u1", role: "user", active: false }, error: null });
+    const eq = jest.fn().mockReturnValue({ single });
+    const select = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const result = await signIn("1234", "pw");
+    expect(supabase.auth.signOut).toHaveBeenCalled();
+    expect(result.error).toBe(
+      "El usuario se encuentra inhabilitado. Comuníquese con el administrador",
+    );
+  });
+
+  it("translates invalid login credentials to Spanish on failure, distinct from the disabled-account message", async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: "1234@legajo.local", error: null });
     (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
       error: { message: "Invalid login credentials" },
     });
     const result = await signIn("1234", "wrong");
-    expect(result.error).toBe(
-      "El usuario se encuentra inhabilitado. Comuníquese con el administrador",
-    );
+    expect(result.error).toBe("Legajo o contraseña incorrectos");
   });
 
   it("passes through unmapped error messages as-is", async () => {

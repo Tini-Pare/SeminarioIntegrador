@@ -220,7 +220,6 @@ export type Database = {
           sol_descripcion: string;
           sol_foto_url: string | null;
           sol_estado: "pendiente" | "en_proceso" | "resuelta" | "rechazada";
-          sol_atendida: boolean;
           sol_motivo_rechazo: string | null;
           sol_comentario_rechazo: string | null;
           sol_fecha_hora: string;
@@ -233,7 +232,6 @@ export type Database = {
           sol_descripcion: string;
           sol_foto_url?: string | null;
           sol_estado?: "pendiente" | "en_proceso" | "resuelta" | "rechazada";
-          sol_atendida?: boolean;
           sol_motivo_rechazo?: string | null;
           sol_comentario_rechazo?: string | null;
           sol_fecha_hora?: string;
@@ -246,7 +244,6 @@ export type Database = {
           sol_descripcion?: string;
           sol_foto_url?: string | null;
           sol_estado?: "pendiente" | "en_proceso" | "resuelta" | "rechazada";
-          sol_atendida?: boolean;
           sol_motivo_rechazo?: string | null;
           sol_comentario_rechazo?: string | null;
           sol_fecha_hora?: string;
@@ -840,7 +837,6 @@ export type Solicitud = {
   reported_by: string;
   description: string;
   status: "new" | "assigned" | "in_progress" | "resolved" | "rejected";
-  atendida: boolean;
   motivo_rechazo: string | null;
   comentario_rechazo: string | null;
   // Priority is never set by the reporting employee (they'd always pick

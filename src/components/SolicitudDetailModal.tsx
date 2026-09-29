@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CustomDatePicker, fromDbDate, isValidDateString, toDbDate } from "./CustomDatePicker";
 import { AddTaskModal } from "./AddTaskModal";
 import { GenerateOrderModal } from "./GenerateOrderModal";
@@ -64,14 +55,15 @@ function taskStatusLabel(task: SolicitudTask): string {
 
 // Admin "ver más" panel for a solicitud:
 //   - "new" (sin OT):
-//       - Switch "Atendida" toggle in header.
-//       - Switch OFF: shows "Cerrar sin OT" and "Generar OT".
-//       - Switch ON (or clicking "Cerrar sin OT"): reveals inline reason panel
-//         with RadioGroup + comment input and "Cancelar" / "Confirmar" actions.
-//       - Confirming rejection saves reason, sets atendida=true and status="rejected".
-//       - Generating an OT sets atendida=true and status="in_progress".
+//       - Shows "Cerrar sin OT" and "Generar OT".
+//       - Clicking "Cerrar sin OT" reveals an inline reason panel with
+//         RadioGroup + comment input and "Cancelar" / "Confirmar" actions.
+//       - Confirming rejection saves the reason and sets status="rejected".
+//       - Generating an OT sets status="in_progress".
 //   - con OT: shows diagnosed fault, tareas with technician reassignment, start date.
 //   - rejected: shows rejection info box.
+// There's no separate "atendida" concept: a solicitud counts as attended
+// whenever its status isn't "new" anymore.
 export function SolicitudDetailModal({
   solicitud,
   onClose,
@@ -81,7 +73,7 @@ export function SolicitudDetailModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [atendidaSwitch, setAtendidaSwitch] = useState(false);
+  const [closingWithoutOt, setClosingWithoutOt] = useState(false);
   const [motivo, setMotivo] = useState<string>("");
   const [comentario, setComentario] = useState<string>("");
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -118,13 +110,11 @@ export function SolicitudDetailModal({
     setMotivo("");
     setComentario("");
     setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
+    setClosingWithoutOt(false);
     if (solicitud) {
-      setAtendidaSwitch(solicitud.atendida || solicitud.status !== "new");
       listProfiles()
         .then((profiles) => setProfileById(new Map(profiles.map((p) => [p.id, p]))))
         .catch(() => setProfileById(new Map()));
-    } else {
-      setAtendidaSwitch(false);
     }
   }, [solicitud]);
 
@@ -134,16 +124,6 @@ export function SolicitudDetailModal({
   function closeEverything() {
     onChanged();
     onClose();
-  }
-
-  function handleToggleSwitch(newValue: boolean) {
-    if (s.status !== "new") return;
-    setAtendidaSwitch(newValue);
-    setError(null);
-    if (!newValue) {
-      setMotivo("");
-      setComentario("");
-    }
   }
 
   async function handleConfirmCloseWithoutOt() {
@@ -164,7 +144,7 @@ export function SolicitudDetailModal({
   }
 
   function handleCancelCloseWithoutOt() {
-    setAtendidaSwitch(false);
+    setClosingWithoutOt(false);
     setMotivo("");
     setComentario("");
     setError(null);
@@ -218,18 +198,6 @@ export function SolicitudDetailModal({
                   <Text style={styles.equipmentName}>{s.equipment.name}</Text>
 
                   <Text style={styles.equipmentCode}>{s.equipment.code}</Text>
-                </View>
-
-                <View style={styles.switchContainer}>
-                  <Switch
-                    value={atendidaSwitch}
-                    onValueChange={handleToggleSwitch}
-                    disabled={busy || s.status !== "new"}
-                    trackColor={{ false: colors.borderInput, true: colors.accent }}
-                    thumbColor="#fff"
-                  />
-
-                  <Text style={styles.switchLabel}>Atendida</Text>
                 </View>
               </View>
 
@@ -285,7 +253,7 @@ export function SolicitudDetailModal({
                 </View>
               )}
 
-              {s.status === "new" && atendidaSwitch && (
+              {s.status === "new" && closingWithoutOt && (
                 <View style={styles.reasonBox}>
                   <Text style={styles.reasonTitle}>¿Por qué se marca como atendida sin OT?</Text>
 
@@ -407,11 +375,11 @@ export function SolicitudDetailModal({
 
               {error && <Text style={styles.error}>{error}</Text>}
 
-              {s.status === "new" && !atendidaSwitch && (
+              {s.status === "new" && !closingWithoutOt && (
                 <View style={styles.actions}>
                   <Pressable
                     style={styles.secondaryButton}
-                    onPress={() => setAtendidaSwitch(true)}
+                    onPress={() => setClosingWithoutOt(true)}
                     disabled={busy}
                   >
                     <Text style={styles.secondaryButtonText}>Cerrar sin OT</Text>
@@ -427,7 +395,7 @@ export function SolicitudDetailModal({
                 </View>
               )}
 
-              {s.status === "new" && atendidaSwitch && (
+              {s.status === "new" && closingWithoutOt && (
                 <View style={styles.actions}>
                   <Pressable
                     style={styles.secondaryButton}
@@ -449,7 +417,7 @@ export function SolicitudDetailModal({
                 </View>
               )}
 
-              {(!atendidaSwitch || s.status !== "new") && (
+              {(!closingWithoutOt || s.status !== "new") && (
                 <Pressable style={styles.closeButton} onPress={onClose} disabled={busy}>
                   <Text style={styles.closeButtonText}>Cerrar</Text>
                 </Pressable>
@@ -519,15 +487,6 @@ function makeStyles(c: ThemeColors) {
     },
     equipmentName: { fontSize: 19, fontWeight: "600", color: c.text },
     equipmentCode: { fontFamily: "monospace", fontSize: 13, color: c.textMuted, marginTop: 2 },
-    switchContainer: {
-      alignItems: "center",
-      gap: 3,
-    },
-    switchLabel: {
-      fontSize: 11.5,
-      fontWeight: "600",
-      color: c.textLabel,
-    },
     badgeRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     badgeText: { fontSize: 12.5, fontWeight: "600" },
