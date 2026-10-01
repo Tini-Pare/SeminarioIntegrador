@@ -62,18 +62,25 @@ export function GenerateOrderModal({
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [faultTypes, setFaultTypes] = useState<Fallo[]>([]);
   const [faultTypeId, setFaultTypeId] = useState<number | null>(null);
-  const [priority, setPriority] = useState<Priority>("medium");
+  const [priority, setPriority] = useState<Priority | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+
+  // Same palette as the priority badges on the solicitudes/OT lists.
+  const priorityColors: Record<Priority, { bg: string; fg: string }> = {
+    low: colors.urgencyLow,
+    medium: colors.urgencyMedium,
+    high: colors.urgencyHigh,
+  };
 
   useEffect(() => {
     if (!visible) return;
     setRows([emptyRow()]);
     setOpenDropdown(null);
     setFaultTypeId(null);
-    setPriority("medium");
+    setPriority(null);
     setConfirming(false);
     setError(null);
     Promise.all([listProfiles(), listActiveTaskCountsByTechnician()])
@@ -125,6 +132,11 @@ export function GenerateOrderModal({
     const invalidRow = rows.find((r) => !r.taskName.trim() || !r.technicianId);
     if (invalidRow || rows.length === 0) {
       setError("Completá la tarea y el técnico en cada fila.");
+      return;
+    }
+    // No default priority on purpose: the admin has to pick one explicitly.
+    if (!priority) {
+      setError("Elegí una prioridad.");
       return;
     }
 
@@ -274,23 +286,34 @@ export function GenerateOrderModal({
             <Text style={styles.label}>Prioridad</Text>
 
             <View style={styles.chipsRow}>
-              {PRIORITIES.map((p) => (
-                <Pressable
-                  key={p}
-                  style={[
-                    styles.chip,
-                    priority === p && {
-                      backgroundColor: colors.accent,
-                      borderColor: colors.accent,
-                    },
-                  ]}
-                  onPress={() => setPriority(p)}
-                >
-                  <Text style={[styles.chipText, priority === p && styles.chipTextSelected]}>
-                    {PRIORITY_LABELS[p]}
-                  </Text>
-                </Pressable>
-              ))}
+              {PRIORITIES.map((p) => {
+                const selected = priority === p;
+                return (
+                  <Pressable
+                    key={p}
+                    style={[
+                      styles.chip,
+                      selected && {
+                        backgroundColor: priorityColors[p].bg,
+                        borderColor: priorityColors[p].fg,
+                      },
+                    ]}
+                    onPress={() => {
+                      setPriority(p);
+                      if (error) setError(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selected && [styles.chipTextSelected, { color: priorityColors[p].fg }],
+                      ]}
+                    >
+                      {PRIORITY_LABELS[p]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             {error && <Text style={styles.error}>{error}</Text>}
@@ -301,7 +324,7 @@ export function GenerateOrderModal({
               </Pressable>
 
               <Pressable style={styles.confirmButton} onPress={handleConfirm} disabled={confirming}>
-                <Text style={styles.confirmText}>{confirming ? "Generando…" : "Generar OT"}</Text>
+                <Text style={styles.confirmText}>{confirming ? "Guardando…" : "Guardar"}</Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -391,7 +414,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
     },
     chipText: { fontSize: 13, color: c.textLabel },
-    chipTextSelected: { color: "#fff", fontWeight: "600" },
+    chipTextSelected: { fontWeight: "600" },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 24 },
     cancelButton: {

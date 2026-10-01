@@ -217,12 +217,6 @@ export function SolicitudDetailModal({
                 )}
               </View>
 
-              <Text style={styles.label}>Descripción</Text>
-
-              <Text style={styles.value}>{s.description}</Text>
-
-              <PhotoCarousel photoUrls={s.photo_urls} />
-
               <View style={styles.metaGrid}>
                 <MetaCell label="Reportó" value={s.reporterName} colors={colors} />
 
@@ -232,6 +226,12 @@ export function SolicitudDetailModal({
                   colors={colors}
                 />
               </View>
+
+              <Text style={styles.label}>Descripción</Text>
+
+              <Text style={styles.value}>{s.description}</Text>
+
+              <PhotoCarousel photoUrls={s.photo_urls} />
 
               {s.status === "rejected" && (
                 <View style={styles.rejectedBox}>

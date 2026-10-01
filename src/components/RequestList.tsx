@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { View, Text, Image, Pressable, ScrollView, StyleSheet } from "react-native";
 import type { Solicitud, Equipo } from "../types/database";
-import { WarningIcon } from "./icons";
+import { EyeIcon, WarningIcon } from "./icons";
+import { Tooltip } from "./Tooltip";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
@@ -25,7 +27,7 @@ const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
 
 // onSelect is only passed by the admin's "Solicitudes" screen — that's the
 // only role that can act on a solicitud (generar OT, cerrar, reasignar
-// técnico, etc.), so it's the only one that gets a "Ver más" affordance.
+// técnico, etc.), so it's the only one that gets the "Ver detalle" eye button.
 export function RequestList({
   items,
   onSelect,
@@ -132,14 +134,44 @@ export function RequestList({
                   {new Date(item.created_at).toLocaleDateString("es-AR")}
                 </Text>
                 <Text style={styles.meta}>Técnicos · {item.technicianName ?? "Sin asignar"}</Text>
-
-                {onSelect && <Text style={styles.viewMore}>Ver más →</Text>}
               </View>
             </View>
+
+            {onSelect && (
+              <ViewButton onPress={() => onSelect(item)} colors={colors} styles={styles} />
+            )}
           </Card>
         );
       })}
     </View>
+  );
+}
+
+// Same eye button as the equipment table's "Ver detalle" action.
+function ViewButton({
+  onPress,
+  colors,
+  styles,
+}: {
+  onPress: () => void;
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const [hover, setHover] = useState(false);
+
+  return (
+    <Tooltip text="Ver detalle">
+      <Pressable
+        style={[styles.viewButton, hover && styles.viewButtonHover]}
+        onPress={onPress}
+        onHoverIn={() => setHover(true)}
+        onHoverOut={() => setHover(false)}
+        hitSlop={6}
+        accessibilityLabel="Ver detalle"
+      >
+        <EyeIcon size={16} color={colors.accent} />
+      </Pressable>
+    </Tooltip>
   );
 }
 
@@ -195,6 +227,17 @@ function makeStyles(c: ThemeColors) {
     galleryPhoto: { width: 96, height: 96, borderRadius: 10, backgroundColor: c.bgNested },
     metaRow: { marginTop: 8, flexDirection: "row", gap: 16, flexWrap: "wrap" },
     meta: { fontSize: 13, color: c.textMuted },
-    viewMore: { fontSize: 13, color: c.accent, fontWeight: "600", marginLeft: "auto" },
+    viewButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      alignSelf: "center",
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    viewButtonHover: { backgroundColor: c.eqOperational.bg, borderColor: c.accent },
   });
 }
