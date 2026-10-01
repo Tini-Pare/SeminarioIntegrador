@@ -195,9 +195,11 @@ export function SolicitudDetailModal({
             <ScrollView contentContainerStyle={{ padding: 22 }}>
               <View style={styles.topHeaderRow}>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.equipmentName}>{s.equipment.name}</Text>
+                  <Text style={styles.title}>Detalle de solicitud</Text>
 
-                  <Text style={styles.equipmentCode}>{s.equipment.code}</Text>
+                  <Text style={styles.subtitle}>
+                    {s.equipment.code} · {s.equipment.name}
+                  </Text>
                 </View>
               </View>
 
@@ -485,8 +487,8 @@ function makeStyles(c: ThemeColors) {
       alignItems: "flex-start",
       gap: 12,
     },
-    equipmentName: { fontSize: 19, fontWeight: "600", color: c.text },
-    equipmentCode: { fontFamily: "monospace", fontSize: 13, color: c.textMuted, marginTop: 2 },
+    title: { fontSize: 18, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
     badgeRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     badgeText: { fontSize: 12.5, fontWeight: "600" },

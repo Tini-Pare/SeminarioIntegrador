@@ -109,11 +109,11 @@ export function SparePartModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{isEditing ? sparePart!.rep_nombre : "Nuevo repuesto"}</Text>
+          <Text style={styles.title}>{isEditing ? "Editar repuesto" : "Nuevo repuesto"}</Text>
 
           <Text style={styles.subtitle}>
             {isEditing
-              ? "Editá los datos del repuesto. El stock actual se ajusta con las compras."
+              ? `${sparePart!.rep_nombre} · El stock actual se ajusta con las compras.`
               : "Agregá un repuesto al inventario. El stock arranca en 0 y se carga al registrar una compra."}
           </Text>
 

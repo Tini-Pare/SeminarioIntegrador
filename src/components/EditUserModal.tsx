@@ -93,7 +93,9 @@ export function EditUserModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{profile.name}</Text>
+          <Text style={styles.title}>Editar usuario</Text>
+
+          <Text style={styles.subtitle}>{profile.name}</Text>
 
           <Text style={styles.label}>Legajo</Text>
 
@@ -172,6 +174,7 @@ function makeStyles(c: ThemeColors) {
       alignSelf: "center",
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
     label: {
       fontSize: 12.5,
       fontWeight: "600",

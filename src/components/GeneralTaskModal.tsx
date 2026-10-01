@@ -89,11 +89,11 @@ export function GeneralTaskModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>
-            {isEditing ? task!.tag_nombre_tarea : "Nueva tarea general"}
+            {isEditing ? "Editar tarea general" : "Nueva tarea general"}
           </Text>
           <Text style={styles.subtitle}>
             {isEditing
-              ? "Editá el nombre o la descripción."
+              ? task!.tag_nombre_tarea
               : "Agregá una acción técnica estandarizada para usar en planes y órdenes."}
           </Text>
 
