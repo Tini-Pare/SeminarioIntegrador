@@ -421,7 +421,7 @@ export function GenerateOrderModal({
               </Pressable>
 
               <Pressable style={styles.confirmButton} onPress={handleConfirm} disabled={confirming}>
-                <Text style={styles.confirmText}>{confirming ? "Guardando…" : "Guardar"}</Text>
+                <Text style={styles.confirmText}>{confirming ? "Guardando…" : "Confirmar"}</Text>
               </Pressable>
             </View>
           </ScrollView>

@@ -739,7 +739,7 @@ export default function RegisterPurchaseScreen() {
               </Pressable>
 
               <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? "Guardando…" : "Registrar"}</Text>
+                <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
               </Pressable>
             </View>
           </View>

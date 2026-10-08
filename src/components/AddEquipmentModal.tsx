@@ -241,7 +241,7 @@ export function AddEquipmentModal({
               onPress={handleSubmit}
               disabled={saving || blocked}
             >
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

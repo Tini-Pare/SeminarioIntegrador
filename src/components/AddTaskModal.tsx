@@ -159,7 +159,7 @@ export function AddTaskModal({
             </Pressable>
 
             <Pressable style={styles.confirmButton} onPress={handleConfirm} disabled={confirming}>
-              <Text style={styles.confirmText}>{confirming ? "Agregando…" : "Agregar"}</Text>
+              <Text style={styles.confirmText}>{confirming ? "Agregando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

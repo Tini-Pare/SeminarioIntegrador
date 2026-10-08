@@ -56,9 +56,7 @@ export function PurchaseOrderModal({
 
   function getPartOptionsForLine(currentRepId: number | null) {
     const selectedOtherIds = new Set(
-      lines
-        .map((l) => l.repId)
-        .filter((id): id is number => id !== null && id !== currentRepId),
+      lines.map((l) => l.repId).filter((id): id is number => id !== null && id !== currentRepId),
     );
     return spareParts
       .filter((p) => p.rep_estado === "activo" && !selectedOtherIds.has(p.rep_id))
@@ -260,7 +258,7 @@ export function PurchaseOrderModal({
             </Pressable>
 
             <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Enviando…" : "Hacer pedido"}</Text>
+              <Text style={styles.saveText}>{saving ? "Enviando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

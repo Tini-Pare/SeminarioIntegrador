@@ -303,7 +303,7 @@ export default function WorkOrderDetail() {
             </Pressable>
 
             <Pressable style={styles.dateSaveButton} onPress={handleSaveDate} disabled={busy}>
-              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         ) : (
@@ -342,7 +342,7 @@ export default function WorkOrderDetail() {
               onPress={() => handleSavePlannedDate()}
               disabled={busy}
             >
-              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         ) : (

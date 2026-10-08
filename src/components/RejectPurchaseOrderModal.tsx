@@ -74,7 +74,7 @@ export function RejectPurchaseOrderModal({
             </Pressable>
 
             <Pressable style={styles.rejectButton} onPress={handleReject} disabled={saving}>
-              <Text style={styles.rejectText}>{saving ? "Rechazando…" : "Rechazar"}</Text>
+              <Text style={styles.rejectText}>{saving ? "Rechazando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

@@ -183,7 +183,7 @@ export function RemitoCompraModal({
               onPress={handleSave}
               disabled={saving || rows.length === 0}
             >
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

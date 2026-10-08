@@ -224,7 +224,7 @@ export function SupplierModal({
               onPress={handleSave}
               disabled={saving || rubroOptions.length === 0}
             >
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

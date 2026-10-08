@@ -298,7 +298,7 @@ export function ReportFaultModal({
               </Pressable>
 
               <Pressable style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
-                <Text style={styles.submitText}>{submitting ? "Enviando…" : "Reportar"}</Text>
+                <Text style={styles.submitText}>{submitting ? "Enviando…" : "Confirmar"}</Text>
               </Pressable>
             </View>
           </ScrollView>

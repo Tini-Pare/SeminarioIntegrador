@@ -266,7 +266,7 @@ export function EditEquipmentModal({
             </Pressable>
 
             <Pressable style={styles.saveButton} onPress={handleSubmit} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

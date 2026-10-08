@@ -343,7 +343,9 @@ export function SolicitudDetailModal({
                           onPress={handleSaveDate}
                           disabled={busy}
                         >
-                          <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Guardar"}</Text>
+                          <Text style={styles.dateSaveText}>
+                            {busy ? "Guardando…" : "Confirmar"}
+                          </Text>
                         </Pressable>
                       </View>
                     </>
