@@ -16,8 +16,10 @@ import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Fallo, Profile, Solicitud, TareaGeneral } from "../types/database";
+import { TrashIcon } from "./icons";
 import { Select } from "./Select";
 import { TaskCombobox } from "./TaskCombobox";
+import { Tooltip } from "./Tooltip";
 
 type Priority = Exclude<Solicitud["priority"], null>;
 
@@ -287,9 +289,16 @@ export function GenerateOrderModal({
                     Tarea {activeIndex + 1} de {rows.length}
                   </Text>
 
-                  <Pressable onPress={() => removeRow(activeRow.rowId)} hitSlop={6}>
-                    <Text style={styles.removeTaskText}>Quitar</Text>
-                  </Pressable>
+                  <Tooltip text="Quitar tarea" align="right">
+                    <Pressable
+                      style={styles.removeTaskButton}
+                      onPress={() => removeRow(activeRow.rowId)}
+                      hitSlop={6}
+                      accessibilityLabel="Quitar tarea"
+                    >
+                      <TrashIcon size={16} color={colors.destructive} />
+                    </Pressable>
+                  </Tooltip>
                 </View>
               )}
             </View>
@@ -510,7 +519,18 @@ function makeStyles(c: ThemeColors) {
     tasksHeaderLabel: { marginTop: 0, marginBottom: 0 },
     tasksHeaderRight: { flexDirection: "row", alignItems: "center", gap: 12 },
     taskCounter: { fontSize: 12.5, color: c.textMuted },
-    removeTaskText: { fontSize: 12.5, fontWeight: "600", color: c.destructive },
+    // Same bordered square as the trash button in every table row
+    // (RowActions), so removing reads the same everywhere.
+    removeTaskButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
     taskFields: { position: "relative", zIndex: 10 },
     taskFieldsInner: { gap: 8 },
     fieldWrap: {

@@ -160,7 +160,7 @@ function ViewButton({
   const [hover, setHover] = useState(false);
 
   return (
-    <Tooltip text="Ver detalle">
+    <Tooltip text="Ver detalle" align="right">
       <Pressable
         style={[styles.viewButton, hover && styles.viewButtonHover]}
         onPress={onPress}

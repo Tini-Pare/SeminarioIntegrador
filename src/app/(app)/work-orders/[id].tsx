@@ -11,6 +11,7 @@ import {
 } from "../../../components/CustomDatePicker";
 import { PhotoCarousel } from "../../../components/PhotoCarousel";
 import { ReassignTechnicianModal } from "../../../components/ReassignTechnicianModal";
+import { RowActions } from "../../../components/RowActions";
 import { getEquipmentById } from "../../../lib/queries/equipment";
 import {
   addTaskToOrder,
@@ -425,9 +426,10 @@ export default function WorkOrderDetail() {
 
                 <View style={styles.actionsCol}>
                   {!task.endDate && (
-                    <Pressable onPress={() => setReassigningTask(task)}>
-                      <Text style={styles.linkButtonText}>Reasignar</Text>
-                    </Pressable>
+                    <RowActions
+                      onEdit={() => setReassigningTask(task)}
+                      editTooltip="Reasignar técnico"
+                    />
                   )}
                 </View>
               </View>

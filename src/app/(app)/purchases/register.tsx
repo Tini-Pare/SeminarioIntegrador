@@ -254,7 +254,7 @@ function LineDeleteButton({
       disabled={disabled}
       accessibilityLabel="Quitar línea"
     >
-      <TrashIcon size={15} color={disabled ? colors.textMuted : colors.destructive} />
+      <TrashIcon size={16} color={disabled ? colors.textMuted : colors.destructive} />
     </Pressable>
   );
 }

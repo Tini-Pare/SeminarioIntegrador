@@ -465,7 +465,7 @@ function EquipmentRowActions({
 
   return (
     <View style={styles.actionsWrap}>
-      <Tooltip text="Ver detalle">
+      <Tooltip text="Ver detalle" align={isAdmin ? "center" : "right"}>
         <Pressable
           style={[styles.actionButton, hoverView && styles.actionButtonViewHover]}
           onPress={() => router.push(`/equipment/${e.id}`)}

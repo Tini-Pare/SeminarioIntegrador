@@ -222,7 +222,7 @@ export function PurchaseOrderModal({
                     >
                       <TrashIcon
                         size={16}
-                        color={lines.length === 1 ? colors.textMuted : "#c53030"}
+                        color={lines.length === 1 ? colors.textMuted : colors.destructive}
                       />
                     </Pressable>
                   </View>

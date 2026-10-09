@@ -18,8 +18,10 @@ export function RowActions({
   deleteTooltip = "Eliminar",
 }: {
   onView?: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  // Each action is optional so a row that only needs one (see an OT, reassign
+  // a técnico) still uses the same buttons as every other table.
+  onEdit?: () => void;
+  onDelete?: () => void;
   deleteDisabled?: boolean;
   viewTooltip?: string;
   editTooltip?: string;
@@ -31,10 +33,15 @@ export function RowActions({
   const [hoverEdit, setHoverEdit] = useState(false);
   const [hoverDelete, setHoverDelete] = useState(false);
 
+  // The rightmost button sits against the edge of whatever contains the row
+  // (a table, a modal), and a centered tooltip there gets clipped in half. So
+  // whichever action renders last opens its tooltip toward the left instead.
+  const last = onDelete ? "delete" : onEdit ? "edit" : "view";
+
   return (
     <View style={styles.wrap}>
       {onView && (
-        <Tooltip text={viewTooltip}>
+        <Tooltip text={viewTooltip} align={last === "view" ? "right" : "center"}>
           <Pressable
             style={[styles.button, hoverView && styles.buttonViewHover]}
             onPress={onView}
@@ -48,36 +55,40 @@ export function RowActions({
         </Tooltip>
       )}
 
-      <Tooltip text={editTooltip}>
-        <Pressable
-          style={[styles.button, hoverEdit && styles.buttonEditHover]}
-          onPress={onEdit}
-          onHoverIn={() => setHoverEdit(true)}
-          onHoverOut={() => setHoverEdit(false)}
-          hitSlop={6}
-          accessibilityLabel={editTooltip}
-        >
-          <PencilIcon size={16} color={colors.accent} />
-        </Pressable>
-      </Tooltip>
+      {onEdit && (
+        <Tooltip text={editTooltip} align={last === "edit" ? "right" : "center"}>
+          <Pressable
+            style={[styles.button, hoverEdit && styles.buttonEditHover]}
+            onPress={onEdit}
+            onHoverIn={() => setHoverEdit(true)}
+            onHoverOut={() => setHoverEdit(false)}
+            hitSlop={6}
+            accessibilityLabel={editTooltip}
+          >
+            <PencilIcon size={16} color={colors.accent} />
+          </Pressable>
+        </Tooltip>
+      )}
 
-      <Tooltip text={deleteTooltip} align="right">
-        <Pressable
-          style={[
-            styles.button,
-            hoverDelete && !deleteDisabled && styles.buttonDeleteHover,
-            deleteDisabled && styles.disabled,
-          ]}
-          onPress={onDelete}
-          onHoverIn={() => setHoverDelete(true)}
-          onHoverOut={() => setHoverDelete(false)}
-          disabled={deleteDisabled}
-          hitSlop={6}
-          accessibilityLabel={deleteTooltip}
-        >
-          <TrashIcon size={16} color={colors.destructive} />
-        </Pressable>
-      </Tooltip>
+      {onDelete && (
+        <Tooltip text={deleteTooltip} align="right">
+          <Pressable
+            style={[
+              styles.button,
+              hoverDelete && !deleteDisabled && styles.buttonDeleteHover,
+              deleteDisabled && styles.disabled,
+            ]}
+            onPress={onDelete}
+            onHoverIn={() => setHoverDelete(true)}
+            onHoverOut={() => setHoverDelete(false)}
+            disabled={deleteDisabled}
+            hitSlop={6}
+            accessibilityLabel={deleteTooltip}
+          >
+            <TrashIcon size={16} color={colors.destructive} />
+          </Pressable>
+        </Tooltip>
+      )}
     </View>
   );
 }

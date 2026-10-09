@@ -6,6 +6,7 @@ import { GenerateOrderModal } from "./GenerateOrderModal";
 import { PhotoCarousel } from "./PhotoCarousel";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { ReassignTechnicianModal } from "./ReassignTechnicianModal";
+import { RowActions } from "./RowActions";
 import {
   addTaskToOrder,
   closeSolicitud,
@@ -310,9 +311,10 @@ export function SolicitudDetailModal({
                       </View>
 
                       {s.status !== "resolved" && (
-                        <Pressable onPress={() => setReassigningTask(task)}>
-                          <Text style={styles.linkButtonText}>Reasignar</Text>
-                        </Pressable>
+                        <RowActions
+                          onEdit={() => setReassigningTask(task)}
+                          editTooltip="Reasignar técnico"
+                        />
                       )}
                     </View>
                   ))}

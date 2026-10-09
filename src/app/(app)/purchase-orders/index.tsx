@@ -436,7 +436,7 @@ export default function PurchaseOrdersScreen() {
 
       <View style={styles.filterBar}>
         <View style={styles.searchBox}>
-          <SearchIcon size={16} color={colors.textMuted} />
+          <SearchIcon size={15} color={colors.textMuted} />
 
           <TextInput
             style={styles.searchInput}
@@ -459,7 +459,7 @@ export default function PurchaseOrdersScreen() {
           onPress={handleToggleFilters}
           accessibilityLabel="Filtros"
         >
-          <FunnelIcon size={15} color={hasActiveFilters ? "#fff" : colors.textLabel} />
+          <FunnelIcon size={14} color={hasActiveFilters ? "#fff" : colors.textLabel} />
 
           <Text style={[styles.funnelText, hasActiveFilters && styles.funnelTextActive]}>
             {hasActiveFilters ? `Filtros (${activeFiltersCount})` : "Filtros"}
@@ -509,9 +509,7 @@ export default function PurchaseOrdersScreen() {
                   onChange={setDateFrom}
                   placeholder="DD/MM/AAAA"
                   maxDate={
-                    parsedDateTo && parsedDateTo.getTime() < today.getTime()
-                      ? parsedDateTo
-                      : today
+                    parsedDateTo && parsedDateTo.getTime() < today.getTime() ? parsedDateTo : today
                   }
                   alignDropdown="left"
                 />
@@ -562,10 +560,7 @@ export default function PurchaseOrdersScreen() {
               <View />
             )}
 
-            <Pressable
-              style={styles.applyFiltersBtn}
-              onPress={() => setFiltersOpen(false)}
-            >
+            <Pressable style={styles.applyFiltersBtn} onPress={() => setFiltersOpen(false)}>
               <Text style={styles.applyFiltersText}>Cerrar</Text>
             </Pressable>
           </View>
@@ -656,23 +651,23 @@ export default function PurchaseOrdersScreen() {
 
                 <View style={styles.actionsCol}>
                   {isAdmin && o.ped_estado === "pendiente" ? (
-                    <Tooltip text="Revisar pedido">
+                    <Tooltip text="Revisar pedido" align="right">
                       <Pressable
                         style={[styles.viewBtn, styles.reviewBtn]}
                         onPress={() => setViewing(o)}
                         accessibilityLabel="Revisar pedido"
                       >
-                        <ReviewIcon size={17} color={colors.accent} />
+                        <ReviewIcon size={16} color={colors.accent} />
                       </Pressable>
                     </Tooltip>
                   ) : (
-                    <Tooltip text="Ver pedido">
+                    <Tooltip text="Ver pedido" align="right">
                       <Pressable
                         style={styles.viewBtn}
                         onPress={() => setViewing(o)}
                         accessibilityLabel="Ver pedido"
                       >
-                        <EyeIcon size={17} color={colors.accent} />
+                        <EyeIcon size={16} color={colors.accent} />
                       </Pressable>
                     </Tooltip>
                   )}
@@ -969,4 +964,3 @@ function makeStyles(c: ThemeColors) {
     reviewBtn: { borderColor: c.accent },
   });
 }
-

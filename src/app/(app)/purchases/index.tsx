@@ -431,7 +431,7 @@ export default function PurchasesScreen() {
                       }
                       accessibilityLabel="Ver compra"
                     >
-                      <EyeIcon size={17} color={colors.accent} />
+                      <EyeIcon size={16} color={colors.accent} />
                     </Pressable>
                   </View>
                 </View>

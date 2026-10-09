@@ -247,13 +247,9 @@ export default function PurchaseDetailScreen() {
           </View>
 
           <View style={styles.headerRight}>
-            <Text style={styles.totalLabel}>
-              {isFactura ? "Total facturado" : "Total"}
-            </Text>
+            <Text style={styles.totalLabel}>{isFactura ? "Total facturado" : "Total"}</Text>
 
-            <Text style={styles.totalAmount}>
-              {money(purchase.co_costo_total)}
-            </Text>
+            <Text style={styles.totalAmount}>{money(purchase.co_costo_total)}</Text>
           </View>
         </View>
 
@@ -346,11 +342,11 @@ export default function PurchaseDetailScreen() {
                             onPress={() => setEditingRemito(r)}
                             accessibilityLabel="Editar remito"
                           >
-                            <PencilIcon size={16} color={colors.textLabel} />
+                            <PencilIcon size={16} color={colors.accent} />
                           </Pressable>
                         </Tooltip>
 
-                        <Tooltip text="Anular remito">
+                        <Tooltip text="Anular remito" align="right">
                           <Pressable
                             style={styles.remitoActionBtn}
                             onPress={() => {
