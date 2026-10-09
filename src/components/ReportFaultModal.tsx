@@ -19,6 +19,7 @@ import {
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
 import type { Equipo } from "../types/database";
+import { TrashIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
@@ -251,8 +252,12 @@ export function ReportFaultModal({
                   <View key={`${i}-${uri.length}`} style={styles.photoPreviewWrap}>
                     <Image source={{ uri }} style={styles.photoPreview} />
 
-                    <Pressable style={styles.photoRemoveBadge} onPress={() => handleRemovePhoto(i)}>
-                      <Text style={styles.photoRemoveBadgeText}>✕</Text>
+                    <Pressable
+                      style={styles.photoRemoveBadge}
+                      onPress={() => handleRemovePhoto(i)}
+                      accessibilityLabel="Quitar foto"
+                    >
+                      <TrashIcon size={12} color="#fff" />
                     </Pressable>
                   </View>
                 ))}
@@ -298,7 +303,7 @@ export function ReportFaultModal({
               </Pressable>
 
               <Pressable style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
-                <Text style={styles.submitText}>{submitting ? "Enviando…" : "Reportar"}</Text>
+                <Text style={styles.submitText}>{submitting ? "Enviando…" : "Confirmar"}</Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -389,21 +394,26 @@ function makeStyles(c: ThemeColors) {
     // Horizontal, side-scrolling strip of thumbnails — same "scroll sideways
     // to see every photo" pattern requested for viewing a solicitud's photos.
     photoStrip: { marginBottom: 10 },
-    photoStripContent: { gap: 10, paddingRight: 4 },
+    // The remove badge sticks out 6px past each thumbnail's top-right corner
+    // and a horizontal ScrollView clips its overflow, so the strip needs that
+    // much room (plus a little) or the badge gets cut in half.
+    photoStripContent: { gap: 10, paddingTop: 8, paddingRight: 8 },
     photoPreviewWrap: { position: "relative" },
     photoPreview: { width: 72, height: 72, borderRadius: 10, backgroundColor: c.bgNested },
     photoRemoveBadge: {
       position: "absolute",
       top: -6,
       right: -6,
-      width: 20,
-      height: 20,
-      borderRadius: 10,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
       backgroundColor: c.destructive,
+      // Ring in the sheet's color so the badge reads as separate from the photo.
+      borderWidth: 2,
+      borderColor: c.bgModal,
       alignItems: "center",
       justifyContent: "center",
     },
-    photoRemoveBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
     actions: { flexDirection: "row", gap: 10, marginTop: 20 },
     cancelButton: {
       flex: 1,

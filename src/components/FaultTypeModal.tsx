@@ -103,11 +103,13 @@ export function FaultTypeModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{isEditing ? fault!.fa_nombre : "Nueva falla genérica"}</Text>
+          <Text style={styles.title}>
+            {isEditing ? "Editar falla genérica" : "Nueva falla genérica"}
+          </Text>
 
           <Text style={styles.subtitle}>
             {isEditing
-              ? "Editá el nombre, la descripción o la gravedad."
+              ? fault!.fa_nombre
               : "Definí un tipo de falla para clasificar las incidencias."}
           </Text>
 
@@ -161,7 +163,7 @@ export function FaultTypeModal({
             </Pressable>
 
             <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

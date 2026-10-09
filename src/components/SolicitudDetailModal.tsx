@@ -6,6 +6,7 @@ import { GenerateOrderModal } from "./GenerateOrderModal";
 import { PhotoCarousel } from "./PhotoCarousel";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { ReassignTechnicianModal } from "./ReassignTechnicianModal";
+import { RowActions } from "./RowActions";
 import {
   addTaskToOrder,
   closeSolicitud,
@@ -195,9 +196,11 @@ export function SolicitudDetailModal({
             <ScrollView contentContainerStyle={{ padding: 22 }}>
               <View style={styles.topHeaderRow}>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.equipmentName}>{s.equipment.name}</Text>
+                  <Text style={styles.title}>Detalle de solicitud</Text>
 
-                  <Text style={styles.equipmentCode}>{s.equipment.code}</Text>
+                  <Text style={styles.subtitle}>
+                    {s.equipment.code} · {s.equipment.name}
+                  </Text>
                 </View>
               </View>
 
@@ -217,12 +220,6 @@ export function SolicitudDetailModal({
                 )}
               </View>
 
-              <Text style={styles.label}>Descripción</Text>
-
-              <Text style={styles.value}>{s.description}</Text>
-
-              <PhotoCarousel photoUrls={s.photo_urls} />
-
               <View style={styles.metaGrid}>
                 <MetaCell label="Reportó" value={s.reporterName} colors={colors} />
 
@@ -232,6 +229,12 @@ export function SolicitudDetailModal({
                   colors={colors}
                 />
               </View>
+
+              <Text style={styles.label}>Descripción</Text>
+
+              <Text style={styles.value}>{s.description}</Text>
+
+              <PhotoCarousel photoUrls={s.photo_urls} />
 
               {s.status === "rejected" && (
                 <View style={styles.rejectedBox}>
@@ -315,9 +318,10 @@ export function SolicitudDetailModal({
                       </View>
 
                       {s.status !== "resolved" && (
-                        <Pressable onPress={() => setReassigningTask(task)}>
-                          <Text style={styles.linkButtonText}>Reasignar</Text>
-                        </Pressable>
+                        <RowActions
+                          onEdit={() => setReassigningTask(task)}
+                          editTooltip="Reasignar técnico"
+                        />
                       )}
                     </View>
                   ))}
@@ -348,7 +352,9 @@ export function SolicitudDetailModal({
                           onPress={handleSaveDate}
                           disabled={busy}
                         >
-                          <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Guardar"}</Text>
+                          <Text style={styles.dateSaveText}>
+                            {busy ? "Guardando…" : "Confirmar"}
+                          </Text>
                         </Pressable>
                       </View>
                     </>
@@ -492,8 +498,8 @@ function makeStyles(c: ThemeColors) {
       alignItems: "flex-start",
       gap: 12,
     },
-    equipmentName: { fontSize: 19, fontWeight: "600", color: c.text },
-    equipmentCode: { fontFamily: "monospace", fontSize: 13, color: c.textMuted, marginTop: 2 },
+    title: { fontSize: 18, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
     badgeRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     badgeText: { fontSize: 12.5, fontWeight: "600" },

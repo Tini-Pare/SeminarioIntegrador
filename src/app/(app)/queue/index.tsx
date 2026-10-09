@@ -27,6 +27,7 @@ import { Pagination } from "../../../components/Pagination";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { useConfirm } from "../../../lib/useConfirm";
 import type { Equipo, Solicitud } from "../../../types/database";
 
 // A técnico's queue is one row per tarea assigned to them — not one row
@@ -80,6 +81,7 @@ export default function QueueScreen() {
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const { confirm, dialog } = useConfirm();
 
   const load = useCallback(async () => {
     setError(null);
@@ -159,6 +161,20 @@ export default function QueueScreen() {
     await finishTask(finishingTask.taskRowId, repuestos);
     await load();
     setFinishingTask(null);
+  }
+
+  // Starting or finishing a tarea can't be undone from the app (and
+  // finishing the last pending one resolves the whole OT), so it asks first
+  // like every other action that changes data.
+  function askAction(item: Item) {
+    const starting = !item.startDate;
+    confirm({
+      title: starting ? "Iniciar tarea" : "Finalizar tarea",
+      message: starting
+        ? `¿Iniciar "${item.taskName}" en ${item.equipment.name}?`
+        : `¿Finalizar "${item.taskName}" en ${item.equipment.name}? Si es la última tarea pendiente de la orden, la orden queda resuelta.`,
+      onConfirm: () => handleAction(item),
+    });
   }
 
   function actionLabel(item: Item): string | null {
@@ -334,7 +350,7 @@ export default function QueueScreen() {
                 label && (
                   <Pressable
                     style={styles.actionButton}
-                    onPress={() => handleAction(item)}
+                    onPress={() => askAction(item)}
                     disabled={actingOn === item.taskRowId}
                   >
                     <Text style={styles.actionText}>
@@ -349,20 +365,21 @@ export default function QueueScreen() {
       )}
 
       <Pagination page={page} pageCount={pageCount} onPage={setPage} />
-      </ScrollView>
+      {dialog}
+    </ScrollView>
 
-      <FinishTaskModal
-        visible={!!finishingTask}
-        onClose={() => setFinishingTask(null)}
-        onConfirm={handleConfirmFinish}
-        taskName={finishingTask?.taskName ?? ""}
-        equipmentLabel={
-          finishingTask
-            ? `${finishingTask.equipment.code} · ${finishingTask.equipment.name}`
-            : ""
-        }
-      />
-    </>
+    <FinishTaskModal
+      visible={!!finishingTask}
+      onClose={() => setFinishingTask(null)}
+      onConfirm={handleConfirmFinish}
+      taskName={finishingTask?.taskName ?? ""}
+      equipmentLabel={
+        finishingTask
+          ? `${finishingTask.equipment.code} · ${finishingTask.equipment.name}`
+          : ""
+      }
+    />
+  </>
   );
 }
 

@@ -2,7 +2,6 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
 } from "react-native";
 import { fromDbDate } from "../../../components/CustomDatePicker";
 import { Pagination } from "../../../components/Pagination";
+import { RowActions } from "../../../components/RowActions";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { listEquipment } from "../../../lib/queries/equipment";
@@ -288,17 +288,15 @@ export default function WorkOrdersScreen() {
                 </View>
 
                 <View style={styles.actionsCol}>
-                  <Pressable
-                    style={styles.viewButton}
-                    onPress={() =>
+                  <RowActions
+                    onView={() =>
                       router.push({
                         pathname: "/work-orders/[id]",
                         params: { id: String(item.id) },
                       })
                     }
-                  >
-                    <Text style={styles.viewButtonText}>Ver</Text>
-                  </Pressable>
+                    viewTooltip="Ver orden de trabajo"
+                  />
                 </View>
               </View>
             );
@@ -379,16 +377,5 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 999,
     },
     badgeText: { fontSize: 12.5, fontWeight: "600" },
-    viewButton: {
-      paddingHorizontal: 12,
-      height: 32,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    viewButtonText: { fontSize: 12.5, fontWeight: "600", color: c.accent },
   });
 }

@@ -120,9 +120,7 @@ export default function SettingsScreen() {
           onPress={handleChangePassword}
           disabled={saving}
         >
-          <Text style={styles.changePasswordText}>
-            {saving ? "Guardando…" : "Actualizar contraseña"}
-          </Text>
+          <Text style={styles.changePasswordText}>{saving ? "Guardando…" : "Confirmar"}</Text>
         </Pressable>
       </View>
 

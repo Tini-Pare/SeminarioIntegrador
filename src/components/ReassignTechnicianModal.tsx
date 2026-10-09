@@ -119,7 +119,7 @@ export function ReassignTechnicianModal({
             </Pressable>
 
             <Pressable style={styles.confirmButton} onPress={handleConfirm} disabled={confirming}>
-              <Text style={styles.confirmText}>{confirming ? "Guardando…" : "Reasignar"}</Text>
+              <Text style={styles.confirmText}>{confirming ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

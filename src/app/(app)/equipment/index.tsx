@@ -423,7 +423,7 @@ export default function EquipmentScreen() {
                   onPress={() => setEquipmentToDelete(null)}
                   disabled={deleting}
                 >
-                  <Text style={styles.confirmCancelText}>CANCELAR</Text>
+                  <Text style={styles.confirmCancelText}>Cancelar</Text>
                 </Pressable>
 
                 <Pressable
@@ -432,7 +432,7 @@ export default function EquipmentScreen() {
                   disabled={deleting}
                 >
                   <Text style={styles.confirmAcceptText}>
-                    {deleting ? "Procesando…" : "ACEPTAR"}
+                    {deleting ? "Procesando…" : "Confirmar"}
                   </Text>
                 </Pressable>
               </View>
@@ -465,7 +465,7 @@ function EquipmentRowActions({
 
   return (
     <View style={styles.actionsWrap}>
-      <Tooltip text="Ver detalle">
+      <Tooltip text="Ver detalle" align={isAdmin ? "center" : "right"}>
         <Pressable
           style={[styles.actionButton, hoverView && styles.actionButtonViewHover]}
           onPress={() => router.push(`/equipment/${e.id}`)}

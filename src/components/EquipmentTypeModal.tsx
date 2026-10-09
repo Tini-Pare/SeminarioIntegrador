@@ -56,11 +56,11 @@ export function EquipmentTypeModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>
-            {isEditing ? equipmentType!.te_nombre : "Nuevo tipo de equipo"}
+            {isEditing ? "Editar tipo de equipo" : "Nuevo tipo de equipo"}
           </Text>
           <Text style={styles.subtitle}>
             {isEditing
-              ? "Editá el nombre del tipo."
+              ? equipmentType!.te_nombre
               : "Agregá una categoría para clasificar los equipos."}
           </Text>
 
@@ -81,7 +81,7 @@ export function EquipmentTypeModal({
             </Pressable>
 
             <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

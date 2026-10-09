@@ -254,7 +254,7 @@ function LineDeleteButton({
       disabled={disabled}
       accessibilityLabel="Quitar línea"
     >
-      <TrashIcon size={15} color={disabled ? colors.textMuted : colors.destructive} />
+      <TrashIcon size={16} color={disabled ? colors.textMuted : colors.destructive} />
     </Pressable>
   );
 }
@@ -739,7 +739,7 @@ export default function RegisterPurchaseScreen() {
               </Pressable>
 
               <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? "Guardando…" : "Registrar"}</Text>
+                <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
               </Pressable>
             </View>
           </View>

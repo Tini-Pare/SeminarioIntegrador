@@ -11,6 +11,7 @@ import {
 } from "../../../components/CustomDatePicker";
 import { PhotoCarousel } from "../../../components/PhotoCarousel";
 import { ReassignTechnicianModal } from "../../../components/ReassignTechnicianModal";
+import { RowActions } from "../../../components/RowActions";
 import { getEquipmentById } from "../../../lib/queries/equipment";
 import {
   addTaskToOrder,
@@ -311,7 +312,7 @@ export default function WorkOrderDetail() {
             </Pressable>
 
             <Pressable style={styles.dateSaveButton} onPress={handleSaveDate} disabled={busy}>
-              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         ) : (
@@ -350,7 +351,7 @@ export default function WorkOrderDetail() {
               onPress={() => handleSavePlannedDate()}
               disabled={busy}
             >
-              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         ) : (
@@ -437,9 +438,10 @@ export default function WorkOrderDetail() {
 
                   <View style={styles.actionsCol}>
                     {!task.endDate && (
-                      <Pressable onPress={() => setReassigningTask(task)}>
-                        <Text style={styles.linkButtonText}>Reasignar</Text>
-                      </Pressable>
+                      <RowActions
+                        onEdit={() => setReassigningTask(task)}
+                        editTooltip="Reasignar técnico"
+                      />
                     )}
                   </View>
                 </View>

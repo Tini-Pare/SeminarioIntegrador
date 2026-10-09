@@ -138,11 +138,11 @@ export function SupplierModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{isEditing ? supplier!.prov_nombre : "Nuevo proveedor"}</Text>
+          <Text style={styles.title}>{isEditing ? "Editar proveedor" : "Nuevo proveedor"}</Text>
 
           <Text style={styles.subtitle}>
             {isEditing
-              ? "Editá los datos de contacto del proveedor."
+              ? supplier!.prov_nombre
               : "Registrá un proveedor para asociarlo a las compras."}
           </Text>
 
@@ -224,7 +224,7 @@ export function SupplierModal({
               onPress={handleSave}
               disabled={saving || rubroOptions.length === 0}
             >
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

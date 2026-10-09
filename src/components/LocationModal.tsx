@@ -57,11 +57,9 @@ export function LocationModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>
-            {isEditing ? location!.lu_nombre_sector : "Nueva ubicación"}
-          </Text>
+          <Text style={styles.title}>{isEditing ? "Editar ubicación" : "Nueva ubicación"}</Text>
           <Text style={styles.subtitle}>
-            {isEditing ? "Editá el sector y el piso." : "Agregá un sector donde ubicar equipos."}
+            {isEditing ? location!.lu_nombre_sector : "Agregá un sector donde ubicar equipos."}
           </Text>
 
           <View style={styles.fieldRow}>
@@ -96,7 +94,7 @@ export function LocationModal({
             </Pressable>
 
             <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>

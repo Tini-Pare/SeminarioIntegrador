@@ -199,7 +199,7 @@ export function InvitePersonModal({
             </Pressable>
 
             <Pressable style={styles.sendButton} onPress={handleSubmit} disabled={sending}>
-              <Text style={styles.sendText}>{sending ? "Guardando…" : "Guardar"}</Text>
+              <Text style={styles.sendText}>{sending ? "Guardando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
         </View>
