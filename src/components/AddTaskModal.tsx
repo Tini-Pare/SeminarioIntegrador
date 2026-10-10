@@ -62,7 +62,8 @@ export function AddTaskModal({
   }));
   const technicianOptions = technicians.map((t) => {
     const count = workload[t.id] ?? 0;
-    const countLabel = count === 1 ? "1 OT activa" : `${count} OT activas`;
+    // listActiveTaskCountsByTechnician counts open tareas, not OTs.
+    const countLabel = count === 1 ? "1 tarea activa" : `${count} tareas activas`;
     return {
       value: t.id,
       label: `${t.name} · ${countLabel}`,

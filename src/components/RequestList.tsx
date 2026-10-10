@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, Text, Image, Pressable, ScrollView, StyleSheet } from "react-native";
 import type { Solicitud, Equipo } from "../types/database";
 import { EyeIcon, WarningIcon } from "./icons";
+import { withSiglas } from "./Sigla";
 import { Tooltip } from "./Tooltip";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -109,7 +110,7 @@ export function RequestList({
               {item.status === "rejected" && item.motivo_rechazo && (
                 <View style={styles.rejectedBox}>
                   <Text style={styles.rejectedText}>
-                    Motivo del rechazo: {item.motivo_rechazo}
+                    Motivo del rechazo: {withSiglas(item.motivo_rechazo)}
                     {item.comentario_rechazo ? ` — ${item.comentario_rechazo}` : ""}
                   </Text>
                 </View>

@@ -5,6 +5,7 @@ import { fromDbDate } from "./CustomDatePicker";
 import { GenerateOrderModal } from "./GenerateOrderModal";
 import { PhotoCarousel } from "./PhotoCarousel";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
+import { Sigla, withSiglas } from "./Sigla";
 import { closeSolicitud, generateOrder } from "../lib/queries/faults";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
@@ -33,9 +34,12 @@ const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
 const MOTIVO_OPTIONS: RadioOption<string>[] = [
   { value: "Duplicada", label: "Duplicada" },
   { value: "Falsa alarma", label: "Falsa alarma" },
+  // The stored value keeps "OT" (existing rows already use it); only the
+  // radio label spells it out, since RadioGroup labels can't host a <Sigla>.
+  // Where the saved motivo is shown, withSiglas() adds the tooltip instead.
   {
     value: "Se resolvió sin OT (ajuste menor)",
-    label: "Se resolvió sin OT (ajuste menor)",
+    label: "Se resolvió sin orden de trabajo (ajuste menor)",
   },
   { value: "Otro", label: "Otro" },
 ];
@@ -205,7 +209,7 @@ export function SolicitudDetailModal({
                   <Text style={styles.rejectedLabel}>Motivo</Text>
 
                   <Text style={styles.rejectedValue}>
-                    {s.motivo_rechazo || "Sin motivo especificado"}
+                    {s.motivo_rechazo ? withSiglas(s.motivo_rechazo) : "Sin motivo especificado"}
                   </Text>
 
                   {s.comentario_rechazo && (
@@ -220,7 +224,9 @@ export function SolicitudDetailModal({
 
               {s.status === "new" && closingWithoutOt && (
                 <View style={styles.reasonBox}>
-                  <Text style={styles.reasonTitle}>¿Por qué se marca como atendida sin OT?</Text>
+                  <Text style={styles.reasonTitle}>
+                    ¿Por qué se marca como atendida sin <Sigla>OT</Sigla>?
+                  </Text>
 
                   <RadioGroup
                     name="motivo-cierre"
@@ -320,7 +326,9 @@ export function SolicitudDetailModal({
                     onPress={() => setClosingWithoutOt(true)}
                     disabled={busy}
                   >
-                    <Text style={styles.secondaryButtonText}>Cerrar sin OT</Text>
+                    <Text style={styles.secondaryButtonText}>
+                      Cerrar sin <Sigla>OT</Sigla>
+                    </Text>
                   </Pressable>
 
                   <Pressable
@@ -328,7 +336,9 @@ export function SolicitudDetailModal({
                     onPress={() => setGenerateOpen(true)}
                     disabled={busy}
                   >
-                    <Text style={styles.primaryButtonText}>Generar OT</Text>
+                    <Text style={styles.primaryButtonText}>
+                      Generar <Sigla>OT</Sigla>
+                    </Text>
                   </Pressable>
                 </View>
               )}
