@@ -50,13 +50,8 @@ export function withSiglas(text: string) {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    // Dotted underline hints that the sigla has an explanation, the usual
-    // web convention for <abbr>.
     sigla: {
       position: "relative",
-      textDecorationLine: "underline",
-      textDecorationStyle: "dotted",
-      ...(Platform.OS === "web" ? ({ cursor: "help" } as object) : {}),
     },
     // Nested Text inherits the parent's font, so every text property is
     // reset here — otherwise a sigla inside a bold white button label would
