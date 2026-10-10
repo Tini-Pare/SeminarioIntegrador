@@ -297,7 +297,7 @@ export async function generateOrder(
   solicitudId: number,
   input: { priority: Exclude<Solicitud["priority"], null> },
 ): Promise<void> {
-  if (!input.priority) throw new Error("Elegí una prioridad.");
+  if (!input?.priority) throw new Error("Elegí una prioridad.");
 
   const { data: sol, error: solError } = await supabase
     .from("solicitudes")

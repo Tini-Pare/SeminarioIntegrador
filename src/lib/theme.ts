@@ -50,9 +50,9 @@ export type ThemeColors = {
   faultResolved: { bg: string; fg: string };
   faultRejected: { bg: string; fg: string };
 
-  urgencyLow: { bg: string; fg: string };
-  urgencyMedium: { bg: string; fg: string };
-  urgencyHigh: { bg: string; fg: string };
+  urgencyLow: { bg: string; fg: string; accent: string };
+  urgencyMedium: { bg: string; fg: string; accent: string };
+  urgencyHigh: { bg: string; fg: string; accent: string };
 
   roleAdmin: { bg: string; fg: string };
   roleTechnician: { bg: string; fg: string };
@@ -122,9 +122,9 @@ export const light: ThemeColors = {
   faultResolved: { bg: "#dcecdf", fg: "#256a4e" },
   faultRejected: { bg: "#f7e7e1", fg: "#963924" },
 
-  urgencyLow: { bg: "#eceae4", fg: "#5a6154" },
-  urgencyMedium: { bg: "#f4eddc", fg: "#8a5d12" },
-  urgencyHigh: { bg: "#f5e2dd", fg: "#963924" },
+  urgencyLow: { bg: "#fdf3c4", fg: "#7a5b00", accent: "#d9b300" },
+  urgencyMedium: { bg: "#fbe3cc", fg: "#9a4a0f", accent: "#e07b1f" },
+  urgencyHigh: { bg: "#f5dcd6", fg: "#a5362a", accent: "#c0392b" },
 
   roleAdmin: { bg: "#dfeae4", fg: "#2f7d5b" },
   roleTechnician: { bg: "#e6efe1", fg: "#4a7434" },

@@ -13,6 +13,11 @@ import type { ThemeColors } from "../lib/theme";
 export type RadioOption<T extends string | number> = {
   value: T;
   label: string;
+  badge?: {
+    bg: string;
+    fg: string;
+    accent: string;
+  };
 };
 
 export function RadioGroup<T extends string | number>({
@@ -57,11 +62,19 @@ export function RadioGroup<T extends string | number>({
     >
       {options.map((opt, index) => {
         const isSelected = opt.value === value;
+        const badge = opt.badge;
 
         return (
           <Pressable
             key={String(opt.value)}
-            style={styles.option}
+            style={[
+              styles.option,
+              badge && styles.optionWithBadge,
+              badge &&
+                (isSelected
+                  ? { borderColor: badge.accent, borderWidth: 2 }
+                  : { borderColor: colors.border, borderWidth: 2 }),
+            ]}
             onPress={() => !disabled && onChange(opt.value)}
             disabled={disabled}
             accessibilityRole="radio"
@@ -73,11 +86,29 @@ export function RadioGroup<T extends string | number>({
             // @ts-ignore onKeyDown is supported on react-native-web
             onKeyDown={(e: any) => handleKeyDown(e, index)}
           >
-            <View style={[styles.circle, isSelected && styles.circleSelected]}>
-              {isSelected && <View style={styles.dot} />}
+            <View
+              style={[
+                styles.circle,
+                isSelected && (badge ? { borderColor: badge.accent } : styles.circleSelected),
+              ]}
+            >
+              {isSelected && (
+                <View
+                  style={[
+                    styles.dot,
+                    badge && { backgroundColor: badge.accent },
+                  ]}
+                />
+              )}
             </View>
 
-            <Text style={[styles.label, isSelected && styles.labelSelected]}>{opt.label}</Text>
+            {badge ? (
+              <View style={[styles.pill, { backgroundColor: badge.bg }]}>
+                <Text style={[styles.pillText, { color: badge.fg }]}>{opt.label}</Text>
+              </View>
+            ) : (
+              <Text style={[styles.label, isSelected && styles.labelSelected]}>{opt.label}</Text>
+            )}
           </Pressable>
         );
       })}
@@ -95,6 +126,7 @@ function makeStyles(c: ThemeColors) {
     },
     disabled: {
       opacity: 0.45,
+      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as any) : {}),
     },
     option: {
       flexDirection: "row",
@@ -102,6 +134,22 @@ function makeStyles(c: ThemeColors) {
       gap: 8,
       paddingVertical: 4,
       ...(Platform.OS === "web" ? ({ cursor: "pointer", userSelect: "none" } as any) : {}),
+    },
+    optionWithBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 12,
+      backgroundColor: c.bgInput,
+      gap: 8,
+    },
+    pill: {
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    pillText: {
+      fontSize: 13,
+      fontWeight: "600",
     },
     circle: {
       width: 19,

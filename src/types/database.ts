@@ -367,7 +367,7 @@ export type Database = {
           ot_fecha_estimada_fin?: string | null;
           ot_observacion?: string | null;
           ot_estado?: "assigned" | "in_progress" | "resolved";
-          ot_prioridad?: "low" | "medium" | "high";
+          ot_prioridad: "low" | "medium" | "high";
         };
         Update: {
           ot_id_orden?: number;

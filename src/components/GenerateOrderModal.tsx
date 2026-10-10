@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Solicitud } from "../types/database";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
 
 type Priority = Exclude<Solicitud["priority"], null>;
 
-const PRIORITIES: Priority[] = ["low", "medium", "high"];
 const PRIORITY_LABELS: Record<Priority, string> = {
   low: "Baja",
   medium: "Media",
@@ -36,12 +36,35 @@ export function GenerateOrderModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  // Same palette as the priority badges on the solicitudes/OT lists.
-  const priorityColors: Record<Priority, { bg: string; fg: string }> = {
-    low: colors.urgencyLow,
-    medium: colors.urgencyMedium,
-    high: colors.urgencyHigh,
-  };
+  const priorityOptions: RadioOption<Priority>[] = [
+    {
+      value: "low",
+      label: PRIORITY_LABELS.low,
+      badge: {
+        bg: colors.urgencyLow.bg,
+        fg: colors.urgencyLow.fg,
+        accent: colors.urgencyLow.accent,
+      },
+    },
+    {
+      value: "medium",
+      label: PRIORITY_LABELS.medium,
+      badge: {
+        bg: colors.urgencyMedium.bg,
+        fg: colors.urgencyMedium.fg,
+        accent: colors.urgencyMedium.accent,
+      },
+    },
+    {
+      value: "high",
+      label: PRIORITY_LABELS.high,
+      badge: {
+        bg: colors.urgencyHigh.bg,
+        fg: colors.urgencyHigh.fg,
+        accent: colors.urgencyHigh.accent,
+      },
+    },
+  ];
 
   useEffect(() => {
     if (!visible) return;
@@ -66,6 +89,8 @@ export function GenerateOrderModal({
     }
   }
 
+  const canConfirm = !confirming && priority !== null;
+
   return (
     <Modal
       visible={visible}
@@ -75,47 +100,26 @@ export function GenerateOrderModal({
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Generar orden de trabajo</Text>
+          <Text style={styles.title}>Generar Orden de Trabajo</Text>
 
           <Text style={styles.subtitle}>{equipmentLabel}</Text>
 
           <Text style={styles.message}>
-            ¿Generar la orden de trabajo para esta solicitud? Después vas a ir a la pantalla de la
-            orden para cargarle las tareas, los técnicos y la falla genérica.
+            Al confirmar, se abre la orden para cargar tareas, técnicos y falla genérica.
           </Text>
 
-          <Text style={styles.label}>Prioridad</Text>
+          <Text style={styles.label}>Prioridad *</Text>
 
-          <View style={styles.chipsRow}>
-            {PRIORITIES.map((p) => {
-              const selected = priority === p;
-              return (
-                <Pressable
-                  key={p}
-                  style={[
-                    styles.chip,
-                    selected && {
-                      backgroundColor: priorityColors[p].bg,
-                      borderColor: priorityColors[p].fg,
-                    },
-                  ]}
-                  onPress={() => {
-                    setPriority(p);
-                    if (error) setError(null);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      selected && [styles.chipTextSelected, { color: priorityColors[p].fg }],
-                    ]}
-                  >
-                    {PRIORITY_LABELS[p]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <RadioGroup
+            name="ot-priority"
+            value={priority}
+            onChange={(p) => {
+              setPriority(p);
+              if (error) setError(null);
+            }}
+            options={priorityOptions}
+            style={styles.radioGroup}
+          />
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -124,7 +128,13 @@ export function GenerateOrderModal({
               <Text style={styles.cancelText}>Cancelar</Text>
             </Pressable>
 
-            <Pressable style={styles.confirmButton} onPress={handleConfirm} disabled={confirming}>
+            <Pressable
+              style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
+              onPress={handleConfirm}
+              disabled={!canConfirm}
+              accessibilityRole="button"
+              aria-disabled={!canConfirm}
+            >
               <Text style={styles.confirmText}>{confirming ? "Generando…" : "Confirmar"}</Text>
             </Pressable>
           </View>
@@ -160,17 +170,9 @@ function makeStyles(c: ThemeColors) {
       marginTop: 18,
       marginBottom: 8,
     },
-    chipsRow: { flexDirection: "row", gap: 8 },
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgInput,
+    radioGroup: {
+      gap: 10,
     },
-    chipText: { fontSize: 13, color: c.textLabel },
-    chipTextSelected: { fontWeight: "600" },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
     actions: { flexDirection: "row", gap: 10, marginTop: 24 },
     cancelButton: {
@@ -189,6 +191,10 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.accent,
       alignItems: "center",
       justifyContent: "center",
+    },
+    confirmButtonDisabled: {
+      opacity: 0.45,
+      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as any) : {}),
     },
     confirmText: { color: "#fff", fontWeight: "600" },
   });

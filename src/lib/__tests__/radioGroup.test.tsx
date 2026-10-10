@@ -41,4 +41,30 @@ describe("RadioGroup", () => {
     fireEvent.press(getByText("Técnico"));
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("renders options with badges and handles selection", async () => {
+    const onChange = jest.fn();
+    const badgeOptions: RadioOption<string>[] = [
+      {
+        value: "low",
+        label: "Baja",
+        badge: { bg: "#fdf3c4", fg: "#7a5b00", accent: "#d9b300" },
+      },
+      {
+        value: "high",
+        label: "Alta",
+        badge: { bg: "#f5dcd6", fg: "#a5362a", accent: "#c0392b" },
+      },
+    ];
+
+    const { getByText } = await render(
+      <RadioGroup value="high" onChange={onChange} options={badgeOptions} />,
+    );
+
+    expect(getByText("Baja")).toBeTruthy();
+    expect(getByText("Alta")).toBeTruthy();
+
+    fireEvent.press(getByText("Baja"));
+    expect(onChange).toHaveBeenCalledWith("low");
+  });
 });
