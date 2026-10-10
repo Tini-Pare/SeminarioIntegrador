@@ -1,19 +1,11 @@
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { CustomDatePicker, fromDbDate, isValidDateString, toDbDate } from "./CustomDatePicker";
-import { AddTaskModal } from "./AddTaskModal";
+import { fromDbDate } from "./CustomDatePicker";
 import { GenerateOrderModal } from "./GenerateOrderModal";
 import { PhotoCarousel } from "./PhotoCarousel";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
-import { ReassignTechnicianModal } from "./ReassignTechnicianModal";
-import { RowActions } from "./RowActions";
-import {
-  addTaskToOrder,
-  closeSolicitud,
-  generateOrder,
-  reassignTaskTechnician,
-  updateOrderStartDate,
-} from "../lib/queries/faults";
+import { closeSolicitud, generateOrder } from "../lib/queries/faults";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
@@ -60,8 +52,12 @@ function taskStatusLabel(task: SolicitudTask): string {
 //       - Clicking "Cerrar sin OT" reveals an inline reason panel with
 //         RadioGroup + comment input and "Cancelar" / "Confirmar" actions.
 //       - Confirming rejection saves the reason and sets status="rejected".
-//       - Generating an OT sets status="in_progress".
-//   - con OT: shows diagnosed fault, tareas with technician reassignment, start date.
+//       - "Generar OT" asks for confirmation + prioridad, creates the OT
+//         empty and navigates to its screen (work-orders/[id]) so the
+//         admin loads tareas/técnicos/falla there.
+//   - con OT: read-only summary (falla, tareas, fecha de inicio) plus a
+//     button to the OT screen. Everything about managing an existing OT
+//     lives on that screen only, not here.
 //   - rejected: shows rejection info box.
 // There's no separate "atendida" concept: a solicitud counts as attended
 // whenever its status isn't "new" anymore.
@@ -78,10 +74,6 @@ export function SolicitudDetailModal({
   const [motivo, setMotivo] = useState<string>("");
   const [comentario, setComentario] = useState<string>("");
   const [generateOpen, setGenerateOpen] = useState(false);
-  const [addTaskOpen, setAddTaskOpen] = useState(false);
-  const [reassigningTask, setReassigningTask] = useState<SolicitudTask | null>(null);
-  const [editingDate, setEditingDate] = useState(false);
-  const [dateDraft, setDateDraft] = useState("");
   const [profileById, setProfileById] = useState<Map<string, Profile>>(new Map());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,13 +96,9 @@ export function SolicitudDetailModal({
 
   useEffect(() => {
     setGenerateOpen(false);
-    setAddTaskOpen(false);
-    setReassigningTask(null);
-    setEditingDate(false);
     setError(null);
     setMotivo("");
     setComentario("");
-    setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
     setClosingWithoutOt(false);
     if (solicitud) {
       listProfiles()
@@ -151,41 +139,15 @@ export function SolicitudDetailModal({
     setError(null);
   }
 
-  async function handleGenerate(input: {
-    tasks: { taskId: number; technicianId: string }[];
-    faultTypeId: number | null;
-    priority: "low" | "medium" | "high";
-  }) {
+  async function handleGenerate(input: { priority: "low" | "medium" | "high" }) {
     await generateOrder(s.id, input);
+    setGenerateOpen(false);
     closeEverything();
+    goToOrder();
   }
 
-  async function handleAddTask(input: { taskId: number; technicianId: string }) {
-    await addTaskToOrder(s.id, input);
-    closeEverything();
-  }
-
-  async function handleReassign(technicianId: string) {
-    if (!reassigningTask) return;
-    await reassignTaskTechnician(reassigningTask.id, technicianId);
-    closeEverything();
-  }
-
-  async function handleSaveDate() {
-    if (!isValidDateString(dateDraft)) {
-      setError("Ingresá una fecha válida (dd/mm/aaaa).");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await updateOrderStartDate(s.id, toDbDate(dateDraft));
-      closeEverything();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+  function goToOrder() {
+    router.push({ pathname: "/work-orders/[id]", params: { id: String(s.id) } });
   }
 
   return (
@@ -299,76 +261,35 @@ export function SolicitudDetailModal({
 
                   <Text style={styles.label}>Tareas</Text>
 
-                  {s.tasks.map((task) => (
-                    <View key={task.id} style={styles.taskRow}>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.taskName}>{task.taskName}</Text>
+                  {s.tasks.length === 0 ? (
+                    <Text style={styles.taskMeta}>Todavía no se cargó ninguna tarea.</Text>
+                  ) : (
+                    s.tasks.map((task) => (
+                      <View key={task.id} style={styles.taskRow}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.taskName}>{task.taskName}</Text>
 
-                        <Text style={styles.taskMeta}>
-                          {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"} ·{" "}
-                          {taskStatusLabel(task)}
-                        </Text>
-
-                        {task.consumedParts.length > 0 && (
-                          <Text style={styles.taskConsumed}>
-                            Repuestos:{" "}
-                            {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                          <Text style={styles.taskMeta}>
+                            {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"} ·{" "}
+                            {taskStatusLabel(task)}
                           </Text>
-                        )}
+
+                          {task.consumedParts.length > 0 && (
+                            <Text style={styles.taskConsumed}>
+                              Repuestos:{" "}
+                              {task.consumedParts
+                                .map((p) => `${p.nombre} ×${p.cantidad}`)
+                                .join(" · ")}
+                            </Text>
+                          )}
+                        </View>
                       </View>
-
-                      {s.status !== "resolved" && (
-                        <RowActions
-                          onEdit={() => setReassigningTask(task)}
-                          editTooltip="Reasignar técnico"
-                        />
-                      )}
-                    </View>
-                  ))}
-
-                  {s.status !== "resolved" && (
-                    <Pressable style={styles.linkButton} onPress={() => setAddTaskOpen(true)}>
-                      <Text style={styles.linkButtonText}>+ Agregar tarea</Text>
-                    </Pressable>
+                    ))
                   )}
 
                   <Text style={styles.label}>Fecha de inicio</Text>
 
-                  {editingDate ? (
-                    <>
-                      <CustomDatePicker value={dateDraft} onChange={setDateDraft} compact />
-
-                      <View style={styles.dateActions}>
-                        <Pressable
-                          style={styles.dateCancelButton}
-                          onPress={() => setEditingDate(false)}
-                          disabled={busy}
-                        >
-                          <Text style={styles.dateCancelText}>Cancelar</Text>
-                        </Pressable>
-
-                        <Pressable
-                          style={styles.dateSaveButton}
-                          onPress={handleSaveDate}
-                          disabled={busy}
-                        >
-                          <Text style={styles.dateSaveText}>
-                            {busy ? "Guardando…" : "Confirmar"}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </>
-                  ) : (
-                    <View style={styles.row}>
-                      <Text style={styles.value}>{fromDbDate(s.order_start_date) || "—"}</Text>
-
-                      {s.status !== "resolved" && (
-                        <Pressable onPress={() => setEditingDate(true)}>
-                          <Text style={styles.linkButtonText}>Reprogramar</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  )}
+                  <Text style={styles.value}>{fromDbDate(s.order_start_date) || "—"}</Text>
 
                   {s.status === "resolved" && s.order_end_date && (
                     <>
@@ -378,11 +299,15 @@ export function SolicitudDetailModal({
                     </>
                   )}
 
-                  <Text style={styles.autoNote}>
-                    El estado de la orden se calcula solo a partir de las tareas: pasa a “En curso”
-                    apenas algún técnico inicia la suya, y a “Resuelta” cuando todas están
-                    finalizadas.
-                  </Text>
+                  <Pressable
+                    style={[styles.primaryButton, styles.goToOrderButton]}
+                    onPress={() => {
+                      onClose();
+                      goToOrder();
+                    }}
+                  >
+                    <Text style={styles.primaryButtonText}>Ver orden de trabajo</Text>
+                  </Pressable>
                 </>
               )}
 
@@ -446,22 +371,6 @@ export function SolicitudDetailModal({
         onConfirm={handleGenerate}
         equipmentLabel={`${s.equipment.code} · ${s.equipment.name}`}
       />
-
-      <AddTaskModal
-        visible={addTaskOpen}
-        onClose={() => setAddTaskOpen(false)}
-        onConfirm={handleAddTask}
-        equipmentLabel={`${s.equipment.code} · ${s.equipment.name}`}
-      />
-
-      <ReassignTechnicianModal
-        visible={!!reassigningTask}
-        onClose={() => setReassigningTask(null)}
-        onConfirm={handleReassign}
-        equipmentLabel={`${s.equipment.code} · ${s.equipment.name}`}
-        taskLabel={reassigningTask?.taskName ?? ""}
-        currentTechnicianId={reassigningTask?.technicianId ?? null}
-      />
     </>
   );
 }
@@ -511,7 +420,6 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 6,
     },
     value: { fontSize: 14, color: c.text, lineHeight: 20 },
-    row: { flexDirection: "row", alignItems: "center", gap: 16 },
     metaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 18, marginTop: 16 },
     reasonBox: {
       backgroundColor: c.bgNested,
@@ -580,28 +488,6 @@ function makeStyles(c: ThemeColors) {
     taskName: { fontSize: 14, fontWeight: "600", color: c.text },
     taskMeta: { fontSize: 12.5, color: c.textMuted, marginTop: 2 },
     taskConsumed: { fontSize: 12, color: c.textMuted, marginTop: 3, lineHeight: 16 },
-    linkButton: { marginTop: 10, alignSelf: "flex-start" },
-    linkButtonText: { fontSize: 13, fontWeight: "600", color: c.accent },
-    autoNote: { marginTop: 16, fontSize: 12, color: c.textMuted, lineHeight: 17 },
-    dateActions: { flexDirection: "row", gap: 10, marginTop: 10 },
-    dateCancelButton: {
-      paddingHorizontal: 14,
-      height: 36,
-      borderRadius: 8,
-      backgroundColor: c.bgNested,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    dateCancelText: { color: c.text, fontWeight: "600", fontSize: 13 },
-    dateSaveButton: {
-      paddingHorizontal: 14,
-      height: 36,
-      borderRadius: 8,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    dateSaveText: { color: "#fff", fontWeight: "600", fontSize: 13 },
     error: { color: c.destructive, marginTop: 16, fontSize: 13, fontWeight: "600" },
     actions: { flexDirection: "row", gap: 10, marginTop: 22 },
     secondaryButton: {
@@ -622,6 +508,7 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     primaryButtonText: { color: "#fff", fontWeight: "600" },
+    goToOrderButton: { flex: 0, marginTop: 22 },
     closeButton: {
       marginTop: 20,
       height: 44,

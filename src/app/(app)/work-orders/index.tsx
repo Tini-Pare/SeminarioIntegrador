@@ -265,7 +265,9 @@ export default function WorkOrdersScreen() {
                   <View style={{ flex: 1, justifyContent: "center" }}>
                     <View style={[styles.badge, { backgroundColor: st.bg }]}>
                       <Text style={[styles.badgeText, { color: st.fg }]}>
-                        {STATUS_LABELS[status]}
+                        {item.tasks.length === 0 && status === "assigned"
+                          ? "Sin tareas"
+                          : STATUS_LABELS[status]}
                       </Text>
                     </View>
                   </View>

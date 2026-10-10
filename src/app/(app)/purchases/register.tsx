@@ -641,7 +641,7 @@ export default function RegisterPurchaseScreen() {
 
                 <Pressable
                   style={styles.addLineBtn}
-                  onPress={() => setLines((prev) => [newLine(), ...prev])}
+                  onPress={() => setLines((prev) => [...prev, newLine()])}
                 >
                   <Text style={styles.addLineText}>+ Agregar línea</Text>
                 </Pressable>
