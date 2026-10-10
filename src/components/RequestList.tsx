@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Image, Pressable, ScrollView, StyleSheet } from "react-native";
 import type { Solicitud, Equipo } from "../types/database";
-import { EyeIcon, WarningIcon } from "./icons";
+import { CalendarIcon, EyeIcon, WarningIcon } from "./icons";
 import { withSiglas } from "./Sigla";
 import { Tooltip } from "./Tooltip";
 import { useTheme } from "../lib/ThemeContext";
@@ -70,13 +70,8 @@ export function RequestList({
         // No priority yet means nobody has evaluated the solicitud, so the
         // icon stays neutral instead of implying an urgency no one set.
         const prio = item.priority ? priorityColors[item.priority] : null;
-        const Card = onSelect ? Pressable : View;
         return (
-          <Card
-            key={item.id}
-            style={styles.card}
-            {...(onSelect ? { onPress: () => onSelect(item) } : {})}
-          >
+          <View key={item.id} style={styles.card}>
             {item.photo_url ? (
               <Image source={{ uri: item.photo_url }} style={styles.photo} />
             ) : (
@@ -86,9 +81,17 @@ export function RequestList({
             )}
 
             <View style={{ flex: 1, minWidth: 0 }}>
-              <View style={styles.row}>
+              <View style={styles.headerRow}>
                 <Text style={styles.equipmentName}>{item.equipment.name}</Text>
                 <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
+
+                <View style={styles.dateWrap}>
+                  <CalendarIcon size={14} color={colors.accent} />
+
+                  <Text style={styles.dateText}>
+                    {new Date(item.created_at).toLocaleDateString("es-AR")}
+                  </Text>
+                </View>
 
                 <View style={[styles.badge, { backgroundColor: st.bg }]}>
                   <Text style={[styles.badgeText, { color: st.fg }]}>
@@ -130,18 +133,21 @@ export function RequestList({
               )}
 
               <View style={styles.metaRow}>
-                <Text style={styles.meta}>Reportó · {item.reporterName}</Text>
-                <Text style={styles.meta}>
-                  {new Date(item.created_at).toLocaleDateString("es-AR")}
+                <Text style={styles.metaText}>
+                  Reportó · <Text style={styles.metaValue}>{item.reporterName}</Text>
                 </Text>
-                <Text style={styles.meta}>Técnicos · {item.technicianName ?? "Sin asignar"}</Text>
+
+                <Text style={styles.metaText}>
+                  Técnicos ·{" "}
+                  <Text style={styles.metaValue}>{item.technicianName ?? "Sin asignar"}</Text>
+                </Text>
               </View>
             </View>
 
             {onSelect && (
               <ViewButton onPress={() => onSelect(item)} colors={colors} styles={styles} />
             )}
-          </Card>
+          </View>
         );
       })}
     </View>
@@ -206,7 +212,22 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgNested,
     },
     photo: { width: 42, height: 42, borderRadius: 10, backgroundColor: c.bgNested },
-    row: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      flexWrap: "wrap",
+    },
+    dateWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    dateText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: c.text,
+    },
     equipmentName: { fontWeight: "600", fontSize: 14.5, color: c.text },
     equipmentCode: { fontFamily: "monospace", fontSize: 12.5, color: c.textMuted },
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
@@ -226,8 +247,9 @@ function makeStyles(c: ThemeColors) {
     gallery: { marginTop: 10 },
     galleryContent: { gap: 8, paddingRight: 4 },
     galleryPhoto: { width: 96, height: 96, borderRadius: 10, backgroundColor: c.bgNested },
-    metaRow: { marginTop: 8, flexDirection: "row", gap: 16, flexWrap: "wrap" },
-    meta: { fontSize: 13, color: c.textMuted },
+    metaRow: { marginTop: 10, flexDirection: "row", gap: 16, flexWrap: "wrap" },
+    metaText: { fontSize: 13.5, color: c.textSecondary, fontWeight: "400" },
+    metaValue: { fontWeight: "600", color: c.text },
     viewButton: {
       width: 36,
       height: 36,
