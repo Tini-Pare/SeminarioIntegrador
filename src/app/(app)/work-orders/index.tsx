@@ -11,6 +11,7 @@ import {
 import { fromDbDate } from "../../../components/CustomDatePicker";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { Sigla } from "../../../components/Sigla";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { listEquipment } from "../../../lib/queries/equipment";
@@ -157,7 +158,9 @@ export default function WorkOrdersScreen() {
       <View style={styles.pageHeader}>
         <View style={styles.sectionHeadingText}>
           <Text style={styles.title}>Órdenes de trabajo</Text>
-          <Text style={styles.subtitle}>Todas las OT generadas y su estado actual</Text>
+          <Text style={styles.subtitle}>
+            Todas las <Sigla>OT</Sigla> generadas y su estado actual
+          </Text>
         </View>
       </View>
 
