@@ -47,6 +47,19 @@ function taskStatusLabel(task: SolicitudTask): string {
   return "Pendiente";
 }
 
+function getTaskBadge(
+  task: SolicitudTask,
+  c: ThemeColors
+): { label: string; bg: string; fg: string } {
+  if (task.endDate) {
+    return { label: "Finalizada", bg: c.faultResolved.bg, fg: c.faultResolved.fg };
+  }
+  if (task.startDate) {
+    return { label: "En curso", bg: c.faultInProgress.bg, fg: c.faultInProgress.fg };
+  }
+  return { label: "Pendiente", bg: c.faultAssigned.bg, fg: c.faultAssigned.fg };
+}
+
 // Admin "ver más" panel for a solicitud:
 //   - "new" (sin OT):
 //       - Shows "Cerrar sin OT" and "Generar OT".
@@ -297,62 +310,153 @@ export function SolicitudDetailModal({
                 <>
                   <View style={styles.divider} />
 
-                  <Text style={styles.sectionTitle}>Orden de trabajo</Text>
+                  <Text style={styles.orderSectionLabel}>ORDEN DE TRABAJO</Text>
 
-                  <MetaCell
-                    label="Falla genérica"
-                    value={s.fault_type_name ?? "Sin diagnosticar"}
-                    colors={colors}
-                  />
+                  <View style={styles.orderSummaryCard}>
+                    <View style={styles.summaryFieldBlock}>
+                      <Text style={styles.summaryLabel}>FALLA GENÉRICA</Text>
 
-                  <Text style={styles.label}>Tareas</Text>
+                      <Text
+                        style={
+                          s.fault_type_name
+                            ? styles.summaryValue
+                            : styles.summaryValuePending
+                        }
+                      >
+                        {s.fault_type_name ?? "Sin diagnosticar"}
+                      </Text>
+                    </View>
 
-                  {s.tasks.length === 0 ? (
-                    <Text style={styles.taskMeta}>Todavía no se cargó ninguna tarea.</Text>
-                  ) : (
-                    s.tasks.map((task) => (
-                      <View key={task.id} style={styles.taskRow}>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={styles.taskName}>{task.taskName}</Text>
+                    <View style={styles.summaryDivider} />
 
-                          <Text style={styles.taskMeta}>
-                            {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"} ·{" "}
-                            {taskStatusLabel(task)}
+                    <View style={styles.summaryDatesRow}>
+                      <View style={styles.summaryDateCol}>
+                        <Text style={styles.summaryLabel}>FECHA DE INICIO</Text>
+
+                        <View style={styles.dateValueRow}>
+                          <CalendarIcon size={14} color={colors.accent} />
+
+                          <Text style={styles.summaryValue}>
+                            {fromDbDate(s.order_start_date) || "—"}
                           </Text>
-
-                          {task.consumedParts.length > 0 && (
-                            <Text style={styles.taskConsumed}>
-                              Repuestos:{" "}
-                              {task.consumedParts
-                                .map((p) => `${p.nombre} ×${p.cantidad}`)
-                                .join(" · ")}
-                            </Text>
-                          )}
                         </View>
                       </View>
-                    ))
-                  )}
 
-                  <Text style={styles.label}>Fecha de inicio</Text>
+                      <View style={styles.summaryDateCol}>
+                        <Text style={styles.summaryLabel}>FECHA DE FINALIZACIÓN</Text>
 
-                  <Text style={styles.value}>{fromDbDate(s.order_start_date) || "—"}</Text>
+                        <View style={styles.dateValueRow}>
+                          <CalendarIcon
+                            size={14}
+                            color={s.order_end_date ? colors.accent : colors.textMuted}
+                          />
 
-                  {s.status === "resolved" && s.order_end_date && (
-                    <>
-                      <Text style={styles.label}>Fecha de finalización</Text>
+                          <Text
+                            style={
+                              s.order_end_date
+                                ? styles.summaryValue
+                                : styles.summaryValuePending
+                            }
+                          >
+                            {s.order_end_date ? fromDbDate(s.order_end_date) : "Pendiente"}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
 
-                      <Text style={styles.value}>{fromDbDate(s.order_end_date)}</Text>
-                    </>
+                  <View style={styles.tasksHeaderRow}>
+                    <Text style={styles.tasksHeaderLabel}>TAREAS</Text>
+
+                    <View style={styles.tasksCountBadge}>
+                      <Text style={styles.tasksCountText}>{s.tasks.length}</Text>
+                    </View>
+                  </View>
+
+                  {s.tasks.length === 0 ? (
+                    <View style={styles.emptyTasksCard}>
+                      <Text style={styles.emptyTasksText}>
+                        Todavía no se cargó ninguna tarea.
+                      </Text>
+                    </View>
+                  ) : (
+                    s.tasks.map((task) => {
+                      const badge = getTaskBadge(task, colors);
+                      const techProfile = task.technicianId
+                        ? profileById.get(task.technicianId)
+                        : null;
+                      const techName = techProfile
+                        ? techProfile.name
+                        : task.technicianId
+                          ? "Técnico desconocido"
+                          : "Sin asignar";
+
+                      return (
+                        <View key={task.id} style={styles.taskCard}>
+                          <View style={styles.taskCardTopRow}>
+                            <Text style={styles.taskCardName} numberOfLines={2}>
+                              {task.taskName}
+                            </Text>
+
+                            <View
+                              style={[
+                                styles.taskStatusBadge,
+                                { backgroundColor: badge.bg },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.taskStatusBadgeText,
+                                  { color: badge.fg },
+                                ]}
+                              >
+                                {badge.label}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.taskTechRow}>
+                            <UserIcon size={14} color={colors.textSecondary} />
+
+                            <Text style={styles.taskTechText}>{techName}</Text>
+                          </View>
+
+                          {task.consumedParts.length > 0 && (
+                            <>
+                              <View style={styles.taskPartsDivider} />
+
+                              <View style={styles.taskPartsRow}>
+                                <Text style={styles.taskPartsLabel}>REPUESTOS</Text>
+
+                                {task.consumedParts.map((part, pIdx) => (
+                                  <View
+                                    key={`${part.repId || pIdx}`}
+                                    style={styles.partTag}
+                                  >
+                                    <Text style={styles.partTagName}>
+                                      {part.nombre}
+                                      <Text style={styles.partTagQty}>
+                                        {` ×${part.cantidad}`}
+                                      </Text>
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
+                            </>
+                          )}
+                        </View>
+                      );
+                    })
                   )}
 
                   <Pressable
-                    style={[styles.primaryButton, styles.goToOrderButton]}
+                    style={styles.goToOrderFullButton}
                     onPress={() => {
                       onClose();
                       goToOrder();
                     }}
                   >
-                    <Text style={styles.primaryButtonText}>Ver orden de trabajo</Text>
+                    <Text style={styles.goToOrderButtonText}>Ver orden de trabajo</Text>
                   </Pressable>
                 </>
               )}
@@ -450,15 +554,6 @@ export function SolicitudDetailModal({
   );
 }
 
-function MetaCell({ label, value, colors }: { label: string; value: string; colors: ThemeColors }) {
-  return (
-    <View style={{ minWidth: 140 }}>
-      <Text style={{ fontSize: 11.5, fontWeight: "600", color: colors.textMuted }}>{label}</Text>
-
-      <Text style={{ fontSize: 14, color: colors.text, marginTop: 2 }}>{value}</Text>
-    </View>
-  );
-}
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
@@ -482,6 +577,7 @@ function makeStyles(c: ThemeColors) {
     },
     bodyContent: {
       padding: 20,
+      paddingBottom: 28,
     },
     headerTwoCols: {
       flexDirection: "row",
@@ -669,14 +765,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: 18,
       fontWeight: "700",
     },
-    label: {
-      fontSize: 12.5,
-      fontWeight: "600",
-      color: c.textLabel,
-      marginTop: 14,
-      marginBottom: 4,
-    },
-    value: { fontSize: 14, color: c.text, lineHeight: 20 },
+
     rejectedBox: {
       backgroundColor: c.bgNested,
       borderRadius: 12,
@@ -703,18 +792,200 @@ function makeStyles(c: ThemeColors) {
       marginTop: 2,
     },
     divider: { height: 1, backgroundColor: c.borderRow, marginTop: 16 },
-    sectionTitle: { fontSize: 13.5, fontWeight: "600", color: c.text, marginTop: 12 },
-    taskRow: {
+    orderSectionLabel: {
+      fontSize: 12.5,
+      fontWeight: "700",
+      letterSpacing: 0.75,
+      textTransform: "uppercase",
+      color: c.textSecondary,
+      marginTop: 18,
+      marginBottom: 10,
+    },
+    orderSummaryCard: {
+      backgroundColor: c.bgNested,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 18,
+    },
+    summaryFieldBlock: {},
+    summaryLabel: {
+      fontSize: 11.5,
+      fontWeight: "600",
+      color: c.textMuted,
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      marginBottom: 4,
+    },
+    summaryValue: {
+      fontSize: 15.5,
+      fontWeight: "600",
+      color: c.text,
+      lineHeight: 20,
+    },
+    summaryValuePending: {
+      fontSize: 15.5,
+      fontWeight: "500",
+      fontStyle: "italic",
+      color: c.textMuted,
+      lineHeight: 20,
+    },
+    summaryDivider: {
+      height: 1,
+      backgroundColor: c.borderRow,
+      marginVertical: 14,
+    },
+    summaryDatesRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 16,
+    },
+    summaryDateCol: {
+      flex: 1,
+      minWidth: 0,
+    },
+    dateValueRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      paddingVertical: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: c.borderRow,
+      gap: 6,
+      marginTop: 2,
     },
-    taskName: { fontSize: 13.5, fontWeight: "600", color: c.text },
-    taskMeta: { fontSize: 12, color: c.textMuted, marginTop: 2 },
-    taskConsumed: { fontSize: 11.5, color: c.textMuted, marginTop: 2, lineHeight: 15 },
+    tasksHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 18,
+      marginBottom: 10,
+    },
+    tasksHeaderLabel: {
+      fontSize: 12.5,
+      fontWeight: "700",
+      letterSpacing: 0.75,
+      textTransform: "uppercase",
+      color: c.textSecondary,
+    },
+    tasksCountBadge: {
+      backgroundColor: c.accent,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 999,
+      minWidth: 20,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    tasksCountText: {
+      color: "#ffffff",
+      fontSize: 11.5,
+      fontWeight: "700",
+    },
+    emptyTasksCard: {
+      backgroundColor: c.bgNested,
+      borderRadius: 12,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    emptyTasksText: {
+      fontSize: 13,
+      color: c.textMuted,
+      fontStyle: "italic",
+    },
+    taskCard: {
+      backgroundColor: "#ffffff",
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 14,
+      marginBottom: 10,
+    },
+    taskCardTopRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 10,
+    },
+    taskCardName: {
+      flex: 1,
+      fontSize: 15.5,
+      fontWeight: "700",
+      color: c.text,
+      lineHeight: 20,
+    },
+    taskStatusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 999,
+      flexShrink: 0,
+    },
+    taskStatusBadgeText: {
+      fontSize: 12.5,
+      fontWeight: "600",
+    },
+    taskTechRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 6,
+    },
+    taskTechText: {
+      fontSize: 13.5,
+      fontWeight: "500",
+      color: c.textSecondary,
+    },
+    taskPartsDivider: {
+      height: 1,
+      backgroundColor: c.borderRow,
+      marginVertical: 10,
+    },
+    taskPartsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 6,
+    },
+    taskPartsLabel: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: c.textSecondary,
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      marginRight: 2,
+    },
+    partTag: {
+      backgroundColor: c.bgNested,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    partTagName: {
+      fontSize: 12.5,
+      fontWeight: "500",
+      color: c.text,
+    },
+    partTagQty: {
+      color: c.accent,
+      fontWeight: "700",
+    },
+    goToOrderFullButton: {
+      width: "100%",
+      height: 46,
+      borderRadius: 10,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 18,
+      marginBottom: 8,
+      ...(Platform.OS === "web" ? ({ cursor: "pointer" } as object) : {}),
+    },
+    goToOrderButtonText: {
+      color: "#ffffff",
+      fontSize: 15.5,
+      fontWeight: "700",
+    },
     error: { color: c.destructive, marginTop: 12, fontSize: 13, fontWeight: "600" },
     footer: {
       paddingHorizontal: 20,
@@ -742,7 +1013,6 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     primaryButtonText: { color: "#fff", fontSize: 15, fontWeight: "600" },
-    goToOrderButton: { flex: 0, marginTop: 18 },
     closeButton: {
       marginTop: 10,
       height: 44,
