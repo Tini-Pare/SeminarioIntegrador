@@ -104,7 +104,7 @@ export function FaultTypeModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>
-            {isEditing ? "Editar falla genérica" : "Nueva falla genérica"}
+            {isEditing ? "Editar falla genérica" : "Crear falla genérica"}
           </Text>
 
           <Text style={styles.subtitle}>

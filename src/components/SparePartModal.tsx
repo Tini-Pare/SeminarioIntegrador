@@ -109,7 +109,7 @@ export function SparePartModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{isEditing ? "Editar repuesto" : "Nuevo repuesto"}</Text>
+          <Text style={styles.title}>{isEditing ? "Editar repuesto" : "Crear repuesto"}</Text>
 
           <Text style={styles.subtitle}>
             {isEditing
@@ -118,6 +118,7 @@ export function SparePartModal({
           </Text>
 
           <Text style={styles.label}>Nombre</Text>
+
           <TextInput
             style={styles.input}
             value={name}

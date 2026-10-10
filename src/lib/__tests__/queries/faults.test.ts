@@ -377,7 +377,7 @@ describe("closeSolicitud", () => {
     expect(update).toHaveBeenCalledWith({
       sol_estado: "rechazada",
       sol_motivo_rechazo: "Duplicada",
-      sol_comentario_rechazo: "Ya reportada por Juan",
+      sol_comentario_rechazo: null,
     });
     expect(updateEq).toHaveBeenCalledWith("sol_id_solicitud", 1);
     expect(supabase.rpc).toHaveBeenCalledWith("sync_equipo_estado", { p_eq_id: 5 });
@@ -389,6 +389,35 @@ describe("closeSolicitud", () => {
         hi_autor_id: "admin1",
       }),
     );
+  });
+
+  it("saves comment when reason is Otro and rejects if comment is missing", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: { eq_id_equipo: 5, sol_estado: "pendiente" },
+      error: null,
+    });
+    const selectEq = jest.fn().mockReturnValue({ single });
+    const select = jest.fn().mockReturnValue({ eq: selectEq });
+    const updateEq = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({ eq: updateEq });
+    const insertHistorial = jest.fn().mockResolvedValue({ error: null });
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "admin1" } } },
+    });
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "historial" ? { insert: insertHistorial } : { select, update },
+    );
+
+    await expect(closeSolicitud(1, "Otro", "   ")).rejects.toThrow(
+      "Escribí el motivo para continuar.",
+    );
+
+    await closeSolicitud(1, "Otro", "Motivo detallado");
+    expect(update).toHaveBeenCalledWith({
+      sol_estado: "rechazada",
+      sol_motivo_rechazo: "Otro",
+      sol_comentario_rechazo: "Motivo detallado",
+    });
   });
 
   it("requires a reason", async () => {

@@ -55,7 +55,7 @@ export function PurchaseDetailModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>{purchase?.proveedores?.prov_nombre ?? "Compra"}</Text>
+            <Text style={styles.title}>Ver compra</Text>
 
             {purchase && (
               <View style={styles.tipoBadge}>
@@ -65,7 +65,7 @@ export function PurchaseDetailModal({
           </View>
 
           <Text style={styles.subtitle}>
-            {formatDate(purchase?.co_fecha_compra ?? null)}
+            {purchase?.proveedores?.prov_nombre ?? "Compra"} · {formatDate(purchase?.co_fecha_compra ?? null)}
             {purchase && comprobanteRef(purchase) ? ` · N.º ${comprobanteRef(purchase)}` : ""}
           </Text>
 

@@ -255,8 +255,12 @@ export async function closeSolicitud(
   reason: string,
   comment?: string | null,
 ): Promise<void> {
-  const trimmedReason = reason.trim();
+  const trimmedReason = reason?.trim() || "";
   if (!trimmedReason) throw new Error("Indicá el motivo del cierre.");
+
+  if (trimmedReason === "Otro" && !comment?.trim()) {
+    throw new Error("Escribí el motivo para continuar.");
+  }
 
   const { data: sol, error: solError } = await supabase
     .from("solicitudes")
@@ -268,18 +272,20 @@ export async function closeSolicitud(
     throw new Error("Esta solicitud ya no está pendiente.");
   }
 
+  const cleanComment = trimmedReason === "Otro" ? comment?.trim() || null : null;
+
   const { error: updateError } = await supabase
     .from("solicitudes")
     .update({
       sol_estado: "rechazada",
       sol_motivo_rechazo: trimmedReason,
-      sol_comentario_rechazo: comment?.trim() || null,
+      sol_comentario_rechazo: cleanComment,
     })
     .eq("sol_id_solicitud", solicitudId);
   if (updateError) throw new Error(updateError.message);
 
   await syncEquipoEstado(sol.eq_id_equipo);
-  const noteSuffix = comment?.trim() ? ` - ${comment.trim()}` : "";
+  const noteSuffix = cleanComment ? ` - ${cleanComment}` : "";
   await logHistorial(
     sol.eq_id_equipo,
     "Cerrada",

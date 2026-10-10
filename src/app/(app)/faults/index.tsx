@@ -268,6 +268,7 @@ export default function FaultsScreen() {
       <DetailModal
         visible={!!viewingFault}
         onClose={() => setViewingFault(null)}
+        actionTitle="Ver falla genérica"
         title={viewingFault?.fa_nombre ?? ""}
         description={viewingFault?.fa_desperfecto}
         fields={

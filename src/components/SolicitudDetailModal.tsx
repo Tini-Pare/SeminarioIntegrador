@@ -8,13 +8,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { fromDbDate } from "./CustomDatePicker";
+import { CloseWithoutOrderModal } from "./CloseWithoutOrderModal";
 import { GenerateOrderModal } from "./GenerateOrderModal";
 import { CalendarIcon, UserIcon } from "./icons";
-import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Sigla, withSiglas } from "./Sigla";
 import { closeSolicitud, generateOrder } from "../lib/queries/faults";
 import { listProfiles } from "../lib/queries/profiles";
@@ -41,18 +40,6 @@ const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
   high: "Alta",
 };
 
-const MOTIVO_OPTIONS: RadioOption<string>[] = [
-  { value: "Duplicada", label: "Duplicada" },
-  { value: "Falsa alarma", label: "Falsa alarma" },
-  // The stored value keeps "OT" (existing rows already use it); only the
-  // radio label spells it out, since RadioGroup labels can't host a <Sigla>.
-  // Where the saved motivo is shown, withSiglas() adds the tooltip instead.
-  {
-    value: "Se resolvió sin OT (ajuste menor)",
-    label: "Se resolvió sin orden de trabajo (ajuste menor)",
-  },
-  { value: "Otro", label: "Otro" },
-];
 
 function taskStatusLabel(task: SolicitudTask): string {
   if (task.endDate) return "Finalizada";
@@ -63,8 +50,9 @@ function taskStatusLabel(task: SolicitudTask): string {
 // Admin "ver más" panel for a solicitud:
 //   - "new" (sin OT):
 //       - Shows "Cerrar sin OT" and "Generar OT".
-//       - Clicking "Cerrar sin OT" reveals an inline reason panel with
-//         RadioGroup + comment input and "Cancelar" / "Confirmar" actions.
+//       - Clicking "Cerrar sin OT" opens CloseWithoutOrderModal where the admin
+//         selects a reason (and enters a required comment if "Otro") and clicks
+//         "Cerrar solicitud" (or "Cancelar" to return without changes).
 //       - Confirming rejection saves the reason and sets status="rejected".
 //       - "Generar OT" asks for confirmation + prioridad, creates the OT
 //         empty and navigates to its screen (work-orders/[id]) so the
@@ -84,9 +72,7 @@ export function SolicitudDetailModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [closingWithoutOt, setClosingWithoutOt] = useState(false);
-  const [motivo, setMotivo] = useState<string>("");
-  const [comentario, setComentario] = useState<string>("");
+  const [closeWithoutOtOpen, setCloseWithoutOtOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [profileById, setProfileById] = useState<Map<string, Profile>>(new Map());
@@ -111,11 +97,9 @@ export function SolicitudDetailModal({
 
   useEffect(() => {
     setGenerateOpen(false);
+    setCloseWithoutOtOpen(false);
     setLightboxUrl(null);
     setError(null);
-    setMotivo("");
-    setComentario("");
-    setClosingWithoutOt(false);
     if (solicitud) {
       listProfiles()
         .then((profiles) => setProfileById(new Map(profiles.map((p) => [p.id, p]))))
@@ -151,28 +135,18 @@ export function SolicitudDetailModal({
     onClose();
   }
 
-  async function handleConfirmCloseWithoutOt() {
-    if (!motivo) {
-      setError("Seleccioná un motivo.");
-      return;
-    }
+  async function handleCloseWithoutOt(input: { reason: string; comment?: string }) {
     setBusy(true);
     setError(null);
     try {
-      await closeSolicitud(s.id, motivo, comentario);
+      await closeSolicitud(s.id, input.reason, input.comment);
+      setCloseWithoutOtOpen(false);
       closeEverything();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
-  }
-
-  function handleCancelCloseWithoutOt() {
-    setClosingWithoutOt(false);
-    setMotivo("");
-    setComentario("");
-    setError(null);
   }
 
   async function handleGenerate(input: { priority: "low" | "medium" | "high" }) {
@@ -319,37 +293,6 @@ export function SolicitudDetailModal({
                 </View>
               )}
 
-              {s.status === "new" && closingWithoutOt && (
-                <View style={styles.reasonBox}>
-                  <Text style={styles.reasonTitle}>
-                    ¿Por qué se marca como atendida sin <Sigla>OT</Sigla>?
-                  </Text>
-
-                  <RadioGroup
-                    name="motivo-cierre"
-                    value={motivo}
-                    onChange={(v) => {
-                      setMotivo(v);
-                      if (error) setError(null);
-                    }}
-                    options={MOTIVO_OPTIONS}
-                    style={styles.radioGroupColumn}
-                  />
-
-                  <TextInput
-                    style={styles.commentInput}
-                    value={comentario}
-                    onChangeText={(t) => {
-                      setComentario(t);
-                      if (error) setError(null);
-                    }}
-                    placeholder="Comentario (opcional)"
-                    placeholderTextColor={colors.textMuted}
-                    maxLength={255}
-                  />
-                </View>
-              )}
-
               {s.order_id != null && (
                 <>
                   <View style={styles.divider} />
@@ -418,12 +361,12 @@ export function SolicitudDetailModal({
             </ScrollView>
 
             <View style={styles.footer}>
-              {s.status === "new" && !closingWithoutOt && (
+              {s.status === "new" && (
                 <>
                   <View style={styles.actions}>
                     <Pressable
                       style={styles.secondaryButton}
-                      onPress={() => setClosingWithoutOt(true)}
+                      onPress={() => setCloseWithoutOtOpen(true)}
                       disabled={busy}
                     >
                       <Text style={styles.secondaryButtonText}>
@@ -446,28 +389,6 @@ export function SolicitudDetailModal({
                     <Text style={styles.closeButtonText}>Cerrar</Text>
                   </Pressable>
                 </>
-              )}
-
-              {s.status === "new" && closingWithoutOt && (
-                <View style={styles.actions}>
-                  <Pressable
-                    style={styles.secondaryButton}
-                    onPress={handleCancelCloseWithoutOt}
-                    disabled={busy}
-                  >
-                    <Text style={styles.secondaryButtonText}>Cancelar</Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={styles.primaryButton}
-                    onPress={handleConfirmCloseWithoutOt}
-                    disabled={busy}
-                  >
-                    <Text style={styles.primaryButtonText}>
-                      {busy ? "Confirmando…" : "Confirmar"}
-                    </Text>
-                  </Pressable>
-                </View>
               )}
 
               {s.status !== "new" && (
@@ -516,6 +437,13 @@ export function SolicitudDetailModal({
         visible={generateOpen}
         onClose={() => setGenerateOpen(false)}
         onConfirm={handleGenerate}
+        equipmentLabel={`${s.equipment.code} · ${s.equipment.name}`}
+      />
+
+      <CloseWithoutOrderModal
+        visible={closeWithoutOtOpen}
+        onClose={() => setCloseWithoutOtOpen(false)}
+        onConfirm={handleCloseWithoutOt}
         equipmentLabel={`${s.equipment.code} · ${s.equipment.name}`}
       />
     </>
@@ -749,35 +677,6 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 4,
     },
     value: { fontSize: 14, color: c.text, lineHeight: 20 },
-    reasonBox: {
-      backgroundColor: c.bgNested,
-      borderRadius: 12,
-      padding: 14,
-      marginTop: 14,
-    },
-    reasonTitle: {
-      fontSize: 13.5,
-      fontWeight: "700",
-      color: c.text,
-      marginBottom: 10,
-    },
-    radioGroupColumn: {
-      flexDirection: "column",
-      alignItems: "flex-start",
-      gap: 8,
-    },
-    commentInput: {
-      marginTop: 12,
-      backgroundColor: "#fff",
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      minHeight: 40,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      fontSize: 13,
-      color: c.text,
-    },
     rejectedBox: {
       backgroundColor: c.bgNested,
       borderRadius: 12,

@@ -67,4 +67,29 @@ describe("RadioGroup", () => {
     fireEvent.press(getByText("Baja"));
     expect(onChange).toHaveBeenCalledWith("low");
   });
+
+  it("supports variant='cards' and keyboard navigation", async () => {
+    const onChange = jest.fn();
+    const { getAllByRole } = await render(
+      <RadioGroup
+        value="user"
+        onChange={onChange}
+        options={options}
+        variant="cards"
+        ariaLabelledBy="group-label-id"
+      />,
+    );
+
+    const radios = getAllByRole("radio");
+    expect(radios.length).toBe(3);
+    expect(radios[0].props.accessibilityState.checked).toBe(true);
+
+    // Keyboard navigation: ArrowDown moves to next option
+    fireEvent(radios[0], "keyDown", { key: "ArrowDown" });
+    expect(onChange).toHaveBeenCalledWith("technician");
+
+    // Keyboard navigation: ArrowUp moves to previous option
+    fireEvent(radios[0], "keyDown", { key: "ArrowUp" });
+    expect(onChange).toHaveBeenCalledWith("admin");
+  });
 });

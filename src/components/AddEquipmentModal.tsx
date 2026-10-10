@@ -125,7 +125,8 @@ export function AddEquipmentModal({
         <View style={styles.sheet}>
           <DropdownBackdrop open={openField !== null} onPress={() => setOpenField(null)} />
 
-          <Text style={styles.title}>Nuevo equipo</Text>
+          <Text style={styles.title}>Crear equipo</Text>
+
           <Text style={styles.subtitle}>
             Nace "Funcionando" — el estado se recalcula solo según las fallas activas.
           </Text>

@@ -70,7 +70,7 @@ export function PurchaseOrderDetailModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.headRow}>
-            <Text style={styles.title}>Pedido #{order?.ped_id_ped_compra}</Text>
+            <Text style={styles.title}>Ver pedido de compra</Text>
 
             <View style={[styles.badge, { backgroundColor: estadoColor.bg }]}>
               <Text style={[styles.badgeText, { color: estadoColor.fg }]}>
@@ -80,7 +80,7 @@ export function PurchaseOrderDetailModal({
           </View>
 
           <Text style={styles.subtitle}>
-            {formatDate(order?.ped_fecha_solicitud ?? null)}
+            Pedido #{order?.ped_id_ped_compra} · {formatDate(order?.ped_fecha_solicitud ?? null)}
             {isAdmin && techName ? ` · ${techName}` : ""}
           </Text>
 

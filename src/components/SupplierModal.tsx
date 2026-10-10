@@ -138,7 +138,7 @@ export function SupplierModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{isEditing ? "Editar proveedor" : "Nuevo proveedor"}</Text>
+          <Text style={styles.title}>{isEditing ? "Editar proveedor" : "Crear proveedor"}</Text>
 
           <Text style={styles.subtitle}>
             {isEditing
@@ -147,6 +147,7 @@ export function SupplierModal({
           </Text>
 
           <Text style={styles.label}>Nombre</Text>
+
           <TextInput
             style={styles.input}
             value={name}

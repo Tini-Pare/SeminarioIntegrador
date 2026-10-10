@@ -56,8 +56,9 @@ export function EquipmentTypeModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>
-            {isEditing ? "Editar tipo de equipo" : "Nuevo tipo de equipo"}
+            {isEditing ? "Editar tipo de equipo" : "Crear tipo de equipo"}
           </Text>
+
           <Text style={styles.subtitle}>
             {isEditing
               ? equipmentType!.te_nombre

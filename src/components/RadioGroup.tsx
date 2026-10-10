@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Platform,
   Pressable,
@@ -27,6 +28,8 @@ export function RadioGroup<T extends string | number>({
   name,
   disabled = false,
   style,
+  variant = "default",
+  ariaLabelledBy,
 }: {
   value?: T | null;
   onChange: (value: T) => void;
@@ -34,9 +37,14 @@ export function RadioGroup<T extends string | number>({
   name?: string;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  variant?: "default" | "cards";
+  ariaLabelledBy?: string;
 }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+
+  const isCards = variant === "cards";
 
   const handleKeyDown = (e: any, index: number) => {
     if (disabled) return;
@@ -56,13 +64,62 @@ export function RadioGroup<T extends string | number>({
 
   return (
     <View
-      style={[styles.container, disabled && styles.disabled, style]}
+      style={[
+        isCards ? styles.cardsContainer : styles.container,
+        disabled && styles.disabled,
+        style,
+      ]}
       accessibilityRole="radiogroup"
       aria-disabled={disabled}
+      aria-labelledby={ariaLabelledBy}
     >
       {options.map((opt, index) => {
         const isSelected = opt.value === value;
         const badge = opt.badge;
+        const isFocused = focusedIndex === index;
+
+        if (isCards) {
+          return (
+            <Pressable
+              key={String(opt.value)}
+              style={[
+                styles.cardOption,
+                isSelected ? styles.cardOptionSelected : styles.cardOptionUnselected,
+                isFocused && styles.cardOptionFocused,
+              ]}
+              onPress={() => !disabled && onChange(opt.value)}
+              disabled={disabled}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: isSelected, disabled }}
+              accessibilityLabel={opt.label}
+              aria-checked={isSelected}
+              aria-disabled={disabled}
+              tabIndex={disabled ? -1 : isSelected ? 0 : index === 0 && !value ? 0 : -1}
+              onFocus={() => setFocusedIndex(index)}
+              onBlur={() => setFocusedIndex(null)}
+              // @ts-ignore onKeyDown is supported on react-native-web
+              onKeyDown={(e: any) => handleKeyDown(e, index)}
+            >
+              <View
+                style={[
+                  styles.cardCircle,
+                  isSelected ? styles.cardCircleSelected : styles.cardCircleUnselected,
+                ]}
+              >
+                {isSelected && <View style={styles.cardDot} />}
+              </View>
+
+              <Text
+                style={[
+                  styles.cardLabel,
+                  isSelected && styles.cardLabelSelected,
+                ]}
+              >
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        }
 
         return (
           <Pressable
@@ -124,6 +181,11 @@ function makeStyles(c: ThemeColors) {
       flexWrap: "wrap",
       gap: 22,
     },
+    cardsContainer: {
+      flexDirection: "column",
+      gap: 8,
+      width: "100%",
+    },
     disabled: {
       opacity: 0.45,
       ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as any) : {}),
@@ -177,6 +239,70 @@ function makeStyles(c: ThemeColors) {
     },
     labelSelected: {
       fontWeight: "700",
+    },
+    // Full-width card variant styles (WCAG 1.4.11 / 1.4.3 compliant)
+    cardOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      width: "100%",
+      minHeight: 48,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      ...(Platform.OS === "web" ? ({ cursor: "pointer", userSelect: "none" } as any) : {}),
+    },
+    cardOptionUnselected: {
+      backgroundColor: "#ffffff",
+      borderWidth: 1.5,
+      borderColor: "#7d8873",
+    },
+    cardOptionSelected: {
+      backgroundColor: "rgba(79, 99, 64, 0.08)",
+      borderWidth: 2,
+      borderColor: c.accent,
+    },
+    cardOptionFocused: {
+      ...(Platform.OS === "web"
+        ? ({
+            outlineColor: c.accent,
+            outlineWidth: 2,
+            outlineStyle: "solid",
+            outlineOffset: 2,
+          } as any)
+        : {}),
+    },
+    cardCircle: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "transparent",
+    },
+    cardCircleUnselected: {
+      borderWidth: 2,
+      borderColor: "#556049",
+    },
+    cardCircleSelected: {
+      borderWidth: 2,
+      borderColor: c.accent,
+    },
+    cardDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: c.accent,
+    },
+    cardLabel: {
+      fontSize: 15,
+      color: c.text,
+      flex: 1,
+      fontWeight: "400",
+      lineHeight: 20,
+    },
+    cardLabelSelected: {
+      fontWeight: "600",
     },
   });
 }

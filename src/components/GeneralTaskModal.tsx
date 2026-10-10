@@ -89,8 +89,9 @@ export function GeneralTaskModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>
-            {isEditing ? "Editar tarea general" : "Nueva tarea general"}
+            {isEditing ? "Editar tarea general" : "Crear tarea general"}
           </Text>
+
           <Text style={styles.subtitle}>
             {isEditing
               ? task!.tag_nombre_tarea

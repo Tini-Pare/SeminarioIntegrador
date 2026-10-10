@@ -125,7 +125,7 @@ export function PurchaseOrderModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Nuevo pedido de compra</Text>
+          <Text style={styles.title}>Crear pedido de compra</Text>
 
           <Text style={styles.subtitle}>
             Pedí los repuestos que hacen falta. Un administrador lo aprueba o rechaza.

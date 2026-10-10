@@ -230,6 +230,7 @@ export default function TasksScreen() {
       <DetailModal
         visible={!!viewingTask}
         onClose={() => setViewingTask(null)}
+        actionTitle="Ver tarea general"
         title={viewingTask?.tag_nombre_tarea ?? ""}
         description={viewingTask?.tag_descripcion_tarea}
         fields={

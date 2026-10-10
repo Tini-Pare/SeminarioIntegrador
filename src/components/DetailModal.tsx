@@ -13,12 +13,14 @@ export function DetailModal({
   visible,
   onClose,
   title,
+  actionTitle,
   description,
   fields,
 }: {
   visible: boolean;
   onClose: () => void;
   title: string;
+  actionTitle?: string;
   description?: string | null;
   fields?: DetailField[];
 }) {
@@ -29,7 +31,9 @@ export function DetailModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.title}>{actionTitle ?? title}</Text>
+
+          {actionTitle && <Text style={styles.subtitle}>{title}</Text>}
 
           {fields && fields.length > 0 && (
             <View style={styles.fieldsRow}>
@@ -81,6 +85,7 @@ function makeStyles(c: ThemeColors) {
       alignSelf: "center",
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
     label: {
       fontSize: 12.5,
       fontWeight: "600",

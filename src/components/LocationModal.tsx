@@ -57,7 +57,8 @@ export function LocationModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>{isEditing ? "Editar ubicación" : "Nueva ubicación"}</Text>
+          <Text style={styles.title}>{isEditing ? "Editar ubicación" : "Crear ubicación"}</Text>
+
           <Text style={styles.subtitle}>
             {isEditing ? location!.lu_nombre_sector : "Agregá un sector donde ubicar equipos."}
           </Text>
