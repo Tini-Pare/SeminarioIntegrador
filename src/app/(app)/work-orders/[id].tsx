@@ -194,6 +194,14 @@ export default function WorkOrderDetail() {
       setError("Ingresá una fecha válida (dd/mm/aaaa).");
       return;
     }
+    if (
+      !clear &&
+      solicitud.order_start_date &&
+      toDbDate(plannedDraft) < solicitud.order_start_date
+    ) {
+      setError("La fecha estimada no puede ser anterior a la fecha de inicio de la orden.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -405,33 +413,47 @@ export default function WorkOrderDetail() {
             <Text style={styles.empty}>Todavía no se agregó ninguna tarea.</Text>
           ) : (
             s.tasks.map((task, i) => (
-              <View key={task.id} style={[styles.row2, i % 2 === 1 && styles.rowAlt]}>
-                <Text style={[styles.cellText, styles.cellStrong, { flex: 1.6 }]} numberOfLines={2}>
-                  {task.taskName}
-                </Text>
+              <View key={task.id} style={[styles.rowWrap, i % 2 === 1 && styles.rowAlt]}>
+                <View style={styles.row2}>
+                  <Text
+                    style={[styles.cellText, styles.cellStrong, { flex: 1.6 }]}
+                    numberOfLines={2}
+                  >
+                    {task.taskName}
+                  </Text>
 
-                <Text style={[styles.cellText, { flex: 1.3 }]} numberOfLines={1}>
-                  {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"}
-                </Text>
+                  <Text style={[styles.cellText, { flex: 1.3 }]} numberOfLines={1}>
+                    {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"}
+                  </Text>
 
-                <Text style={[styles.cellText, { flex: 1 }]}>{taskStatusLabel(task)}</Text>
+                  <Text style={[styles.cellText, { flex: 1 }]}>{taskStatusLabel(task)}</Text>
 
-                <Text style={[styles.cellText, { flex: 0.9 }]}>
-                  {fromDbDate(task.startDate) || "—"}
-                </Text>
+                  <Text style={[styles.cellText, { flex: 0.9 }]}>
+                    {fromDbDate(task.startDate) || "—"}
+                  </Text>
 
-                <Text style={[styles.cellText, { flex: 0.9 }]}>
-                  {fromDbDate(task.endDate) || "—"}
-                </Text>
+                  <Text style={[styles.cellText, { flex: 0.9 }]}>
+                    {fromDbDate(task.endDate) || "—"}
+                  </Text>
 
-                <View style={styles.actionsCol}>
-                  {!task.endDate && (
-                    <RowActions
-                      onEdit={() => setReassigningTask(task)}
-                      editTooltip="Reasignar técnico"
-                    />
-                  )}
+                  <View style={styles.actionsCol}>
+                    {!task.endDate && (
+                      <RowActions
+                        onEdit={() => setReassigningTask(task)}
+                        editTooltip="Reasignar técnico"
+                      />
+                    )}
+                  </View>
                 </View>
+
+                {task.consumedParts.length > 0 && (
+                  <View style={styles.consumedRow}>
+                    <Text style={styles.consumedText}>
+                      <Text style={styles.consumedLabel}>Repuestos usados: </Text>
+                      {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                    </Text>
+                  </View>
+                )}
               </View>
             ))
           )}
@@ -590,17 +612,24 @@ function makeStyles(c: ThemeColors) {
     },
     actionsCol: { width: 90, flexShrink: 0 },
     empty: { color: c.textMuted, fontSize: 13.5, padding: 18 },
-    row2: {
-      flexDirection: "row",
-      alignItems: "center",
+    rowWrap: {
       paddingHorizontal: 18,
       paddingVertical: 14,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
+    row2: { flexDirection: "row", alignItems: "center" },
     rowAlt: { backgroundColor: c.bgRowAlt },
     cellText: { fontSize: 13.5, color: c.textLabel, paddingRight: 8 },
     cellStrong: { fontWeight: "600", color: c.text },
+    consumedRow: {
+      marginTop: 10,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+    },
+    consumedText: { fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
+    consumedLabel: { fontWeight: "600", color: c.textLabel },
     autoNote: { marginTop: 16, fontSize: 12, color: c.textMuted, lineHeight: 17 },
   });
 }

@@ -17,7 +17,21 @@ type TareaRow = Database["public"]["Tables"]["tareas_realizadas_orden"]["Row"];
 // migration 0017's header comment) — each tarea genérica added to it has
 // its own técnico. Rows with pe_cuit_cuil (external provider) instead of
 // p_id_tecnico are filtered out below — no UI yet to manage those.
-type TareaWithGeneral = TareaRow & { tareas_generales: { tag_nombre_tarea: string } | null };
+type RepuestoParaTareaRow = { rep_id: number; repta_canti_usada: number };
+type ConsumedPartRow = RepuestoParaTareaRow & { repuestos: { rep_nombre: string } | null };
+
+function mapConsumedParts(rows: ConsumedPartRow[] | undefined) {
+  return (rows ?? []).map((r) => ({
+    repId: r.rep_id,
+    nombre: r.repuestos?.rep_nombre ?? `Repuesto ${r.rep_id}`,
+    cantidad: r.repta_canti_usada,
+  }));
+}
+
+type TareaWithGeneral = TareaRow & {
+  tareas_generales: { tag_nombre_tarea: string } | null;
+  repuesto_para_tarea?: ConsumedPartRow[];
+};
 type OrdenWithTasks = OrdenRow & {
   fallo_por_orden?: { fallo: FalloRow }[];
   tareas_realizadas_orden?: TareaWithGeneral[];
@@ -32,7 +46,7 @@ export type SolicitudWithOrden = SolicitudRow & {
 // tarea added to it (with the técnico's id and the tarea's name), and
 // every photo attached to the solicitud.
 const SOLICITUD_SELECT =
-  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea))), solicitud_foto(*)";
+  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
 
 function resolvePhotoUrls(
   fotos: SolicitudFotoRow[] | undefined,
@@ -61,6 +75,7 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
       technicianId: t.p_id_tecnico,
       startDate: t.taro_fecha_inicio,
       endDate: t.taro_fecha_fin,
+      consumedParts: mapConsumedParts(t.repuesto_para_tarea),
     }));
   let status: Solicitud["status"] = "new";
   if (row.sol_estado === "rechazada") {
@@ -431,7 +446,16 @@ export async function updateOrderPlannedEndDate(
     .eq("sol_id_solicitud", solicitudId)
     .select("eq_id_equipo")
     .single();
-  if (updateError) throw new Error(updateError.message);
+  if (updateError) {
+    // Backstop for orden_fecha_estimada_chk (0018) — the UI already blocks
+    // this before it gets here, but a stale form or a second caller could
+    // still hit the constraint, and the raw "violates check constraint
+    // ..." message is meaningless to a user.
+    if (updateError.code === "23514" && updateError.message.includes("orden_fecha_estimada_chk")) {
+      throw new Error("La fecha estimada no puede ser anterior a la fecha de inicio de la orden.");
+    }
+    throw new Error(updateError.message);
+  }
 
   await logHistorial(
     orden.eq_id_equipo,
@@ -460,10 +484,12 @@ export type MyTask = {
   photoUrl: string | null;
   photoUrls: string[];
   faultTypeName: string | null;
+  consumedParts: { repId: number; nombre: string; cantidad: number }[];
 };
 
 type MyTaskRow = TareaRow & {
   tareas_generales: { tag_nombre_tarea: string } | null;
+  repuesto_para_tarea?: ConsumedPartRow[];
   orden_de_trabajo:
     | (OrdenRow & {
         fallo_por_orden?: { fallo: FalloRow }[];
@@ -482,7 +508,7 @@ export async function listMyTasks(): Promise<MyTask[]> {
   const { data, error } = await supabase
     .from("tareas_realizadas_orden")
     .select(
-      "*, tareas_generales(tag_nombre_tarea), orden_de_trabajo(*, fallo_por_orden(fallo(*)), solicitudes(sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)))",
+      "*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)), orden_de_trabajo(*, fallo_por_orden(fallo(*)), solicitudes(sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)))",
     )
     .eq("p_id_tecnico", userId);
   if (error) throw new Error(error.message);
@@ -506,6 +532,7 @@ export async function listMyTasks(): Promise<MyTask[]> {
       photoUrl: photoUrls[0] ?? null,
       photoUrls,
       faultTypeName: orden?.fallo_por_orden?.[0]?.fallo.fa_nombre ?? null,
+      consumedParts: mapConsumedParts(row.repuesto_para_tarea),
     };
   });
 }
@@ -546,7 +573,12 @@ export async function startTask(taskId: number): Promise<void> {
 // OT, sync_orden_estado ya la dejó (y a la solicitud) como resuelta — acá
 // solo se agrega esa entrada al historial, igual que hacía el viejo
 // advanceStatus("resolved").
-export async function finishTask(taskId: number): Promise<void> {
+export type ConsumedPart = { repId: number; cantidad: number };
+
+export async function finishTask(
+  taskId: number,
+  repuestos: ConsumedPart[] = [],
+): Promise<void> {
   const userId = await currentUserId();
   const { data: task, error: checkError } = await supabase
     .from("tareas_realizadas_orden")
@@ -563,11 +595,14 @@ export async function finishTask(taskId: number): Promise<void> {
     throw new Error("Iniciá la tarea antes de finalizarla.");
   }
 
-  const { error: updateError } = await supabase
-    .from("tareas_realizadas_orden")
-    .update({ taro_fecha_fin: getTodayDbDate() })
-    .eq("taro_id_tarea_orden", taskId);
-  if (updateError) throw new Error(updateError.message);
+  // security definer: registra el consumo de repuestos (resta stock) y
+  // marca la tarea finalizada en la misma transacción — si el stock no
+  // alcanza, ninguna de las dos cosas queda guardada (ver migración 0021).
+  const { error: rpcError } = await supabase.rpc("finalizar_tarea", {
+    p_taro_id_tarea_orden: taskId,
+    p_repuestos: repuestos.map((r) => ({ rep_id: r.repId, cantidad: r.cantidad })),
+  });
+  if (rpcError) throw new Error(rpcError.message);
 
   const eqId = (task.orden_de_trabajo as { eq_id_equipo: number } | null)?.eq_id_equipo;
   const taskName =

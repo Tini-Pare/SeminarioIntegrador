@@ -9,14 +9,22 @@ import {
   StyleSheet,
   RefreshControl,
 } from "react-native";
-import { finishTask, listMyTasks, startTask, type MyTask } from "../../../lib/queries/faults";
+import {
+  finishTask,
+  listMyTasks,
+  startTask,
+  type ConsumedPart,
+  type MyTask,
+} from "../../../lib/queries/faults";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { usePagination } from "../../../lib/usePagination";
+import { FinishTaskModal } from "../../../components/FinishTaskModal";
 import { LocationIcon, WarningIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
+import { TableFilterBar } from "../../../components/TableFilterBar";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { useConfirm } from "../../../lib/useConfirm";
@@ -38,12 +46,22 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   medium: "Media",
   high: "Alta",
 };
-const PRIORITY_OPTIONS: PriorityFilter[] = ["all", "high", "medium", "low"];
+type TaskStatus = "pending" | "in_progress" | "done";
+type TaskStatusFilter = "all" | TaskStatus;
+
+const STATUS_FILTER_LABELS: Record<TaskStatus, string> = {
+  pending: "Pendiente",
+  in_progress: "En curso",
+  done: "Finalizada",
+};
+function taskStatus(task: MyTask): TaskStatus {
+  if (task.endDate) return "done";
+  if (task.startDate) return "in_progress";
+  return "pending";
+}
 
 function taskStatusLabel(task: MyTask): string {
-  if (task.endDate) return "Finalizada";
-  if (task.startDate) return "En curso";
-  return "Pendiente";
+  return STATUS_FILTER_LABELS[taskStatus(task)];
 }
 
 function taskRank(task: MyTask): number {
@@ -58,7 +76,9 @@ export default function QueueScreen() {
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actingOn, setActingOn] = useState<number | null>(null);
+  const [finishingTask, setFinishingTask] = useState<Item | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const { confirm, dialog } = useConfirm();
@@ -117,11 +137,10 @@ export default function QueueScreen() {
     setRefreshing(false);
   }
 
-  async function handleAction(item: Item) {
+  async function handleStart(item: Item) {
     setActingOn(item.taskRowId);
     try {
-      if (!item.startDate) await startTask(item.taskRowId);
-      else if (!item.endDate) await finishTask(item.taskRowId);
+      await startTask(item.taskRowId);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -130,17 +149,28 @@ export default function QueueScreen() {
     }
   }
 
-  // Starting or finishing a tarea can't be undone from the app (and
-  // finishing the last pending one resolves the whole OT), so it asks first
-  // like every other action that changes data.
+  async function handleConfirmFinish(repuestos: ConsumedPart[]) {
+    if (!finishingTask) return;
+    await finishTask(finishingTask.taskRowId, repuestos);
+    await load();
+    setFinishingTask(null);
+  }
+
+  // Starting or finishing a tarea can't be undone from the app, so both ask
+  // first. Starting uses a plain confirm dialog; finishing goes straight to
+  // FinishTaskModal, which already is the confirmation step (it asks which
+  // repuestos were used, since that quantity comes off stock) — chaining a
+  // confirm dialog before it would make the técnico confirm twice.
   function askAction(item: Item) {
-    const starting = !item.startDate;
+    if (item.endDate) return;
+    if (item.startDate) {
+      setFinishingTask(item);
+      return;
+    }
     confirm({
-      title: starting ? "Iniciar tarea" : "Finalizar tarea",
-      message: starting
-        ? `¿Iniciar "${item.taskName}" en ${item.equipment.name}?`
-        : `¿Finalizar "${item.taskName}" en ${item.equipment.name}? Si es la última tarea pendiente de la orden, la orden queda resuelta.`,
-      onConfirm: () => handleAction(item),
+      title: "Iniciar tarea",
+      message: `¿Iniciar "${item.taskName}" en ${item.equipment.name}?`,
+      onConfirm: () => handleStart(item),
     });
   }
 
@@ -156,8 +186,12 @@ export default function QueueScreen() {
   );
 
   const visibleItems = useMemo(() => {
-    return items.filter((item) => priorityFilter === "all" || item.priority === priorityFilter);
-  }, [items, priorityFilter]);
+    return items.filter(
+      (item) =>
+        (priorityFilter === "all" || item.priority === priorityFilter) &&
+        (statusFilter === "all" || taskStatus(item) === statusFilter),
+    );
+  }, [items, priorityFilter, statusFilter]);
 
   const priorityColors: Record<Priority, { bg: string; fg: string }> = {
     low: colors.urgencyLow,
@@ -165,158 +199,183 @@ export default function QueueScreen() {
     high: colors.urgencyHigh,
   };
 
-  const { pageItems, page, pageCount, setPage } = usePagination(visibleItems, priorityFilter);
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    visibleItems,
+    `${priorityFilter}|${statusFilter}`,
+  );
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Cola de trabajo</Text>
-          <Text style={styles.subtitle}>Tus tareas asignadas</Text>
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Cola de trabajo</Text>
+            <Text style={styles.subtitle}>Tus tareas asignadas</Text>
+          </View>
         </View>
-      </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+        {error && <Text style={styles.error}>{error}</Text>}
 
-      <View style={styles.filtersRow}>
-        <View style={styles.urgencyChips}>
-          {PRIORITY_OPTIONS.map((p) => {
-            const active = priorityFilter === p;
-            const meta = p === "all" ? null : priorityColors[p];
+        <TableFilterBar
+          filters={[
+            {
+              key: "prioridad",
+              label: "Prioridad",
+              value: priorityFilter,
+              onChange: (v) => setPriorityFilter(v as PriorityFilter),
+              options: [
+                { value: "all", label: "Todas" },
+                { value: "high", label: "Alta" },
+                { value: "medium", label: "Media" },
+                { value: "low", label: "Baja" },
+              ],
+            },
+            {
+              key: "estado",
+              label: "Estado",
+              value: statusFilter,
+              onChange: (v) => setStatusFilter(v as TaskStatusFilter),
+              options: [
+                { value: "all", label: "Todas" },
+                { value: "pending", label: "Pendiente" },
+                { value: "in_progress", label: "En curso" },
+                { value: "done", label: "Finalizada" },
+              ],
+            },
+          ]}
+          right={
+            <Text style={styles.count}>
+              {visibleItems.length} {visibleItems.length === 1 ? "tarea" : "tareas"}
+            </Text>
+          }
+        />
+
+        {visibleItems.length === 0 ? (
+          <Text style={styles.empty}>
+            {items.length === 0 ? "No tenés tareas asignadas." : "Nada coincide con este filtro."}
+          </Text>
+        ) : (
+          pageItems.map((item) => {
+            const label = actionLabel(item);
+            const prio = priorityColors[item.priority];
+            const locColor = locationColors.get(item.equipment.location) ?? "#6a7b62";
             return (
-              <Pressable
-                key={p}
-                style={[
-                  styles.urgencyChip,
-                  active && {
-                    backgroundColor: meta?.bg ?? colors.bgToggle,
-                    borderColor: meta?.fg ?? colors.textMuted,
-                  },
-                ]}
-                onPress={() => setPriorityFilter(p)}
-              >
-                <Text
-                  style={[
-                    styles.urgencyChipText,
-                    active && { color: meta?.fg ?? colors.text, fontWeight: "700" },
-                  ]}
-                >
-                  {p === "all" ? "Toda prioridad" : PRIORITY_LABELS[p]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+              <View key={item.taskRowId} style={styles.card}>
+                <View style={styles.cardTop}>
+                  {item.photoUrl ? (
+                    <Image source={{ uri: item.photoUrl }} style={styles.photo} />
+                  ) : (
+                    <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
+                      <WarningIcon size={20} color={prio.fg} />
+                    </View>
+                  )}
 
-      {visibleItems.length === 0 ? (
-        <Text style={styles.empty}>
-          {items.length === 0 ? "No tenés tareas asignadas." : "Nada coincide con este filtro."}
-        </Text>
-      ) : (
-        pageItems.map((item) => {
-          const label = actionLabel(item);
-          const prio = priorityColors[item.priority];
-          const locColor = locationColors.get(item.equipment.location) ?? "#6a7b62";
-          return (
-            <View key={item.taskRowId} style={styles.card}>
-              <View style={styles.cardTop}>
-                {item.photoUrl ? (
-                  <Image source={{ uri: item.photoUrl }} style={styles.photo} />
-                ) : (
-                  <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
-                    <WarningIcon size={20} color={prio.fg} />
+                  <View style={styles.cardMain}>
+                    <Text style={styles.taskName}>{item.taskName}</Text>
+
+                    <View style={styles.row}>
+                      <Text style={styles.equipmentName}>{item.equipment.name}</Text>
+                      <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
+                    </View>
+
+                    <View style={styles.row}>
+                      <View style={[styles.badge, { backgroundColor: colors.bgToggle }]}>
+                        <Text style={[styles.badgeText, { color: colors.textLabel }]}>
+                          {taskStatusLabel(item)}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.badge, { backgroundColor: prio.bg }]}>
+                        <Text style={[styles.badgeText, { color: prio.fg }]}>
+                          Prioridad {PRIORITY_LABELS[item.priority]}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {item.faultTypeName && (
+                      <Text style={styles.faultTypeText}>Falla: {item.faultTypeName}</Text>
+                    )}
                   </View>
+                </View>
+
+                <Text style={styles.desc}>{item.description}</Text>
+
+                {item.photoUrls.length > 1 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.gallery}
+                    contentContainerStyle={styles.galleryContent}
+                  >
+                    {item.photoUrls.map((url) => (
+                      <Image key={url} source={{ uri: url }} style={styles.galleryPhoto} />
+                    ))}
+                  </ScrollView>
                 )}
 
-                <View style={styles.cardMain}>
-                  <Text style={styles.taskName}>{item.taskName}</Text>
-
-                  <View style={styles.row}>
-                    <Text style={styles.equipmentName}>{item.equipment.name}</Text>
-                    <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
+                <View style={styles.metaRow}>
+                  <View style={styles.locationRow}>
+                    <View style={[styles.locationDot, { backgroundColor: locColor }]} />
+                    <LocationIcon size={13} />
+                    <Text style={styles.locationText}>{item.equipment.location}</Text>
                   </View>
 
-                  <View style={styles.row}>
-                    <View style={[styles.badge, { backgroundColor: colors.bgToggle }]}>
-                      <Text style={[styles.badgeText, { color: colors.textLabel }]}>
-                        {taskStatusLabel(item)}
-                      </Text>
-                    </View>
+                  <Text style={styles.meta}>
+                    Reportó {item.reporterName} ·{" "}
+                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString("es-AR") : "—"}
+                  </Text>
+                </View>
 
-                    <View style={[styles.badge, { backgroundColor: prio.bg }]}>
-                      <Text style={[styles.badgeText, { color: prio.fg }]}>
-                        Prioridad {PRIORITY_LABELS[item.priority]}
+                {item.endDate ? (
+                  <View style={styles.doneRow}>
+                    <Text style={styles.doneText}>✓ Finalizada</Text>
+
+                    {item.consumedParts.length > 0 && (
+                      <Text style={styles.consumedText}>
+                        Repuestos usados:{" "}
+                        {item.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
                       </Text>
-                    </View>
+                    )}
                   </View>
-
-                  {item.faultTypeName && (
-                    <Text style={styles.faultTypeText}>Falla: {item.faultTypeName}</Text>
-                  )}
-                </View>
+                ) : (
+                  label && (
+                    <Pressable
+                      style={styles.actionButton}
+                      onPress={() => askAction(item)}
+                      disabled={actingOn === item.taskRowId}
+                    >
+                      <Text style={styles.actionText}>
+                        {actingOn === item.taskRowId ? "Procesando…" : label}
+                      </Text>
+                    </Pressable>
+                  )
+                )}
               </View>
+            );
+          })
+        )}
 
-              <Text style={styles.desc}>{item.description}</Text>
-
-              {item.photoUrls.length > 1 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.gallery}
-                  contentContainerStyle={styles.galleryContent}
-                >
-                  {item.photoUrls.map((url) => (
-                    <Image key={url} source={{ uri: url }} style={styles.galleryPhoto} />
-                  ))}
-                </ScrollView>
-              )}
-
-              <View style={styles.metaRow}>
-                <View style={styles.locationRow}>
-                  <View style={[styles.locationDot, { backgroundColor: locColor }]} />
-                  <LocationIcon size={13} />
-                  <Text style={styles.locationText}>{item.equipment.location}</Text>
-                </View>
-
-                <Text style={styles.meta}>
-                  Reportó {item.reporterName} ·{" "}
-                  {item.createdAt ? new Date(item.createdAt).toLocaleDateString("es-AR") : "—"}
-                </Text>
-              </View>
-
-              {item.endDate ? (
-                <View style={styles.doneRow}>
-                  <Text style={styles.doneText}>✓ Finalizada</Text>
-                </View>
-              ) : (
-                label && (
-                  <Pressable
-                    style={styles.actionButton}
-                    onPress={() => askAction(item)}
-                    disabled={actingOn === item.taskRowId}
-                  >
-                    <Text style={styles.actionText}>
-                      {actingOn === item.taskRowId ? "Procesando…" : label}
-                    </Text>
-                  </Pressable>
-                )
-              )}
-            </View>
-          );
-        })
-      )}
-
-      <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+        <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+      </ScrollView>
 
       {dialog}
-    </ScrollView>
+
+      <FinishTaskModal
+        visible={!!finishingTask}
+        onClose={() => setFinishingTask(null)}
+        onConfirm={handleConfirmFinish}
+        taskName={finishingTask?.taskName ?? ""}
+        equipmentLabel={
+          finishingTask ? `${finishingTask.equipment.code} · ${finishingTask.equipment.name}` : ""
+        }
+      />
+    </>
   );
 }
 
@@ -337,23 +396,7 @@ function makeStyles(c: ThemeColors) {
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },
     empty: { padding: 40, textAlign: "center", color: c.textMuted },
-    filtersRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      alignItems: "center",
-      gap: 10,
-      marginBottom: 18,
-    },
-    urgencyChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-    urgencyChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgStatCard,
-    },
-    urgencyChipText: { fontSize: 12.5, fontWeight: "600", color: c.textLabel },
+    count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
     card: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -406,7 +449,8 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     actionText: { color: "#fff", fontSize: 13.5, fontWeight: "600" },
-    doneRow: { marginTop: 14, flexDirection: "row", alignItems: "center" },
+    doneRow: { marginTop: 14, gap: 4 },
     doneText: { color: c.success, fontSize: 13.5, fontWeight: "600" },
+    consumedText: { fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
   });
 }

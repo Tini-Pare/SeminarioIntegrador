@@ -308,6 +308,13 @@ export function SolicitudDetailModal({
                           {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"} ·{" "}
                           {taskStatusLabel(task)}
                         </Text>
+
+                        {task.consumedParts.length > 0 && (
+                          <Text style={styles.taskConsumed}>
+                            Repuestos:{" "}
+                            {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                          </Text>
+                        )}
                       </View>
 
                       {s.status !== "resolved" && (
@@ -572,6 +579,7 @@ function makeStyles(c: ThemeColors) {
     },
     taskName: { fontSize: 14, fontWeight: "600", color: c.text },
     taskMeta: { fontSize: 12.5, color: c.textMuted, marginTop: 2 },
+    taskConsumed: { fontSize: 12, color: c.textMuted, marginTop: 3, lineHeight: 16 },
     linkButton: { marginTop: 10, alignSelf: "flex-start" },
     linkButtonText: { fontSize: 13, fontWeight: "600", color: c.accent },
     autoNote: { marginTop: 16, fontSize: 12, color: c.textMuted, lineHeight: 17 },

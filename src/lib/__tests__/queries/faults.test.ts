@@ -19,12 +19,13 @@ import {
   listMyTasks,
   reassignTaskTechnician,
   startTask,
+  updateOrderPlannedEndDate,
   updateOrderStartDate,
 } from "../../queries/faults";
 import { supabase } from "../../supabase";
 
 const SOLICITUD_SELECT =
-  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea))), solicitud_foto(*)";
+  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
 
 beforeEach(() => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
@@ -285,6 +286,7 @@ describe("listAllRequests", () => {
             technicianId: "tec1",
             startDate: null,
             endDate: null,
+            consumedParts: [],
           },
           {
             id: 21,
@@ -293,6 +295,7 @@ describe("listAllRequests", () => {
             technicianId: "tec2",
             startDate: "2026-01-04",
             endDate: null,
+            consumedParts: [],
           },
         ],
       }),
@@ -625,6 +628,50 @@ describe("updateOrderStartDate", () => {
   });
 });
 
+describe("updateOrderPlannedEndDate", () => {
+  it("updates ot_fecha_estimada_fin and logs historial", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "admin1" } } },
+    });
+    const single = jest.fn().mockResolvedValue({ data: { eq_id_equipo: 5 }, error: null });
+    const select = jest.fn().mockReturnValue({ single });
+    const eq = jest.fn().mockReturnValue({ select });
+    const update = jest.fn().mockReturnValue({ eq });
+    const insertHistorial = jest.fn().mockResolvedValue({ error: null });
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "historial" ? { insert: insertHistorial } : { update },
+    );
+
+    await updateOrderPlannedEndDate(1, "2026-02-01");
+
+    expect(update).toHaveBeenCalledWith({ ot_fecha_estimada_fin: "2026-02-01" });
+    expect(insertHistorial).toHaveBeenCalledWith(
+      expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
+    );
+  });
+
+  // Backstop for orden_fecha_estimada_chk (0018) — the UI already blocks this
+  // before it reaches the DB, this covers what happens if it doesn't.
+  it("translates the orden_fecha_estimada_chk violation to a friendly message", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "23514",
+        message:
+          'new row for relation "orden_de_trabajo" violates check constraint "orden_fecha_estimada_chk"',
+      },
+    });
+    const select = jest.fn().mockReturnValue({ single });
+    const eq = jest.fn().mockReturnValue({ select });
+    const update = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ update });
+
+    await expect(updateOrderPlannedEndDate(1, "2026-01-01")).rejects.toThrow(
+      "La fecha estimada no puede ser anterior a la fecha de inicio de la orden.",
+    );
+  });
+});
+
 describe("listMyTasks", () => {
   it("returns one row per tarea assigned to the current técnico, with its OT/solicitud/equipo context", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
@@ -640,6 +687,9 @@ describe("listMyTasks", () => {
           taro_fecha_inicio: null,
           taro_fecha_fin: null,
           tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
+          repuesto_para_tarea: [
+            { rep_id: 4, repta_canti_usada: 2, repuestos: { rep_nombre: "Filtro de aire" } },
+          ],
           orden_de_trabajo: {
             ot_estado: "assigned",
             ot_prioridad: "high",
@@ -680,6 +730,7 @@ describe("listMyTasks", () => {
         photoUrl: null,
         photoUrls: [],
         faultTypeName: "Pérdida de gas",
+        consumedParts: [{ repId: 4, nombre: "Filtro de aire", cantidad: 2 }],
       },
     ]);
   });
@@ -763,15 +814,13 @@ describe("finishTask", () => {
       .mockImplementation((cols: string) =>
         cols === "taro_fecha_fin" ? { eq: siblingsEq } : { eq: checkEq },
       );
-    const updateEq = jest.fn().mockResolvedValue({ error: null });
-    const update = jest.fn().mockReturnValue({ eq: updateEq });
     const insertHistorial = jest.fn().mockResolvedValue({ error: null });
 
     (supabase.from as jest.Mock).mockImplementation((table: string) =>
-      table === "historial" ? { insert: insertHistorial } : { select, update },
+      table === "historial" ? { insert: insertHistorial } : { select },
     );
 
-    return { checkEq, updateEq, update, insertHistorial, siblingsEq };
+    return { checkEq, insertHistorial, siblingsEq };
   }
 
   it("refuses to finish a tarea that isn't assigned to the current user", async () => {
@@ -794,11 +843,11 @@ describe("finishTask", () => {
     await expect(finishTask(11)).rejects.toThrow("Iniciá la tarea antes de finalizarla.");
   });
 
-  it("finishes the tarea and logs historial, without a 'Resuelta' entry when other tareas are still open", async () => {
+  it("finishes the tarea (no repuestos) via finalizar_tarea and logs historial, without a 'Resuelta' entry when other tareas are still open", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "tec1" } } },
     });
-    const { update, updateEq, insertHistorial } = mockFinishChecks(
+    const { insertHistorial } = mockFinishChecks(
       {
         p_id_tecnico: "tec1",
         ot_id_orden: 7,
@@ -811,11 +860,63 @@ describe("finishTask", () => {
 
     await finishTask(11);
 
-    expect(update).toHaveBeenCalledWith({ taro_fecha_fin: expect.any(String) });
-    expect(updateEq).toHaveBeenCalledWith("taro_id_tarea_orden", 11);
+    expect(supabase.rpc).toHaveBeenCalledWith("finalizar_tarea", {
+      p_taro_id_tarea_orden: 11,
+      p_repuestos: [],
+    });
     expect(insertHistorial).toHaveBeenCalledTimes(1);
     expect(insertHistorial).toHaveBeenCalledWith(
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Tarea finalizada" }),
+    );
+  });
+
+  it("maps repuestos consumidos to p_repuestos for finalizar_tarea", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "tec1" } } },
+    });
+    mockFinishChecks(
+      {
+        p_id_tecnico: "tec1",
+        ot_id_orden: 7,
+        taro_fecha_inicio: "2026-01-01",
+        tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
+        orden_de_trabajo: { eq_id_equipo: 5 },
+      },
+      [{ taro_fecha_fin: null }],
+    );
+
+    await finishTask(11, [
+      { repId: 3, cantidad: 2 },
+      { repId: 4, cantidad: 1 },
+    ]);
+
+    expect(supabase.rpc).toHaveBeenCalledWith("finalizar_tarea", {
+      p_taro_id_tarea_orden: 11,
+      p_repuestos: [
+        { rep_id: 3, cantidad: 2 },
+        { rep_id: 4, cantidad: 1 },
+      ],
+    });
+  });
+
+  it("throws the DB's message when finalizar_tarea fails (e.g. not enough stock)", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "tec1" } } },
+    });
+    mockFinishChecks(
+      {
+        p_id_tecnico: "tec1",
+        ot_id_orden: 7,
+        taro_fecha_inicio: "2026-01-01",
+      },
+      [],
+    );
+    (supabase.rpc as jest.Mock).mockResolvedValue({
+      error: { message: 'new row for relation "repuestos" violates check constraint "..."' },
+    });
+
+    await expect(finishTask(11, [{ repId: 3, cantidad: 999 }])).rejects.toThrow(
+      "violates check constraint",
     );
   });
 

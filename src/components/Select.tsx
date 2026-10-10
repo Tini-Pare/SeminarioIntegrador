@@ -22,12 +22,15 @@ export type SelectOption<T extends number | string = number> = { value: T; label
 // Open state can be controlled from the parent (pass `open` + `onOpenChange`)
 // so sibling dropdowns in the same form close each other; otherwise it's
 // self-managed.
+// `inline` keeps the options in the document flow when a modal ScrollView
+// would otherwise clip or cover an absolute dropdown.
 export function Select<T extends number | string = number>({
   value,
   onChange,
   options,
   placeholder = "Elegí una opción",
   disabled = false,
+  inline = false,
   open: openProp,
   onOpenChange,
   hasError = false,
@@ -37,6 +40,7 @@ export function Select<T extends number | string = number>({
   options: SelectOption<T>[];
   placeholder?: string;
   disabled?: boolean;
+  inline?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hasError?: boolean;
@@ -112,7 +116,7 @@ export function Select<T extends number | string = number>({
         <>
           <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
 
-          <View style={styles.dropdown}>
+          <View style={[styles.dropdown, inline && styles.dropdownInline]}>
             <TextInput
               ref={searchRef}
               style={styles.search}
@@ -208,6 +212,11 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       shadowRadius: 8,
       elevation: 8,
       ...(Platform.OS === "web" ? { boxShadow: "0px 6px 16px rgba(0, 0, 0, 0.35)" } : {}),
+    },
+    dropdownInline: {
+      position: "relative",
+      top: 0,
+      marginTop: 4,
     },
     search: {
       height: 40,
