@@ -153,7 +153,7 @@ export function PurchaseOrderModal({
 
               <Pressable
                 onPress={() => {
-                  setLines((prev) => [newLine(), ...prev]);
+                  setLines((prev) => [...prev, newLine()]);
                   if (error) setError(null);
                 }}
               >

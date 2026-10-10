@@ -19,7 +19,9 @@ import {
   listMyTasks,
   reassignTaskTechnician,
   startTask,
+  updateOrderFaultType,
   updateOrderPlannedEndDate,
+  updateOrderPriority,
   updateOrderStartDate,
 } from "../../queries/faults";
 import { supabase } from "../../supabase";
@@ -409,21 +411,17 @@ describe("closeSolicitud", () => {
 });
 
 describe("generateOrder", () => {
-  it("creates la OT sin ot_p_id_responsable, agrega cada tarea con su propio técnico, marca la solicitud en_proceso y loguea historial", async () => {
+  function mockGenerate(solEstado = "pendiente") {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "admin1" } } },
     });
     const selectSingle = jest.fn().mockResolvedValue({
-      data: { eq_id_equipo: 5, sol_descripcion: "no enfría" },
+      data: { eq_id_equipo: 5, sol_descripcion: "no enfría", sol_estado: solEstado },
       error: null,
     });
     const selectEq = jest.fn().mockReturnValue({ single: selectSingle });
     const select = jest.fn().mockReturnValue({ eq: selectEq });
-    const insertOrdenSingle = jest
-      .fn()
-      .mockResolvedValue({ data: { ot_id_orden: 7 }, error: null });
-    const insertOrdenSelect = jest.fn().mockReturnValue({ single: insertOrdenSingle });
-    const insertOrden = jest.fn().mockReturnValue({ select: insertOrdenSelect });
+    const insertOrden = jest.fn().mockResolvedValue({ error: null });
     const insertTareas = jest.fn().mockResolvedValue({ error: null });
     const insertFallo = jest.fn().mockResolvedValue({ error: null });
     const updateEq = jest.fn().mockResolvedValue({ error: null });
@@ -437,77 +435,115 @@ describe("generateOrder", () => {
       if (table === "historial") return { insert: insertHistorial };
       return { select, update };
     });
+    return { selectEq, insertOrden, insertTareas, insertFallo, update, insertHistorial };
+  }
 
-    await generateOrder(1, {
-      tasks: [
-        { taskId: 3, technicianId: "tec1" },
-        { taskId: 4, technicianId: "tec2" },
-      ],
-      faultTypeId: 9,
-      priority: "high",
-    });
+  it("crea la OT vacía (sin tareas ni falla) con la prioridad elegida, marca la solicitud en_proceso y loguea historial", async () => {
+    const m = mockGenerate();
 
-    expect(selectEq).toHaveBeenCalledWith("sol_id_solicitud", 1);
-    expect(insertOrden).toHaveBeenCalledWith({
+    await generateOrder(1, { priority: "high" });
+
+    expect(m.selectEq).toHaveBeenCalledWith("sol_id_solicitud", 1);
+    expect(m.insertOrden).toHaveBeenCalledWith({
       sol_id_solicitud: 1,
       eq_id_equipo: 5,
       ot_prioridad: "high",
     });
-    expect(insertTareas).toHaveBeenCalledWith([
-      { ot_id_orden: 7, tag_id_tarea: 3, p_id_tecnico: "tec1" },
-      { ot_id_orden: 7, tag_id_tarea: 4, p_id_tecnico: "tec2" },
-    ]);
-    expect(insertFallo).toHaveBeenCalledWith({
-      fa_id_fallo: 9,
-      ot_id_orden: 7,
-      fpo_fecha_deteccion: expect.any(String),
-    });
-    expect(update).toHaveBeenCalledWith({ sol_estado: "en_proceso" });
+    expect(m.insertTareas).not.toHaveBeenCalled();
+    expect(m.insertFallo).not.toHaveBeenCalled();
+    expect(m.update).toHaveBeenCalledWith({ sol_estado: "en_proceso" });
     expect(supabase.rpc).toHaveBeenCalledWith("sync_equipo_estado", { p_eq_id: 5 });
-    expect(insertHistorial).toHaveBeenCalledWith(
+    expect(m.insertHistorial).toHaveBeenCalledWith(
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Asignada", hi_autor_id: "admin1" }),
     );
   });
 
-  it("defaults to prioridad media and no fallo when not given", async () => {
+  it("no genera una segunda OT si la solicitud ya no está pendiente", async () => {
+    const m = mockGenerate("en_proceso");
+
+    await expect(generateOrder(1, { priority: "low" })).rejects.toThrow(
+      "Esta solicitud ya no está pendiente.",
+    );
+    expect(m.insertOrden).not.toHaveBeenCalled();
+  });
+
+  it("exige elegir una prioridad", async () => {
+    await expect(generateOrder(1, { priority: undefined as unknown as "low" })).rejects.toThrow(
+      "Elegí una prioridad.",
+    );
+  });
+});
+
+describe("updateOrderPriority", () => {
+  it("actualiza ot_prioridad de la OT de la solicitud y loguea historial", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "admin1" } } },
     });
-    const selectSingle = jest.fn().mockResolvedValue({
-      data: { eq_id_equipo: 5, sol_descripcion: "no enfría" },
-      error: null,
-    });
-    const selectEq = jest.fn().mockReturnValue({ single: selectSingle });
-    const select = jest.fn().mockReturnValue({ eq: selectEq });
-    const insertOrdenSingle = jest
-      .fn()
-      .mockResolvedValue({ data: { ot_id_orden: 7 }, error: null });
-    const insertOrdenSelect = jest.fn().mockReturnValue({ single: insertOrdenSingle });
-    const insertOrden = jest.fn().mockReturnValue({ select: insertOrdenSelect });
-    const insertTareas = jest.fn().mockResolvedValue({ error: null });
-    const insertFallo = jest.fn().mockResolvedValue({ error: null });
-    const updateEq = jest.fn().mockResolvedValue({ error: null });
-    const update = jest.fn().mockReturnValue({ eq: updateEq });
+    const single = jest.fn().mockResolvedValue({ data: { eq_id_equipo: 5 }, error: null });
+    const select = jest.fn().mockReturnValue({ single });
+    const eq = jest.fn().mockReturnValue({ select });
+    const update = jest.fn().mockReturnValue({ eq });
     const insertHistorial = jest.fn().mockResolvedValue({ error: null });
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "historial" ? { insert: insertHistorial } : { update },
+    );
 
-    (supabase.from as jest.Mock).mockImplementation((table: string) => {
-      if (table === "orden_de_trabajo") return { insert: insertOrden };
-      if (table === "tareas_realizadas_orden") return { insert: insertTareas };
-      if (table === "fallo_por_orden") return { insert: insertFallo };
-      if (table === "historial") return { insert: insertHistorial };
-      return { select, update };
+    await updateOrderPriority(1, "low");
+
+    expect(update).toHaveBeenCalledWith({ ot_prioridad: "low" });
+    expect(eq).toHaveBeenCalledWith("sol_id_solicitud", 1);
+    expect(insertHistorial).toHaveBeenCalledWith(
+      expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
+    );
+  });
+});
+
+describe("updateOrderFaultType", () => {
+  function mockFault() {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "admin1" } } },
     });
+    const ordenSingle = jest
+      .fn()
+      .mockResolvedValue({ data: { ot_id_orden: 7, eq_id_equipo: 5 }, error: null });
+    const ordenEq = jest.fn().mockReturnValue({ single: ordenSingle });
+    const ordenSelect = jest.fn().mockReturnValue({ eq: ordenEq });
+    const deleteEq = jest.fn().mockResolvedValue({ error: null });
+    const del = jest.fn().mockReturnValue({ eq: deleteEq });
+    const insertFallo = jest.fn().mockResolvedValue({ error: null });
+    const insertHistorial = jest.fn().mockResolvedValue({ error: null });
+    (supabase.from as jest.Mock).mockImplementation((table: string) => {
+      if (table === "orden_de_trabajo") return { select: ordenSelect };
+      if (table === "fallo_por_orden") return { delete: del, insert: insertFallo };
+      return { insert: insertHistorial };
+    });
+    return { ordenEq, deleteEq, insertFallo, insertHistorial };
+  }
 
-    await generateOrder(1, { tasks: [{ taskId: 3, technicianId: "tec1" }] });
+  it("reemplaza el fallo vinculado a la OT por el nuevo", async () => {
+    const m = mockFault();
 
-    expect(insertOrden).toHaveBeenCalledWith(expect.objectContaining({ ot_prioridad: "medium" }));
-    expect(insertFallo).not.toHaveBeenCalled();
+    await updateOrderFaultType(1, 9);
+
+    expect(m.ordenEq).toHaveBeenCalledWith("sol_id_solicitud", 1);
+    expect(m.deleteEq).toHaveBeenCalledWith("ot_id_orden", 7);
+    expect(m.insertFallo).toHaveBeenCalledWith({
+      fa_id_fallo: 9,
+      ot_id_orden: 7,
+      fpo_fecha_deteccion: expect.any(String),
+    });
+    expect(m.insertHistorial).toHaveBeenCalledWith(
+      expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Diagnóstico" }),
+    );
   });
 
-  it("requires at least one tarea", async () => {
-    await expect(generateOrder(1, { tasks: [] })).rejects.toThrow(
-      "Agregá al menos una tarea con su técnico.",
-    );
+  it("con null solo quita el fallo, sin insertar otro", async () => {
+    const m = mockFault();
+
+    await updateOrderFaultType(1, null);
+
+    expect(m.deleteEq).toHaveBeenCalledWith("ot_id_orden", 7);
+    expect(m.insertFallo).not.toHaveBeenCalled();
   });
 });
 

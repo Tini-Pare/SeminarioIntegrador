@@ -76,7 +76,11 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
       startDate: t.taro_fecha_inicio,
       endDate: t.taro_fecha_fin,
       consumedParts: mapConsumedParts(t.repuesto_para_tarea),
-    }));
+    }))
+    // PostgREST doesn't guarantee the order of embedded rows (an updated
+    // row can come back in a different position), so sort by id: tareas
+    // always show in the order they were added, new ones at the end.
+    .sort((a, b) => a.id - b.id);
   let status: Solicitud["status"] = "new";
   if (row.sol_estado === "rechazada") {
     status = "rejected";
@@ -283,60 +287,35 @@ export async function closeSolicitud(
   );
 }
 
-// SCRUM-24: el admin evalúa la solicitud y genera la OT agregándole una o
-// más tareas genéricas, cada una con su propio técnico — la OT en sí no
-// tiene "un" responsable (ver 0017). La prioridad y, si ya lo sabe, el
-// fallo genérico también se definen acá, nunca por quien reportó la falla.
+// SCRUM-24: el admin evalúa la solicitud y genera la OT. Se crea vacía —
+// solo con los datos de la solicitud y la prioridad, que el admin elige
+// siempre (sin valor por defecto). Las tareas (cada una con su técnico) y la
+// falla genérica se cargan después desde la pantalla de la OT
+// (work-orders/[id]), no desde Solicitudes. A 0-tarea OT is valid in the
+// DB: sync_orden_estado (0017) leaves it 'assigned' until a tarea starts.
 export async function generateOrder(
   solicitudId: number,
-  input: {
-    tasks: { taskId: number; technicianId: string }[];
-    faultTypeId?: number | null;
-    priority?: Exclude<Solicitud["priority"], null>;
-  },
+  input: { priority: Exclude<Solicitud["priority"], null> },
 ): Promise<void> {
-  if (input.tasks.length === 0) {
-    throw new Error("Agregá al menos una tarea con su técnico.");
-  }
+  if (!input.priority) throw new Error("Elegí una prioridad.");
 
   const { data: sol, error: solError } = await supabase
     .from("solicitudes")
-    .select("eq_id_equipo, sol_descripcion")
+    .select("eq_id_equipo, sol_descripcion, sol_estado")
     .eq("sol_id_solicitud", solicitudId)
     .single();
   if (solError) throw new Error(solError.message);
-
-  const { data: orden, error: insertError } = await supabase
-    .from("orden_de_trabajo")
-    .insert({
-      sol_id_solicitud: solicitudId,
-      eq_id_equipo: sol.eq_id_equipo,
-      ot_prioridad: input.priority ?? "medium",
-    })
-    .select("ot_id_orden")
-    .single();
-  if (insertError) throw new Error(insertError.message);
-
-  const { error: tasksError } = await supabase.from("tareas_realizadas_orden").insert(
-    input.tasks.map((t) => ({
-      ot_id_orden: orden.ot_id_orden,
-      tag_id_tarea: t.taskId,
-      p_id_tecnico: t.technicianId,
-    })),
-  );
-  if (tasksError) throw new Error(tasksError.message);
-
-  // Links the diagnosed fallo genérico to the new order, through the
-  // fallo_por_orden catalog link (0003) — fallo <-> orden_de_trabajo, not
-  // fallo <-> solicitud, on purpose (see 0015's header comment).
-  if (input.faultTypeId) {
-    const { error: falloError } = await supabase.from("fallo_por_orden").insert({
-      fa_id_fallo: input.faultTypeId,
-      ot_id_orden: orden.ot_id_orden,
-      fpo_fecha_deteccion: getTodayDbDate(),
-    });
-    if (falloError) throw new Error(falloError.message);
+  // Guards a double click or a second admin generating the same OT.
+  if (sol.sol_estado !== "pendiente") {
+    throw new Error("Esta solicitud ya no está pendiente.");
   }
+
+  const { error: insertError } = await supabase.from("orden_de_trabajo").insert({
+    sol_id_solicitud: solicitudId,
+    eq_id_equipo: sol.eq_id_equipo,
+    ot_prioridad: input.priority,
+  });
+  if (insertError) throw new Error(insertError.message);
 
   const { error: updateError } = await supabase
     .from("solicitudes")
@@ -345,7 +324,75 @@ export async function generateOrder(
   if (updateError) throw new Error(updateError.message);
 
   await syncEquipoEstado(sol.eq_id_equipo);
-  await logHistorial(sol.eq_id_equipo, "Asignada", `Falla asignada: ${sol.sol_descripcion}`);
+  await logHistorial(
+    sol.eq_id_equipo,
+    "Asignada",
+    `Orden de trabajo generada: ${sol.sol_descripcion}`,
+  );
+}
+
+const PRIORITY_HIST_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+};
+
+// Changes the OT's prioridad from the OT screen.
+export async function updateOrderPriority(
+  solicitudId: number,
+  priority: Exclude<Solicitud["priority"], null>,
+): Promise<void> {
+  const { data: orden, error: updateError } = await supabase
+    .from("orden_de_trabajo")
+    .update({ ot_prioridad: priority })
+    .eq("sol_id_solicitud", solicitudId)
+    .select("eq_id_equipo")
+    .single();
+  if (updateError) throw new Error(updateError.message);
+
+  await logHistorial(
+    orden.eq_id_equipo,
+    "Replanificada",
+    `Prioridad de la orden cambiada a ${PRIORITY_HIST_LABELS[priority]}.`,
+  );
+}
+
+// Sets (or clears, with null) the OT's falla genérica. The app only ever
+// links one fallo per order through fallo_por_orden (see the comment at
+// the top of this file), so changing it replaces the existing link.
+export async function updateOrderFaultType(
+  solicitudId: number,
+  faultTypeId: number | null,
+): Promise<void> {
+  const { data: orden, error: selectError } = await supabase
+    .from("orden_de_trabajo")
+    .select("ot_id_orden, eq_id_equipo")
+    .eq("sol_id_solicitud", solicitudId)
+    .single();
+  if (selectError) throw new Error(selectError.message);
+
+  const { error: deleteError } = await supabase
+    .from("fallo_por_orden")
+    .delete()
+    .eq("ot_id_orden", orden.ot_id_orden);
+  if (deleteError) throw new Error(deleteError.message);
+
+  if (faultTypeId != null) {
+    const { error: insertError } = await supabase.from("fallo_por_orden").insert({
+      fa_id_fallo: faultTypeId,
+      ot_id_orden: orden.ot_id_orden,
+      fpo_fecha_deteccion: getTodayDbDate(),
+    });
+    if (insertError) throw new Error(insertError.message);
+  }
+
+  await logHistorial(
+    orden.eq_id_equipo,
+    "Diagnóstico",
+    faultTypeId != null
+      ? "Falla genérica de la orden actualizada."
+      : "Se quitó la falla genérica de la orden.",
+  );
 }
 
 // Adds one more tarea to an OT that already exists — e.g. the admin
@@ -575,10 +622,7 @@ export async function startTask(taskId: number): Promise<void> {
 // advanceStatus("resolved").
 export type ConsumedPart = { repId: number; cantidad: number };
 
-export async function finishTask(
-  taskId: number,
-  repuestos: ConsumedPart[] = [],
-): Promise<void> {
+export async function finishTask(taskId: number, repuestos: ConsumedPart[] = []): Promise<void> {
   const userId = await currentUserId();
   const { data: task, error: checkError } = await supabase
     .from("tareas_realizadas_orden")

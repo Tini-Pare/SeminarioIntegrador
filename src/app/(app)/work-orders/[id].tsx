@@ -12,19 +12,26 @@ import {
 import { PhotoCarousel } from "../../../components/PhotoCarousel";
 import { ReassignTechnicianModal } from "../../../components/ReassignTechnicianModal";
 import { RowActions } from "../../../components/RowActions";
+import { Select } from "../../../components/Select";
 import { getEquipmentById } from "../../../lib/queries/equipment";
 import {
   addTaskToOrder,
   getSolicitudById,
   reassignTaskTechnician,
+  updateOrderFaultType,
   updateOrderPlannedEndDate,
+  updateOrderPriority,
   updateOrderStartDate,
 } from "../../../lib/queries/faults";
+import { listFaultTypes } from "../../../lib/queries/faultTypes";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Equipo, Profile, Solicitud, SolicitudTask } from "../../../types/database";
+import type { Equipo, Fallo, Profile, Solicitud, SolicitudTask } from "../../../types/database";
+
+type Priority = Exclude<Solicitud["priority"], null>;
+type EditingField = "start" | "planned" | "priority" | "fault" | null;
 
 const STATUS_LABELS: Record<Solicitud["status"], string> = {
   new: "Nueva",
@@ -33,7 +40,8 @@ const STATUS_LABELS: Record<Solicitud["status"], string> = {
   resolved: "Resuelta",
   rejected: "Rechazada",
 };
-const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
+const PRIORITIES: Priority[] = ["low", "medium", "high"];
+const PRIORITY_LABELS: Record<Priority, string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
@@ -45,12 +53,11 @@ function taskStatusLabel(task: SolicitudTask): string {
   return "Pendiente";
 }
 
-// Full-screen version of the OT detail: same data/actions as
-// SolicitudDetailModal's "con OT" branch (reasignar tarea, agregar tarea,
-// reprogramar fecha de inicio — el estado sigue siendo automático, ver
-// sync_orden_estado en 0017), pero como pantalla aparte con las tareas en
-// una grilla en vez de una lista compacta, para cuando hace falta ver todo
-// de una OT sin las limitaciones de espacio de un modal.
+// The one place where an OT is managed after it's generated (Solicitudes
+// only creates it, empty — see generateOrder): agregar/reasignar tareas,
+// prioridad, falla genérica, fecha de inicio y fecha estimada. Its estado
+// is still automatic (sync_orden_estado in 0017). Falla genérica comes
+// before the tareas grid on purpose: one diagnosis, then the work for it.
 // Late = the admin's target date passed and the OT still isn't resolved.
 // Derived on the fly, so it needs no column and no manual state change.
 function isOverdue(s: { status: string; order_planned_end_date: string | null }): boolean {
@@ -69,10 +76,14 @@ export default function WorkOrderDetail() {
   const [loading, setLoading] = useState(true);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [reassigningTask, setReassigningTask] = useState<SolicitudTask | null>(null);
-  const [editingDate, setEditingDate] = useState(false);
+  // Only one inline editor open at a time (dates, prioridad, falla).
+  const [editing, setEditing] = useState<EditingField>(null);
   const [dateDraft, setDateDraft] = useState("");
-  const [editingPlanned, setEditingPlanned] = useState(false);
   const [plannedDraft, setPlannedDraft] = useState("");
+  const [priorityDraft, setPriorityDraft] = useState<Priority | null>(null);
+  const [faultDraft, setFaultDraft] = useState<number | null>(null);
+  const [faultSelectOpen, setFaultSelectOpen] = useState(false);
+  const [faultTypes, setFaultTypes] = useState<Fallo[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
@@ -107,6 +118,12 @@ export default function WorkOrderDetail() {
   useEffect(() => {
     load().finally(() => setLoading(false));
   }, [load]);
+
+  useEffect(() => {
+    listFaultTypes()
+      .then(setFaultTypes)
+      .catch(() => setFaultTypes([]));
+  }, []);
 
   useEffect(() => {
     if (!id || Number.isNaN(solicitudId)) return;
@@ -148,12 +165,58 @@ export default function WorkOrderDetail() {
   useEffect(() => {
     setAddTaskOpen(false);
     setReassigningTask(null);
-    setEditingDate(false);
-    setEditingPlanned(false);
+    setEditing(null);
     setError(null);
     setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
     setPlannedDraft(solicitud ? fromDbDate(solicitud.order_planned_end_date) : "");
   }, [solicitud]);
+
+  // fallo_por_orden only reaches the screen as the fallo's name; names are
+  // unique (0006), so the current one can be preselected by name.
+  const currentFaultTypeId =
+    faultTypes.find((f) => f.fa_nombre === solicitud?.fault_type_name)?.fa_id_fallo ?? null;
+  // Inactive fallos can't be picked for a new diagnosis, but the one already
+  // on the OT stays in the list so the editor can show it.
+  const faultTypeOptions = faultTypes
+    .filter((f) => f.fa_estado === "activo" || f.fa_id_fallo === currentFaultTypeId)
+    .map((f) => ({ value: f.fa_id_fallo, label: f.fa_nombre }));
+
+  function startEditing(field: EditingField) {
+    setError(null);
+    setFaultSelectOpen(false);
+    if (field === "priority") setPriorityDraft(solicitud?.priority ?? null);
+    if (field === "fault") setFaultDraft(currentFaultTypeId);
+    setEditing(field);
+  }
+
+  // Shared save wrapper for the inline editors: busy flag, error, reload.
+  async function save(action: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      await load();
+      setEditing(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSavePriority() {
+    if (!solicitud || !priorityDraft) return;
+    await save(() => updateOrderPriority(solicitud.id, priorityDraft));
+  }
+
+  async function handleSaveFault(clear = false) {
+    if (!solicitud) return;
+    if (!clear && faultDraft == null) {
+      setError("Elegí una falla genérica.");
+      return;
+    }
+    await save(() => updateOrderFaultType(solicitud.id, clear ? null : faultDraft));
+  }
 
   async function handleAddTask(input: { taskId: number; technicianId: string }) {
     if (!solicitud) return;
@@ -175,17 +238,7 @@ export default function WorkOrderDetail() {
       setError("Ingresá una fecha válida (dd/mm/aaaa).");
       return;
     }
-    setBusy(true);
-    setError(null);
-    try {
-      await updateOrderStartDate(solicitud.id, toDbDate(dateDraft));
-      await load();
-      setEditingDate(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    await save(() => updateOrderStartDate(solicitud.id, toDbDate(dateDraft)));
   }
 
   async function handleSavePlannedDate(clear = false) {
@@ -202,17 +255,9 @@ export default function WorkOrderDetail() {
       setError("La fecha estimada no puede ser anterior a la fecha de inicio de la orden.");
       return;
     }
-    setBusy(true);
-    setError(null);
-    try {
-      await updateOrderPlannedEndDate(solicitud.id, clear ? null : toDbDate(plannedDraft));
-      await load();
-      setEditingPlanned(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    await save(() =>
+      updateOrderPlannedEndDate(solicitud.id, clear ? null : toDbDate(plannedDraft)),
+    );
   }
 
   if (loading) {
@@ -233,6 +278,11 @@ export default function WorkOrderDetail() {
   }
 
   const s = solicitud;
+  const isResolved = s.status === "resolved";
+  // A just-generated OT has no tareas yet; its DB estado is 'assigned',
+  // which would read as if someone were already on it.
+  const statusLabel =
+    s.tasks.length === 0 && s.status === "assigned" ? "Sin tareas" : STATUS_LABELS[s.status];
 
   return (
     <>
@@ -252,7 +302,7 @@ export default function WorkOrderDetail() {
 
             <View style={[styles.badge, { backgroundColor: statusColors[s.status].bg }]}>
               <Text style={[styles.badgeText, { color: statusColors[s.status].fg }]}>
-                {STATUS_LABELS[s.status]}
+                {statusLabel}
               </Text>
             </View>
 
@@ -281,12 +331,6 @@ export default function WorkOrderDetail() {
               colors={colors}
             />
 
-            <MetaCell
-              label="Falla genérica"
-              value={s.fault_type_name ?? "Sin diagnosticar"}
-              colors={colors}
-            />
-
             {s.status === "resolved" && s.order_end_date && (
               <MetaCell
                 label="Fecha de finalización"
@@ -303,11 +347,11 @@ export default function WorkOrderDetail() {
         <PhotoCarousel photoUrls={s.photo_urls} height={320} />
 
         <Text style={styles.sectionTitle}>Fecha de inicio de la orden</Text>
-        {editingDate ? (
+        {editing === "start" ? (
           <View style={styles.dateEditRow}>
             <CustomDatePicker value={dateDraft} onChange={setDateDraft} compact maxWidth={200} />
 
-            <Pressable style={styles.dateCancelButton} onPress={() => setEditingDate(false)}>
+            <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
               <Text style={styles.dateCancelText}>Cancelar</Text>
             </Pressable>
 
@@ -319,13 +363,8 @@ export default function WorkOrderDetail() {
           <View style={styles.row}>
             <Text style={styles.value}>{fromDbDate(s.order_start_date) || "—"}</Text>
 
-            {s.status !== "resolved" && (
-              <Pressable
-                onPress={() => {
-                  setEditingPlanned(false);
-                  setEditingDate(true);
-                }}
-              >
+            {!isResolved && (
+              <Pressable onPress={() => startEditing("start")}>
                 <Text style={styles.linkButtonText}>Reprogramar</Text>
               </Pressable>
             )}
@@ -333,7 +372,7 @@ export default function WorkOrderDetail() {
         )}
 
         <Text style={styles.sectionTitle}>Fecha estimada de resolución</Text>
-        {editingPlanned ? (
+        {editing === "planned" ? (
           <View style={styles.dateEditRow}>
             <CustomDatePicker
               value={plannedDraft}
@@ -342,7 +381,7 @@ export default function WorkOrderDetail() {
               maxWidth={200}
             />
 
-            <Pressable style={styles.dateCancelButton} onPress={() => setEditingPlanned(false)}>
+            <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
               <Text style={styles.dateCancelText}>Cancelar</Text>
             </Pressable>
 
@@ -366,21 +405,114 @@ export default function WorkOrderDetail() {
               </Text>
             )}
 
-            {s.status !== "resolved" && (
-              <Pressable
-                onPress={() => {
-                  setEditingDate(false);
-                  setEditingPlanned(true);
-                }}
-              >
+            {!isResolved && (
+              <Pressable onPress={() => startEditing("planned")}>
                 <Text style={styles.linkButtonText}>
                   {s.order_planned_end_date ? "Reprogramar" : "Definir"}
                 </Text>
               </Pressable>
             )}
 
-            {s.status !== "resolved" && s.order_planned_end_date && (
+            {!isResolved && s.order_planned_end_date && (
               <Pressable onPress={() => handleSavePlannedDate(true)} disabled={busy}>
+                <Text style={styles.linkButtonText}>Quitar</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        <Text style={styles.sectionTitle}>Prioridad</Text>
+        {editing === "priority" ? (
+          <View style={styles.dateEditRow}>
+            {PRIORITIES.map((p) => {
+              const selected = priorityDraft === p;
+              return (
+                <Pressable
+                  key={p}
+                  style={[
+                    styles.chip,
+                    selected && {
+                      backgroundColor: priorityColors[p].bg,
+                      borderColor: priorityColors[p].fg,
+                    },
+                  ]}
+                  onPress={() => setPriorityDraft(p)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      selected && { color: priorityColors[p].fg, fontWeight: "600" },
+                    ]}
+                  >
+                    {PRIORITY_LABELS[p]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+
+            <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
+              <Text style={styles.dateCancelText}>Cancelar</Text>
+            </Pressable>
+
+            <Pressable style={styles.dateSaveButton} onPress={handleSavePriority} disabled={busy}>
+              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.row}>
+            <Text style={styles.value}>{s.priority ? PRIORITY_LABELS[s.priority] : "—"}</Text>
+
+            {!isResolved && (
+              <Pressable onPress={() => startEditing("priority")}>
+                <Text style={styles.linkButtonText}>Cambiar</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        <Text style={styles.sectionTitle}>Falla genérica</Text>
+        {editing === "fault" ? (
+          <View style={styles.dateEditRow}>
+            <View style={styles.faultSelectWrap}>
+              <Select
+                value={faultDraft}
+                onChange={setFaultDraft}
+                options={faultTypeOptions}
+                placeholder={
+                  faultTypeOptions.length > 0 ? "Elegí un tipo de falla" : "No hay fallas cargadas"
+                }
+                disabled={faultTypeOptions.length === 0}
+                open={faultSelectOpen}
+                onOpenChange={setFaultSelectOpen}
+              />
+            </View>
+
+            <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
+              <Text style={styles.dateCancelText}>Cancelar</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.dateSaveButton}
+              onPress={() => handleSaveFault()}
+              disabled={busy}
+            >
+              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.row}>
+            <Text style={styles.value}>{s.fault_type_name ?? "Sin diagnosticar"}</Text>
+
+            {!isResolved && (
+              <Pressable onPress={() => startEditing("fault")}>
+                <Text style={styles.linkButtonText}>
+                  {s.fault_type_name ? "Cambiar" : "Definir"}
+                </Text>
+              </Pressable>
+            )}
+
+            {!isResolved && s.fault_type_name && (
+              <Pressable onPress={() => handleSaveFault(true)} disabled={busy}>
                 <Text style={styles.linkButtonText}>Quitar</Text>
               </Pressable>
             )}
@@ -392,7 +524,7 @@ export default function WorkOrderDetail() {
         <View style={styles.tasksHeader}>
           <Text style={styles.sectionTitle}>Tareas</Text>
 
-          {s.status !== "resolved" && (
+          {!isResolved && (
             <Pressable style={styles.addTaskButton} onPress={() => setAddTaskOpen(true)}>
               <Text style={styles.addTaskButtonText}>+ Agregar tarea</Text>
             </Pressable>
@@ -410,7 +542,10 @@ export default function WorkOrderDetail() {
           </View>
 
           {s.tasks.length === 0 ? (
-            <Text style={styles.empty}>Todavía no se agregó ninguna tarea.</Text>
+            <Text style={styles.empty}>
+              Todavía no se agregó ninguna tarea. Usá “+ Agregar tarea” para cargar la primera con
+              su técnico.
+            </Text>
           ) : (
             s.tasks.map((task, i) => (
               <View key={task.id} style={[styles.rowWrap, i % 2 === 1 && styles.rowAlt]}>
@@ -551,6 +686,16 @@ function makeStyles(c: ThemeColors) {
       position: "relative",
       zIndex: 60,
     },
+    chip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      backgroundColor: c.bgInput,
+    },
+    chipText: { fontSize: 13, color: c.textLabel },
+    faultSelectWrap: { width: 280, maxWidth: "100%" },
     dateCancelButton: {
       paddingHorizontal: 14,
       height: 38,

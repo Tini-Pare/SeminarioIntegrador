@@ -5,6 +5,7 @@ import { listSpareParts } from "../lib/queries/spareParts";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Repuesto } from "../types/database";
+import { RowActions } from "./RowActions";
 
 // Asked right before finishTask (queue/index.tsx): qué repuestos usó el
 // técnico para esta tarea, si usó alguno — 0 líneas es una respuesta
@@ -116,6 +117,10 @@ export function FinishTaskModal({
               {taskName} · {equipmentLabel}
             </Text>
 
+            <Text style={styles.hint}>
+              Si es la última tarea pendiente de la orden, la orden queda resuelta.
+            </Text>
+
             <Text style={styles.label}>Repuestos usados (opcional)</Text>
 
             {addedRows.length > 0 && (
@@ -128,9 +133,10 @@ export function FinishTaskModal({
 
                     <Text style={styles.addedQty}>×{a.cantidad}</Text>
 
-                    <Pressable style={styles.removeBtn} onPress={() => removeAdded(a.repId)}>
-                      <Text style={styles.removeBtnText}>✕</Text>
-                    </Pressable>
+                    <RowActions
+                      onDelete={() => removeAdded(a.repId)}
+                      deleteTooltip="Quitar repuesto"
+                    />
                   </View>
                 ))}
               </View>
@@ -146,7 +152,9 @@ export function FinishTaskModal({
               <View style={styles.grid}>
                 <View style={styles.gridHeadRow}>
                   <Text style={[styles.gridHeadText, styles.colRepuesto]}>Repuesto</Text>
-                  <Text style={[styles.gridHeadText, styles.colCantidad]}>Cantidad</Text>
+                  <Text style={[styles.gridHeadText, styles.colCantidad]}>
+                    Existencias actuales
+                  </Text>
                   <Text style={[styles.gridHeadText, styles.colUsada]}>Cantidad usada</Text>
                   <View style={styles.colGuardar} />
                 </View>
@@ -158,10 +166,7 @@ export function FinishTaskModal({
                     pickable.map((p) => (
                       <View key={p.rep_id} style={styles.gridRowWrap}>
                         <View style={styles.gridRow}>
-                          <Text
-                            style={[styles.gridCellText, styles.colRepuesto]}
-                            numberOfLines={1}
-                          >
+                          <Text style={[styles.gridCellText, styles.colRepuesto]} numberOfLines={1}>
                             {p.rep_nombre}
                           </Text>
 
@@ -220,9 +225,7 @@ export function FinishTaskModal({
               </Pressable>
 
               <Pressable style={styles.confirmButton} onPress={handleConfirm} disabled={confirming}>
-                <Text style={styles.confirmText}>
-                  {confirming ? "Finalizando…" : "Finalizar tarea"}
-                </Text>
+                <Text style={styles.confirmText}>{confirming ? "Guardando…" : "Confirmar"}</Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -251,6 +254,7 @@ function makeStyles(c: ThemeColors) {
     sheetContent: { padding: 26 },
     title: { fontSize: 20, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textMuted },
+    hint: { marginTop: 8, fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
     label: {
       fontSize: 12.5,
       fontWeight: "600",
@@ -270,15 +274,6 @@ function makeStyles(c: ThemeColors) {
     },
     addedName: { flex: 1, minWidth: 0, fontSize: 14, color: c.text, fontWeight: "500" },
     addedQty: { fontSize: 13.5, color: c.textLabel, fontWeight: "600" },
-    removeBtn: {
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: c.bgCard,
-    },
-    removeBtnText: { color: c.destructive, fontSize: 13, fontWeight: "700" },
     toggleBtn: {
       alignSelf: "flex-start",
       height: 40,
@@ -324,7 +319,7 @@ function makeStyles(c: ThemeColors) {
       color: c.textMuted,
     },
     colRepuesto: { flexGrow: 2, flexBasis: 200, minWidth: 140 },
-    colCantidad: { width: 80, textAlign: "center" },
+    colCantidad: { width: 100, textAlign: "center" },
     colUsada: { width: 130 },
     colGuardar: { width: 96 },
     gridInput: {

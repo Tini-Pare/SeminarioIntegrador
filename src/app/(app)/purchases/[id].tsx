@@ -147,8 +147,13 @@ export default function PurchaseDetailScreen() {
     );
   }, [purchase, isFactura, received]);
 
+  // Oldest first, so a newly loaded remito shows up at the end of the list
+  // like every other added row; same-day remitos keep their load order.
   const sortedRemitos = useMemo(
-    () => [...(purchase?.remitos ?? [])].sort((a, b) => (a.rc_fecha < b.rc_fecha ? 1 : -1)),
+    () =>
+      [...(purchase?.remitos ?? [])].sort((a, b) =>
+        a.rc_fecha === b.rc_fecha ? a.rc_id - b.rc_id : a.rc_fecha < b.rc_fecha ? -1 : 1,
+      ),
     [purchase],
   );
 

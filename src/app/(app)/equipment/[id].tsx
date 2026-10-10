@@ -67,6 +67,7 @@ export default function EquipmentDetail() {
     Asignada: colors.histAsignada,
     Reasignada: colors.histAsignada,
     Replanificada: colors.histAsignada,
+    Diagnóstico: colors.histAsignada,
     "En curso": colors.histEnCurso,
     Resuelta: colors.histResuelta,
     Cerrada: colors.histResuelta,

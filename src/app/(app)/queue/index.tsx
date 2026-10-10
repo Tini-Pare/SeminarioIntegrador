@@ -137,23 +137,16 @@ export default function QueueScreen() {
     setRefreshing(false);
   }
 
-  // Iniciar tarea sigue siendo inmediato; finalizar primero pregunta qué
-  // repuestos se usaron (FinishTaskModal), porque esa cantidad resta stock
-  // y no hay forma de deshacerlo con un solo tap.
-  async function handleAction(item: Item) {
-    if (!item.startDate) {
-      setActingOn(item.taskRowId);
-      try {
-        await startTask(item.taskRowId);
-        await load();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setActingOn(null);
-      }
-      return;
+  async function handleStart(item: Item) {
+    setActingOn(item.taskRowId);
+    try {
+      await startTask(item.taskRowId);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setActingOn(null);
     }
-    if (!item.endDate) setFinishingTask(item);
   }
 
   async function handleConfirmFinish(repuestos: ConsumedPart[]) {
@@ -163,17 +156,21 @@ export default function QueueScreen() {
     setFinishingTask(null);
   }
 
-  // Starting or finishing a tarea can't be undone from the app (and
-  // finishing the last pending one resolves the whole OT), so it asks first
-  // like every other action that changes data.
+  // Starting or finishing a tarea can't be undone from the app, so both ask
+  // first. Starting uses a plain confirm dialog; finishing goes straight to
+  // FinishTaskModal, which already is the confirmation step (it asks which
+  // repuestos were used, since that quantity comes off stock) — chaining a
+  // confirm dialog before it would make the técnico confirm twice.
   function askAction(item: Item) {
-    const starting = !item.startDate;
+    if (item.endDate) return;
+    if (item.startDate) {
+      setFinishingTask(item);
+      return;
+    }
     confirm({
-      title: starting ? "Iniciar tarea" : "Finalizar tarea",
-      message: starting
-        ? `¿Iniciar "${item.taskName}" en ${item.equipment.name}?`
-        : `¿Finalizar "${item.taskName}" en ${item.equipment.name}? Si es la última tarea pendiente de la orden, la orden queda resuelta.`,
-      onConfirm: () => handleAction(item),
+      title: "Iniciar tarea",
+      message: `¿Iniciar "${item.taskName}" en ${item.equipment.name}?`,
+      onConfirm: () => handleStart(item),
     });
   }
 
@@ -216,170 +213,169 @@ export default function QueueScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Cola de trabajo</Text>
-          <Text style={styles.subtitle}>Tus tareas asignadas</Text>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Cola de trabajo</Text>
+            <Text style={styles.subtitle}>Tus tareas asignadas</Text>
+          </View>
         </View>
-      </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+        {error && <Text style={styles.error}>{error}</Text>}
 
-      <TableFilterBar
-        filters={[
-          {
-            key: "prioridad",
-            label: "Prioridad",
-            value: priorityFilter,
-            onChange: (v) => setPriorityFilter(v as PriorityFilter),
-            options: [
-              { value: "all", label: "Todas" },
-              { value: "high", label: "Alta" },
-              { value: "medium", label: "Media" },
-              { value: "low", label: "Baja" },
-            ],
-          },
-          {
-            key: "estado",
-            label: "Estado",
-            value: statusFilter,
-            onChange: (v) => setStatusFilter(v as TaskStatusFilter),
-            options: [
-              { value: "all", label: "Todas" },
-              { value: "pending", label: "Pendiente" },
-              { value: "in_progress", label: "En curso" },
-              { value: "done", label: "Finalizada" },
-            ],
-          },
-        ]}
-        right={
-          <Text style={styles.count}>
-            {visibleItems.length} {visibleItems.length === 1 ? "tarea" : "tareas"}
+        <TableFilterBar
+          filters={[
+            {
+              key: "prioridad",
+              label: "Prioridad",
+              value: priorityFilter,
+              onChange: (v) => setPriorityFilter(v as PriorityFilter),
+              options: [
+                { value: "all", label: "Todas" },
+                { value: "high", label: "Alta" },
+                { value: "medium", label: "Media" },
+                { value: "low", label: "Baja" },
+              ],
+            },
+            {
+              key: "estado",
+              label: "Estado",
+              value: statusFilter,
+              onChange: (v) => setStatusFilter(v as TaskStatusFilter),
+              options: [
+                { value: "all", label: "Todas" },
+                { value: "pending", label: "Pendiente" },
+                { value: "in_progress", label: "En curso" },
+                { value: "done", label: "Finalizada" },
+              ],
+            },
+          ]}
+          right={
+            <Text style={styles.count}>
+              {visibleItems.length} {visibleItems.length === 1 ? "tarea" : "tareas"}
+            </Text>
+          }
+        />
+
+        {visibleItems.length === 0 ? (
+          <Text style={styles.empty}>
+            {items.length === 0 ? "No tenés tareas asignadas." : "Nada coincide con este filtro."}
           </Text>
-        }
-      />
+        ) : (
+          pageItems.map((item) => {
+            const label = actionLabel(item);
+            const prio = priorityColors[item.priority];
+            const locColor = locationColors.get(item.equipment.location) ?? "#6a7b62";
+            return (
+              <View key={item.taskRowId} style={styles.card}>
+                <View style={styles.cardTop}>
+                  {item.photoUrl ? (
+                    <Image source={{ uri: item.photoUrl }} style={styles.photo} />
+                  ) : (
+                    <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
+                      <WarningIcon size={20} color={prio.fg} />
+                    </View>
+                  )}
 
-      {visibleItems.length === 0 ? (
-        <Text style={styles.empty}>
-          {items.length === 0 ? "No tenés tareas asignadas." : "Nada coincide con este filtro."}
-        </Text>
-      ) : (
-        pageItems.map((item) => {
-          const label = actionLabel(item);
-          const prio = priorityColors[item.priority];
-          const locColor = locationColors.get(item.equipment.location) ?? "#6a7b62";
-          return (
-            <View key={item.taskRowId} style={styles.card}>
-              <View style={styles.cardTop}>
-                {item.photoUrl ? (
-                  <Image source={{ uri: item.photoUrl }} style={styles.photo} />
-                ) : (
-                  <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
-                    <WarningIcon size={20} color={prio.fg} />
+                  <View style={styles.cardMain}>
+                    <Text style={styles.taskName}>{item.taskName}</Text>
+
+                    <View style={styles.row}>
+                      <Text style={styles.equipmentName}>{item.equipment.name}</Text>
+                      <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
+                    </View>
+
+                    <View style={styles.row}>
+                      <View style={[styles.badge, { backgroundColor: colors.bgToggle }]}>
+                        <Text style={[styles.badgeText, { color: colors.textLabel }]}>
+                          {taskStatusLabel(item)}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.badge, { backgroundColor: prio.bg }]}>
+                        <Text style={[styles.badgeText, { color: prio.fg }]}>
+                          Prioridad {PRIORITY_LABELS[item.priority]}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {item.faultTypeName && (
+                      <Text style={styles.faultTypeText}>Falla: {item.faultTypeName}</Text>
+                    )}
                   </View>
+                </View>
+
+                <Text style={styles.desc}>{item.description}</Text>
+
+                {item.photoUrls.length > 1 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.gallery}
+                    contentContainerStyle={styles.galleryContent}
+                  >
+                    {item.photoUrls.map((url) => (
+                      <Image key={url} source={{ uri: url }} style={styles.galleryPhoto} />
+                    ))}
+                  </ScrollView>
                 )}
 
-                <View style={styles.cardMain}>
-                  <Text style={styles.taskName}>{item.taskName}</Text>
-
-                  <View style={styles.row}>
-                    <Text style={styles.equipmentName}>{item.equipment.name}</Text>
-                    <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
+                <View style={styles.metaRow}>
+                  <View style={styles.locationRow}>
+                    <View style={[styles.locationDot, { backgroundColor: locColor }]} />
+                    <LocationIcon size={13} />
+                    <Text style={styles.locationText}>{item.equipment.location}</Text>
                   </View>
 
-                  <View style={styles.row}>
-                    <View style={[styles.badge, { backgroundColor: colors.bgToggle }]}>
-                      <Text style={[styles.badgeText, { color: colors.textLabel }]}>
-                        {taskStatusLabel(item)}
-                      </Text>
-                    </View>
+                  <Text style={styles.meta}>
+                    Reportó {item.reporterName} ·{" "}
+                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString("es-AR") : "—"}
+                  </Text>
+                </View>
 
-                    <View style={[styles.badge, { backgroundColor: prio.bg }]}>
-                      <Text style={[styles.badgeText, { color: prio.fg }]}>
-                        Prioridad {PRIORITY_LABELS[item.priority]}
+                {item.endDate ? (
+                  <View style={styles.doneRow}>
+                    <Text style={styles.doneText}>✓ Finalizada</Text>
+
+                    {item.consumedParts.length > 0 && (
+                      <Text style={styles.consumedText}>
+                        Repuestos usados:{" "}
+                        {item.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
                       </Text>
-                    </View>
+                    )}
                   </View>
-
-                  {item.faultTypeName && (
-                    <Text style={styles.faultTypeText}>Falla: {item.faultTypeName}</Text>
-                  )}
-                </View>
+                ) : (
+                  label && (
+                    <Pressable
+                      style={styles.actionButton}
+                      onPress={() => askAction(item)}
+                      disabled={actingOn === item.taskRowId}
+                    >
+                      <Text style={styles.actionText}>
+                        {actingOn === item.taskRowId ? "Procesando…" : label}
+                      </Text>
+                    </Pressable>
+                  )
+                )}
               </View>
+            );
+          })
+        )}
 
-              <Text style={styles.desc}>{item.description}</Text>
+        <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+      </ScrollView>
 
-              {item.photoUrls.length > 1 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.gallery}
-                  contentContainerStyle={styles.galleryContent}
-                >
-                  {item.photoUrls.map((url) => (
-                    <Image key={url} source={{ uri: url }} style={styles.galleryPhoto} />
-                  ))}
-                </ScrollView>
-              )}
-
-              <View style={styles.metaRow}>
-                <View style={styles.locationRow}>
-                  <View style={[styles.locationDot, { backgroundColor: locColor }]} />
-                  <LocationIcon size={13} />
-                  <Text style={styles.locationText}>{item.equipment.location}</Text>
-                </View>
-
-                <Text style={styles.meta}>
-                  Reportó {item.reporterName} ·{" "}
-                  {item.createdAt ? new Date(item.createdAt).toLocaleDateString("es-AR") : "—"}
-                </Text>
-              </View>
-
-              {item.endDate ? (
-                <View style={styles.doneRow}>
-                  <Text style={styles.doneText}>✓ Finalizada</Text>
-
-                  {item.consumedParts.length > 0 && (
-                    <Text style={styles.consumedText}>
-                      Repuestos usados:{" "}
-                      {item.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
-                    </Text>
-                  )}
-                </View>
-              ) : (
-                label && (
-                  <Pressable
-                    style={styles.actionButton}
-                    onPress={() => askAction(item)}
-                    disabled={actingOn === item.taskRowId}
-                  >
-                    <Text style={styles.actionText}>
-                      {actingOn === item.taskRowId ? "Procesando…" : label}
-                    </Text>
-                  </Pressable>
-                )
-              )}
-            </View>
-          );
-        })
-      )}
-
-      <Pagination page={page} pageCount={pageCount} onPage={setPage} />
       {dialog}
-    </ScrollView>
 
-    <FinishTaskModal
-      visible={!!finishingTask}
-      onClose={() => setFinishingTask(null)}
-      onConfirm={handleConfirmFinish}
-      taskName={finishingTask?.taskName ?? ""}
-      equipmentLabel={
-        finishingTask
-          ? `${finishingTask.equipment.code} · ${finishingTask.equipment.name}`
-          : ""
-      }
-    />
-  </>
+      <FinishTaskModal
+        visible={!!finishingTask}
+        onClose={() => setFinishingTask(null)}
+        onConfirm={handleConfirmFinish}
+        taskName={finishingTask?.taskName ?? ""}
+        equipmentLabel={
+          finishingTask ? `${finishingTask.equipment.code} · ${finishingTask.equipment.name}` : ""
+        }
+      />
+    </>
   );
 }
 
