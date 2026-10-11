@@ -43,6 +43,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
     order_id: 101,
     order_start_date: "2026-10-09",
     order_end_date: null,
+    order_planned_end_date: null,
     fault_type_name: null,
     equipment: {
       code: "EX-104",
@@ -51,7 +52,8 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
     reporterName: "Mariano López",
     tasks: [
       {
-        id: "task-1",
+        id: 1,
+        taskId: 10,
         taskName: "Revisión de termostato",
         technicianId: "tech-1",
         startDate: "2026-10-09",
@@ -65,9 +67,10 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
         ],
       },
       {
-        id: "task-2",
+        id: 2,
+        taskId: 11,
         taskName: "Cambio de filtro",
-        technicianId: null,
+        technicianId: "tech-unknown",
         startDate: null,
         endDate: null,
         consumedParts: [],
@@ -130,7 +133,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
 
     // Task 2
     expect(getByText("Cambio de filtro")).toBeTruthy();
-    expect(getByText("Sin asignar")).toBeTruthy();
+    expect(getByText("Técnico desconocido")).toBeTruthy();
 
     // Both the pending end date and Task 2 status badge display "Pendiente"
     const pendingElements = getAllByText("Pendiente");
@@ -148,7 +151,8 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
       order_end_date: "2026-10-10",
       tasks: [
         {
-          id: "task-1",
+          id: 1,
+          taskId: 10,
           taskName: "Revisión de termostato",
           technicianId: "tech-1",
           startDate: "2026-10-09",

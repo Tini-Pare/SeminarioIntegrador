@@ -11,6 +11,7 @@ import {
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
+import { Sigla } from "./Sigla";
 
 const MOTIVO_OPTIONS: RadioOption<string>[] = [
   { value: "Duplicada", label: "Duplicada" },
@@ -85,7 +86,9 @@ export function CloseWithoutOrderModal({
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Cerrar solicitud sin OT</Text>
+          <Text style={styles.title}>
+            Cerrar solicitud sin <Sigla>OT</Sigla>
+          </Text>
 
           <Text style={styles.subtitle}>{equipmentLabel}</Text>
 
@@ -149,11 +152,11 @@ export function CloseWithoutOrderModal({
               onPress={handleConfirm}
               disabled={!canConfirm}
               accessibilityRole="button"
-              accessibilityLabel="Cerrar solicitud"
+              accessibilityLabel="Confirmar"
               aria-disabled={!canConfirm}
             >
               <Text style={styles.confirmText}>
-                {confirming ? "Cerrando…" : "Cerrar solicitud"}
+                {confirming ? "Cerrando…" : "Confirmar"}
               </Text>
             </Pressable>
           </View>

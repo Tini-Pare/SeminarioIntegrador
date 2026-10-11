@@ -40,13 +40,6 @@ const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
   high: "Alta",
 };
 
-
-function taskStatusLabel(task: SolicitudTask): string {
-  if (task.endDate) return "Finalizada";
-  if (task.startDate) return "En curso";
-  return "Pendiente";
-}
-
 function getTaskBadge(
   task: SolicitudTask,
   c: ThemeColors
@@ -65,7 +58,7 @@ function getTaskBadge(
 //       - Shows "Cerrar sin OT" and "Generar OT".
 //       - Clicking "Cerrar sin OT" opens CloseWithoutOrderModal where the admin
 //         selects a reason (and enters a required comment if "Otro") and clicks
-//         "Cerrar solicitud" (or "Cancelar" to return without changes).
+//         "Confirmar" (or "Cancelar" to return without changes).
 //       - Confirming rejection saves the reason and sets status="rejected".
 //       - "Generar OT" asks for confirmation + prioridad, creates the OT
 //         empty and navigates to its screen (work-orders/[id]) so the
@@ -893,7 +886,7 @@ function makeStyles(c: ThemeColors) {
       fontStyle: "italic",
     },
     taskCard: {
-      backgroundColor: "#ffffff",
+      backgroundColor: c.bgCard,
       borderRadius: 12,
       borderWidth: 1,
       borderColor: c.border,

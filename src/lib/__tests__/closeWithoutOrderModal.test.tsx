@@ -30,13 +30,13 @@ describe("CloseWithoutOrderModal", () => {
     expect(queryByPlaceholderText("Explicá brevemente el motivo")).toBeNull();
 
     // Confirm button is disabled initially
-    const confirmBtn = getByText("Cerrar solicitud");
+    const confirmBtn = getByText("Confirmar");
     expect(confirmBtn.parent?.props.accessibilityState?.disabled).toBe(true);
     fireEvent.press(confirmBtn);
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  it("enables 'Cerrar solicitud' for standard reasons and requires comment for 'Otro'", async () => {
+  it("enables 'Confirmar' for standard reasons and requires comment for 'Otro'", async () => {
     const onConfirm = jest.fn();
     const onClose = jest.fn();
 
@@ -63,7 +63,7 @@ describe("CloseWithoutOrderModal", () => {
     });
 
     // Confirm button remains disabled with empty comment
-    const confirmBtn = getByText("Cerrar solicitud");
+    const confirmBtn = getByText("Confirmar");
     expect(confirmBtn.parent?.props.accessibilityState?.disabled).toBe(true);
 
     // Whitespace only is not valid
