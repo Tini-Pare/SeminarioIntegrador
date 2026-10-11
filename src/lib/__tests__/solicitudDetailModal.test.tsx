@@ -65,6 +65,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
             cantidad: 2,
           },
         ],
+        diagnosis: null,
       },
       {
         id: 2,
@@ -74,6 +75,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
         startDate: null,
         endDate: null,
         consumedParts: [],
+        diagnosis: null,
       },
     ],
   };
@@ -91,7 +93,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
         solicitud={itemWithoutOrder}
         onClose={jest.fn()}
         onChanged={jest.fn()}
-      />
+      />,
     );
 
     expect(queryByText("ORDEN DE TRABAJO")).toBeNull();
@@ -101,11 +103,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
 
   it("renders redesigned Orden de trabajo section with pending fault and dates for in-progress request", async () => {
     const { getByText, getAllByText } = await render(
-      <SolicitudDetailModal
-        solicitud={baseItem}
-        onClose={jest.fn()}
-        onChanged={jest.fn()}
-      />
+      <SolicitudDetailModal solicitud={baseItem} onClose={jest.fn()} onChanged={jest.fn()} />,
     );
 
     // Section header
@@ -158,33 +156,28 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
           startDate: "2026-10-09",
           endDate: "2026-10-10",
           consumedParts: [],
+          diagnosis: "Termostato descalibrado, se ajustó.",
         },
       ],
     };
 
     const { getByText } = await render(
-      <SolicitudDetailModal
-        solicitud={resolvedItem}
-        onClose={jest.fn()}
-        onChanged={jest.fn()}
-      />
+      <SolicitudDetailModal solicitud={resolvedItem} onClose={jest.fn()} onChanged={jest.fn()} />,
     );
 
     expect(getByText("Falla eléctrica")).toBeTruthy();
     expect(getByText("10/10/2026")).toBeTruthy();
     expect(getByText("Finalizada")).toBeTruthy();
     expect(getByText("1")).toBeTruthy();
+    expect(getByText("DIAGNÓSTICO")).toBeTruthy();
+    expect(getByText("Termostato descalibrado, se ajustó.")).toBeTruthy();
   });
 
   it("navigates to work order screen and closes modal on button press", async () => {
     const onClose = jest.fn();
 
     const { getByText } = await render(
-      <SolicitudDetailModal
-        solicitud={baseItem}
-        onClose={onClose}
-        onChanged={jest.fn()}
-      />
+      <SolicitudDetailModal solicitud={baseItem} onClose={onClose} onChanged={jest.fn()} />,
     );
 
     const button = getByText("Ver orden de trabajo");

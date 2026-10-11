@@ -76,6 +76,7 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
       startDate: t.taro_fecha_inicio,
       endDate: t.taro_fecha_fin,
       consumedParts: mapConsumedParts(t.repuesto_para_tarea),
+      diagnosis: t.taro_diagnostico,
     }))
     // PostgREST doesn't guarantee the order of embedded rows (an updated
     // row can come back in a different position), so sort by id: tareas
@@ -538,6 +539,7 @@ export type MyTask = {
   photoUrls: string[];
   faultTypeName: string | null;
   consumedParts: { repId: number; nombre: string; cantidad: number }[];
+  diagnosis: string | null;
 };
 
 type MyTaskRow = TareaRow & {
@@ -586,6 +588,7 @@ export async function listMyTasks(): Promise<MyTask[]> {
       photoUrls,
       faultTypeName: orden?.fallo_por_orden?.[0]?.fallo.fa_nombre ?? null,
       consumedParts: mapConsumedParts(row.repuesto_para_tarea),
+      diagnosis: row.taro_diagnostico,
     };
   });
 }
@@ -628,7 +631,13 @@ export async function startTask(taskId: number): Promise<void> {
 // advanceStatus("resolved").
 export type ConsumedPart = { repId: number; cantidad: number };
 
-export async function finishTask(taskId: number, repuestos: ConsumedPart[] = []): Promise<void> {
+// diagnostico: what the técnico observed about the equipo (optional, HU of
+// Sprint 5) — saved on the tarea and copied into the equipo's historial.
+export async function finishTask(
+  taskId: number,
+  repuestos: ConsumedPart[] = [],
+  diagnostico?: string | null,
+): Promise<void> {
   const userId = await currentUserId();
   const { data: task, error: checkError } = await supabase
     .from("tareas_realizadas_orden")
@@ -648,9 +657,13 @@ export async function finishTask(taskId: number, repuestos: ConsumedPart[] = [])
   // security definer: registra el consumo de repuestos (resta stock) y
   // marca la tarea finalizada en la misma transacción — si el stock no
   // alcanza, ninguna de las dos cosas queda guardada (ver migración 0021).
+  const diagnosis = diagnostico?.trim() || null;
   const { error: rpcError } = await supabase.rpc("finalizar_tarea", {
     p_taro_id_tarea_orden: taskId,
     p_repuestos: repuestos.map((r) => ({ rep_id: r.repId, cantidad: r.cantidad })),
+    // Only sent when there is one, so finishing without a diagnóstico keeps
+    // working against a database that doesn't have migration 0023 yet.
+    ...(diagnosis ? { p_diagnostico: diagnosis } : {}),
   });
   if (rpcError) throw new Error(rpcError.message);
 
@@ -659,7 +672,13 @@ export async function finishTask(taskId: number, repuestos: ConsumedPart[] = [])
     (task.tareas_generales as { tag_nombre_tarea: string } | null)?.tag_nombre_tarea ?? "Tarea";
   if (!eqId) return;
 
-  await logHistorial(eqId, "Tarea finalizada", `Tarea finalizada: ${taskName}`);
+  await logHistorial(
+    eqId,
+    "Tarea finalizada",
+    diagnosis
+      ? `Tarea finalizada: ${taskName}. Diagnóstico: ${diagnosis}`
+      : `Tarea finalizada: ${taskName}`,
+  );
 
   const { data: siblings, error: siblingsError } = await supabase
     .from("tareas_realizadas_orden")

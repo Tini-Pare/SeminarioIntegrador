@@ -149,9 +149,9 @@ export default function QueueScreen() {
     }
   }
 
-  async function handleConfirmFinish(repuestos: ConsumedPart[]) {
+  async function handleConfirmFinish(repuestos: ConsumedPart[], diagnostico: string) {
     if (!finishingTask) return;
-    await finishTask(finishingTask.taskRowId, repuestos);
+    await finishTask(finishingTask.taskRowId, repuestos, diagnostico);
     await load();
     setFinishingTask(null);
   }
@@ -341,6 +341,10 @@ export default function QueueScreen() {
                         Repuestos usados:{" "}
                         {item.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
                       </Text>
+                    )}
+
+                    {item.diagnosis && (
+                      <Text style={styles.consumedText}>Diagnóstico: {item.diagnosis}</Text>
                     )}
                   </View>
                 ) : (

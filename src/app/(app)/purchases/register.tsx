@@ -18,6 +18,7 @@ import {
   isValidDateString,
   toDbDate,
 } from "../../../components/CustomDatePicker";
+import { FormFooter } from "../../../components/FormFooter";
 import { Select } from "../../../components/Select";
 import { registrarCompra } from "../../../lib/queries/purchases";
 import { listSpareParts } from "../../../lib/queries/spareParts";
@@ -733,15 +734,12 @@ export default function RegisterPurchaseScreen() {
 
             {error && <Text style={styles.error}>{error}</Text>}
 
-            <View style={styles.actions}>
-              <Pressable style={styles.cancelButton} onPress={goBackToPurchases}>
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </Pressable>
-
-              <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
-              </Pressable>
-            </View>
+            <FormFooter
+              onCancel={goBackToPurchases}
+              onConfirm={handleSave}
+              busy={saving}
+              align="end"
+            />
           </View>
         )}
       </ScrollView>
@@ -1073,26 +1071,5 @@ function makeStyles(c: ThemeColors) {
       fontVariant: ["tabular-nums"],
     },
     error: { color: c.destructive, marginTop: 14, fontSize: 16, fontWeight: "700" },
-    actions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 22 },
-    cancelButton: {
-      minWidth: 150,
-      paddingHorizontal: 24,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: "#fff", fontWeight: "600" },
-    saveButton: {
-      minWidth: 150,
-      paddingHorizontal: 24,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    saveText: { color: "#fff", fontWeight: "600" },
   });
 }

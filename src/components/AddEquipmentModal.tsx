@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { createEquipment } from "../lib/queries/equipment";
 import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
 import { listLocations } from "../lib/queries/locations";
 import { DropdownBackdrop } from "./DropdownBackdrop";
+import { FormFooter } from "./FormFooter";
 import { Select } from "./Select";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -232,19 +233,12 @@ export function AddEquipmentModal({
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.saveButton, blocked && styles.disabled]}
-              onPress={handleSubmit}
-              disabled={saving || blocked}
-            >
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
+          <FormFooter
+            onCancel={onClose}
+            onConfirm={handleSubmit}
+            busy={saving}
+            disabled={blocked}
+          />
         </View>
       </View>
     </Modal>
@@ -294,25 +288,5 @@ function makeStyles(c: ThemeColors) {
     },
     blockedNote: { color: c.textLabel, marginTop: 14, fontSize: 12.5, lineHeight: 17 },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 22 },
-    disabled: { opacity: 0.45 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: "#fff", fontWeight: "600" },
-    saveButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    saveText: { color: "#fff", fontWeight: "600" },
   });
 }

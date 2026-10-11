@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, StyleSheet, Text, View } from "react-native";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Solicitud } from "../types/database";
+import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 
 type Priority = Exclude<Solicitud["priority"], null>;
@@ -123,21 +124,13 @@ export function GenerateOrderModal({
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onClose} disabled={confirming}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
-              onPress={handleConfirm}
-              disabled={!canConfirm}
-              accessibilityRole="button"
-              aria-disabled={!canConfirm}
-            >
-              <Text style={styles.confirmText}>{confirming ? "Generando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
+          <FormFooter
+            onCancel={onClose}
+            onConfirm={handleConfirm}
+            busy={confirming}
+            busyLabel="Generando…"
+            disabled={!canConfirm}
+          />
         </View>
       </View>
     </Modal>
@@ -174,28 +167,5 @@ function makeStyles(c: ThemeColors) {
       gap: 10,
     },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 24 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: "#fff", fontWeight: "600" },
-    confirmButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    confirmButtonDisabled: {
-      opacity: 0.45,
-      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as any) : {}),
-    },
-    confirmText: { color: "#fff", fontWeight: "600" },
   });
 }

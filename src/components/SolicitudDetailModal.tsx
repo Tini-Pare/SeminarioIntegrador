@@ -42,7 +42,7 @@ const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
 
 function getTaskBadge(
   task: SolicitudTask,
-  c: ThemeColors
+  c: ThemeColors,
 ): { label: string; bg: string; fg: string } {
   if (task.endDate) {
     return { label: "Finalizada", bg: c.faultResolved.bg, fg: c.faultResolved.fg };
@@ -130,11 +130,7 @@ export function SolicitudDetailModal({
     : s.reporterName;
 
   const photos =
-    s.photo_urls && s.photo_urls.length > 0
-      ? s.photo_urls
-      : s.photo_url
-        ? [s.photo_url]
-        : [];
+    s.photo_urls && s.photo_urls.length > 0 ? s.photo_urls : s.photo_url ? [s.photo_url] : [];
 
   function closeEverything() {
     onChanged();
@@ -199,17 +195,9 @@ export function SolicitudDetailModal({
 
                     {s.priority && (
                       <View
-                        style={[
-                          styles.badge,
-                          { backgroundColor: priorityColors[s.priority].bg },
-                        ]}
+                        style={[styles.badge, { backgroundColor: priorityColors[s.priority].bg }]}
                       >
-                        <Text
-                          style={[
-                            styles.badgeText,
-                            { color: priorityColors[s.priority].fg },
-                          ]}
-                        >
+                        <Text style={[styles.badgeText, { color: priorityColors[s.priority].fg }]}>
                           Prioridad {PRIORITY_LABELS[s.priority]}
                         </Text>
                       </View>
@@ -310,11 +298,7 @@ export function SolicitudDetailModal({
                       <Text style={styles.summaryLabel}>FALLA GENÉRICA</Text>
 
                       <Text
-                        style={
-                          s.fault_type_name
-                            ? styles.summaryValue
-                            : styles.summaryValuePending
-                        }
+                        style={s.fault_type_name ? styles.summaryValue : styles.summaryValuePending}
                       >
                         {s.fault_type_name ?? "Sin diagnosticar"}
                       </Text>
@@ -346,9 +330,7 @@ export function SolicitudDetailModal({
 
                           <Text
                             style={
-                              s.order_end_date
-                                ? styles.summaryValue
-                                : styles.summaryValuePending
+                              s.order_end_date ? styles.summaryValue : styles.summaryValuePending
                             }
                           >
                             {s.order_end_date ? fromDbDate(s.order_end_date) : "Pendiente"}
@@ -368,9 +350,7 @@ export function SolicitudDetailModal({
 
                   {s.tasks.length === 0 ? (
                     <View style={styles.emptyTasksCard}>
-                      <Text style={styles.emptyTasksText}>
-                        Todavía no se cargó ninguna tarea.
-                      </Text>
+                      <Text style={styles.emptyTasksText}>Todavía no se cargó ninguna tarea.</Text>
                     </View>
                   ) : (
                     s.tasks.map((task) => {
@@ -391,18 +371,8 @@ export function SolicitudDetailModal({
                               {task.taskName}
                             </Text>
 
-                            <View
-                              style={[
-                                styles.taskStatusBadge,
-                                { backgroundColor: badge.bg },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.taskStatusBadgeText,
-                                  { color: badge.fg },
-                                ]}
-                              >
+                            <View style={[styles.taskStatusBadge, { backgroundColor: badge.bg }]}>
+                              <Text style={[styles.taskStatusBadgeText, { color: badge.fg }]}>
                                 {badge.label}
                               </Text>
                             </View>
@@ -422,19 +392,24 @@ export function SolicitudDetailModal({
                                 <Text style={styles.taskPartsLabel}>REPUESTOS</Text>
 
                                 {task.consumedParts.map((part, pIdx) => (
-                                  <View
-                                    key={`${part.repId || pIdx}`}
-                                    style={styles.partTag}
-                                  >
+                                  <View key={`${part.repId || pIdx}`} style={styles.partTag}>
                                     <Text style={styles.partTagName}>
                                       {part.nombre}
-                                      <Text style={styles.partTagQty}>
-                                        {` ×${part.cantidad}`}
-                                      </Text>
+                                      <Text style={styles.partTagQty}>{` ×${part.cantidad}`}</Text>
                                     </Text>
                                   </View>
                                 ))}
                               </View>
+                            </>
+                          )}
+
+                          {task.diagnosis && (
+                            <>
+                              <View style={styles.taskPartsDivider} />
+
+                              <Text style={styles.taskPartsLabel}>DIAGNÓSTICO</Text>
+
+                              <Text style={styles.taskDiagnosisText}>{task.diagnosis}</Text>
                             </>
                           )}
                         </View>
@@ -503,12 +478,7 @@ export function SolicitudDetailModal({
       </Modal>
 
       {lightboxUrl && (
-        <Modal
-          visible
-          transparent
-          animationType="fade"
-          onRequestClose={() => setLightboxUrl(null)}
-        >
+        <Modal visible transparent animationType="fade" onRequestClose={() => setLightboxUrl(null)}>
           <Pressable style={styles.lightboxOverlay} onPress={() => setLightboxUrl(null)}>
             <View style={styles.lightboxContainer}>
               <Image
@@ -546,7 +516,6 @@ export function SolicitudDetailModal({
     </>
   );
 }
-
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
@@ -958,6 +927,12 @@ function makeStyles(c: ThemeColors) {
       fontSize: 12.5,
       fontWeight: "500",
       color: c.text,
+    },
+    taskDiagnosisText: {
+      marginTop: 4,
+      fontSize: 13.5,
+      color: c.text,
+      lineHeight: 19,
     },
     partTagQty: {
       color: c.accent,

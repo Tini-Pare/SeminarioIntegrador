@@ -70,6 +70,7 @@ export type Database = {
         Args: {
           p_taro_id_tarea_orden: number;
           p_repuestos?: { rep_id: number; cantidad: number }[] | null;
+          p_diagnostico?: string | null;
         };
         Returns: void;
       };
@@ -416,6 +417,7 @@ export type Database = {
           p_id_tecnico: string | null;
           taro_fecha_inicio: string | null;
           taro_fecha_fin: string | null;
+          taro_diagnostico: string | null;
         };
         Insert: {
           taro_id_tarea_orden?: number;
@@ -425,6 +427,7 @@ export type Database = {
           p_id_tecnico?: string | null;
           taro_fecha_inicio?: string | null;
           taro_fecha_fin?: string | null;
+          taro_diagnostico?: string | null;
         };
         Update: {
           taro_id_tarea_orden?: number;
@@ -434,6 +437,7 @@ export type Database = {
           p_id_tecnico?: string | null;
           taro_fecha_inicio?: string | null;
           taro_fecha_fin?: string | null;
+          taro_diagnostico?: string | null;
         };
         Relationships: [
           {
@@ -875,6 +879,9 @@ export type SolicitudTask = {
   // What the técnico registered as used on this tarea (finalizar_tarea,
   // migration 0021) — empty until finished, and stays empty if none was used.
   consumedParts: { repId: number; nombre: string; cantidad: number }[];
+  // The técnico's diagnóstico/observación written when finishing the tarea
+  // (finalizar_tarea, migration 0023) — null if none was written.
+  diagnosis: string | null;
 };
 
 export type Solicitud = {

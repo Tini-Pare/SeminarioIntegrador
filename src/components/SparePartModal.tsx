@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { createSparePart, updateSparePart, type SparePartInput } from "../lib/queries/spareParts";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Repuesto } from "../types/database";
+import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 
 const ESTADO_OPTIONS: RadioOption<Repuesto["rep_estado"]>[] = [
@@ -164,15 +165,7 @@ export function SparePartModal({
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
+          <FormFooter onCancel={onClose} onConfirm={handleSave} busy={saving} />
         </View>
       </View>
     </Modal>
@@ -218,24 +211,5 @@ function makeStyles(c: ThemeColors) {
     row: { flexDirection: "row", gap: 12 },
     rowItem: { flex: 1 },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 24 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: "#fff", fontWeight: "600" },
-    saveButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    saveText: { color: "#fff", fontWeight: "600" },
   });
 }

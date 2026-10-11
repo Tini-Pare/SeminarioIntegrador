@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { updateEquipment } from "../lib/queries/equipment";
 import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
 import { listLocations } from "../lib/queries/locations";
 import { DropdownBackdrop } from "./DropdownBackdrop";
+import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Select } from "./Select";
 import type { Equipo } from "../types/database";
@@ -260,15 +261,7 @@ export function EditEquipmentModal({
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable style={styles.saveButton} onPress={handleSubmit} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
+          <FormFooter onCancel={onClose} onConfirm={handleSubmit} busy={saving} />
         </View>
       </View>
     </Modal>
@@ -323,24 +316,5 @@ function makeStyles(c: ThemeColors) {
     statusBadgeText: { fontSize: 12.5, fontWeight: "600" },
     statusNote: { fontSize: 12, color: c.textMuted },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 22 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: "#fff", fontWeight: "600" },
-    saveButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    saveText: { color: "#fff", fontWeight: "600" },
   });
 }

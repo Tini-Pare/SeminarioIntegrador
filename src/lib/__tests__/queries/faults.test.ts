@@ -964,6 +964,59 @@ describe("finishTask", () => {
     });
   });
 
+  it("saves the diagnóstico via finalizar_tarea and copies it into the historial note", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "tec1" } } },
+    });
+    const { insertHistorial } = mockFinishChecks(
+      {
+        p_id_tecnico: "tec1",
+        ot_id_orden: 7,
+        taro_fecha_inicio: "2026-01-01",
+        tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
+        orden_de_trabajo: { eq_id_equipo: 5 },
+      },
+      [{ taro_fecha_fin: null }],
+    );
+
+    await finishTask(11, [], "  Pérdida en la válvula, se selló.  ");
+
+    expect(supabase.rpc).toHaveBeenCalledWith("finalizar_tarea", {
+      p_taro_id_tarea_orden: 11,
+      p_repuestos: [],
+      p_diagnostico: "Pérdida en la válvula, se selló.",
+    });
+    expect(insertHistorial).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hi_tipo: "Tarea finalizada",
+        hi_nota: "Tarea finalizada: Cambio de gas. Diagnóstico: Pérdida en la válvula, se selló.",
+      }),
+    );
+  });
+
+  it("doesn't send p_diagnostico when it's blank", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "tec1" } } },
+    });
+    mockFinishChecks(
+      {
+        p_id_tecnico: "tec1",
+        ot_id_orden: 7,
+        taro_fecha_inicio: "2026-01-01",
+        tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
+        orden_de_trabajo: { eq_id_equipo: 5 },
+      },
+      [{ taro_fecha_fin: null }],
+    );
+
+    await finishTask(11, [], "   ");
+
+    expect(supabase.rpc).toHaveBeenCalledWith("finalizar_tarea", {
+      p_taro_id_tarea_orden: 11,
+      p_repuestos: [],
+    });
+  });
+
   it("throws the DB's message when finalizar_tarea fails (e.g. not enough stock)", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "tec1" } } },

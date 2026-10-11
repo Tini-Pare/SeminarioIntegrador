@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, StyleSheet, Text, View } from "react-native";
 import { listActiveTaskCountsByTechnician } from "../lib/queries/faults";
 import { createGeneralTask, listGeneralTasks } from "../lib/queries/generalTasks";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Profile, TareaGeneral } from "../types/database";
+import { FormFooter } from "./FormFooter";
 import { Select } from "./Select";
 import { TaskCombobox } from "./TaskCombobox";
 
@@ -154,15 +155,12 @@ export function AddTaskModal({
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onClose} disabled={confirming}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable style={styles.confirmButton} onPress={handleConfirm} disabled={confirming}>
-              <Text style={styles.confirmText}>{confirming ? "Agregando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
+          <FormFooter
+            onCancel={onClose}
+            onConfirm={handleConfirm}
+            busy={confirming}
+            busyLabel="Agregando…"
+          />
         </View>
       </View>
     </Modal>
@@ -203,24 +201,5 @@ function makeStyles(c: ThemeColors) {
       zIndex: 50,
     },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 24 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.bgNested,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: c.text, fontWeight: "600" },
-    confirmButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    confirmText: { color: "#fff", fontWeight: "600" },
   });
 }

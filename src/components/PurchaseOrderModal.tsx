@@ -14,6 +14,7 @@ import { createPurchaseOrder } from "../lib/queries/purchaseOrders";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Repuesto } from "../types/database";
+import { FormFooter } from "./FormFooter";
 import { getTodayDateString } from "./CustomDatePicker";
 import { TrashIcon } from "./icons";
 import { Select } from "./Select";
@@ -252,15 +253,12 @@ export function PurchaseOrderModal({
             {error && <Text style={styles.error}>{error}</Text>}
           </ScrollView>
 
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Enviando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
+          <FormFooter
+            onCancel={onClose}
+            onConfirm={handleSave}
+            busy={saving}
+            busyLabel="Enviando…"
+          />
         </View>
       </View>
     </Modal>
@@ -445,24 +443,5 @@ function makeStyles(c: ThemeColors) {
     },
     inputMultiline: { minHeight: 72, textAlignVertical: "top" },
     error: { color: c.destructive, marginTop: 12, fontSize: 13, fontWeight: "600" },
-    actions: { flexDirection: "row", gap: 10, marginTop: 20 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-    saveButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    saveText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   });
 }

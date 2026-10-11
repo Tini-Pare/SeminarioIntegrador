@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   CustomDatePicker,
   getTodayDateString,
@@ -15,6 +15,7 @@ import {
 import { lineRemaining, receivedQuantities } from "../lib/purchaseReceipt";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { FormFooter } from "./FormFooter";
 
 type RowDraft = {
   repId: number;
@@ -173,19 +174,12 @@ export function RemitoCompraModal({
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.saveButton}
-              onPress={handleSave}
-              disabled={saving || rows.length === 0}
-            >
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
+          <FormFooter
+            onCancel={onClose}
+            onConfirm={handleSave}
+            busy={saving}
+            disabled={rows.length === 0}
+          />
         </View>
       </View>
     </Modal>
@@ -245,24 +239,5 @@ function makeStyles(c: ThemeColors) {
       fontVariant: ["tabular-nums"],
     },
     error: { color: c.destructive, marginTop: 14, fontSize: 13.5 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 22 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: "#fff", fontWeight: "600" },
-    saveButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    saveText: { color: "#fff", fontWeight: "600" },
   });
 }

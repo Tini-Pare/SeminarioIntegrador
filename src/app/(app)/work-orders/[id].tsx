@@ -581,12 +581,21 @@ export default function WorkOrderDetail() {
                   </View>
                 </View>
 
-                {task.consumedParts.length > 0 && (
+                {(task.consumedParts.length > 0 || task.diagnosis) && (
                   <View style={styles.consumedRow}>
-                    <Text style={styles.consumedText}>
-                      <Text style={styles.consumedLabel}>Repuestos usados: </Text>
-                      {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
-                    </Text>
+                    {task.consumedParts.length > 0 && (
+                      <Text style={styles.consumedText}>
+                        <Text style={styles.consumedLabel}>Repuestos usados: </Text>
+                        {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                      </Text>
+                    )}
+
+                    {task.diagnosis && (
+                      <Text style={styles.consumedText}>
+                        <Text style={styles.consumedLabel}>Diagnóstico: </Text>
+                        {task.diagnosis}
+                      </Text>
+                    )}
                   </View>
                 )}
               </View>
@@ -772,6 +781,7 @@ function makeStyles(c: ThemeColors) {
       paddingTop: 10,
       borderTopWidth: 1,
       borderTopColor: c.borderRow,
+      gap: 4,
     },
     consumedText: { fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
     consumedLabel: { fontWeight: "600", color: c.textLabel },

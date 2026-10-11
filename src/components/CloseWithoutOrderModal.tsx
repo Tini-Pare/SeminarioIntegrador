@@ -1,15 +1,8 @@
 import { useEffect, useState } from "react";
-import {
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Sigla } from "./Sigla";
 
@@ -136,30 +129,13 @@ export function CloseWithoutOrderModal({
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <Pressable
-              style={styles.cancelButton}
-              onPress={onClose}
-              disabled={confirming}
-              accessibilityRole="button"
-              accessibilityLabel="Cancelar"
-            >
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
-              onPress={handleConfirm}
-              disabled={!canConfirm}
-              accessibilityRole="button"
-              accessibilityLabel="Confirmar"
-              aria-disabled={!canConfirm}
-            >
-              <Text style={styles.confirmText}>
-                {confirming ? "Cerrando…" : "Confirmar"}
-              </Text>
-            </Pressable>
-          </View>
+          <FormFooter
+            onCancel={onClose}
+            onConfirm={handleConfirm}
+            busy={confirming}
+            busyLabel="Cerrando…"
+            disabled={!canConfirm}
+          />
         </View>
       </View>
     </Modal>
@@ -231,41 +207,6 @@ function makeStyles(c: ThemeColors) {
       marginTop: 12,
       fontSize: 13,
       fontWeight: "600",
-    },
-    actions: {
-      flexDirection: "row",
-      gap: 10,
-      marginTop: 24,
-    },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: {
-      color: "#ffffff",
-      fontWeight: "600",
-      fontSize: 15,
-    },
-    confirmButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    confirmButtonDisabled: {
-      opacity: 0.45,
-      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as any) : {}),
-    },
-    confirmText: {
-      color: "#ffffff",
-      fontWeight: "600",
-      fontSize: 15,
     },
   });
 }

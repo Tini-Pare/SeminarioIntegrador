@@ -1,20 +1,40 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import type { ConsumedPart } from "../lib/queries/faults";
 import { listSpareParts } from "../lib/queries/spareParts";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Repuesto } from "../types/database";
+import { FormFooter } from "./FormFooter";
+import { SearchIcon } from "./icons";
 import { RowActions } from "./RowActions";
+
+type UsedRow = { repId: number; qty: string };
+
+// Case- and accent-insensitive, so "camara" finds "Cámara".
+function normalize(text: string): string {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
 
 // Asked right before finishTask (queue/index.tsx): qué repuestos usó el
 // técnico para esta tarea, si usó alguno — 0 líneas es una respuesta
-// válida (una tarea de solo inspección no consume nada). "+ Agregar
-// repuesto" abre una grilla con todo el catálogo (repuesto / cantidad
-// disponible / cantidad usada / Guardar) en vez de un desplegable por
-// línea — cada repuesto se confirma con su propio botón "Guardar" y sale
-// de la grilla hacia la lista de ya agregados. Cada línea resta del stock
-// actual al confirmar (finalizar_tarea, migración 0021).
+// válida (una tarea de solo inspección no consume nada). Same layout as the
+// tareas grid of an OT: a "Repuestos utilizados" grid that starts empty and
+// a "+ Repuesto" button (top right) that opens a search box to add them one
+// at a time, instead of listing the whole catalog. The quantity is typed
+// right in the grid row and validated against stock on Confirmar. Each
+// line is subtracted from current stock (finalizar_tarea, migración 0021).
+// Below the grid, an optional diagnóstico (HU of Sprint 5: dejar constancia
+// del estado del equipo), saved on the tarea (migración 0023).
 export function FinishTaskModal({
   visible,
   onClose,
@@ -24,15 +44,18 @@ export function FinishTaskModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onConfirm: (repuestos: ConsumedPart[]) => void | Promise<void>;
+  onConfirm: (repuestos: ConsumedPart[], diagnostico: string) => void | Promise<void>;
   taskName: string;
   equipmentLabel: string;
 }) {
   const [spareParts, setSpareParts] = useState<Repuesto[]>([]);
-  const [added, setAdded] = useState<ConsumedPart[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [rows, setRows] = useState<UsedRow[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  // The row just added gets the focus, so its quantity can be typed at once.
+  const [focusRepId, setFocusRepId] = useState<number | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  const [diagnosis, setDiagnosis] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
@@ -40,60 +63,84 @@ export function FinishTaskModal({
 
   useEffect(() => {
     if (!visible) return;
-    setAdded([]);
-    setPickerOpen(false);
-    setDrafts({});
+    setRows([]);
+    setSearchOpen(false);
+    setSearch("");
+    setFocusRepId(null);
     setRowErrors({});
+    setDiagnosis("");
     setConfirming(false);
     setError(null);
     listSpareParts()
-      .then((all) => setSpareParts(all.filter((p) => p.rep_estado === "activo")))
+      .then((all) =>
+        setSpareParts(
+          all
+            .filter((p) => p.rep_estado === "activo")
+            .sort((a, b) => a.rep_nombre.localeCompare(b.rep_nombre, "es")),
+        ),
+      )
       .catch(() => setSpareParts([]));
   }, [visible]);
 
-  const addedIds = new Set(added.map((a) => a.repId));
-  const pickable = spareParts.filter((p) => !addedIds.has(p.rep_id));
-  const addedRows = added.map((a) => ({
-    ...a,
-    nombre: spareParts.find((p) => p.rep_id === a.repId)?.rep_nombre ?? `Repuesto ${a.repId}`,
-  }));
+  const partById = new Map(spareParts.map((p) => [p.rep_id, p]));
+  const addedIds = new Set(rows.map((r) => r.repId));
+  const query = normalize(search.trim());
+  const results = spareParts.filter(
+    (p) => !addedIds.has(p.rep_id) && (!query || normalize(p.rep_nombre).includes(query)),
+  );
 
-  function removeAdded(repId: number) {
-    setAdded((prev) => prev.filter((a) => a.repId !== repId));
+  function clearRowError(repId: number) {
+    setRowErrors((prev) => {
+      if (!prev[repId]) return prev;
+      const next = { ...prev };
+      delete next[repId];
+      return next;
+    });
   }
 
-  function saveRow(part: Repuesto) {
-    const raw = drafts[part.rep_id] ?? "";
-    const qty = Number(raw);
-    if (!raw.trim() || !Number.isInteger(qty) || qty <= 0) {
-      setRowErrors((prev) => ({ ...prev, [part.rep_id]: "Ingresá una cantidad válida." }));
-      return;
+  function addPart(part: Repuesto) {
+    // New rows go at the end, like every other grid.
+    setRows((prev) => [...prev, { repId: part.rep_id, qty: "" }]);
+    setFocusRepId(part.rep_id);
+    setSearchOpen(false);
+    setSearch("");
+    setError(null);
+  }
+
+  function removeRow(repId: number) {
+    setRows((prev) => prev.filter((r) => r.repId !== repId));
+    clearRowError(repId);
+  }
+
+  function rowError(row: UsedRow): string | null {
+    const qty = Number(row.qty);
+    if (!row.qty.trim() || !Number.isInteger(qty) || qty <= 0) {
+      return "Ingresá una cantidad válida.";
     }
-    if (qty > part.rep_cantidad_actual) {
-      setRowErrors((prev) => ({
-        ...prev,
-        [part.rep_id]: `No hay stock suficiente (disponible: ${part.rep_cantidad_actual}).`,
-      }));
-      return;
-    }
-    setRowErrors((prev) => {
-      const next = { ...prev };
-      delete next[part.rep_id];
-      return next;
-    });
-    setDrafts((prev) => {
-      const next = { ...prev };
-      delete next[part.rep_id];
-      return next;
-    });
-    setAdded((prev) => [...prev, { repId: part.rep_id, cantidad: qty }]);
+    const stock = partById.get(row.repId)?.rep_cantidad_actual ?? 0;
+    if (qty > stock) return `No hay stock suficiente (disponible: ${stock}).`;
+    return null;
   }
 
   async function handleConfirm() {
+    const errors: Record<number, string> = {};
+    for (const row of rows) {
+      const message = rowError(row);
+      if (message) errors[row.repId] = message;
+    }
+    setRowErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError("Revisá las cantidades de los repuestos marcados.");
+      return;
+    }
+
     setConfirming(true);
     setError(null);
     try {
-      await onConfirm(added);
+      await onConfirm(
+        rows.map((r) => ({ repId: r.repId, cantidad: Number(r.qty) })),
+        diagnosis.trim(),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -121,113 +168,158 @@ export function FinishTaskModal({
               Si es la última tarea pendiente de la orden, la orden queda resuelta.
             </Text>
 
-            <Text style={styles.label}>Repuestos usados (opcional)</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Repuestos utilizados (opcional)</Text>
 
-            {addedRows.length > 0 && (
-              <View style={styles.addedList}>
-                {addedRows.map((a) => (
-                  <View key={a.repId} style={styles.addedRow}>
-                    <Text style={styles.addedName} numberOfLines={1}>
-                      {a.nombre}
-                    </Text>
+              <Pressable
+                style={styles.addButton}
+                onPress={() => {
+                  setSearchOpen((o) => !o);
+                  setSearch("");
+                }}
+              >
+                <Text style={styles.addButtonText}>+ Repuesto</Text>
+              </Pressable>
+            </View>
 
-                    <Text style={styles.addedQty}>×{a.cantidad}</Text>
+            {searchOpen && (
+              <View style={styles.searchPanel}>
+                <View style={styles.searchBox}>
+                  <SearchIcon size={15} color={colors.textMuted} />
 
-                    <RowActions
-                      onDelete={() => removeAdded(a.repId)}
-                      deleteTooltip="Quitar repuesto"
-                    />
-                  </View>
-                ))}
-              </View>
-            )}
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Buscar repuesto…"
+                    placeholderTextColor={colors.textMuted}
+                    value={search}
+                    onChangeText={setSearch}
+                    autoCorrect={false}
+                    autoFocus
+                  />
 
-            <Pressable style={styles.toggleBtn} onPress={() => setPickerOpen((o) => !o)}>
-              <Text style={styles.toggleBtnText}>
-                {pickerOpen ? "Ocultar repuestos" : "+ Agregar repuesto"}
-              </Text>
-            </Pressable>
-
-            {pickerOpen && (
-              <View style={styles.grid}>
-                <View style={styles.gridHeadRow}>
-                  <Text style={[styles.gridHeadText, styles.colRepuesto]}>Repuesto</Text>
-                  <Text style={[styles.gridHeadText, styles.colCantidad]}>
-                    Existencias actuales
-                  </Text>
-                  <Text style={[styles.gridHeadText, styles.colUsada]}>Cantidad usada</Text>
-                  <View style={styles.colGuardar} />
+                  {search.length > 0 && (
+                    <Pressable onPress={() => setSearch("")} hitSlop={8}>
+                      <Text style={styles.clearSearchText}>✕</Text>
+                    </Pressable>
+                  )}
                 </View>
 
-                <ScrollView style={styles.gridScroll} nestedScrollEnabled>
-                  {pickable.length === 0 ? (
-                    <Text style={styles.gridEmpty}>No quedan más repuestos para agregar.</Text>
+                <ScrollView style={styles.results} nestedScrollEnabled>
+                  {results.length === 0 ? (
+                    <Text style={styles.resultsEmpty}>
+                      {query
+                        ? "Ningún repuesto coincide con la búsqueda."
+                        : "No quedan más repuestos para agregar."}
+                    </Text>
                   ) : (
-                    pickable.map((p) => (
-                      <View key={p.rep_id} style={styles.gridRowWrap}>
-                        <View style={styles.gridRow}>
-                          <Text style={[styles.gridCellText, styles.colRepuesto]} numberOfLines={1}>
+                    results.map((p) => {
+                      const outOfStock = p.rep_cantidad_actual <= 0;
+                      return (
+                        <Pressable
+                          key={p.rep_id}
+                          style={[styles.resultRow, outOfStock && styles.resultRowDisabled]}
+                          onPress={() => addPart(p)}
+                          disabled={outOfStock}
+                        >
+                          <Text style={styles.resultName} numberOfLines={1}>
                             {p.rep_nombre}
                           </Text>
 
-                          <Text style={[styles.gridCellText, styles.colCantidad]}>
-                            {p.rep_cantidad_actual}
+                          <Text style={styles.resultStock}>
+                            {outOfStock ? "Sin stock" : `Existencias: ${p.rep_cantidad_actual}`}
                           </Text>
-
-                          <View style={styles.colUsada}>
-                            <TextInput
-                              style={[
-                                styles.gridInput,
-                                rowErrors[p.rep_id] && styles.gridInputError,
-                              ]}
-                              value={drafts[p.rep_id] ?? ""}
-                              onChangeText={(t) => {
-                                setDrafts((prev) => ({
-                                  ...prev,
-                                  [p.rep_id]: t.replace(/[^0-9]/g, ""),
-                                }));
-                                setRowErrors((prev) => {
-                                  if (!prev[p.rep_id]) return prev;
-                                  const next = { ...prev };
-                                  delete next[p.rep_id];
-                                  return next;
-                                });
-                              }}
-                              placeholder="0"
-                              placeholderTextColor={colors.textMuted}
-                              keyboardType="number-pad"
-                              maxLength={5}
-                            />
-                          </View>
-
-                          <View style={styles.colGuardar}>
-                            <Pressable style={styles.saveRowBtn} onPress={() => saveRow(p)}>
-                              <Text style={styles.saveRowBtnText}>Guardar</Text>
-                            </Pressable>
-                          </View>
-                        </View>
-
-                        {rowErrors[p.rep_id] && (
-                          <Text style={styles.gridRowError}>{rowErrors[p.rep_id]}</Text>
-                        )}
-                      </View>
-                    ))
+                        </Pressable>
+                      );
+                    })
                   )}
                 </ScrollView>
               </View>
             )}
 
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.headerCell, styles.colRepuesto]}>REPUESTO</Text>
+                <Text style={[styles.headerCell, styles.colStock]}>EXISTENCIAS ACTUALES</Text>
+                <Text style={[styles.headerCell, styles.colUsada]}>CANTIDAD USADA</Text>
+                <Text style={[styles.headerCell, styles.colActions]}>ACCIONES</Text>
+              </View>
+
+              {rows.length === 0 ? (
+                <Text style={styles.empty}>
+                  No se agregó ningún repuesto. Usá “+ Repuesto” si la tarea consumió alguno.
+                </Text>
+              ) : (
+                rows.map((row, i) => {
+                  const part = partById.get(row.repId);
+                  const rowErr = rowErrors[row.repId];
+                  return (
+                    <View key={row.repId} style={[styles.rowWrap, i % 2 === 1 && styles.rowAlt]}>
+                      <View style={styles.row}>
+                        <Text
+                          style={[styles.cellText, styles.cellStrong, styles.colRepuesto]}
+                          numberOfLines={2}
+                        >
+                          {part?.rep_nombre ?? `Repuesto ${row.repId}`}
+                        </Text>
+
+                        <Text style={[styles.cellText, styles.colStock]}>
+                          {part?.rep_cantidad_actual ?? "—"}
+                        </Text>
+
+                        <View style={styles.colUsada}>
+                          <TextInput
+                            style={[styles.qtyInput, rowErr && styles.qtyInputError]}
+                            value={row.qty}
+                            onChangeText={(t) => {
+                              const qty = t.replace(/[^0-9]/g, "");
+                              setRows((prev) =>
+                                prev.map((r) => (r.repId === row.repId ? { ...r, qty } : r)),
+                              );
+                              clearRowError(row.repId);
+                            }}
+                            placeholder="0"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="number-pad"
+                            maxLength={5}
+                            autoFocus={focusRepId === row.repId}
+                            accessibilityLabel={`Cantidad usada de ${part?.rep_nombre ?? "repuesto"}`}
+                          />
+                        </View>
+
+                        <View style={styles.colActions}>
+                          <RowActions
+                            onDelete={() => removeRow(row.repId)}
+                            deleteTooltip="Quitar repuesto"
+                          />
+                        </View>
+                      </View>
+
+                      {rowErr && <Text style={styles.rowError}>{rowErr}</Text>}
+                    </View>
+                  );
+                })
+              )}
+            </View>
+
+            <Text style={styles.diagnosisLabel}>Diagnóstico / observaciones (opcional)</Text>
+
+            <TextInput
+              style={styles.diagnosisInput}
+              value={diagnosis}
+              onChangeText={setDiagnosis}
+              placeholder="Ej: se cambió el burlete; el equipo queda funcionando, revisar el compresor en el próximo service."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={3}
+              maxLength={500}
+              accessibilityLabel="Diagnóstico / observaciones"
+            />
+
+            <Text style={styles.diagnosisCount}>{diagnosis.length}/500</Text>
+
             {error && <Text style={styles.error}>{error}</Text>}
 
-            <View style={styles.actions}>
-              <Pressable style={styles.cancelButton} onPress={onClose} disabled={confirming}>
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </Pressable>
-
-              <Pressable style={styles.confirmButton} onPress={handleConfirm} disabled={confirming}>
-                <Text style={styles.confirmText}>{confirming ? "Guardando…" : "Confirmar"}</Text>
-              </Pressable>
-            </View>
+            <FormFooter onCancel={onClose} onConfirm={handleConfirm} busy={confirming} />
           </ScrollView>
         </View>
       </View>
@@ -255,74 +347,110 @@ function makeStyles(c: ThemeColors) {
     title: { fontSize: 20, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textMuted },
     hint: { marginTop: 8, fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
-    label: {
-      fontSize: 12.5,
-      fontWeight: "600",
-      color: c.textLabel,
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      flexWrap: "wrap",
+      gap: 10,
       marginTop: 20,
       marginBottom: 10,
     },
-    addedList: { gap: 8, marginBottom: 12 },
-    addedRow: {
+    sectionTitle: { fontSize: 13.5, fontWeight: "600", color: c.text },
+    addButton: {
+      paddingHorizontal: 14,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    addButtonText: { color: "#fff", fontWeight: "600", fontSize: 13 },
+    searchPanel: {
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 12,
+      backgroundColor: c.bgCard,
+      padding: 10,
+      gap: 8,
+    },
+    searchBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      height: 38,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 9,
+      backgroundColor: c.bgInput,
+    },
+    searchInput: {
+      flex: 1,
+      height: "100%",
+      fontSize: 13.5,
+      color: c.text,
+      padding: 0,
+      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
+    },
+    clearSearchText: { fontSize: 13, color: c.textMuted, fontWeight: "600" },
+    results: { maxHeight: 220 },
+    resultsEmpty: { padding: 12, fontSize: 13, color: c.textMuted, textAlign: "center" },
+    resultRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
       paddingVertical: 9,
-      paddingHorizontal: 12,
-      borderRadius: 10,
-      backgroundColor: c.bgNested,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      ...(Platform.OS === "web" ? ({ cursor: "pointer" } as object) : {}),
     },
-    addedName: { flex: 1, minWidth: 0, fontSize: 14, color: c.text, fontWeight: "500" },
-    addedQty: { fontSize: 13.5, color: c.textLabel, fontWeight: "600" },
-    toggleBtn: {
-      alignSelf: "flex-start",
-      height: 40,
-      paddingHorizontal: 16,
-      borderRadius: 9,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      alignItems: "center",
-      justifyContent: "center",
+    resultRowDisabled: {
+      opacity: 0.5,
+      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as object) : {}),
+    },
+    resultName: { flex: 1, minWidth: 0, fontSize: 13.5, color: c.text },
+    resultStock: { fontSize: 12.5, color: c.textMuted },
+    table: {
       backgroundColor: c.bgCard,
-    },
-    toggleBtnText: { fontSize: 13.5, fontWeight: "600", color: c.accent },
-    grid: {
-      marginTop: 14,
       borderWidth: 1,
       borderColor: c.border,
-      borderRadius: 12,
+      borderRadius: 14,
       overflow: "hidden",
     },
-    gridHeadRow: {
+    tableHeader: {
       flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 10,
       paddingHorizontal: 14,
-      backgroundColor: c.bgSidebar,
+      paddingVertical: 12,
+      backgroundColor: c.accent,
       gap: 10,
     },
-    gridHeadText: { fontSize: 11.5, fontWeight: "700", color: c.textNavInactive },
-    gridScroll: { maxHeight: 320, backgroundColor: c.bgCard },
-    gridRowWrap: {
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
+    headerCell: {
+      fontSize: 11.5,
+      fontWeight: "700",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      color: "#fff",
+      fontFamily: "monospace",
     },
-    gridRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-    gridCellText: { fontSize: 13.5, color: c.text },
-    gridEmpty: {
-      paddingVertical: 20,
+    empty: { color: c.textMuted, fontSize: 13.5, padding: 18 },
+    rowWrap: {
       paddingHorizontal: 14,
-      textAlign: "center",
-      fontSize: 13,
-      color: c.textMuted,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borderRow,
     },
-    colRepuesto: { flexGrow: 2, flexBasis: 200, minWidth: 140 },
-    colCantidad: { width: 100, textAlign: "center" },
-    colUsada: { width: 130 },
-    colGuardar: { width: 96 },
-    gridInput: {
+    rowAlt: { backgroundColor: c.bgRowAlt },
+    row: { flexDirection: "row", alignItems: "center", gap: 10 },
+    cellText: { fontSize: 13.5, color: c.textLabel },
+    cellStrong: { fontWeight: "600", color: c.text },
+    colRepuesto: { flex: 1, minWidth: 120 },
+    colStock: { width: 110, textAlign: "center" },
+    colUsada: { width: 110 },
+    colActions: { width: 80, alignItems: "center" },
+    qtyInput: {
       height: 38,
       paddingHorizontal: 10,
       borderWidth: 1,
@@ -332,35 +460,28 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       color: c.text,
     },
-    gridInputError: { borderColor: c.destructive, borderWidth: 1.5 },
-    gridRowError: { marginTop: 6, fontSize: 12, color: c.destructive },
-    saveRowBtn: {
-      height: 38,
-      borderRadius: 8,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: c.accent,
+    qtyInputError: { borderColor: c.destructive, borderWidth: 1.5 },
+    rowError: { marginTop: 6, fontSize: 12, color: c.destructive },
+    diagnosisLabel: {
+      fontSize: 13.5,
+      fontWeight: "600",
+      color: c.text,
+      marginTop: 20,
+      marginBottom: 8,
     },
-    saveRowBtnText: { color: "#fff", fontSize: 12.5, fontWeight: "600" },
+    diagnosisInput: {
+      minHeight: 84,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      borderRadius: 10,
+      backgroundColor: c.bgInput,
+      fontSize: 14,
+      color: c.text,
+      textAlignVertical: "top",
+    },
+    diagnosisCount: { marginTop: 4, fontSize: 11.5, color: c.textMuted, textAlign: "right" },
     error: { color: c.destructive, marginTop: 16, fontSize: 13 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 24 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.bgNested,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: c.text, fontWeight: "600" },
-    confirmButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    confirmText: { color: "#fff", fontWeight: "600" },
   });
 }

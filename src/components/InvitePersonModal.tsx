@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, StyleSheet } from "react-native";
+import { Modal, View, Text, TextInput, StyleSheet } from "react-native";
 import { supabase } from "../lib/supabase";
 import { listProfiles } from "../lib/queries/profiles";
 import type { Profile } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 
 const ROLE_OPTIONS: RadioOption<Profile["role"]>[] = [
@@ -193,15 +194,7 @@ export function InvitePersonModal({
             <Text style={styles.error}>{error}</Text>
           )}
 
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable style={styles.sendButton} onPress={handleSubmit} disabled={sending}>
-              <Text style={styles.sendText}>{sending ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
+          <FormFooter onCancel={onClose} onConfirm={handleSubmit} busy={sending} />
         </View>
       </View>
     </Modal>
@@ -252,24 +245,5 @@ function makeStyles(c: ThemeColors) {
       marginTop: 4,
     },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 22 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: "#fff", fontWeight: "600" },
-    sendButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    sendText: { color: "#fff", fontWeight: "600" },
   });
 }

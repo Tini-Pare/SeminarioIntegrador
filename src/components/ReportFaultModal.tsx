@@ -19,6 +19,7 @@ import {
   uploadFaultPhoto,
 } from "../lib/faultPhoto";
 import type { Equipo } from "../types/database";
+import { FormFooter } from "./FormFooter";
 import { TrashIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -290,22 +291,14 @@ export function ReportFaultModal({
 
             {error && <Text style={styles.error}>{error}</Text>}
 
-            <View style={styles.actions}>
-              <Pressable
-                style={[
-                  styles.cancelButton,
-                  (submitting || processingPhoto) && styles.disabledButton,
-                ]}
-                onPress={onClose}
-                disabled={submitting || processingPhoto}
-              >
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </Pressable>
-
-              <Pressable style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
-                <Text style={styles.submitText}>{submitting ? "Enviando…" : "Confirmar"}</Text>
-              </Pressable>
-            </View>
+            <FormFooter
+              onCancel={onClose}
+              onConfirm={handleSubmit}
+              busy={submitting}
+              busyLabel="Enviando…"
+              disabled={processingPhoto}
+              cancelDisabled={processingPhoto}
+            />
           </ScrollView>
         </View>
       </View>
@@ -414,25 +407,5 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    actions: { flexDirection: "row", gap: 10, marginTop: 20 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    disabledButton: { opacity: 0.55 },
-    cancelText: { color: "#fff", fontWeight: "600" },
-    submitButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    submitText: { color: "#fff", fontWeight: "600" },
   });
 }

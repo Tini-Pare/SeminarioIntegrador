@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   createFaultType,
   GRAVEDAD_LABELS,
@@ -11,6 +11,7 @@ import {
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Fallo } from "../types/database";
+import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 
 // Registration state, same shape as repuestos: an item with history can't be
@@ -157,15 +158,7 @@ export function FaultTypeModal({
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <Pressable style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              <Text style={styles.saveText}>{saving ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
+          <FormFooter onCancel={onClose} onConfirm={handleSave} busy={saving} />
         </View>
       </View>
     </Modal>
@@ -210,24 +203,5 @@ function makeStyles(c: ThemeColors) {
     },
     inputMultiline: { minHeight: 76, textAlignVertical: "top" },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
-    actions: { flexDirection: "row", gap: 10, marginTop: 24 },
-    cancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: "#dc2626",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cancelText: { color: "#fff", fontWeight: "600" },
-    saveButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    saveText: { color: "#fff", fontWeight: "600" },
   });
 }
