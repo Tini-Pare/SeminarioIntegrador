@@ -22,6 +22,7 @@ import { EyeIcon, SearchIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { PurchaseDetailModal } from "../../../components/PurchaseDetailModal";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
+import { comprobanteRef, comprobanteTipoLabel } from "../../../lib/comprobante";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { listPurchases, type PurchaseWithDetail } from "../../../lib/queries/purchases";
 import {
@@ -40,6 +41,14 @@ import type { Repuesto } from "../../../types/database";
 
 const ESTADO_RANK: Record<ReceiptState, number> = { pendiente: 0, parcial: 1, completa: 2 };
 
+// One width per column, applied to the header cell and to every row cell
+// alike — same flex AND same padding, otherwise the padding adds to some
+// cells only and the rows drift right of their headers.
+const COL_FLEX = { numero: 1.5, tipo: 1, proveedor: 1.8, emision: 1.1, total: 1.1, estado: 1.4 };
+function col(key: keyof typeof COL_FLEX) {
+  return { flex: COL_FLEX[key], minWidth: 0, paddingRight: 12 } as const;
+}
+
 function formatDate(d: string | null): string {
   if (!d) return "—";
   return new Date(d + "T00:00:00").toLocaleDateString("es-AR");
@@ -50,18 +59,6 @@ function itemsSummary(p: PurchaseWithDetail): string {
   if (names.length === 0) return "—";
   if (names.length <= 2) return names.join(" · ");
   return `${names.slice(0, 2).join(" · ")} +${names.length - 2}`;
-}
-
-const TIPO_LABEL: Record<PurchaseWithDetail["co_tipo_comprobante"], string> = {
-  factura: "Factura",
-  remito: "Remito",
-  tique: "Tique",
-};
-
-function comprobanteRef(p: PurchaseWithDetail): string | null {
-  if (p.co_punto_venta && p.co_nombre) return `${p.co_punto_venta}-${p.co_nombre}`;
-  if (p.co_nombre) return p.co_nombre;
-  return null;
 }
 
 export default function PurchasesScreen() {
@@ -143,7 +140,8 @@ export default function PurchasesScreen() {
 
     return purchases.filter((p) => {
       const provName = p.proveedores?.prov_nombre?.toLowerCase() ?? "";
-      const matchSearch = !q || provName.includes(q);
+      const matchSearch =
+        !q || provName.includes(q) || (comprobanteRef(p)?.toLowerCase().includes(q) ?? false);
 
       let matchDate = true;
       if (dbFrom) {
@@ -167,6 +165,8 @@ export default function PurchasesScreen() {
     filtered,
     {
       proveedor: (p) => p.proveedores?.prov_nombre ?? "",
+      tipo: (p) => comprobanteTipoLabel(p),
+      numero: (p) => comprobanteRef(p) ?? "",
       fecha: (p) => p.co_fecha_compra ?? "",
       total: (p) => (p.co_costo_total != null ? Number(p.co_costo_total) : 0),
       estado: (p) => ESTADO_RANK[estados.get(p.co_id_compra) ?? "pendiente"],
@@ -208,10 +208,13 @@ export default function PurchasesScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.title}>Compras</Text>
+            {/* Named after what each row is: a comprobante (factura, tique
+                or remito) of a compra. The sidebar keeps the short "Compras". */}
+            <Text style={styles.title}>Comprobantes de compra</Text>
 
             <Text style={styles.subtitle}>
-              Registrá compras y trackeá qué repuestos ya llegaron a partir de sus remitos
+              Registrá las facturas, tiques y remitos de tus compras y seguí qué repuestos ya
+              llegaron
             </Text>
           </View>
 
@@ -241,7 +244,7 @@ export default function PurchasesScreen() {
 
             <TextInput
               style={styles.searchInput}
-              placeholder="Buscar por proveedor…"
+              placeholder="Buscar por proveedor o N° de comprobante…"
               placeholderTextColor={colors.textMuted}
               value={search}
               onChangeText={setSearch}
@@ -305,6 +308,9 @@ export default function PurchasesScreen() {
         </View>
 
         <View style={styles.chipsRow}>
+          {/* Says what the chips filter by: whether the goods arrived. */}
+          <Text style={styles.chipsLabel}>Estados del envío</Text>
+
           {(
             [
               { key: "", label: "Todas" },
@@ -338,22 +344,43 @@ export default function PurchasesScreen() {
         ) : (
           <View style={styles.table}>
             <View style={styles.tableHeader}>
+              {/* The comprobante's número leads, like "N° OT" does in the
+                  work-orders grid, with its tipo right after; the supplier
+                  follows, since the same number can repeat across suppliers. */}
+              <SortHeaderCell
+                label="N° de comprobante"
+                field="numero"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={col("numero")}
+              />
+
+              <SortHeaderCell
+                label="Tipo"
+                field="tipo"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={col("tipo")}
+              />
+
               <SortHeaderCell
                 label="Proveedor"
                 field="proveedor"
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 2.2 }}
+                style={col("proveedor")}
               />
 
               <SortHeaderCell
-                label="Fecha"
+                label="Emisión"
                 field="fecha"
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1.1 }}
+                style={col("emision")}
               />
 
               <SortHeaderCell
@@ -362,16 +389,16 @@ export default function PurchasesScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1.1 }}
+                style={col("total")}
               />
 
               <SortHeaderCell
-                label="Estado"
+                label="Estado del envío"
                 field="estado"
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1 }}
+                style={col("estado")}
               />
 
               <View style={styles.actionsCol}>
@@ -385,25 +412,29 @@ export default function PurchasesScreen() {
               return (
                 <View key={p.co_id_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
                   <View style={styles.rowMain}>
-                    <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.name} numberOfLines={1}>
-                          {p.proveedores?.prov_nombre ?? "Proveedor —"}
-                        </Text>
+                    <View style={col("numero")}>
+                      <Text style={styles.numberCell} numberOfLines={1}>
+                        {comprobanteRef(p) ?? "—"}
+                      </Text>
+                    </View>
 
-                        <View style={styles.tipoBadge}>
-                          <Text style={styles.tipoBadgeText}>
-                            {TIPO_LABEL[p.co_tipo_comprobante]}
-                          </Text>
-                        </View>
+                    <View style={col("tipo")}>
+                      <View style={styles.tipoBadge}>
+                        <Text style={styles.tipoBadgeText}>{comprobanteTipoLabel(p)}</Text>
                       </View>
                     </View>
 
-                    <View style={{ flex: 1.1, justifyContent: "center" }}>
+                    <View style={col("proveedor")}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {p.proveedores?.prov_nombre ?? "Proveedor —"}
+                      </Text>
+                    </View>
+
+                    <View style={col("emision")}>
                       <Text style={styles.dateCell}>{formatDate(p.co_fecha_compra)}</Text>
                     </View>
 
-                    <View style={{ flex: 1.1, justifyContent: "center" }}>
+                    <View style={col("total")}>
                       <Text style={styles.total}>
                         {p.co_costo_total != null && Number(p.co_costo_total) > 0
                           ? `$${Number(p.co_costo_total).toLocaleString("es-AR")}`
@@ -411,7 +442,7 @@ export default function PurchasesScreen() {
                       </Text>
                     </View>
 
-                    <View style={{ flex: 1, justifyContent: "center" }}>
+                    <View style={col("estado")}>
                       <View style={[styles.estadoBadge, { backgroundColor: estadoStyle.bg }]}>
                         <Text style={[styles.estadoBadgeText, { color: estadoStyle.fg }]}>
                           {RECEIPT_STATE_LABEL[estado]}
@@ -565,8 +596,17 @@ function makeStyles(c: ThemeColors) {
     chipsRow: {
       flexDirection: "row",
       flexWrap: "wrap",
+      alignItems: "center",
       gap: 7,
       marginBottom: 14,
+    },
+    chipsLabel: {
+      marginRight: 4,
+      fontSize: 11.5,
+      fontWeight: "700",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      color: c.textMuted,
     },
     chip: {
       paddingHorizontal: 13,
@@ -636,8 +676,8 @@ function makeStyles(c: ThemeColors) {
     },
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
-    nameRow: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 },
     tipoBadge: {
+      alignSelf: "flex-start",
       paddingHorizontal: 8,
       paddingVertical: 2.5,
       borderRadius: 999,
@@ -648,6 +688,13 @@ function makeStyles(c: ThemeColors) {
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     sub: { marginTop: 2, fontSize: 13, color: c.textMuted },
     dateCell: { fontSize: 14.5, color: c.text, fontWeight: "500" },
+    numberCell: {
+      flexShrink: 1,
+      fontSize: 13.5,
+      color: c.text,
+      fontWeight: "600",
+      fontFamily: "monospace",
+    },
     total: { fontSize: 14.5, color: c.text, fontWeight: "600", fontFamily: "monospace" },
     viewBtn: {
       width: 36,

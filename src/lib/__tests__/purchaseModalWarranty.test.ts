@@ -122,6 +122,7 @@ describe("PurchaseModal lines LIFO behavior", () => {
 describe("validatePurchaseRegistration", () => {
   const validBaseForm = {
     tipoComprobante: "factura" as const,
+    letra: "A" as const,
     puntoVenta: "0001",
     numero: "00001111",
     fecha: "24/09/2026",
@@ -229,6 +230,7 @@ describe("validatePurchaseRegistration", () => {
   it("returns plural 'Completá los campos obligatorios.' when multiple fields are missing", () => {
     const result = validatePurchaseRegistration({
       tipoComprobante: "factura",
+      letra: null,
       puntoVenta: "",
       numero: "",
       fecha: "24/09/2026",
@@ -266,5 +268,22 @@ describe("validatePurchaseRegistration", () => {
       valid: false,
       error: "Completá el campo obligatorio.",
     });
+  });
+
+  it("requires the letra (A/B/C) for a factura", () => {
+    const result = validatePurchaseRegistration({ ...validBaseForm, letra: null });
+    expect(result).toEqual({
+      valid: false,
+      error: "Completá el campo obligatorio.",
+    });
+  });
+
+  it("doesn't ask for a letra on a tique", () => {
+    const result = validatePurchaseRegistration({
+      ...validBaseForm,
+      tipoComprobante: "tique",
+      letra: null,
+    });
+    expect(result.valid).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { comprobanteRef, comprobanteTipoLabel } from "../lib/comprobante";
 import type { PurchaseWithDetail } from "../lib/queries/purchases";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
@@ -11,18 +12,6 @@ function formatDate(d: string | null): string {
 function money(n: number | null | undefined): string {
   if (n == null) return "—";
   return `$${Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
-}
-
-const TIPO_LABEL: Record<PurchaseWithDetail["co_tipo_comprobante"], string> = {
-  factura: "Factura",
-  remito: "Remito",
-  tique: "Tique",
-};
-
-function comprobanteRef(p: PurchaseWithDetail): string | null {
-  if (p.co_punto_venta && p.co_nombre) return `${p.co_punto_venta}-${p.co_nombre}`;
-  if (p.co_nombre) return p.co_nombre;
-  return null;
 }
 
 export function formatGarantia(val: string | null | undefined): string {
@@ -59,13 +48,14 @@ export function PurchaseDetailModal({
 
             {purchase && (
               <View style={styles.tipoBadge}>
-                <Text style={styles.tipoBadgeText}>{TIPO_LABEL[purchase.co_tipo_comprobante]}</Text>
+                <Text style={styles.tipoBadgeText}>{comprobanteTipoLabel(purchase)}</Text>
               </View>
             )}
           </View>
 
           <Text style={styles.subtitle}>
-            {purchase?.proveedores?.prov_nombre ?? "Compra"} · {formatDate(purchase?.co_fecha_compra ?? null)}
+            {purchase?.proveedores?.prov_nombre ?? "Compra"} ·{" "}
+            {formatDate(purchase?.co_fecha_compra ?? null)}
             {purchase && comprobanteRef(purchase) ? ` · N.º ${comprobanteRef(purchase)}` : ""}
           </Text>
 

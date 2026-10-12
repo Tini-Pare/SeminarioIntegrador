@@ -46,7 +46,10 @@ export function SortHeaderCell({
 function makeStyles(_c: ThemeColors) {
   return StyleSheet.create({
     cell: { flexDirection: "row", alignItems: "center", gap: 5 },
+    // Shrinks (ellipsis via numberOfLines) instead of spilling into the
+    // next column when the column is narrower than the label.
     text: {
+      flexShrink: 1,
       fontSize: 11.5,
       fontWeight: "700",
       letterSpacing: 0.5,

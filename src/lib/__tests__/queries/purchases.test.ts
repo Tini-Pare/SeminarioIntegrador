@@ -84,6 +84,7 @@ describe("registrarCompra", () => {
 
     const id = await registrarCompra({
       tipoComprobante: "factura",
+      letra: "B",
       puntoVenta: "0002",
       proveedorId: 3,
       nombre: "  Remito 5  ",
@@ -108,6 +109,7 @@ describe("registrarCompra", () => {
       p_ped_id_ped_compra: 9,
       p_co_tipo_comprobante: "factura",
       p_co_punto_venta: "0002",
+      p_co_letra: "B",
     });
     expect(id).toBe(42);
   });

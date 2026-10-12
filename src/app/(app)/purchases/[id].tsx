@@ -11,6 +11,7 @@ import {
   type PurchaseWithDetail,
   type RemitoWithLines,
 } from "../../../lib/queries/purchases";
+import { comprobanteRef, comprobanteTipoLabel } from "../../../lib/comprobante";
 import { listProfiles } from "../../../lib/queries/profiles";
 import {
   RECEIPT_STATE_LABEL,
@@ -43,14 +44,6 @@ export function formatGarantia(val: string | null | undefined): string {
     return `${months} ${months === 1 ? "mes" : "meses"}`;
   }
   return trimmed;
-}
-
-const TIPO_LABEL = { factura: "Factura", remito: "Remito", tique: "Tique" } as const;
-
-function comprobanteRef(p: PurchaseWithDetail): string | null {
-  if (p.co_punto_venta && p.co_nombre) return `${p.co_punto_venta}-${p.co_nombre}`;
-  if (p.co_nombre) return p.co_nombre;
-  return null;
 }
 
 function remitoItemsSummary(r: RemitoWithLines, names: Map<number, string>): string {
@@ -213,7 +206,7 @@ export default function PurchaseDetailScreen() {
           <View style={styles.headerLeft}>
             <View style={styles.badgesRow}>
               <View style={styles.tipoBadge}>
-                <Text style={styles.tipoBadgeText}>{TIPO_LABEL[purchase.co_tipo_comprobante]}</Text>
+                <Text style={styles.tipoBadgeText}>{comprobanteTipoLabel(purchase)}</Text>
               </View>
 
               <View style={[styles.estadoBadge, { backgroundColor: estadoColors.bg }]}>

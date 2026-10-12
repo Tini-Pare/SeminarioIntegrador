@@ -39,6 +39,7 @@ export type Database = {
           p_ped_id_ped_compra?: number | null;
           p_co_tipo_comprobante?: string;
           p_co_punto_venta?: string | null;
+          p_co_letra?: string | null;
         };
         Returns: number;
       };
@@ -605,6 +606,7 @@ export type Database = {
           co_p_id_registrador: string | null;
           co_tipo_comprobante: ComprobanteTipo;
           co_punto_venta: string | null;
+          co_letra: FacturaLetra | null;
         };
         Insert: {
           co_id_compra?: number;
@@ -616,6 +618,7 @@ export type Database = {
           co_p_id_registrador?: string | null;
           co_tipo_comprobante?: ComprobanteTipo;
           co_punto_venta?: string | null;
+          co_letra?: FacturaLetra | null;
         };
         Update: {
           co_id_compra?: number;
@@ -627,6 +630,7 @@ export type Database = {
           co_p_id_registrador?: string | null;
           co_tipo_comprobante?: ComprobanteTipo;
           co_punto_venta?: string | null;
+          co_letra?: FacturaLetra | null;
         };
         Relationships: [
           {
@@ -838,6 +842,8 @@ export type Repuesto = Database["public"]["Tables"]["repuestos"]["Row"];
 export type TipoProveedor = Database["public"]["Tables"]["tipos_proveedores"]["Row"];
 export type Proveedor = Database["public"]["Tables"]["proveedores"]["Row"];
 export type ComprobanteTipo = "factura" | "remito" | "tique";
+// Only a factura has one (migración 0025); tique/remito are always null.
+export type FacturaLetra = "A" | "B" | "C";
 export type Compra = Database["public"]["Tables"]["compras"]["Row"];
 export type LineaCompra = Database["public"]["Tables"]["linea_compra"]["Row"];
 export type PedidoCompra = Database["public"]["Tables"]["pedido_compra"]["Row"];

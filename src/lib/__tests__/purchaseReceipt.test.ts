@@ -17,6 +17,7 @@ function purchase(overrides: Partial<PurchaseWithDetail>): PurchaseWithDetail {
     co_p_id_registrador: null,
     co_tipo_comprobante: "factura",
     co_punto_venta: null,
+    co_letra: "C",
     proveedores: null,
     linea_compra: [],
     remitos: [],

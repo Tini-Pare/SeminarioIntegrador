@@ -2,6 +2,7 @@ import { supabase } from "../supabase";
 import type {
   Compra,
   ComprobanteTipo,
+  FacturaLetra,
   LineaCompra,
   RemitoCompra,
   RemitoCompraLinea,
@@ -70,6 +71,8 @@ export async function getPurchaseById(id: number): Promise<PurchaseWithDetail | 
 
 export type RegisterPurchaseInput = {
   tipoComprobante: ComprobanteTipo;
+  // Required for a factura (A/B/C), ignored for tique/remito (migración 0025).
+  letra?: FacturaLetra | null;
   puntoVenta: string | null;
   proveedorId: number;
   nombre: string | null;
@@ -100,6 +103,7 @@ export async function registrarCompra(input: RegisterPurchaseInput): Promise<num
     p_ped_id_ped_compra: input.pedidoId ?? null,
     p_co_tipo_comprobante: input.tipoComprobante,
     p_co_punto_venta: input.puntoVenta?.trim() || null,
+    p_co_letra: input.tipoComprobante === "factura" ? (input.letra ?? null) : null,
   });
   if (error) throw new Error(error.message);
   return data as number;

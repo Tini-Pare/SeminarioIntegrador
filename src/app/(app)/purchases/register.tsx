@@ -25,7 +25,8 @@ import { listSpareParts } from "../../../lib/queries/spareParts";
 import { listSuppliers, type SupplierWithRubro } from "../../../lib/queries/suppliers";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { ComprobanteTipo, Repuesto } from "../../../types/database";
+import { FACTURA_LETRAS } from "../../../lib/comprobante";
+import type { ComprobanteTipo, FacturaLetra, Repuesto } from "../../../types/database";
 
 export type LineDraft = { key: string; repId: number | null; cantidad: string; costo: string };
 
@@ -39,6 +40,8 @@ export const newLine = (repId: number | null = null, cantidad = ""): LineDraft =
 
 export type PurchaseFormValidationInput = {
   tipoComprobante: ComprobanteTipo | null;
+  // Only checked for a factura; tique/remito have no letra.
+  letra: FacturaLetra | null;
   puntoVenta: string;
   numero: string;
   fecha: string;
@@ -62,6 +65,10 @@ export function validatePurchaseRegistration(
   }
 
   let missingCount = 0;
+
+  if (form.tipoComprobante === "factura" && !form.letra) {
+    missingCount++;
+  }
 
   if (!form.puntoVenta.trim()) {
     missingCount++;
@@ -150,10 +157,10 @@ type DocOption = {
 const DOC_OPTIONS: DocOption[] = [
   {
     id: "factura",
-    code: "C",
-    note: "Cód. 11",
+    code: "F",
+    note: "A · B · C",
     title: "Factura",
-    desc: "Trae precios. Se carga cantidad y costo unitario por línea, y queda el total de la compra.",
+    desc: "Trae precios. Se elige la letra (A, B o C), se carga cantidad y costo unitario por línea, y queda el total de la compra.",
   },
   {
     id: "tique",
@@ -284,6 +291,9 @@ export default function RegisterPurchaseScreen() {
   const [spareParts, setSpareParts] = useState<Repuesto[]>([]);
 
   const [tipoComprobante, setTipoComprobante] = useState<ComprobanteTipo | null>(null);
+  // No default on purpose: the admin copies it from the paper factura, a
+  // preselected letter would get saved wrong without anyone noticing.
+  const [letra, setLetra] = useState<FacturaLetra | null>(null);
   const [puntoVenta, setPuntoVenta] = useState("");
   const [numero, setNumero] = useState("");
   const [proveedorId, setProveedorId] = useState<number | null>(null);
@@ -302,6 +312,7 @@ export default function RegisterPurchaseScreen() {
 
   const today = useMemo(() => new Date(), []);
 
+  const letraError = submitted && tipoComprobante === "factura" && !letra;
   const puntoVentaError = submitted && !puntoVenta.trim();
   const numeroError = submitted && !numero.trim();
   const fechaError = submitted && (!fecha.trim() || !isValidDateString(fecha));
@@ -356,6 +367,7 @@ export default function RegisterPurchaseScreen() {
 
   function backToStep1() {
     setTipoComprobante(null);
+    setLetra(null);
   }
 
   const units = useMemo(
@@ -380,6 +392,7 @@ export default function RegisterPurchaseScreen() {
 
     const validation = validatePurchaseRegistration({
       tipoComprobante,
+      letra,
       puntoVenta,
       numero,
       fecha,
@@ -397,6 +410,7 @@ export default function RegisterPurchaseScreen() {
     try {
       await registrarCompra({
         tipoComprobante: tipoComprobante!,
+        letra,
         puntoVenta: puntoVenta.trim(),
         proveedorId: proveedorId!,
         nombre: numero.trim() || null,
@@ -507,14 +521,57 @@ export default function RegisterPurchaseScreen() {
         ) : (
           <View style={styles.body}>
             <View style={styles.docHeader}>
-              <View style={styles.docBadge}>
-                <Text style={styles.docBadgeCode}>{docOption(tipoComprobante).code}</Text>
-                <Text style={styles.docBadgeNote}>{docOption(tipoComprobante).note}</Text>
-              </View>
+              {tipoComprobante === "factura" ? (
+                // Like the boxed letter printed at the top of a real factura:
+                // one box per letter, the chosen one filled in.
+                <View style={styles.letraRow}>
+                  {FACTURA_LETRAS.map((opt) => {
+                    const active = letra === opt.letra;
+                    return (
+                      <Pressable
+                        key={opt.letra}
+                        style={[
+                          styles.docBadge,
+                          active && styles.letraBoxActive,
+                          letraError && styles.inputError,
+                        ]}
+                        onPress={() => {
+                          setLetra(opt.letra);
+                          if (error) setError(null);
+                        }}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: active }}
+                        accessibilityLabel={`Factura ${opt.letra}`}
+                      >
+                        <Text style={[styles.docBadgeCode, active && styles.letraTextActive]}>
+                          {opt.letra}
+                        </Text>
+
+                        <Text style={[styles.docBadgeNote, active && styles.letraNoteActive]}>
+                          {opt.code}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.docBadge}>
+                  <Text style={styles.docBadgeCode}>{docOption(tipoComprobante).code}</Text>
+                  <Text style={styles.docBadgeNote}>{docOption(tipoComprobante).note}</Text>
+                </View>
+              )}
 
               <View style={{ flex: 1, minWidth: 140 }}>
-                <Text style={styles.docHeaderTitle}>{docOption(tipoComprobante).title}</Text>
-                <Text style={styles.docHeaderSub}>Datos del comprobante del proveedor</Text>
+                <Text style={styles.docHeaderTitle}>
+                  {docOption(tipoComprobante).title}
+                  {tipoComprobante === "factura" && letra ? ` ${letra}` : ""}
+                </Text>
+
+                <Text style={[styles.docHeaderSub, letraError && styles.letraErrorText]}>
+                  {tipoComprobante === "factura" && !letra
+                    ? "Elegí la letra que figura en la factura"
+                    : "Datos del comprobante del proveedor"}
+                </Text>
               </View>
 
               <Pressable style={styles.changeTypeBtn} onPress={backToStep1}>
@@ -848,6 +905,11 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
     },
     docHeaderTitle: { fontSize: 16, fontWeight: "700", color: c.text },
+    letraRow: { flexDirection: "row", gap: 8 },
+    letraBoxActive: { backgroundColor: c.accent, borderColor: c.accent },
+    letraTextActive: { color: "#fff" },
+    letraNoteActive: { color: "rgba(255,255,255,0.8)" },
+    letraErrorText: { color: c.destructive },
     docHeaderSub: { fontSize: 12.5, color: c.textMuted, marginTop: 2 },
     changeTypeBtn: {
       paddingHorizontal: 16,
