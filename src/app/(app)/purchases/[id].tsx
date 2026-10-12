@@ -35,17 +35,6 @@ function money(n: number | null | undefined): string {
   return `$${Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
 }
 
-export function formatGarantia(val: string | null | undefined): string {
-  if (!val) return "";
-  const trimmed = val.trim();
-  if (!trimmed) return "";
-  if (/^\d+$/.test(trimmed)) {
-    const months = parseInt(trimmed, 10);
-    return `${months} ${months === 1 ? "mes" : "meses"}`;
-  }
-  return trimmed;
-}
-
 function remitoItemsSummary(r: RemitoWithLines, names: Map<number, string>): string {
   const parts = r.lineas.map(
     (l) => `${names.get(l.rep_id) ?? `Repuesto ${l.rep_id}`} ×${l.rcl_cantidad}`,
@@ -231,13 +220,6 @@ export default function PurchaseDetailScreen() {
                 <Text style={styles.metaLabel}>CUIT</Text>
                 <Text style={styles.metaValue}>{purchase.proveedores?.prov_cuit || "—"}</Text>
               </View>
-
-              {purchase.co_garantia ? (
-                <View style={styles.metaCol}>
-                  <Text style={styles.metaLabel}>GARANTÍA</Text>
-                  <Text style={styles.metaValue}>{formatGarantia(purchase.co_garantia)}</Text>
-                </View>
-              ) : null}
 
               {purchase.co_p_id_registrador ? (
                 <View style={styles.metaCol}>

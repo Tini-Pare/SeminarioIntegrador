@@ -14,17 +14,6 @@ function money(n: number | null | undefined): string {
   return `$${Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
 }
 
-export function formatGarantia(val: string | null | undefined): string {
-  if (!val) return "";
-  const trimmed = val.trim();
-  if (!trimmed) return "";
-  if (/^\d+$/.test(trimmed)) {
-    const months = parseInt(trimmed, 10);
-    return `${months} ${months === 1 ? "mes" : "meses"}`;
-  }
-  return trimmed;
-}
-
 export function PurchaseDetailModal({
   visible,
   onClose,
@@ -60,13 +49,7 @@ export function PurchaseDetailModal({
           </Text>
 
           <ScrollView style={styles.body}>
-            {(purchase?.co_garantia || registradorName) && (
-              <Text style={styles.meta}>
-                {purchase?.co_garantia ? `Garantía: ${formatGarantia(purchase.co_garantia)}` : ""}
-                {purchase?.co_garantia && registradorName ? "  ·  " : ""}
-                {registradorName ? `Registró: ${registradorName}` : ""}
-              </Text>
-            )}
+            {registradorName && <Text style={styles.meta}>Registró: {registradorName}</Text>}
 
             <View style={styles.tableHead}>
               <Text style={[styles.hCell, { flex: 2.2 }]}>REPUESTO</Text>

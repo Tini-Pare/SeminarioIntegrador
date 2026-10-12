@@ -77,7 +77,6 @@ export type RegisterPurchaseInput = {
   proveedorId: number;
   nombre: string | null;
   fecha: string | null;
-  garantia: string | null;
   // A remito has no unit cost; costoUnitario is null for those lines.
   lineas: { repId: number; cantidad: number; costoUnitario: number | null }[];
   // When set, the purchase fulfils this pedido_compra: registrar_compra
@@ -94,7 +93,9 @@ export async function registrarCompra(input: RegisterPurchaseInput): Promise<num
     p_prov_id_proveedor: input.proveedorId,
     p_co_nombre: input.nombre?.trim() || null,
     p_co_fecha_compra: input.fecha ?? null,
-    p_co_garantia: input.garantia?.trim() || null,
+    // Garantía was dropped from the form (profes' review); the RPC still
+    // takes the param, so it's sent empty.
+    p_co_garantia: null,
     p_lineas: input.lineas.map((l) => ({
       rep_id: l.repId,
       cantidad: l.cantidad,

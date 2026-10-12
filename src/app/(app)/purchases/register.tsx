@@ -45,7 +45,6 @@ export type PurchaseFormValidationInput = {
   puntoVenta: string;
   numero: string;
   fecha: string;
-  garantia: string;
   proveedorId: number | null;
   // The chosen supplier's CUIT (null if it has none loaded).
   proveedorCuit: string | null;
@@ -81,11 +80,6 @@ export function validatePurchaseRegistration(
   }
 
   if (!form.fecha.trim() || !isValidDateString(form.fecha)) {
-    missingCount++;
-  }
-
-  const garantiaNum = Number(form.garantia.trim());
-  if (!form.garantia.trim() || !Number.isInteger(garantiaNum) || garantiaNum <= 0) {
     missingCount++;
   }
 
@@ -311,7 +305,6 @@ export default function RegisterPurchaseScreen() {
   const [numero, setNumero] = useState("");
   const [proveedorId, setProveedorId] = useState<number | null>(null);
   const [fecha, setFecha] = useState(getTodayDateString());
-  const [garantia, setGarantia] = useState("");
   const [lines, setLines] = useState<LineDraft[]>(
     prefillLines ? prefillLines.map((l) => newLine(l.repId, String(l.cantidad))) : [newLine()],
   );
@@ -329,9 +322,6 @@ export default function RegisterPurchaseScreen() {
   const puntoVentaError = submitted && !puntoVenta.trim();
   const numeroError = submitted && !numero.trim();
   const fechaError = submitted && (!fecha.trim() || !isValidDateString(fecha));
-  const garantiaNum = Number(garantia.trim());
-  const garantiaError =
-    submitted && (!garantia.trim() || !Number.isInteger(garantiaNum) || garantiaNum <= 0);
   const proveedorError = submitted && !proveedorId;
 
   const repError = (l: LineDraft) => submitted && !l.repId;
@@ -383,11 +373,6 @@ export default function RegisterPurchaseScreen() {
     setLetra(null);
   }
 
-  const units = useMemo(
-    () => lines.reduce((acc, l) => acc + (Number(l.cantidad) || 0), 0),
-    [lines],
-  );
-
   const total = useMemo(
     () =>
       lines.reduce((acc, l) => {
@@ -409,7 +394,6 @@ export default function RegisterPurchaseScreen() {
       puntoVenta,
       numero,
       fecha,
-      garantia,
       proveedorId,
       proveedorCuit: selectedSupplier?.prov_cuit ?? null,
       lines,
@@ -429,7 +413,6 @@ export default function RegisterPurchaseScreen() {
         proveedorId: proveedorId!,
         nombre: numero.trim() || null,
         fecha: toDbDate(fecha),
-        garantia: garantia.trim(),
         lineas: validation.parsedLines,
         pedidoId: pedidoId ? Number(pedidoId) : null,
       });
@@ -495,22 +478,6 @@ export default function RegisterPurchaseScreen() {
       open={openField === "fecha"}
       onOpenChange={(o) => setOpenField(o ? "fecha" : null)}
       hasError={fechaError}
-    />
-  );
-
-  const garantiaField = (
-    <TextInput
-      style={[styles.input, garantiaError && styles.inputError]}
-      value={garantia}
-      onChangeText={(text) => {
-        setGarantia(text.replace(/[^0-9]/g, ""));
-        if (error) setError(null);
-      }}
-      placeholder="Ej: 24"
-      placeholderTextColor={colors.textMuted}
-      keyboardType="number-pad"
-      maxLength={5}
-      accessibilityLabel="Garantía (meses)"
     />
   );
 
@@ -877,11 +844,6 @@ export default function RegisterPurchaseScreen() {
                       <Text style={styles.smallLabel}>{docDateLabel(tipoComprobante)}</Text>
                       {fechaField}
                     </View>
-
-                    <View style={styles.docItem}>
-                      <Text style={styles.smallLabel}>Garantía (meses)</Text>
-                      {garantiaField}
-                    </View>
                   </View>
 
                   <View style={[styles.provRow, openField === "proveedor" && styles.docRowRaised]}>
@@ -909,11 +871,9 @@ export default function RegisterPurchaseScreen() {
 
                   {lineRows}
 
+                  {/* Only the money total: summing units of different
+                      repuestos gives a meaningless number. */}
                   <View style={styles.tableFooter}>
-                    <Text style={styles.summaryUnits}>
-                      Unidades a ingresar: <Text style={styles.summaryUnitsNum}>{units}</Text>
-                    </Text>
-
                     <Text style={styles.summaryTotal}>
                       Total del comprobante:{" "}
                       <Text style={styles.summaryTotalAmount}>{totalText}</Text>
@@ -921,22 +881,6 @@ export default function RegisterPurchaseScreen() {
                   </View>
                 </View>
               </>
-            )}
-
-            {tipoComprobante === "factura" && (
-              // Not printed on a factura, so it stays out of the factura box.
-              <View style={styles.extraSection}>
-                <Text style={styles.label}>Datos adicionales</Text>
-
-                <Text style={styles.linesSub}>No figuran en la factura</Text>
-
-                <View style={styles.extraRow}>
-                  <View style={styles.docItem}>
-                    <Text style={styles.smallLabel}>Garantía (meses)</Text>
-                    {garantiaField}
-                  </View>
-                </View>
-              </View>
             )}
 
             {error && <Text style={styles.error}>{error}</Text>}
@@ -1246,7 +1190,7 @@ function makeStyles(c: ThemeColors) {
     },
     tableFooter: {
       flexDirection: "row",
-      justifyContent: "space-between",
+      justifyContent: "flex-end",
       alignItems: "center",
       backgroundColor: c.eqOperational.bg,
       borderTopWidth: 1,
@@ -1255,17 +1199,6 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 14,
       borderBottomLeftRadius: 15,
       borderBottomRightRadius: 15,
-    },
-    summaryUnits: {
-      fontSize: 13.5,
-      color: c.textSecondary,
-      fontWeight: "500",
-    },
-    summaryUnitsNum: {
-      fontSize: 14,
-      fontWeight: "700",
-      color: c.text,
-      fontVariant: ["tabular-nums"],
     },
     summaryTotal: {
       fontSize: 15,
@@ -1395,14 +1328,5 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.eqOperational.bg,
     },
     invoiceTotalLabel: { fontSize: 15, fontWeight: "700", color: c.textLabel },
-    extraSection: {
-      marginTop: 16,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 16,
-      backgroundColor: c.bgCard,
-    },
-    extraRow: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginTop: 14 },
   });
 }
