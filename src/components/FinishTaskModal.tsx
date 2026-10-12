@@ -27,14 +27,15 @@ function normalize(text: string): string {
 
 // Asked right before finishTask (queue/index.tsx): qué repuestos usó el
 // técnico para esta tarea, si usó alguno — 0 líneas es una respuesta
-// válida (una tarea de solo inspección no consume nada). Same layout as the
-// tareas grid of an OT: a "Repuestos utilizados" grid that starts empty and
-// a "+ Repuesto" button (top right) that opens a search box to add them one
-// at a time, instead of listing the whole catalog. The quantity is typed
-// right in the grid row and validated against stock on Confirmar. Each
-// line is subtracted from current stock (finalizar_tarea, migración 0021).
-// Below the grid, an optional diagnóstico (HU of Sprint 5: dejar constancia
-// del estado del equipo), saved on the tarea (migración 0023).
+// válida (una tarea de solo inspección no consume nada). First an optional
+// diagnóstico (HU of Sprint 5: dejar constancia del estado del equipo),
+// saved on the tarea (migración 0023). Below it, same layout as the tareas
+// grid of an OT: a "Repuestos utilizados" grid that starts empty and a
+// "+ Repuesto" button (top right) that opens a search box to add them one
+// at a time. Matches only show up once something is typed, so the whole
+// catalog is never listed. The quantity is typed right in the grid row and
+// validated against stock on Confirmar. Each line is subtracted from
+// current stock (finalizar_tarea, migración 0021).
 export function FinishTaskModal({
   visible,
   onClose,
@@ -85,9 +86,10 @@ export function FinishTaskModal({
   const partById = new Map(spareParts.map((p) => [p.rep_id, p]));
   const addedIds = new Set(rows.map((r) => r.repId));
   const query = normalize(search.trim());
-  const results = spareParts.filter(
-    (p) => !addedIds.has(p.rep_id) && (!query || normalize(p.rep_nombre).includes(query)),
-  );
+  // Nothing is listed until at least one letter is typed.
+  const results = query
+    ? spareParts.filter((p) => !addedIds.has(p.rep_id) && normalize(p.rep_nombre).includes(query))
+    : [];
 
   function clearRowError(repId: number) {
     setRowErrors((prev) => {
@@ -168,6 +170,22 @@ export function FinishTaskModal({
               Si es la última tarea pendiente de la orden, la orden queda resuelta.
             </Text>
 
+            <Text style={styles.diagnosisLabel}>Diagnóstico / observaciones (opcional)</Text>
+
+            <TextInput
+              style={styles.diagnosisInput}
+              value={diagnosis}
+              onChangeText={setDiagnosis}
+              placeholder="Ej: se cambió el burlete; el equipo queda funcionando, revisar el compresor en el próximo service."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={3}
+              maxLength={500}
+              accessibilityLabel="Diagnóstico / observaciones"
+            />
+
+            <Text style={styles.diagnosisCount}>{diagnosis.length}/500</Text>
+
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Repuestos utilizados (opcional)</Text>
 
@@ -204,35 +222,35 @@ export function FinishTaskModal({
                   )}
                 </View>
 
-                <ScrollView style={styles.results} nestedScrollEnabled>
-                  {results.length === 0 ? (
-                    <Text style={styles.resultsEmpty}>
-                      {query
-                        ? "Ningún repuesto coincide con la búsqueda."
-                        : "No quedan más repuestos para agregar."}
-                    </Text>
-                  ) : (
-                    results.map((p) => {
-                      const outOfStock = p.rep_cantidad_actual <= 0;
-                      return (
-                        <Pressable
-                          key={p.rep_id}
-                          style={[styles.resultRow, outOfStock && styles.resultRowDisabled]}
-                          onPress={() => addPart(p)}
-                          disabled={outOfStock}
-                        >
-                          <Text style={styles.resultName} numberOfLines={1}>
-                            {p.rep_nombre}
-                          </Text>
+                {query.length > 0 && (
+                  <ScrollView style={styles.results} nestedScrollEnabled>
+                    {results.length === 0 ? (
+                      <Text style={styles.resultsEmpty}>
+                        Ningún repuesto coincide con la búsqueda.
+                      </Text>
+                    ) : (
+                      results.map((p) => {
+                        const outOfStock = p.rep_cantidad_actual <= 0;
+                        return (
+                          <Pressable
+                            key={p.rep_id}
+                            style={[styles.resultRow, outOfStock && styles.resultRowDisabled]}
+                            onPress={() => addPart(p)}
+                            disabled={outOfStock}
+                          >
+                            <Text style={styles.resultName} numberOfLines={1}>
+                              {p.rep_nombre}
+                            </Text>
 
-                          <Text style={styles.resultStock}>
-                            {outOfStock ? "Sin stock" : `Existencias: ${p.rep_cantidad_actual}`}
-                          </Text>
-                        </Pressable>
-                      );
-                    })
-                  )}
-                </ScrollView>
+                            <Text style={styles.resultStock}>
+                              {outOfStock ? "Sin stock" : `Existencias: ${p.rep_cantidad_actual}`}
+                            </Text>
+                          </Pressable>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+                )}
               </View>
             )}
 
@@ -300,22 +318,6 @@ export function FinishTaskModal({
                 })
               )}
             </View>
-
-            <Text style={styles.diagnosisLabel}>Diagnóstico / observaciones (opcional)</Text>
-
-            <TextInput
-              style={styles.diagnosisInput}
-              value={diagnosis}
-              onChangeText={setDiagnosis}
-              placeholder="Ej: se cambió el burlete; el equipo queda funcionando, revisar el compresor en el próximo service."
-              placeholderTextColor={colors.textMuted}
-              multiline
-              numberOfLines={3}
-              maxLength={500}
-              accessibilityLabel="Diagnóstico / observaciones"
-            />
-
-            <Text style={styles.diagnosisCount}>{diagnosis.length}/500</Text>
 
             {error && <Text style={styles.error}>{error}</Text>}
 

@@ -33,7 +33,9 @@ type TareaWithGeneral = TareaRow & {
   repuesto_para_tarea?: ConsumedPartRow[];
 };
 type OrdenWithTasks = OrdenRow & {
-  fallo_por_orden?: { fallo: FalloRow }[];
+  // The embedded fallo comes back null when RLS hides it from the caller
+  // (before 0024 the fallo catalog was admin-only), so always guard it.
+  fallo_por_orden?: { fallo: FalloRow | null }[];
   tareas_realizadas_orden?: TareaWithGeneral[];
 };
 export type SolicitudWithOrden = SolicitudRow & {
@@ -108,7 +110,7 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
     order_start_date: orden?.ot_fecha_inicio ?? null,
     order_end_date: orden?.ot_fecha_fin ?? null,
     order_planned_end_date: orden?.ot_fecha_estimada_fin ?? null,
-    fault_type_name: orden?.fallo_por_orden?.[0]?.fallo.fa_nombre ?? null,
+    fault_type_name: orden?.fallo_por_orden?.[0]?.fallo?.fa_nombre ?? null,
     tasks,
     photo_url: resolvePhotoUrls(row.solicitud_foto, row.sol_foto_url)[0] ?? null,
     photo_urls: resolvePhotoUrls(row.solicitud_foto, row.sol_foto_url),
@@ -547,7 +549,7 @@ type MyTaskRow = TareaRow & {
   repuesto_para_tarea?: ConsumedPartRow[];
   orden_de_trabajo:
     | (OrdenRow & {
-        fallo_por_orden?: { fallo: FalloRow }[];
+        fallo_por_orden?: { fallo: FalloRow | null }[];
         solicitudes:
           | (Pick<
               SolicitudRow,
@@ -586,7 +588,7 @@ export async function listMyTasks(): Promise<MyTask[]> {
       createdAt: sol?.sol_fecha_hora ?? "",
       photoUrl: photoUrls[0] ?? null,
       photoUrls,
-      faultTypeName: orden?.fallo_por_orden?.[0]?.fallo.fa_nombre ?? null,
+      faultTypeName: orden?.fallo_por_orden?.[0]?.fallo?.fa_nombre ?? null,
       consumedParts: mapConsumedParts(row.repuesto_para_tarea),
       diagnosis: row.taro_diagnostico,
     };

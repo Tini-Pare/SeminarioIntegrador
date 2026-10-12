@@ -77,10 +77,27 @@ describe("FinishTaskModal", () => {
     expect(onConfirm).toHaveBeenCalledWith([], "");
   });
 
+  it("lists no parts until at least one letter is typed", async () => {
+    const { getByText, queryByText, getByPlaceholderText } = await renderModal();
+
+    await fireEvent.press(getByText("+ Repuesto"));
+    expect(getByPlaceholderText("Buscar repuesto…")).toBeTruthy();
+    expect(queryByText("Cable de acero para tracción 10mm")).toBeNull();
+    expect(queryByText("Burlete de goma EPDM 2.0")).toBeNull();
+
+    await fireEvent.changeText(getByPlaceholderText("Buscar repuesto…"), "c");
+    expect(getByText("Cable de acero para tracción 10mm")).toBeTruthy();
+
+    // Clearing the box hides the list again.
+    await fireEvent.changeText(getByPlaceholderText("Buscar repuesto…"), "");
+    expect(queryByText("Cable de acero para tracción 10mm")).toBeNull();
+  });
+
   it("searches ignoring accents, hides inactive parts and blocks out-of-stock ones", async () => {
     const { getByText, queryByText, getByPlaceholderText } = await renderModal();
 
     await fireEvent.press(getByText("+ Repuesto"));
+    await fireEvent.changeText(getByPlaceholderText("Buscar repuesto…"), "repuesto");
     expect(queryByText("Repuesto dado de baja")).toBeNull();
 
     await fireEvent.changeText(getByPlaceholderText("Buscar repuesto…"), "camara");
