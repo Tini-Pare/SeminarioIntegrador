@@ -1,6 +1,15 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { AddTaskModal } from "../../../components/AddTaskModal";
 import { BackIcon } from "../../../components/icons";
 import {
@@ -92,6 +101,9 @@ export default function WorkOrderDetail() {
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  // 0 → 1 once the OT has loaded: the page fades in and slides up a little
+  // instead of popping in right after the spinner.
+  const appear = useRef(new Animated.Value(0)).current;
 
   const statusColors: Record<Solicitud["status"], { bg: string; fg: string }> = {
     new: colors.faultNew,
@@ -122,6 +134,17 @@ export default function WorkOrderDetail() {
   useEffect(() => {
     load().finally(() => setLoading(false));
   }, [load]);
+
+  useEffect(() => {
+    if (loading) return;
+    Animated.timing(appear, {
+      toValue: 1,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      // The native driver isn't available on web.
+      useNativeDriver: Platform.OS !== "web",
+    }).start();
+  }, [loading, appear]);
 
   useEffect(() => {
     listFaultTypes()
@@ -292,7 +315,18 @@ export default function WorkOrderDetail() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Animated.ScrollView
+        style={[
+          styles.container,
+          {
+            opacity: appear,
+            transform: [
+              { translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+            ],
+          },
+        ]}
+        contentContainerStyle={styles.content}
+      >
         <View style={styles.topBar}>
           <Pressable style={styles.backLink} onPress={() => router.back()}>
             <BackIcon />
@@ -626,7 +660,7 @@ export default function WorkOrderDetail() {
           El estado de la orden se calcula solo a partir de las tareas: pasa a “En curso” apenas
           algún técnico inicia la suya, y a “Resuelta” cuando todas están finalizadas.
         </Text>
-      </ScrollView>
+      </Animated.ScrollView>
 
       <AddTaskModal
         visible={addTaskOpen}
