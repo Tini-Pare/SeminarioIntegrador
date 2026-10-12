@@ -29,104 +29,15 @@ describe("formatGarantia", () => {
   });
 });
 
-describe("Warranty validation rules", () => {
-  function validateWarranty(val: string): { valid: boolean; error?: string } {
-    const trimmed = val.trim();
-    const num = Number(trimmed);
-    if (!trimmed || !Number.isInteger(num) || num <= 0) {
-      return { valid: false, error: "Ingresá la garantía en meses." };
-    }
-    return { valid: true };
-  }
-
-  it("accepts positive integer months", () => {
-    expect(validateWarranty("1")).toEqual({ valid: true });
-    expect(validateWarranty("12")).toEqual({ valid: true });
-    expect(validateWarranty("24")).toEqual({ valid: true });
-    expect(validateWarranty("36")).toEqual({ valid: true });
-  });
-
-  it("rejects empty or whitespace-only values", () => {
-    expect(validateWarranty("")).toEqual({
-      valid: false,
-      error: "Ingresá la garantía en meses.",
-    });
-    expect(validateWarranty("   ")).toEqual({
-      valid: false,
-      error: "Ingresá la garantía en meses.",
-    });
-  });
-
-  it("rejects 0 or negative numbers", () => {
-    expect(validateWarranty("0")).toEqual({
-      valid: false,
-      error: "Ingresá la garantía en meses.",
-    });
-    expect(validateWarranty("-5")).toEqual({
-      valid: false,
-      error: "Ingresá la garantía en meses.",
-    });
-  });
-
-  it("rejects decimals and non-numeric inputs", () => {
-    expect(validateWarranty("12.5")).toEqual({
-      valid: false,
-      error: "Ingresá la garantía en meses.",
-    });
-    expect(validateWarranty("abc")).toEqual({
-      valid: false,
-      error: "Ingresá la garantía en meses.",
-    });
-  });
-});
-
-describe("PurchaseModal lines LIFO behavior", () => {
-  type LineDraft = { key: string; repId: number | null; cantidad: string; costo: string };
-
-  it("prepends new lines to the list in LIFO order", () => {
-    let list: LineDraft[] = [{ key: "l0", repId: 1, cantidad: "5", costo: "100" }];
-
-    // Add a new line
-    const newLine1: LineDraft = { key: "l1", repId: 2, cantidad: "10", costo: "50" };
-    list = [newLine1, ...list];
-
-    expect(list).toHaveLength(2);
-    expect(list[0].key).toBe("l1");
-    expect(list[1].key).toBe("l0");
-
-    // Add another new line
-    const newLine2: LineDraft = { key: "l2", repId: 3, cantidad: "1", costo: "20" };
-    list = [newLine2, ...list];
-
-    expect(list).toHaveLength(3);
-    expect(list[0].key).toBe("l2");
-    expect(list[1].key).toBe("l1");
-    expect(list[2].key).toBe("l0");
-  });
-
-  it("removes target line without altering order of others", () => {
-    let list: LineDraft[] = [
-      { key: "l2", repId: 3, cantidad: "1", costo: "20" },
-      { key: "l1", repId: 2, cantidad: "10", costo: "50" },
-      { key: "l0", repId: 1, cantidad: "5", costo: "100" },
-    ];
-
-    list = list.filter((l) => l.key !== "l1");
-
-    expect(list).toHaveLength(2);
-    expect(list[0].key).toBe("l2");
-    expect(list[1].key).toBe("l0");
-  });
-});
-
 describe("validatePurchaseRegistration", () => {
   const validBaseForm = {
     tipoComprobante: "factura" as const,
+    letra: "A" as const,
     puntoVenta: "0001",
     numero: "00001111",
     fecha: "24/09/2026",
-    garantia: "12",
     proveedorId: 5,
+    proveedorCuit: "30-12345678-9",
     lines: [{ repId: 10, cantidad: "2", costo: "1500" }],
   };
 
@@ -171,14 +82,21 @@ describe("validatePurchaseRegistration", () => {
     });
   });
 
-  it("returns singular 'Completá el campo obligatorio.' when only garantia is missing", () => {
+  it("requires an invoice letter", () => {
     const result = validatePurchaseRegistration({
       ...validBaseForm,
-      garantia: "",
+      letra: null,
     });
     expect(result).toEqual({
       valid: false,
       error: "Completá el campo obligatorio.",
+    });
+  });
+
+  it("requires the selected supplier to have a CUIT", () => {
+    expect(validatePurchaseRegistration({ ...validBaseForm, proveedorCuit: null })).toEqual({
+      valid: false,
+      error: "El proveedor necesita un CUIT cargado para registrar la compra.",
     });
   });
 
@@ -232,8 +150,9 @@ describe("validatePurchaseRegistration", () => {
       puntoVenta: "",
       numero: "",
       fecha: "24/09/2026",
-      garantia: "",
+      letra: null,
       proveedorId: null,
+      proveedorCuit: null,
       lines: [{ repId: null, cantidad: "", costo: "" }],
     });
     expect(result).toEqual({
@@ -266,5 +185,15 @@ describe("validatePurchaseRegistration", () => {
       valid: false,
       error: "Completá el campo obligatorio.",
     });
+  });
+
+  it("accepts a remito without a point of sale but with unit costs", () => {
+    const result = validatePurchaseRegistration({
+      ...validBaseForm,
+      tipoComprobante: "remito",
+      letra: null,
+      puntoVenta: "",
+    });
+    expect(result.valid).toBe(true);
   });
 });

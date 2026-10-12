@@ -1,5 +1,6 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { PurchaseWithDetail } from "../lib/queries/purchases";
+import { purchaseDocumentReference } from "../lib/purchaseDocument";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -18,12 +19,6 @@ const TIPO_LABEL: Record<PurchaseWithDetail["co_tipo_comprobante"], string> = {
   remito: "Remito",
   tique: "Tique",
 };
-
-function comprobanteRef(p: PurchaseWithDetail): string | null {
-  if (p.co_punto_venta && p.co_nombre) return `${p.co_punto_venta}-${p.co_nombre}`;
-  if (p.co_nombre) return p.co_nombre;
-  return null;
-}
 
 export function formatGarantia(val: string | null | undefined): string {
   if (!val) return "";
@@ -65,8 +60,11 @@ export function PurchaseDetailModal({
           </View>
 
           <Text style={styles.subtitle}>
-            {purchase?.proveedores?.prov_nombre ?? "Compra"} · {formatDate(purchase?.co_fecha_compra ?? null)}
-            {purchase && comprobanteRef(purchase) ? ` · N.º ${comprobanteRef(purchase)}` : ""}
+            {purchase?.proveedores?.prov_nombre ?? "Compra"} ·{" "}
+            {formatDate(purchase?.co_fecha_compra ?? null)}
+            {purchase && purchaseDocumentReference(purchase)
+              ? ` · N.º ${purchaseDocumentReference(purchase)}`
+              : ""}
           </Text>
 
           <ScrollView style={styles.body}>

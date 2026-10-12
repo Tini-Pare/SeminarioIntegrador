@@ -15,7 +15,7 @@ import { RowActions } from "../../../components/RowActions";
 import { Select } from "../../../components/Select";
 import { getEquipmentById } from "../../../lib/queries/equipment";
 import {
-  addTaskToOrder,
+  addTasksToOrder,
   getSolicitudById,
   reassignTaskTechnician,
   updateOrderFaultType,
@@ -86,6 +86,7 @@ export default function WorkOrderDetail() {
   const [faultTypes, setFaultTypes] = useState<Fallo[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -103,15 +104,17 @@ export default function WorkOrderDetail() {
   };
 
   const load = useCallback(async () => {
-    if (!id || Number.isNaN(solicitudId)) return;
+    if (!id || Number.isNaN(solicitudId)) return false;
     setError(null);
     try {
       const [sol, profiles] = await Promise.all([getSolicitudById(solicitudId), listProfiles()]);
       setSolicitud(sol);
       setProfileById(new Map(profiles.map((p) => [p.id, p])));
       if (sol) setEquipment(await getEquipmentById(sol.equipment_id));
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     }
   }, [id, solicitudId]);
 
@@ -218,11 +221,21 @@ export default function WorkOrderDetail() {
     await save(() => updateOrderFaultType(solicitud.id, clear ? null : faultDraft));
   }
 
-  async function handleAddTask(input: { taskId: number; technicianId: string }) {
-    if (!solicitud) return;
-    await addTaskToOrder(solicitud.id, input);
-    await load();
+  async function handleAddTask(input: { taskIds: number[]; technicianId: string }) {
+    if (!solicitud || solicitud.order_id == null || solicitud.status === "resolved") {
+      throw new Error("La orden de trabajo ya no permite agregar tareas.");
+    }
+    setNotice(null);
+    const result = await addTasksToOrder(solicitud.id, input);
     setAddTaskOpen(false);
+    const refreshed = await load();
+    setNotice(
+      !refreshed
+        ? "Las tareas se guardaron, pero no se pudo actualizar la lista. Recargá la página."
+        : result.historyWarning
+          ? "Tareas agregadas. No se pudo registrar todo el historial."
+          : `${input.taskIds.length} ${input.taskIds.length === 1 ? "tarea agregada" : "tareas agregadas"} a la orden.`,
+    );
   }
 
   async function handleReassign(technicianId: string) {
@@ -283,6 +296,12 @@ export default function WorkOrderDetail() {
   // which would read as if someone were already on it.
   const statusLabel =
     s.tasks.length === 0 && s.status === "assigned" ? "Sin tareas" : STATUS_LABELS[s.status];
+  const tasksByTechnician = new Map<string, SolicitudTask[]>();
+  for (const task of s.tasks) {
+    const tasks = tasksByTechnician.get(task.technicianId) ?? [];
+    tasks.push(task);
+    tasksByTechnician.set(task.technicianId, tasks);
+  }
 
   return (
     <>
@@ -521,83 +540,108 @@ export default function WorkOrderDetail() {
 
         {error && <Text style={styles.formError}>{error}</Text>}
 
+        {notice && <Text style={styles.successNotice}>{notice}</Text>}
+
         <View style={styles.tasksHeader}>
           <Text style={styles.sectionTitle}>Tareas</Text>
 
           {!isResolved && (
             <Pressable style={styles.addTaskButton} onPress={() => setAddTaskOpen(true)}>
-              <Text style={styles.addTaskButtonText}>+ Agregar tarea</Text>
+              <Text style={styles.addTaskButtonText}>+ Agregar tareas</Text>
             </Pressable>
           )}
         </View>
 
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 1.6 }]}>TAREA</Text>
-            <Text style={[styles.headerCell, { flex: 1.3 }]}>TÉCNICO</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
-            <Text style={[styles.headerCell, { flex: 0.9 }]}>INICIO</Text>
-            <Text style={[styles.headerCell, { flex: 0.9 }]}>FIN</Text>
-            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+            <Text style={[styles.headerCell, styles.technicianColumn]}>TÉCNICO</Text>
+
+            <View style={[styles.row2, styles.taskColumns]}>
+              <Text style={[styles.headerCell, { flex: 1.6 }]}>TAREA</Text>
+              <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
+              <Text style={[styles.headerCell, { flex: 0.9 }]}>INICIO</Text>
+              <Text style={[styles.headerCell, { flex: 0.9 }]}>FIN</Text>
+              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+            </View>
           </View>
 
           {s.tasks.length === 0 ? (
             <Text style={styles.empty}>
-              Todavía no se agregó ninguna tarea. Usá “+ Agregar tarea” para cargar la primera con
+              Todavía no se agregó ninguna tarea. Usá “+ Agregar tareas” para cargar la primera con
               su técnico.
             </Text>
           ) : (
-            s.tasks.map((task, i) => (
-              <View key={task.id} style={[styles.rowWrap, i % 2 === 1 && styles.rowAlt]}>
-                <View style={styles.row2}>
-                  <Text
-                    style={[styles.cellText, styles.cellStrong, { flex: 1.6 }]}
-                    numberOfLines={2}
-                  >
-                    {task.taskName}
+            Array.from(tasksByTechnician, ([technicianId, tasks], groupIndex) => (
+              <View
+                key={technicianId}
+                style={[styles.technicianGroup, groupIndex % 2 === 1 && styles.rowAlt]}
+              >
+                <View style={styles.technicianColumn}>
+                  <Text style={styles.technicianName}>
+                    {profileById.get(technicianId)?.name ?? "Técnico desconocido"}
                   </Text>
 
-                  <Text style={[styles.cellText, { flex: 1.3 }]} numberOfLines={1}>
-                    {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"}
+                  <Text style={styles.technicianTaskCount}>
+                    {tasks.length} {tasks.length === 1 ? "tarea" : "tareas"}
                   </Text>
-
-                  <Text style={[styles.cellText, { flex: 1 }]}>{taskStatusLabel(task)}</Text>
-
-                  <Text style={[styles.cellText, { flex: 0.9 }]}>
-                    {fromDbDate(task.startDate) || "—"}
-                  </Text>
-
-                  <Text style={[styles.cellText, { flex: 0.9 }]}>
-                    {fromDbDate(task.endDate) || "—"}
-                  </Text>
-
-                  <View style={styles.actionsCol}>
-                    {!task.endDate && (
-                      <RowActions
-                        onEdit={() => setReassigningTask(task)}
-                        editTooltip="Reasignar técnico"
-                      />
-                    )}
-                  </View>
                 </View>
 
-                {(task.consumedParts.length > 0 || task.diagnosis) && (
-                  <View style={styles.consumedRow}>
-                    {task.consumedParts.length > 0 && (
-                      <Text style={styles.consumedText}>
-                        <Text style={styles.consumedLabel}>Repuestos usados: </Text>
-                        {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
-                      </Text>
-                    )}
+                <View style={styles.taskColumns}>
+                  {tasks.map((task, taskIndex) => (
+                    <View
+                      key={task.id}
+                      style={[styles.taskRow, taskIndex > 0 && styles.taskDivider]}
+                    >
+                      <View style={styles.row2}>
+                        <Text
+                          style={[styles.cellText, styles.cellStrong, { flex: 1.6 }]}
+                          numberOfLines={2}
+                        >
+                          {task.taskName}
+                        </Text>
 
-                    {task.diagnosis && (
-                      <Text style={styles.consumedText}>
-                        <Text style={styles.consumedLabel}>Diagnóstico: </Text>
-                        {task.diagnosis}
-                      </Text>
-                    )}
-                  </View>
-                )}
+                        <Text style={[styles.cellText, { flex: 1 }]}>{taskStatusLabel(task)}</Text>
+
+                        <Text style={[styles.cellText, { flex: 0.9 }]}>
+                          {fromDbDate(task.startDate) || "—"}
+                        </Text>
+
+                        <Text style={[styles.cellText, { flex: 0.9 }]}>
+                          {fromDbDate(task.endDate) || "—"}
+                        </Text>
+
+                        <View style={styles.actionsCol}>
+                          {!task.endDate && (
+                            <RowActions
+                              onEdit={() => setReassigningTask(task)}
+                              editTooltip="Reasignar técnico"
+                            />
+                          )}
+                        </View>
+                      </View>
+
+                      {(task.consumedParts.length > 0 || task.diagnosis) && (
+                        <View style={styles.consumedRow}>
+                          {task.consumedParts.length > 0 && (
+                            <Text style={styles.consumedText}>
+                              <Text style={styles.consumedLabel}>Repuestos usados: </Text>
+                              {task.consumedParts
+                                .map((p) => `${p.nombre} ×${p.cantidad}`)
+                                .join(" · ")}
+                            </Text>
+                          )}
+
+                          {task.diagnosis && (
+                            <Text style={styles.consumedText}>
+                              <Text style={styles.consumedLabel}>Diagnóstico: </Text>
+                              {task.diagnosis}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
               </View>
             ))
           )}
@@ -724,6 +768,7 @@ function makeStyles(c: ThemeColors) {
     },
     dateSaveText: { color: "#fff", fontWeight: "600", fontSize: 13 },
     formError: { color: c.destructive, marginTop: 10, fontSize: 13 },
+    successNotice: { color: c.success, marginTop: 10, fontSize: 13, fontWeight: "600" },
     tasksHeader: {
       zIndex: 0,
       flexDirection: "row",
@@ -766,12 +811,18 @@ function makeStyles(c: ThemeColors) {
     },
     actionsCol: { width: 90, flexShrink: 0 },
     empty: { color: c.textMuted, fontSize: 13.5, padding: 18 },
-    rowWrap: {
+    technicianGroup: {
+      flexDirection: "row",
       paddingHorizontal: 18,
-      paddingVertical: 14,
       borderBottomWidth: 1,
       borderBottomColor: c.borderRow,
     },
+    technicianColumn: { width: "22%", paddingRight: 12 },
+    technicianName: { marginTop: 14, fontSize: 13.5, fontWeight: "600", color: c.text },
+    technicianTaskCount: { marginTop: 4, fontSize: 12, color: c.textMuted },
+    taskColumns: { flex: 1, minWidth: 0 },
+    taskRow: { paddingVertical: 14 },
+    taskDivider: { borderTopWidth: 1, borderTopColor: c.borderRow },
     row2: { flexDirection: "row", alignItems: "center" },
     rowAlt: { backgroundColor: c.bgRowAlt },
     cellText: { fontSize: 13.5, color: c.textLabel, paddingRight: 8 },

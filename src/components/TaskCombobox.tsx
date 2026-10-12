@@ -21,21 +21,31 @@ export function TaskCombobox({
   onChangeText,
   options,
   onSelectOption,
+  selectedValues,
+  onToggleOption,
+  onAddManual,
   placeholder = "Escribí o elegí una tarea",
   disabled = false,
+  inline = false,
   open: openProp,
   onOpenChange,
   hasError = false,
+  accessibilityLabel,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   options: TaskOption[];
   onSelectOption?: (option: TaskOption) => void;
+  selectedValues?: number[];
+  onToggleOption?: (option: TaskOption) => void;
+  onAddManual?: (name: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  inline?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hasError?: boolean;
+  accessibilityLabel?: string;
 }) {
   const [openState, setOpenState] = useState(false);
   const controlled = openProp !== undefined;
@@ -55,6 +65,7 @@ export function TaskCombobox({
   const { colors } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
   const styles = makeStyles(colors, flipVertical);
+  const multiple = selectedValues !== undefined && onToggleOption !== undefined;
 
   useEffect(() => {
     if (open) {
@@ -92,6 +103,9 @@ export function TaskCombobox({
   }
 
   function handleUseManual() {
+    if (multiple) {
+      onAddManual?.(value.trim());
+    }
     setOpen(false);
   }
 
@@ -115,6 +129,7 @@ export function TaskCombobox({
           }}
           onFocus={() => !disabled && setOpen(true)}
           placeholder={placeholder}
+          accessibilityLabel={accessibilityLabel ?? placeholder}
           placeholderTextColor={colors.textMuted}
           editable={!disabled}
           autoCorrect={false}
@@ -139,11 +154,13 @@ export function TaskCombobox({
         <>
           <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
 
-          <View style={styles.dropdown}>
+          <View style={[styles.dropdown, inline && styles.dropdownInline]}>
             <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
               {showManualOption && (
                 <Pressable style={styles.manualOption} onPress={handleUseManual}>
-                  <Text style={styles.manualOptionPrefix}>➕ Usar tarea manual:</Text>
+                  <Text style={styles.manualOptionPrefix}>
+                    {multiple ? "➕ Agregar tarea manual:" : "➕ Usar tarea manual:"}
+                  </Text>
 
                   <Text style={styles.manualOptionName} numberOfLines={1}>
                     "{value.trim()}"
@@ -152,16 +169,27 @@ export function TaskCombobox({
               )}
 
               {filtered.length === 0 && !showManualOption ? (
-                <Text style={styles.noResults}>Sin sugerencias (se guardará lo escrito)</Text>
+                <Text style={styles.noResults}>
+                  {multiple
+                    ? "No hay tareas para seleccionar"
+                    : "Sin sugerencias (se guardará lo escrito)"}
+                </Text>
               ) : (
                 filtered.map((opt) => {
-                  const isSelected = opt.label.trim().toLowerCase() === q;
+                  const isSelected = multiple
+                    ? selectedValues.includes(opt.value)
+                    : opt.label.trim().toLowerCase() === q;
                   return (
                     <Pressable
                       key={opt.value}
                       style={[styles.option, isSelected && styles.optionActive]}
-                      onPress={() => handleSelect(opt)}
+                      onPress={() => (multiple ? onToggleOption(opt) : handleSelect(opt))}
+                      accessibilityRole={multiple ? "checkbox" : undefined}
+                      accessibilityState={multiple ? { checked: isSelected } : undefined}
+                      accessibilityLabel={opt.label}
                     >
+                      {multiple && <Text style={styles.optionCheck}>{isSelected ? "☑" : "☐"}</Text>}
+
                       <Text
                         style={[styles.optionText, isSelected && styles.optionTextActive]}
                         numberOfLines={1}
@@ -257,6 +285,7 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       elevation: 8,
       ...(Platform.OS === "web" ? { boxShadow: "0px 6px 16px rgba(0, 0, 0, 0.35)" } : {}),
     },
+    dropdownInline: { position: "relative", top: 0, bottom: undefined, marginTop: 4 },
     manualOption: {
       paddingHorizontal: 14,
       paddingVertical: 10,
@@ -279,7 +308,8 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       color: c.text,
     },
     noResults: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 13, color: c.textMuted },
-    option: { paddingHorizontal: 14, paddingVertical: 10 },
+    option: { paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", gap: 8 },
+    optionCheck: { fontSize: 17, color: c.accent },
     optionActive: { backgroundColor: c.bgNested },
     optionText: { fontSize: 13.5, color: c.text },
     optionTextActive: { fontWeight: "700", color: c.accent },

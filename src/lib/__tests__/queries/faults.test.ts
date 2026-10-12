@@ -8,6 +8,7 @@ jest.mock("../../supabase", () => ({
 
 import {
   addTaskToOrder,
+  addTasksToOrder,
   closeSolicitud,
   createFault,
   finishTask,
@@ -617,6 +618,88 @@ describe("addTaskToOrder", () => {
         hi_nota: expect.stringContaining("Cambio de filtro"),
       }),
     );
+  });
+});
+
+describe("addTasksToOrder", () => {
+  function mockBatch(insertError: { message: string } | null = null) {
+    const orderSingle = jest.fn().mockResolvedValue({
+      data: { ot_id_orden: 7, eq_id_equipo: 5 },
+      error: null,
+    });
+    const technicianSingle = jest.fn().mockResolvedValue({
+      data: { role: "technician", active: true },
+      error: null,
+    });
+    const insertSelect = jest.fn().mockResolvedValue({
+      data: insertError
+        ? null
+        : [
+            { tareas_generales: { tag_nombre_tarea: "Filtro" } },
+            { tareas_generales: { tag_nombre_tarea: "Drenaje" } },
+          ],
+      error: insertError,
+    });
+    const insert = jest.fn().mockReturnValue({ select: insertSelect });
+    const insertHistory = jest.fn().mockResolvedValue({ error: null });
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "admin1" } } },
+    });
+    (supabase.from as jest.Mock).mockImplementation((table: string) => {
+      if (table === "orden_de_trabajo") {
+        return { select: () => ({ eq: () => ({ single: orderSingle }) }) };
+      }
+      if (table === "profiles") {
+        return { select: () => ({ eq: () => ({ single: technicianSingle }) }) };
+      }
+      if (table === "tareas_realizadas_orden") return { insert };
+      if (table === "historial") return { insert: insertHistory };
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    return { insert, insertHistory, technicianSingle };
+  }
+
+  it("inserts one independent row per selected task with the same technician", async () => {
+    const { insert, insertHistory } = mockBatch();
+
+    const result = await addTasksToOrder(1, { taskIds: [4, 5], technicianId: "tec2" });
+
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledWith([
+      { ot_id_orden: 7, tag_id_tarea: 4, p_id_tecnico: "tec2" },
+      { ot_id_orden: 7, tag_id_tarea: 5, p_id_tecnico: "tec2" },
+    ]);
+    expect(insertHistory).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ historyWarning: false });
+  });
+
+  it("keeps the existing duplicate rule by passing repeated task IDs through", async () => {
+    const { insert } = mockBatch();
+    await addTasksToOrder(1, { taskIds: [4, 4], technicianId: "tec2" });
+    expect(insert).toHaveBeenCalledWith([
+      { ot_id_orden: 7, tag_id_tarea: 4, p_id_tecnico: "tec2" },
+      { ot_id_orden: 7, tag_id_tarea: 4, p_id_tecnico: "tec2" },
+    ]);
+  });
+
+  it("reports insert failure without claiming success or writing history", async () => {
+    const { insertHistory } = mockBatch({ message: "No se pudo insertar" });
+    await expect(addTasksToOrder(1, { taskIds: [4, 5], technicianId: "tec2" })).rejects.toThrow(
+      "No se pudo insertar",
+    );
+    expect(insertHistory).not.toHaveBeenCalled();
+  });
+
+  it("rejects an inactive technician before inserting", async () => {
+    const { insert, technicianSingle } = mockBatch();
+    technicianSingle.mockResolvedValue({
+      data: { role: "technician", active: false },
+      error: null,
+    });
+    await expect(addTasksToOrder(1, { taskIds: [4], technicianId: "tec2" })).rejects.toThrow(
+      "ya no está disponible",
+    );
+    expect(insert).not.toHaveBeenCalled();
   });
 });
 

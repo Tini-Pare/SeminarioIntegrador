@@ -34,6 +34,7 @@ export function Select<T extends number | string = number>({
   open: openProp,
   onOpenChange,
   hasError = false,
+  accessibilityLabel,
 }: {
   value: T | null;
   onChange: (v: T) => void;
@@ -44,6 +45,7 @@ export function Select<T extends number | string = number>({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hasError?: boolean;
+  accessibilityLabel?: string;
 }) {
   const [openState, setOpenState] = useState(false);
   const controlled = openProp !== undefined;
@@ -104,6 +106,9 @@ export function Select<T extends number | string = number>({
       <Pressable
         style={[styles.control, disabled && styles.disabled, hasError && styles.controlError]}
         onPress={() => !disabled && setOpen(!open)}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? placeholder}
+        accessibilityState={{ disabled, expanded: open }}
       >
         <Text style={selected ? styles.valueText : styles.placeholderText} numberOfLines={1}>
           {selected ? selected.label : placeholder}
@@ -135,6 +140,8 @@ export function Select<T extends number | string = number>({
                   <Pressable
                     key={opt.value}
                     style={styles.option}
+                    accessibilityRole="button"
+                    accessibilityLabel={opt.label}
                     onPress={() => {
                       onChange(opt.value);
                       setOpen(false);

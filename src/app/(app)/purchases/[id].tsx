@@ -12,6 +12,7 @@ import {
   type RemitoWithLines,
 } from "../../../lib/queries/purchases";
 import { listProfiles } from "../../../lib/queries/profiles";
+import { purchaseDocumentReference } from "../../../lib/purchaseDocument";
 import {
   RECEIPT_STATE_LABEL,
   lineReceiptState,
@@ -46,12 +47,6 @@ export function formatGarantia(val: string | null | undefined): string {
 }
 
 const TIPO_LABEL = { factura: "Factura", remito: "Remito", tique: "Tique" } as const;
-
-function comprobanteRef(p: PurchaseWithDetail): string | null {
-  if (p.co_punto_venta && p.co_nombre) return `${p.co_punto_venta}-${p.co_nombre}`;
-  if (p.co_nombre) return p.co_nombre;
-  return null;
-}
 
 function remitoItemsSummary(r: RemitoWithLines, names: Map<number, string>): string {
   const parts = r.lineas.map(
@@ -229,7 +224,9 @@ export default function PurchaseDetailScreen() {
 
             <Text style={styles.headerSub}>
               {formatDate(purchase.co_fecha_compra)}
-              {comprobanteRef(purchase) ? ` · N.º ${comprobanteRef(purchase)}` : ""}
+              {purchaseDocumentReference(purchase)
+                ? ` · N.º ${purchaseDocumentReference(purchase)}`
+                : ""}
             </Text>
 
             <View style={styles.metaRow}>

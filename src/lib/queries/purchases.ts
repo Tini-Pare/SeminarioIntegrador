@@ -75,7 +75,7 @@ export type RegisterPurchaseInput = {
   nombre: string | null;
   fecha: string | null;
   garantia: string | null;
-  // A remito has no unit cost; costoUnitario is null for those lines.
+  // The registration form records the supplier's unit cost for every document type.
   lineas: { repId: number; cantidad: number; costoUnitario: number | null }[];
   // When set, the purchase fulfils this pedido_compra: registrar_compra
   // links it and flips the pedido to 'recibido' in the same transaction.

@@ -431,6 +431,58 @@ export async function addTaskToOrder(
   await logHistorial(orden.eq_id_equipo, "Asignada", `Tarea agregada a la orden: ${taskName}`);
 }
 
+// PostgREST sends this array as one INSERT statement, so an insert failure
+// cannot leave only some of the selected assignments in the order.
+export async function addTasksToOrder(
+  solicitudId: number,
+  input: { taskIds: number[]; technicianId: string },
+): Promise<{ historyWarning: boolean }> {
+  if (!input.technicianId || input.taskIds.length === 0) {
+    throw new Error("Elegí un técnico y al menos una tarea.");
+  }
+
+  const { data: orden, error: orderError } = await supabase
+    .from("orden_de_trabajo")
+    .select("ot_id_orden, eq_id_equipo")
+    .eq("sol_id_solicitud", solicitudId)
+    .single();
+  if (orderError || !orden) throw new Error("La orden de trabajo ya no está disponible.");
+
+  const { data: technician, error: technicianError } = await supabase
+    .from("profiles")
+    .select("role, active")
+    .eq("id", input.technicianId)
+    .single();
+  if (technicianError || technician?.role !== "technician" || !technician.active) {
+    throw new Error("El técnico seleccionado ya no está disponible.");
+  }
+
+  const { data: tasks, error: insertError } = await supabase
+    .from("tareas_realizadas_orden")
+    .insert(
+      input.taskIds.map((taskId) => ({
+        ot_id_orden: orden.ot_id_orden,
+        tag_id_tarea: taskId,
+        p_id_tecnico: input.technicianId,
+      })),
+    )
+    .select("*, tareas_generales(tag_nombre_tarea)");
+  if (insertError) throw new Error(insertError.message);
+
+  const historyResults = await Promise.allSettled(
+    (tasks ?? []).map((task) => {
+      const taskName =
+        (task.tareas_generales as { tag_nombre_tarea: string } | null)?.tag_nombre_tarea ?? "Tarea";
+      return logHistorial(orden.eq_id_equipo, "Asignada", `Tarea agregada a la orden: ${taskName}`);
+    }),
+  );
+  return {
+    historyWarning:
+      (tasks ?? []).length !== input.taskIds.length ||
+      historyResults.some((result) => result.status === "rejected"),
+  };
+}
+
 // SCRUM-26: reasignar el técnico de una tarea puntual (no de toda la OT —
 // cada tarea tiene el suyo).
 export async function reassignTaskTechnician(taskId: number, technicianId: string): Promise<void> {
