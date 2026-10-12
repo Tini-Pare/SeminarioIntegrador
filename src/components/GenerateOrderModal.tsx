@@ -4,6 +4,7 @@ import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Solicitud } from "../types/database";
 import { FormFooter } from "./FormFooter";
+import { OrderFlowSteps } from "./OrderFlowSteps";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 
 type Priority = Exclude<Solicitud["priority"], null>;
@@ -105,6 +106,8 @@ export function GenerateOrderModal({
 
           <Text style={styles.subtitle}>{equipmentLabel}</Text>
 
+          <OrderFlowSteps stage="orden" style={styles.steps} compact />
+
           <Text style={styles.message}>
             Al confirmar, se abre la orden para cargar tareas, técnicos y falla genérica.
           </Text>
@@ -155,6 +158,7 @@ function makeStyles(c: ThemeColors) {
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
+    steps: { marginTop: 16 },
     message: { marginTop: 16, fontSize: 14, color: c.textLabel, lineHeight: 20 },
     label: {
       fontSize: 12.5,

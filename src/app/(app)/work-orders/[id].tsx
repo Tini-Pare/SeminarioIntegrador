@@ -18,6 +18,7 @@ import {
   isValidDateString,
   toDbDate,
 } from "../../../components/CustomDatePicker";
+import { OrderFlowSteps } from "../../../components/OrderFlowSteps";
 import { PhotoCarousel } from "../../../components/PhotoCarousel";
 import { ReassignTechnicianModal } from "../../../components/ReassignTechnicianModal";
 import { RowActions } from "../../../components/RowActions";
@@ -334,6 +335,10 @@ export default function WorkOrderDetail() {
             <Text style={styles.backText}>Volver a órdenes de trabajo</Text>
           </Pressable>
         </View>
+
+        {/* Last step of Solicitud → OT → Tareas: shown until the OT gets
+            its first tarea, then the flow is done and it goes away. */}
+        {s.tasks.length === 0 && <OrderFlowSteps stage="tareas" style={styles.flowSteps} />}
 
         {showCreated && (
           <View style={styles.createdBanner}>
@@ -724,6 +729,7 @@ function makeStyles(c: ThemeColors) {
     },
     orderNumber: { fontFamily: "monospace", fontSize: 15, fontWeight: "700", color: c.accent },
     code: { fontFamily: "monospace", fontSize: 13, color: c.textMuted },
+    flowSteps: { marginBottom: 16 },
     createdBanner: {
       flexDirection: "row",
       alignItems: "center",

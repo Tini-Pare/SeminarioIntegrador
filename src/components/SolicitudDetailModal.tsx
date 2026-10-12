@@ -13,6 +13,7 @@ import {
 import { fromDbDate } from "./CustomDatePicker";
 import { CloseWithoutOrderModal } from "./CloseWithoutOrderModal";
 import { GenerateOrderModal } from "./GenerateOrderModal";
+import { OrderFlowSteps } from "./OrderFlowSteps";
 import { CalendarIcon, UserIcon } from "./icons";
 import { Sigla, withSiglas } from "./Sigla";
 import { formatOrderNumber } from "../lib/orderNumber";
@@ -442,6 +443,9 @@ export function SolicitudDetailModal({
             <View style={styles.footer}>
               {s.status === "new" && (
                 <>
+                  {/* Next step of the flow is right below: Generar OT. */}
+                  <OrderFlowSteps stage="solicitud" style={styles.flowSteps} />
+
                   <View style={styles.actions}>
                     <Pressable
                       style={styles.secondaryButton}
@@ -969,6 +973,7 @@ function makeStyles(c: ThemeColors) {
       borderTopWidth: 1,
       borderTopColor: c.borderRow,
     },
+    flowSteps: { marginBottom: 14 },
     actions: { flexDirection: "row", gap: 10 },
     secondaryButton: {
       flex: 1,

@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { BackIcon, CheckIcon, TrashIcon } from "../../../components/icons";
+import { BackIcon, TrashIcon } from "../../../components/icons";
 import {
   CustomDatePicker,
   getTodayDateString,
@@ -20,6 +20,7 @@ import {
 } from "../../../components/CustomDatePicker";
 import { FormFooter } from "../../../components/FormFooter";
 import { Select } from "../../../components/Select";
+import { StepIndicator } from "../../../components/StepIndicator";
 import { registrarCompra } from "../../../lib/queries/purchases";
 import { listSpareParts } from "../../../lib/queries/spareParts";
 import { listSuppliers, type SupplierWithRubro } from "../../../lib/queries/suppliers";
@@ -628,51 +629,17 @@ export default function RegisterPurchaseScreen() {
               : "Al guardar queda pendiente de recepción. El stock se suma después, cargando remitos desde el detalle de la compra."}
         </Text>
 
-        <View style={styles.steps}>
-          <Pressable
-            style={styles.stepItem}
-            onPress={backToStep1}
-            disabled={tipoComprobante == null}
-          >
-            <View
-              style={[
-                styles.stepDot,
-                (tipoComprobante == null || tipoComprobante != null) && styles.stepDotActive,
-              ]}
-            >
-              {tipoComprobante != null ? (
-                <CheckIcon size={13} color="#fff" />
-              ) : (
-                <Text style={styles.stepDotTextActive}>1</Text>
-              )}
-            </View>
-
-            <Text
-              style={[
-                styles.stepLabel,
-                (tipoComprobante == null || tipoComprobante != null) && styles.stepLabelActive,
-              ]}
-            >
-              Tipo de comprobante
-            </Text>
-          </Pressable>
-
-          <View style={[styles.stepLine, tipoComprobante != null && styles.stepLineActive]} />
-
-          <View style={styles.stepItem}>
-            <View style={[styles.stepDot, tipoComprobante != null && styles.stepDotActive]}>
-              <Text
-                style={[styles.stepDotText, tipoComprobante != null && styles.stepDotTextActive]}
-              >
-                2
-              </Text>
-            </View>
-
-            <Text style={[styles.stepLabel, tipoComprobante != null && styles.stepLabelActive]}>
-              Datos y detalle
-            </Text>
-          </View>
-        </View>
+        <StepIndicator
+          style={styles.steps}
+          steps={[
+            {
+              label: "Tipo de comprobante",
+              state: tipoComprobante ? "done" : "current",
+              onPress: backToStep1,
+            },
+            { label: "Datos y detalle", state: tipoComprobante ? "current" : "upcoming" },
+          ]}
+        />
 
         {tipoComprobante == null ? (
           <View style={styles.docCards}>
@@ -908,25 +875,7 @@ function makeStyles(c: ThemeColors) {
     backText: { color: c.textLabel, fontSize: 13.5 },
     pageTitle: { fontSize: 28, fontWeight: "600", letterSpacing: -0.5, color: c.text },
     pageSubtitle: { marginTop: 6, fontSize: 14.5, color: c.textSecondary, maxWidth: 620 },
-    steps: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 24 },
-    stepItem: { flexDirection: "row", alignItems: "center", gap: 8 },
-    stepDot: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor: c.bgNested,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: c.borderInput,
-    },
-    stepDotActive: { backgroundColor: c.accent, borderColor: c.accent },
-    stepDotText: { fontSize: 12, fontWeight: "700", color: c.textMuted },
-    stepDotTextActive: { color: "#fff", fontSize: 12, fontWeight: "700" },
-    stepLabel: { fontSize: 13.5, fontWeight: "500", color: c.textMuted },
-    stepLabelActive: { color: c.text, fontWeight: "700" },
-    stepLine: { width: 32, height: 2, backgroundColor: c.border },
-    stepLineActive: { backgroundColor: c.accent },
+    steps: { marginTop: 24 },
     body: { marginTop: 24 },
     // No flexWrap: the 3 cards must always stay in a single row (they'd
     // wrap to 2+1 — and grow unevenly, since the lone wrapped card fills
