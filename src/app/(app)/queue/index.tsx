@@ -22,8 +22,10 @@ import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { usePagination } from "../../../lib/usePagination";
 import { FinishTaskModal } from "../../../components/FinishTaskModal";
-import { LocationIcon, WarningIcon } from "../../../components/icons";
+import { CalendarIcon, LocationIcon, UserIcon, WarningIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
+import { withSiglas } from "../../../components/Sigla";
+import { formatOrderNumber } from "../../../lib/orderNumber";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
@@ -268,39 +270,87 @@ export default function QueueScreen() {
             return (
               <View key={item.taskRowId} style={styles.card}>
                 <View style={styles.cardTop}>
-                  {item.photoUrl ? (
-                    <Image source={{ uri: item.photoUrl }} style={styles.photo} />
-                  ) : (
-                    <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
-                      <WarningIcon size={20} color={prio.fg} />
-                    </View>
-                  )}
-
-                  <View style={styles.cardMain}>
-                    <Text style={styles.taskName}>{item.taskName}</Text>
-
-                    <View style={styles.row}>
-                      <Text style={styles.equipmentName}>{item.equipment.name}</Text>
-                      <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
-                    </View>
-
-                    <View style={styles.row}>
-                      <View style={[styles.badge, { backgroundColor: colors.bgToggle }]}>
-                        <Text style={[styles.badgeText, { color: colors.textLabel }]}>
-                          {taskStatusLabel(item)}
-                        </Text>
+                  <View style={styles.cardIdentity}>
+                    {item.photoUrl ? (
+                      <Image source={{ uri: item.photoUrl }} style={styles.photo} />
+                    ) : (
+                      <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
+                        <WarningIcon size={20} color={prio.fg} />
                       </View>
-
-                      <View style={[styles.badge, { backgroundColor: prio.bg }]}>
-                        <Text style={[styles.badgeText, { color: prio.fg }]}>
-                          Prioridad {PRIORITY_LABELS[item.priority]}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {item.faultTypeName && (
-                      <Text style={styles.faultTypeText}>Falla: {item.faultTypeName}</Text>
                     )}
+
+                    <View style={styles.cardMain}>
+                      {/* Which OT this tarea belongs to, so the técnico can refer
+                          to it ("estoy con la OT-0027"). */}
+                      <View style={styles.row}>
+                        <View style={styles.orderPill}>
+                          <Text style={styles.orderPillText}>
+                            {withSiglas(formatOrderNumber(item.orderId))}
+                          </Text>
+                        </View>
+
+                        <Text style={styles.taskName}>{item.taskName}</Text>
+                      </View>
+
+                      <View style={styles.row}>
+                        <Text style={styles.equipmentName}>{item.equipment.name}</Text>
+                        <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
+                      </View>
+
+                      <View style={styles.row}>
+                        <View style={[styles.badge, { backgroundColor: colors.bgToggle }]}>
+                          <Text style={[styles.badgeText, { color: colors.textLabel }]}>
+                            {taskStatusLabel(item)}
+                          </Text>
+                        </View>
+
+                        <View style={[styles.badge, { backgroundColor: prio.bg }]}>
+                          <Text style={[styles.badgeText, { color: prio.fg }]}>
+                            Prioridad {PRIORITY_LABELS[item.priority]}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {item.faultTypeName && (
+                        <Text style={styles.faultTypeText}>Falla: {item.faultTypeName}</Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Same box as SolicitudDetailModal's: when and who reported it,
+                      top right so it reads at a glance. Wraps below on narrow screens. */}
+                  <View style={styles.infoCard}>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIconWrap}>
+                        <CalendarIcon size={15} color={colors.accent} />
+                      </View>
+
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>Fecha de solicitud</Text>
+
+                        <Text style={styles.infoValue}>
+                          {item.createdAt
+                            ? new Date(item.createdAt).toLocaleDateString("es-AR")
+                            : "—"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.infoDivider} />
+
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoIconWrap}>
+                        <UserIcon size={15} color={colors.accent} />
+                      </View>
+
+                      <View style={styles.infoContent}>
+                        <Text style={styles.infoLabel}>Reportó</Text>
+
+                        <Text style={styles.infoValue} numberOfLines={2}>
+                          {item.reporterName}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
                 </View>
 
@@ -319,17 +369,10 @@ export default function QueueScreen() {
                   </ScrollView>
                 )}
 
-                <View style={styles.metaRow}>
-                  <View style={styles.locationRow}>
-                    <View style={[styles.locationDot, { backgroundColor: locColor }]} />
-                    <LocationIcon size={13} />
-                    <Text style={styles.locationText}>{item.equipment.location}</Text>
-                  </View>
-
-                  <Text style={styles.meta}>
-                    Reportó {item.reporterName} ·{" "}
-                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString("es-AR") : "—"}
-                  </Text>
+                <View style={styles.locationRow}>
+                  <View style={[styles.locationDot, { backgroundColor: locColor }]} />
+                  <LocationIcon size={13} />
+                  <Text style={styles.locationText}>{item.equipment.location}</Text>
                 </View>
 
                 {item.endDate ? (
@@ -409,9 +452,49 @@ function makeStyles(c: ThemeColors) {
       padding: 16,
       marginBottom: 12,
     },
-    cardTop: { flexDirection: "row", gap: 12 },
+    cardTop: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: 12 },
+    cardIdentity: { flex: 1, minWidth: 240, flexDirection: "row", gap: 12 },
     cardMain: { flex: 1, minWidth: 0, gap: 6 },
-    taskName: { fontSize: 13, fontWeight: "700", color: c.accent },
+    infoCard: {
+      backgroundColor: c.bgNested,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      width: 175,
+      flexShrink: 0,
+    },
+    infoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    infoIconWrap: {
+      width: 26,
+      height: 26,
+      borderRadius: 6,
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    infoContent: { flex: 1, minWidth: 0 },
+    infoLabel: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: c.textMuted,
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
+    infoValue: { fontSize: 14, fontWeight: "600", color: c.text, marginTop: 1 },
+    infoDivider: { height: 1, backgroundColor: c.borderRow, marginVertical: 6 },
+    taskName: { flexShrink: 1, fontSize: 13, fontWeight: "700", color: c.accent },
+    orderPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: c.accent,
+    },
+    orderPillText: { fontFamily: "monospace", fontSize: 12, fontWeight: "700", color: c.accent },
     photo: { width: 48, height: 48, borderRadius: 10, backgroundColor: c.bgNested },
     photoPlaceholder: {
       width: 48,
@@ -432,18 +515,9 @@ function makeStyles(c: ThemeColors) {
     gallery: { marginTop: 10 },
     galleryContent: { gap: 8, paddingRight: 4 },
     galleryPhoto: { width: 96, height: 96, borderRadius: 10, backgroundColor: c.bgNested },
-    metaRow: {
-      marginTop: 10,
-      flexDirection: "row",
-      flexWrap: "wrap",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 8,
-    },
-    locationRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    locationRow: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 6 },
     locationDot: { width: 7, height: 7, borderRadius: 4 },
     locationText: { fontSize: 13, color: c.textLabel, fontWeight: "500" },
-    meta: { fontSize: 13, color: c.textMuted },
     actionButton: {
       marginTop: 14,
       height: 40,
