@@ -308,9 +308,9 @@ export default function PurchasesScreen() {
           {(
             [
               { key: "", label: "Todas" },
-              { key: "pendiente", label: "Pendiente" },
-              { key: "parcial", label: "Parcial" },
-              { key: "completa", label: "Completa" },
+              { key: "pendiente", label: RECEIPT_STATE_LABEL.pendiente },
+              { key: "parcial", label: RECEIPT_STATE_LABEL.parcial },
+              { key: "completa", label: RECEIPT_STATE_LABEL.completa },
             ] as const
           ).map((chip) => {
             const active = estadoFilter === chip.key;

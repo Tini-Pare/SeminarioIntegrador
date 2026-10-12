@@ -590,7 +590,8 @@ function makeStyles(c: ThemeColors) {
     colRep: { flex: 1, minWidth: 0 },
     colCant: { width: 85, textAlign: "center", fontVariant: ["tabular-nums"] },
     colRecibido: { width: 85, textAlign: "center", fontVariant: ["tabular-nums"] },
-    colEstado: { width: 105, alignItems: "flex-end", textAlign: "right" },
+    // Wide enough for "Pendiente en recepción" on a single line.
+    colEstado: { width: 165, alignItems: "flex-end", textAlign: "right" },
     colPrice: { width: 105, textAlign: "right", fontVariant: ["tabular-nums"] },
     colSubtotal: { width: 110, textAlign: "right", fontVariant: ["tabular-nums"] },
     lineBadge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },

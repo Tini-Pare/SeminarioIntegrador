@@ -3,10 +3,13 @@ import type { ThemeColors } from "./theme";
 
 export type ReceiptState = "pendiente" | "parcial" | "completa";
 
+// UI wording asked for in the profes' review: "Completa"/"Pendiente"/
+// "Parcial" didn't say *what* was complete or pending — it's the reception
+// of the goods. Only the labels changed; the ReceiptState keys stay as-is.
 export const RECEIPT_STATE_LABEL: Record<ReceiptState, string> = {
-  pendiente: "Pendiente",
-  parcial: "Parcial",
-  completa: "Completa",
+  pendiente: "Pendiente en recepción",
+  parcial: "Recibido parcialmente",
+  completa: "Recibido",
 };
 
 // Reuses the equipment status palette (red/amber/green) so a compra's
