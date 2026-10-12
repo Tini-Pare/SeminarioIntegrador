@@ -128,6 +128,7 @@ describe("validatePurchaseRegistration", () => {
     fecha: "24/09/2026",
     garantia: "12",
     proveedorId: 5,
+    proveedorCuit: "20-22725470-0",
     lines: [{ repId: 10, cantidad: "2", costo: "1500" }],
   };
 
@@ -236,6 +237,7 @@ describe("validatePurchaseRegistration", () => {
       fecha: "24/09/2026",
       garantia: "",
       proveedorId: null,
+      proveedorCuit: null,
       lines: [{ repId: null, cantidad: "", costo: "" }],
     });
     expect(result).toEqual({
@@ -285,5 +287,17 @@ describe("validatePurchaseRegistration", () => {
       letra: null,
     });
     expect(result.valid).toBe(true);
+  });
+
+  it("blocks a supplier with no CUIT loaded", () => {
+    const result = validatePurchaseRegistration({ ...validBaseForm, proveedorCuit: null });
+    expect(result).toEqual({
+      valid: false,
+      error:
+        "El proveedor elegido no tiene CUIT. Cargalo en Proveedores antes de registrar la compra.",
+    });
+    expect(validatePurchaseRegistration({ ...validBaseForm, proveedorCuit: "  " }).valid).toBe(
+      false,
+    );
   });
 });

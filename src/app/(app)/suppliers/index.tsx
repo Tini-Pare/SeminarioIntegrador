@@ -19,12 +19,20 @@ import {
   listTiposProveedores,
   type SupplierWithRubro,
 } from "../../../lib/queries/suppliers";
+import { cuitDigits } from "../../../lib/cuit";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { useConfirm } from "../../../lib/useConfirm";
 import { usePagination } from "../../../lib/usePagination";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { TipoProveedor } from "../../../types/database";
+
+// One width per column, applied to the header cell and to every row cell
+// alike — same flex AND same padding, so rows line up under their headers.
+const COL_FLEX = { proveedor: 2, cuit: 1.2, rubro: 1.4 };
+function col(key: keyof typeof COL_FLEX) {
+  return { flex: COL_FLEX[key], minWidth: 0, paddingRight: 12 } as const;
+}
 
 export default function SuppliersScreen() {
   const [loading, setLoading] = useState(true);
@@ -82,10 +90,13 @@ export default function SuppliersScreen() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return suppliers.filter((s) => {
+      const qDigits = cuitDigits(q);
       const matchSearch =
         !q ||
         s.prov_nombre.toLowerCase().includes(q) ||
-        (s.prov_correo ?? "").toLowerCase().includes(q);
+        (s.prov_correo ?? "").toLowerCase().includes(q) ||
+        // Digits only, so "20227" and "20-227" both find 20-22725470-0.
+        (qDigits.length > 0 && cuitDigits(s.prov_cuit ?? "").includes(qDigits));
       const matchRubro = !rubroFilter || s.rubro === rubroFilter;
       return matchSearch && matchRubro;
     });
@@ -93,7 +104,7 @@ export default function SuppliersScreen() {
 
   const { sorted, field, dir, toggle } = useTableSort<SupplierWithRubro>(
     filtered,
-    { nombre: (s) => s.prov_nombre, rubro: (s) => s.rubro },
+    { nombre: (s) => s.prov_nombre, cuit: (s) => s.prov_cuit ?? "", rubro: (s) => s.rubro },
     "nombre",
   );
 
@@ -128,7 +139,7 @@ export default function SuppliersScreen() {
       <TableFilterBar
         searchValue={search}
         onSearch={setSearch}
-        searchPlaceholder="Buscar por nombre o correo…"
+        searchPlaceholder="Buscar por nombre, CUIT o correo…"
         filters={[
           {
             key: "rubro",
@@ -163,7 +174,16 @@ export default function SuppliersScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 2 }}
+              style={col("proveedor")}
+            />
+
+            <SortHeaderCell
+              label="CUIT"
+              field="cuit"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={col("cuit")}
             />
 
             <SortHeaderCell
@@ -172,7 +192,7 @@ export default function SuppliersScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 1.4 }}
+              style={col("rubro")}
             />
 
             <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
@@ -181,7 +201,7 @@ export default function SuppliersScreen() {
           {pageItems.map((s, i) => (
             <View key={s.prov_id_proveedor} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
               <View style={styles.rowMain}>
-                <View style={{ flex: 2, justifyContent: "center", paddingRight: 12 }}>
+                <View style={col("proveedor")}>
                   <Text style={styles.name} numberOfLines={1}>
                     {s.prov_nombre}
                   </Text>
@@ -193,7 +213,13 @@ export default function SuppliersScreen() {
                   )}
                 </View>
 
-                <View style={{ flex: 1.4, justifyContent: "center" }}>
+                <View style={col("cuit")}>
+                  <Text style={styles.cuit} numberOfLines={1}>
+                    {s.prov_cuit || "—"}
+                  </Text>
+                </View>
+
+                <View style={col("rubro")}>
                   <Text style={styles.rubro} numberOfLines={1}>
                     {s.rubro ?? "—"}
                   </Text>
@@ -305,5 +331,6 @@ function makeStyles(c: ThemeColors) {
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     sub: { marginTop: 2, fontSize: 13, color: c.textMuted },
     rubro: { fontSize: 14, color: c.textLabel },
+    cuit: { fontSize: 13.5, fontWeight: "600", color: c.text, fontFamily: "monospace" },
   });
 }

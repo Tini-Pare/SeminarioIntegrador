@@ -6,6 +6,7 @@ import {
   type SupplierInput,
   type SupplierWithRubro,
 } from "../lib/queries/suppliers";
+import { formatCuit, isValidCuit } from "../lib/cuit";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { TipoProveedor } from "../types/database";
@@ -91,6 +92,17 @@ export function SupplierModal({
       return;
     }
 
+    // Required: every comprobante a supplier issues carries its CUIT, and
+    // Registrar compra shows it (and won't save a compra without it).
+    if (!cuit.trim()) {
+      setError("El CUIT del proveedor es obligatorio.");
+      return;
+    }
+    if (!isValidCuit(cuit)) {
+      setError("El CUIT no es válido. Tiene que tener 11 números, por ejemplo 20-22725470-0.");
+      return;
+    }
+
     // Both are required: a supplier with no contact data can't be reached when
     // a purchase needs following up.
     if (!phone.trim()) {
@@ -114,7 +126,8 @@ export function SupplierModal({
       name: trimmedName,
       phone: phone.trim(),
       email: email.trim(),
-      cuit: cuit.trim() || null,
+      // Always stored as XX-XXXXXXXX-X, however it was typed.
+      cuit: formatCuit(cuit),
       tpId,
     };
 
@@ -182,7 +195,8 @@ export function SupplierModal({
             onChangeText={setCuit}
             placeholder="Ej: 20-22725470-0"
             placeholderTextColor={colors.textMuted}
-            maxLength={20}
+            keyboardType="number-pad"
+            maxLength={13}
           />
 
           <View style={styles.row}>

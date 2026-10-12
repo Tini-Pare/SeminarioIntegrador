@@ -13,7 +13,7 @@ export type PurchaseLine = LineaCompra & { repuesto: { rep_nombre: string } | nu
 export type RemitoWithLines = RemitoCompra & { lineas: RemitoCompraLinea[] };
 
 export type PurchaseWithDetail = Compra & {
-  proveedores: { prov_nombre: string } | null;
+  proveedores: { prov_nombre: string; prov_cuit: string | null } | null;
   linea_compra: PurchaseLine[];
   // Only ever populated for co_tipo_comprobante === "factura" — remito/tique
   // purchases never get a remito_compra row (see migration 0013).
@@ -21,11 +21,11 @@ export type PurchaseWithDetail = Compra & {
 };
 
 const PURCHASE_SELECT =
-  "*, proveedores(prov_nombre), linea_compra(*, repuestos(rep_nombre)), " +
+  "*, proveedores(prov_nombre, prov_cuit), linea_compra(*, repuestos(rep_nombre)), " +
   "remito_compra(*, remito_compra_linea(*))";
 
 type PurchaseRow = Compra & {
-  proveedores: { prov_nombre: string } | null;
+  proveedores: { prov_nombre: string; prov_cuit: string | null } | null;
   linea_compra: (LineaCompra & { repuestos: { rep_nombre: string } | null })[];
   remito_compra: (RemitoCompra & { remito_compra_linea: RemitoCompraLinea[] })[];
 };

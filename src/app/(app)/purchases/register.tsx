@@ -47,6 +47,8 @@ export type PurchaseFormValidationInput = {
   fecha: string;
   garantia: string;
   proveedorId: number | null;
+  // The chosen supplier's CUIT (null if it has none loaded).
+  proveedorCuit: string | null;
   lines: { repId: number | null; cantidad: string; costo: string }[];
 };
 
@@ -117,6 +119,16 @@ export function validatePurchaseRegistration(
 
   if (missingCount === 1) {
     return { valid: false, error: "Completá el campo obligatorio." };
+  }
+
+  // The CUIT isn't typed here, it comes from the supplier: one without it
+  // (loaded before it was required) has to be fixed in Proveedores first.
+  if (!form.proveedorCuit?.trim()) {
+    return {
+      valid: false,
+      error:
+        "El proveedor elegido no tiene CUIT. Cargalo en Proveedores antes de registrar la compra.",
+    };
   }
 
   const parsed: { repId: number; cantidad: number; costoUnitario: number | null }[] = [];
@@ -399,6 +411,7 @@ export default function RegisterPurchaseScreen() {
       fecha,
       garantia,
       proveedorId,
+      proveedorCuit: selectedSupplier?.prov_cuit ?? null,
       lines,
     });
 
@@ -519,10 +532,23 @@ export default function RegisterPurchaseScreen() {
     />
   );
 
+  // Read-only, filled from the chosen supplier. Required: a supplier with
+  // no CUIT is flagged right here, before trying to confirm.
+  const supplierMissingCuit = !!selectedSupplier && !selectedSupplier.prov_cuit?.trim();
   const cuitField = (
-    <View style={styles.cuitBox}>
-      <Text style={selectedSupplier?.prov_cuit ? styles.cuitText : styles.cuitPlaceholder}>
-        {selectedSupplier?.prov_cuit || "Opcional"}
+    <View style={[styles.cuitBox, supplierMissingCuit && styles.inputError]}>
+      <Text
+        style={
+          selectedSupplier?.prov_cuit
+            ? styles.cuitText
+            : supplierMissingCuit
+              ? styles.cuitMissing
+              : styles.cuitPlaceholder
+        }
+      >
+        {selectedSupplier
+          ? selectedSupplier.prov_cuit || "Sin CUIT: cargalo en Proveedores"
+          : "Se completa al elegir el proveedor"}
       </Text>
     </View>
   );
@@ -1121,6 +1147,7 @@ function makeStyles(c: ThemeColors) {
     },
     cuitText: { fontSize: 14.5, color: c.textSecondary, fontVariant: ["tabular-nums"] },
     cuitPlaceholder: { fontSize: 14, color: c.textMuted },
+    cuitMissing: { fontSize: 13.5, fontWeight: "600", color: c.destructive },
     tableCard: {
       borderWidth: 1,
       borderColor: c.border,

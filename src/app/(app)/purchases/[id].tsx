@@ -226,6 +226,12 @@ export default function PurchaseDetailScreen() {
             </Text>
 
             <View style={styles.metaRow}>
+              {/* The supplier's current CUIT (compras don't keep a copy). */}
+              <View style={styles.metaCol}>
+                <Text style={styles.metaLabel}>CUIT</Text>
+                <Text style={styles.metaValue}>{purchase.proveedores?.prov_cuit || "—"}</Text>
+              </View>
+
               {purchase.co_garantia ? (
                 <View style={styles.metaCol}>
                   <Text style={styles.metaLabel}>GARANTÍA</Text>
