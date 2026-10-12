@@ -13,6 +13,7 @@ import { PhotoCarousel } from "../../../components/PhotoCarousel";
 import { ReassignTechnicianModal } from "../../../components/ReassignTechnicianModal";
 import { RowActions } from "../../../components/RowActions";
 import { Select } from "../../../components/Select";
+import { formatOrderNumber } from "../../../lib/orderNumber";
 import { getEquipmentById } from "../../../lib/queries/equipment";
 import {
   addTaskToOrder,
@@ -68,12 +69,15 @@ function isOverdue(s: { status: string; order_planned_end_date: string | null })
 }
 
 export default function WorkOrderDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `created` is set by SolicitudDetailModal right after generating the OT,
+  // so this screen can confirm it with its number ("Se generó la OT-0027").
+  const { id, created } = useLocalSearchParams<{ id: string; created?: string }>();
   const solicitudId = id ? Number(id) : NaN;
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
   const [equipment, setEquipment] = useState<Equipo | null>(null);
   const [profileById, setProfileById] = useState<Map<string, Profile>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [showCreated, setShowCreated] = useState(created === "1");
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [reassigningTask, setReassigningTask] = useState<SolicitudTask | null>(null);
   // Only one inline editor open at a time (dates, prioridad, falla).
@@ -278,6 +282,7 @@ export default function WorkOrderDetail() {
   }
 
   const s = solicitud;
+  const orderNumber = formatOrderNumber(solicitud.order_id);
   const isResolved = s.status === "resolved";
   // A just-generated OT has no tareas yet; its DB estado is 'assigned',
   // which would read as if someone were already on it.
@@ -296,8 +301,22 @@ export default function WorkOrderDetail() {
           </Pressable>
         </View>
 
+        {showCreated && (
+          <View style={styles.createdBanner}>
+            <Text style={styles.createdText}>
+              Se generó la {orderNumber}. Agregá sus tareas para asignarla a los técnicos.
+            </Text>
+
+            <Pressable onPress={() => setShowCreated(false)} hitSlop={8}>
+              <Text style={styles.createdClose}>✕</Text>
+            </Pressable>
+          </View>
+        )}
+
         <View style={styles.card}>
           <View style={styles.badgeRow}>
+            <Text style={styles.orderNumber}>{orderNumber}</Text>
+
             <Text style={styles.code}>{equipment?.code ?? "—"}</Text>
 
             <View style={[styles.badge, { backgroundColor: statusColors[s.status].bg }]}>
@@ -669,7 +688,22 @@ function makeStyles(c: ThemeColors) {
       flexWrap: "wrap",
       marginBottom: 8,
     },
+    orderNumber: { fontFamily: "monospace", fontSize: 15, fontWeight: "700", color: c.accent },
     code: { fontFamily: "monospace", fontSize: 13, color: c.textMuted },
+    createdBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      marginBottom: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.success,
+      backgroundColor: c.bgCard,
+    },
+    createdText: { flex: 1, color: c.success, fontWeight: "600", fontSize: 14 },
+    createdClose: { color: c.textMuted, fontSize: 15, fontWeight: "600" },
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     badgeText: { fontSize: 12.5, fontWeight: "600" },
     title: { fontSize: 24, fontWeight: "600", color: c.text },
@@ -709,11 +743,12 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 14,
       height: 38,
       borderRadius: 8,
-      backgroundColor: c.bgNested,
+      // Same red as FormFooter's "Cancelar", so every cancel looks alike.
+      backgroundColor: "#dc2626",
       alignItems: "center",
       justifyContent: "center",
     },
-    dateCancelText: { color: c.text, fontWeight: "600", fontSize: 13 },
+    dateCancelText: { color: "#fff", fontWeight: "600", fontSize: 13 },
     dateSaveButton: {
       paddingHorizontal: 14,
       height: 38,

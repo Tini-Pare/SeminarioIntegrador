@@ -15,6 +15,7 @@ import { CloseWithoutOrderModal } from "./CloseWithoutOrderModal";
 import { GenerateOrderModal } from "./GenerateOrderModal";
 import { CalendarIcon, UserIcon } from "./icons";
 import { Sigla, withSiglas } from "./Sigla";
+import { formatOrderNumber } from "../lib/orderNumber";
 import { closeSolicitud, generateOrder } from "../lib/queries/faults";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
@@ -155,11 +156,15 @@ export function SolicitudDetailModal({
     await generateOrder(s.id, input);
     setGenerateOpen(false);
     closeEverything();
-    goToOrder();
+    goToOrder(true);
   }
 
-  function goToOrder() {
-    router.push({ pathname: "/work-orders/[id]", params: { id: String(s.id) } });
+  // `created` makes the OT screen confirm "Se generó la OT-XXXX".
+  function goToOrder(created = false) {
+    router.push({
+      pathname: "/work-orders/[id]",
+      params: created ? { id: String(s.id), created: "1" } : { id: String(s.id) },
+    });
   }
 
   return (
@@ -291,7 +296,9 @@ export function SolicitudDetailModal({
                 <>
                   <View style={styles.divider} />
 
-                  <Text style={styles.orderSectionLabel}>ORDEN DE TRABAJO</Text>
+                  <Text style={styles.orderSectionLabel}>
+                    ORDEN DE TRABAJO · {formatOrderNumber(s.order_id)}
+                  </Text>
 
                   <View style={styles.orderSummaryCard}>
                     <View style={styles.summaryFieldBlock}>

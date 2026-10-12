@@ -14,6 +14,7 @@ import { RowActions } from "../../../components/RowActions";
 import { Sigla } from "../../../components/Sigla";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
+import { formatOrderNumber } from "../../../lib/orderNumber";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listAllRequests } from "../../../lib/queries/faults";
 import { listProfiles } from "../../../lib/queries/profiles";
@@ -121,6 +122,7 @@ export default function WorkOrdersScreen() {
     return items.filter((r) => {
       const matchSearch =
         !q ||
+        (r.order_id != null && formatOrderNumber(r.order_id).toLowerCase().includes(q)) ||
         r.equipment.code.toLowerCase().includes(q) ||
         r.equipment.name.toLowerCase().includes(q) ||
         r.description.toLowerCase().includes(q);
@@ -133,6 +135,7 @@ export default function WorkOrdersScreen() {
   const { sorted, field, dir, toggle } = useTableSort<Item>(
     filtered,
     {
+      numero: (r) => r.order_id ?? 0,
       equipo: (r) => r.equipment.code,
       estado: (r) => STATUS_RANK[r.status as OrderStatus],
       prioridad: (r) => (r.priority ? PRIORITY_RANK[r.priority] : -1),
@@ -169,7 +172,7 @@ export default function WorkOrdersScreen() {
       <TableFilterBar
         searchValue={search}
         onSearch={setSearch}
-        searchPlaceholder="Buscar por equipo o descripción…"
+        searchPlaceholder="Buscar por N° de OT, equipo o descripción…"
         filters={[
           {
             key: "estado",
@@ -212,6 +215,15 @@ export default function WorkOrdersScreen() {
       ) : (
         <View style={styles.table}>
           <View style={styles.tableHeader}>
+            <SortHeaderCell
+              label="N° OT"
+              field="numero"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={{ flex: 0.9 }}
+            />
+
             <SortHeaderCell
               label="Equipo"
               field="equipo"
@@ -258,6 +270,12 @@ export default function WorkOrdersScreen() {
             return (
               <View key={item.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
                 <View style={styles.rowMain}>
+                  <View style={{ flex: 0.9, justifyContent: "center" }}>
+                    <Text style={styles.orderNumber}>
+                      {item.order_id != null ? formatOrderNumber(item.order_id) : "—"}
+                    </Text>
+                  </View>
+
                   <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
                     <Text style={styles.name} numberOfLines={1}>
                       {item.equipment.name}
@@ -373,6 +391,7 @@ function makeStyles(c: ThemeColors) {
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
+    orderNumber: { fontFamily: "monospace", fontSize: 13.5, fontWeight: "700", color: c.text },
     equipmentCode: { fontFamily: "monospace", fontSize: 12, color: c.textMuted, marginTop: 2 },
     cellText: { fontSize: 13.5, color: c.textLabel },
     badge: {

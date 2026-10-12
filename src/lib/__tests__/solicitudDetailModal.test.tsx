@@ -96,7 +96,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
       />,
     );
 
-    expect(queryByText("ORDEN DE TRABAJO")).toBeNull();
+    expect(queryByText(/ORDEN DE TRABAJO/)).toBeNull();
     expect(queryByText("FALLA GENÉRICA")).toBeNull();
     expect(queryByText("Ver orden de trabajo")).toBeNull();
   });
@@ -107,7 +107,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
     );
 
     // Section header
-    expect(getByText("ORDEN DE TRABAJO")).toBeTruthy();
+    expect(getByText("ORDEN DE TRABAJO · OT-0101")).toBeTruthy();
 
     // Generic fault label and pending state
     expect(getByText("FALLA GENÉRICA")).toBeTruthy();
