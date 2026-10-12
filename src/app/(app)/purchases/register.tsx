@@ -176,7 +176,8 @@ function docOption(tipo: ComprobanteTipo): DocOption {
 }
 
 function docNumberLabel(tipo: ComprobanteTipo): string {
-  return tipo === "tique" ? "Nro. de tique" : "Número";
+  // Same wording as the printed comprobante, so the admin finds it at once.
+  return tipo === "tique" ? "Nro. de tique" : "Comp. Nro";
 }
 
 function docDateLabel(tipo: ComprobanteTipo): string {
@@ -436,6 +437,179 @@ export default function RegisterPurchaseScreen() {
     );
   }
 
+  // Each field is built once and placed by the layout below: the factura
+  // layout mirrors a printed factura, the tique one keeps the plain form.
+  const puntoVentaField = (
+    <TextInput
+      style={[styles.input, puntoVentaError && styles.inputError]}
+      value={puntoVenta}
+      onChangeText={(t) => {
+        setPuntoVenta(t.replace(/[^0-9]/g, "").slice(0, 5));
+        if (error) setError(null);
+      }}
+      placeholder="Ej: 00006"
+      placeholderTextColor={colors.textMuted}
+      keyboardType="number-pad"
+      maxLength={5}
+      accessibilityLabel="Punto de venta"
+    />
+  );
+
+  const numeroField = (
+    <TextInput
+      style={[styles.input, numeroError && styles.inputError]}
+      value={numero}
+      onChangeText={(t) => {
+        setNumero(t.replace(/[^0-9]/g, "").slice(0, 8));
+        if (error) setError(null);
+      }}
+      placeholder="Ej: 00001359"
+      placeholderTextColor={colors.textMuted}
+      keyboardType="number-pad"
+      maxLength={8}
+      accessibilityLabel={tipoComprobante ? docNumberLabel(tipoComprobante) : "Número"}
+    />
+  );
+
+  const fechaField = (
+    <CustomDatePicker
+      value={fecha}
+      onChange={(f) => {
+        setFecha(f);
+        if (error) setError(null);
+      }}
+      maxDate={today}
+      open={openField === "fecha"}
+      onOpenChange={(o) => setOpenField(o ? "fecha" : null)}
+      hasError={fechaError}
+    />
+  );
+
+  const garantiaField = (
+    <TextInput
+      style={[styles.input, garantiaError && styles.inputError]}
+      value={garantia}
+      onChangeText={(text) => {
+        setGarantia(text.replace(/[^0-9]/g, ""));
+        if (error) setError(null);
+      }}
+      placeholder="Ej: 24"
+      placeholderTextColor={colors.textMuted}
+      keyboardType="number-pad"
+      maxLength={5}
+      accessibilityLabel="Garantía (meses)"
+    />
+  );
+
+  const proveedorField = (
+    <Select
+      value={proveedorId}
+      onChange={(p) => {
+        setProveedorId(p);
+        if (error) setError(null);
+      }}
+      options={supplierOptions}
+      placeholder={
+        supplierOptions.length === 0 ? "No hay proveedores cargados" : "Elegí un proveedor"
+      }
+      disabled={supplierOptions.length === 0}
+      open={openField === "proveedor"}
+      onOpenChange={(o) => setOpenField(o ? "proveedor" : null)}
+      hasError={proveedorError}
+    />
+  );
+
+  const cuitField = (
+    <View style={styles.cuitBox}>
+      <Text style={selectedSupplier?.prov_cuit ? styles.cuitText : styles.cuitPlaceholder}>
+        {selectedSupplier?.prov_cuit || "Opcional"}
+      </Text>
+    </View>
+  );
+
+  // Header + one row per line; shared by both layouts.
+  const lineRows = (
+    <>
+      <View style={styles.tableHeadRow}>
+        <Text style={[styles.tableHeadText, styles.colNum, { color: "#fff" }]}>#</Text>
+
+        <Text style={[styles.tableHeadText, styles.colRepFlex]}>Repuesto</Text>
+
+        <Text style={[styles.tableHeadText, styles.colCant]}>Cantidad</Text>
+
+        <Text style={[styles.tableHeadText, styles.colCosto]}>Precio unit.</Text>
+
+        <Text style={[styles.tableHeadText, styles.colTotal, styles.textRight]}>Subtotal</Text>
+
+        <View style={styles.colRemove} />
+      </View>
+
+      {lines.map((l, idx) => (
+        <View
+          key={l.key}
+          style={[styles.tableRow, openField === `rep-${l.key}` && styles.tableRowRaised]}
+        >
+          <Text style={[styles.cellNum, styles.colNum]}>{idx + 1}</Text>
+
+          <View style={styles.colRepFlex}>
+            <Select
+              value={l.repId}
+              onChange={(v) => updateLine(l.key, { repId: v })}
+              options={partOptions}
+              placeholder="Elegí un repuesto"
+              open={openField === `rep-${l.key}`}
+              onOpenChange={(o) => setOpenField(o ? `rep-${l.key}` : null)}
+              hasError={repError(l)}
+            />
+          </View>
+
+          <View style={styles.colCant}>
+            <TextInput
+              style={[styles.cellInput, cantError(l) && styles.cellInputError]}
+              value={l.cantidad}
+              onChangeText={(v) => updateLine(l.key, { cantidad: v })}
+              placeholder="0"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <View style={styles.colCosto}>
+            <TextInput
+              style={[styles.cellInput, costoError(l) && styles.cellInputError]}
+              value={l.costo}
+              onChangeText={(v) => updateLine(l.key, { costo: v })}
+              placeholder="Ej: 1500"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <Text style={[styles.cellTotal, styles.colTotal, styles.textRight]}>
+            {Number(l.cantidad) > 0 && l.costo.trim() !== ""
+              ? `$${(Number(l.cantidad) * Number(l.costo)).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`
+              : "—"}
+          </Text>
+
+          <LineDeleteButton
+            onPress={() => removeLine(l.key)}
+            disabled={lines.length === 1}
+            colors={colors}
+            styles={styles}
+          />
+        </View>
+      ))}
+    </>
+  );
+
+  const addLineButton = (
+    <Pressable style={styles.addLineBtn} onPress={() => setLines((prev) => [...prev, newLine()])}>
+      <Text style={styles.addLineText}>+ Agregar línea</Text>
+    </Pressable>
+  );
+
+  const totalText = `$${total.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -520,274 +694,224 @@ export default function RegisterPurchaseScreen() {
           </View>
         ) : (
           <View style={styles.body}>
-            <View style={styles.docHeader}>
-              {tipoComprobante === "factura" ? (
-                // Like the boxed letter printed at the top of a real factura:
-                // one box per letter, the chosen one filled in.
-                <View style={styles.letraRow}>
-                  {FACTURA_LETRAS.map((opt) => {
-                    const active = letra === opt.letra;
-                    return (
-                      <Pressable
-                        key={opt.letra}
-                        style={[
-                          styles.docBadge,
-                          active && styles.letraBoxActive,
-                          letraError && styles.inputError,
-                        ]}
-                        onPress={() => {
-                          setLetra(opt.letra);
-                          if (error) setError(null);
-                        }}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: active }}
-                        accessibilityLabel={`Factura ${opt.letra}`}
-                      >
-                        <Text style={[styles.docBadgeCode, active && styles.letraTextActive]}>
-                          {opt.letra}
-                        </Text>
+            {tipoComprobante === "factura" ? (
+              // Laid out like a printed factura (emisor top left, boxed letra
+              // hanging from the top edge in the middle, comprobante data top
+              // right, items, then the total bottom right), so the admin finds
+              // each field where it sits on the paper in their hand.
+              <View style={styles.invoice}>
+                <View style={styles.invoiceTopBar}>
+                  <Text style={styles.invoiceTopBarText}>Comprobante del proveedor</Text>
 
-                        <Text style={[styles.docBadgeNote, active && styles.letraNoteActive]}>
-                          {opt.code}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View style={styles.docBadge}>
-                  <Text style={styles.docBadgeCode}>{docOption(tipoComprobante).code}</Text>
-                  <Text style={styles.docBadgeNote}>{docOption(tipoComprobante).note}</Text>
-                </View>
-              )}
-
-              <View style={{ flex: 1, minWidth: 140 }}>
-                <Text style={styles.docHeaderTitle}>
-                  {docOption(tipoComprobante).title}
-                  {tipoComprobante === "factura" && letra ? ` ${letra}` : ""}
-                </Text>
-
-                <Text style={[styles.docHeaderSub, letraError && styles.letraErrorText]}>
-                  {tipoComprobante === "factura" && !letra
-                    ? "Elegí la letra que figura en la factura"
-                    : "Datos del comprobante del proveedor"}
-                </Text>
-              </View>
-
-              <Pressable style={styles.changeTypeBtn} onPress={backToStep1}>
-                <Text style={styles.changeTypeText}>Cambiar tipo</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.section}>
-              <View style={[styles.docRow, openField === "fecha" && styles.docRowRaised]}>
-                <View style={styles.docItem}>
-                  <Text style={styles.smallLabel}>Punto de venta</Text>
-
-                  <TextInput
-                    style={[styles.input, puntoVentaError && styles.inputError]}
-                    value={puntoVenta}
-                    onChangeText={(t) => {
-                      setPuntoVenta(t.replace(/[^0-9]/g, "").slice(0, 4));
-                      if (error) setError(null);
-                    }}
-                    placeholder="Ej: 0002"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                  />
+                  <Pressable style={styles.changeTypeBtn} onPress={backToStep1}>
+                    <Text style={styles.changeTypeText}>Cambiar tipo</Text>
+                  </Pressable>
                 </View>
 
-                <View style={styles.docItem}>
-                  <Text style={styles.smallLabel}>{docNumberLabel(tipoComprobante)}</Text>
+                <View
+                  style={[
+                    styles.invoiceHeader,
+                    (openField === "proveedor" || openField === "fecha") && styles.raised,
+                  ]}
+                >
+                  <View style={[styles.issuerCol, openField === "proveedor" && styles.raised]}>
+                    <Text style={styles.smallLabel}>Razón social del proveedor</Text>
 
-                  <TextInput
-                    style={[styles.input, numeroError && styles.inputError]}
-                    value={numero}
-                    onChangeText={(t) => {
-                      setNumero(t.replace(/[^0-9]/g, "").slice(0, 8));
-                      if (error) setError(null);
-                    }}
-                    placeholder="Ej: 00001111"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={8}
-                  />
+                    {proveedorField}
+
+                    <Text style={styles.fieldHint}>
+                      Es quien emite la factura: figura arriba a la izquierda.
+                    </Text>
+                  </View>
+
+                  <View style={styles.letraCol}>
+                    <View style={[styles.letraBox, letraError && styles.inputError]}>
+                      <Text style={[styles.letraBoxText, !letra && styles.letraBoxEmpty]}>
+                        {letra ?? "?"}
+                      </Text>
+
+                      <Text style={styles.letraBoxCode}>
+                        {FACTURA_LETRAS.find((o) => o.letra === letra)?.code.toUpperCase() ??
+                          "COD. —"}
+                      </Text>
+                    </View>
+
+                    <View style={styles.letraPicker}>
+                      {FACTURA_LETRAS.map((opt) => {
+                        const active = letra === opt.letra;
+                        return (
+                          <Pressable
+                            key={opt.letra}
+                            style={[styles.letraOption, active && styles.letraOptionActive]}
+                            onPress={() => {
+                              setLetra(opt.letra);
+                              if (error) setError(null);
+                            }}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: active }}
+                            accessibilityLabel={`Factura ${opt.letra}`}
+                          >
+                            <Text
+                              style={[
+                                styles.letraOptionText,
+                                active && styles.letraOptionTextActive,
+                              ]}
+                            >
+                              {opt.letra}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    {letraError && <Text style={styles.fieldError}>Elegí la letra</Text>}
+                  </View>
+
+                  <View style={[styles.docDataCol, openField === "fecha" && styles.raised]}>
+                    <Text style={styles.invoiceTitle}>FACTURA</Text>
+
+                    <View style={styles.docDataRow}>
+                      <View style={styles.docDataItem}>
+                        <Text style={styles.smallLabel}>Punto de venta</Text>
+                        {puntoVentaField}
+                      </View>
+
+                      <View style={styles.docDataItem}>
+                        <Text style={styles.smallLabel}>{docNumberLabel(tipoComprobante)}</Text>
+                        {numeroField}
+                      </View>
+                    </View>
+
+                    <View style={[styles.docDataRow, styles.docDataRowRaised]}>
+                      <View style={styles.docDataItem}>
+                        <Text style={styles.smallLabel}>{docDateLabel(tipoComprobante)}</Text>
+                        {fechaField}
+                      </View>
+                    </View>
+
+                    <View style={styles.docDataRow}>
+                      <View style={styles.docDataItem}>
+                        <Text style={styles.smallLabel}>CUIT</Text>
+                        {cuitField}
+                      </View>
+                    </View>
+                  </View>
                 </View>
 
-                <View style={[styles.docItem, styles.dateCol]}>
-                  <Text style={styles.smallLabel}>{docDateLabel(tipoComprobante)}</Text>
+                <View style={styles.invoiceLinesHeader}>
+                  <Text style={[styles.linesSub, { flex: 1, minWidth: 200 }]}>
+                    Cada línea define lo facturado; el stock se suma al cargar los remitos de
+                    recepción
+                  </Text>
 
-                  <CustomDatePicker
-                    value={fecha}
-                    onChange={(f) => {
-                      setFecha(f);
-                      if (error) setError(null);
-                    }}
-                    maxDate={today}
-                    open={openField === "fecha"}
-                    onOpenChange={(o) => setOpenField(o ? "fecha" : null)}
-                    hasError={fechaError}
-                  />
+                  {addLineButton}
                 </View>
 
-                <View style={styles.docItem}>
-                  <Text style={styles.smallLabel}>Garantía (meses)</Text>
+                {lineRows}
 
-                  <TextInput
-                    style={[styles.input, garantiaError && styles.inputError]}
-                    value={garantia}
-                    onChangeText={(text) => {
-                      setGarantia(text.replace(/[^0-9]/g, ""));
-                      if (error) setError(null);
-                    }}
-                    placeholder="Ej: 24"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={5}
-                  />
+                <View style={styles.invoiceTotals}>
+                  <View style={styles.invoiceTotalsBox}>
+                    <Text style={styles.invoiceTotalLabel}>Importe total:</Text>
+
+                    <Text style={styles.summaryTotalAmount}>{totalText}</Text>
+                  </View>
                 </View>
               </View>
+            ) : (
+              <>
+                <View style={styles.docHeader}>
+                  <View style={styles.docBadge}>
+                    <Text style={styles.docBadgeCode}>{docOption(tipoComprobante).code}</Text>
+                    <Text style={styles.docBadgeNote}>{docOption(tipoComprobante).note}</Text>
+                  </View>
 
-              <View style={[styles.provRow, openField === "proveedor" && styles.docRowRaised]}>
-                <View style={styles.provCol}>
-                  <Text style={styles.smallLabel}>Proveedor</Text>
+                  <View style={{ flex: 1, minWidth: 140 }}>
+                    <Text style={styles.docHeaderTitle}>{docOption(tipoComprobante).title}</Text>
+                    <Text style={styles.docHeaderSub}>Datos del comprobante del proveedor</Text>
+                  </View>
 
-                  <Select
-                    value={proveedorId}
-                    onChange={(p) => {
-                      setProveedorId(p);
-                      if (error) setError(null);
-                    }}
-                    options={supplierOptions}
-                    placeholder={
-                      supplierOptions.length === 0
-                        ? "No hay proveedores cargados"
-                        : "Elegí un proveedor"
-                    }
-                    disabled={supplierOptions.length === 0}
-                    open={openField === "proveedor"}
-                    onOpenChange={(o) => setOpenField(o ? "proveedor" : null)}
-                    hasError={proveedorError}
-                  />
+                  <Pressable style={styles.changeTypeBtn} onPress={backToStep1}>
+                    <Text style={styles.changeTypeText}>Cambiar tipo</Text>
+                  </Pressable>
                 </View>
 
-                <View style={styles.cuitCol}>
-                  <Text style={styles.smallLabel}>CUIT</Text>
+                <View style={styles.section}>
+                  <View style={[styles.docRow, openField === "fecha" && styles.docRowRaised]}>
+                    <View style={styles.docItem}>
+                      <Text style={styles.smallLabel}>Punto de venta</Text>
+                      {puntoVentaField}
+                    </View>
 
-                  <View style={styles.cuitBox}>
-                    <Text
-                      style={selectedSupplier?.prov_cuit ? styles.cuitText : styles.cuitPlaceholder}
-                    >
-                      {selectedSupplier?.prov_cuit || "Opcional"}
+                    <View style={styles.docItem}>
+                      <Text style={styles.smallLabel}>{docNumberLabel(tipoComprobante)}</Text>
+                      {numeroField}
+                    </View>
+
+                    <View style={[styles.docItem, styles.dateCol]}>
+                      <Text style={styles.smallLabel}>{docDateLabel(tipoComprobante)}</Text>
+                      {fechaField}
+                    </View>
+
+                    <View style={styles.docItem}>
+                      <Text style={styles.smallLabel}>Garantía (meses)</Text>
+                      {garantiaField}
+                    </View>
+                  </View>
+
+                  <View style={[styles.provRow, openField === "proveedor" && styles.docRowRaised]}>
+                    <View style={styles.provCol}>
+                      <Text style={styles.smallLabel}>Proveedor</Text>
+                      {proveedorField}
+                    </View>
+
+                    <View style={styles.cuitCol}>
+                      <Text style={styles.smallLabel}>CUIT</Text>
+                      {cuitField}
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.tableCard}>
+                  <View style={styles.linesHeader}>
+                    <View>
+                      <Text style={styles.label}>Detalle del comprobante</Text>
+                      <Text style={styles.linesSub}>Cada línea suma al stock del repuesto</Text>
+                    </View>
+
+                    {addLineButton}
+                  </View>
+
+                  {lineRows}
+
+                  <View style={styles.tableFooter}>
+                    <Text style={styles.summaryUnits}>
+                      Unidades a ingresar: <Text style={styles.summaryUnitsNum}>{units}</Text>
+                    </Text>
+
+                    <Text style={styles.summaryTotal}>
+                      Total del comprobante:{" "}
+                      <Text style={styles.summaryTotalAmount}>{totalText}</Text>
                     </Text>
                   </View>
                 </View>
-              </View>
-            </View>
+              </>
+            )}
 
-            <View style={styles.tableCard}>
-              <View style={styles.linesHeader}>
-                <View>
-                  <Text style={styles.label}>Detalle del comprobante</Text>
-                  <Text style={styles.linesSub}>
-                    {tipoComprobante === "tique"
-                      ? "Cada línea suma al stock del repuesto"
-                      : "Cada línea define lo facturado; el stock se suma al cargar los remitos de recepción"}
-                  </Text>
+            {tipoComprobante === "factura" && (
+              // Not printed on a factura, so it stays out of the factura box.
+              <View style={styles.extraSection}>
+                <Text style={styles.label}>Datos adicionales</Text>
+
+                <Text style={styles.linesSub}>No figuran en la factura</Text>
+
+                <View style={styles.extraRow}>
+                  <View style={styles.docItem}>
+                    <Text style={styles.smallLabel}>Garantía (meses)</Text>
+                    {garantiaField}
+                  </View>
                 </View>
-
-                <Pressable
-                  style={styles.addLineBtn}
-                  onPress={() => setLines((prev) => [...prev, newLine()])}
-                >
-                  <Text style={styles.addLineText}>+ Agregar línea</Text>
-                </Pressable>
               </View>
-
-              <View style={styles.tableHeadRow}>
-                <Text style={[styles.tableHeadText, styles.colNum, { color: "#fff" }]}>#</Text>
-
-                <Text style={[styles.tableHeadText, styles.colRepFlex]}>Repuesto</Text>
-
-                <Text style={[styles.tableHeadText, styles.colCant]}>Cant.</Text>
-
-                <Text style={[styles.tableHeadText, styles.colCosto]}>Costo unit.</Text>
-
-                <Text style={[styles.tableHeadText, styles.colTotal, styles.textRight]}>Total</Text>
-
-                <View style={styles.colRemove} />
-              </View>
-
-              {lines.map((l, idx) => (
-                <View
-                  key={l.key}
-                  style={[styles.tableRow, openField === `rep-${l.key}` && styles.tableRowRaised]}
-                >
-                  <Text style={[styles.cellNum, styles.colNum]}>{idx + 1}</Text>
-
-                  <View style={styles.colRepFlex}>
-                    <Select
-                      value={l.repId}
-                      onChange={(v) => updateLine(l.key, { repId: v })}
-                      options={partOptions}
-                      placeholder="Elegí un repuesto"
-                      open={openField === `rep-${l.key}`}
-                      onOpenChange={(o) => setOpenField(o ? `rep-${l.key}` : null)}
-                      hasError={repError(l)}
-                    />
-                  </View>
-
-                  <View style={styles.colCant}>
-                    <TextInput
-                      style={[styles.cellInput, cantError(l) && styles.cellInputError]}
-                      value={l.cantidad}
-                      onChangeText={(v) => updateLine(l.key, { cantidad: v })}
-                      placeholder="0"
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType="numeric"
-                    />
-                  </View>
-
-                  <View style={styles.colCosto}>
-                    <TextInput
-                      style={[styles.cellInput, costoError(l) && styles.cellInputError]}
-                      value={l.costo}
-                      onChangeText={(v) => updateLine(l.key, { costo: v })}
-                      placeholder="Ej: 1500"
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType="numeric"
-                    />
-                  </View>
-
-                  <Text style={[styles.cellTotal, styles.colTotal, styles.textRight]}>
-                    {Number(l.cantidad) > 0 && l.costo.trim() !== ""
-                      ? `$${(Number(l.cantidad) * Number(l.costo)).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`
-                      : "—"}
-                  </Text>
-
-                  <LineDeleteButton
-                    onPress={() => removeLine(l.key)}
-                    disabled={lines.length === 1}
-                    colors={colors}
-                    styles={styles}
-                  />
-                </View>
-              ))}
-
-              <View style={styles.tableFooter}>
-                <Text style={styles.summaryUnits}>
-                  Unidades a ingresar: <Text style={styles.summaryUnitsNum}>{units}</Text>
-                </Text>
-
-                <Text style={styles.summaryTotal}>
-                  Total del comprobante:{" "}
-                  <Text style={styles.summaryTotalAmount}>
-                    ${total.toLocaleString("es-AR", { maximumFractionDigits: 2 })}
-                  </Text>
-                </Text>
-              </View>
-            </View>
+            )}
 
             {error && <Text style={styles.error}>{error}</Text>}
 
@@ -905,11 +1029,6 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border,
     },
     docHeaderTitle: { fontSize: 16, fontWeight: "700", color: c.text },
-    letraRow: { flexDirection: "row", gap: 8 },
-    letraBoxActive: { backgroundColor: c.accent, borderColor: c.accent },
-    letraTextActive: { color: "#fff" },
-    letraNoteActive: { color: "rgba(255,255,255,0.8)" },
-    letraErrorText: { color: c.destructive },
     docHeaderSub: { fontSize: 12.5, color: c.textMuted, marginTop: 2 },
     changeTypeBtn: {
       paddingHorizontal: 16,
@@ -1133,5 +1252,130 @@ function makeStyles(c: ThemeColors) {
       fontVariant: ["tabular-nums"],
     },
     error: { color: c.destructive, marginTop: 14, fontSize: 16, fontWeight: "700" },
+    // ---- Factura layout (mirrors a printed factura) ----
+    raised: { zIndex: 60 },
+    invoice: {
+      marginTop: 16,
+      borderWidth: 1.5,
+      borderColor: c.text,
+      borderRadius: 14,
+      backgroundColor: c.bgCard,
+      zIndex: 20,
+    },
+    invoiceTopBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderBottomWidth: 1.5,
+      borderBottomColor: c.text,
+    },
+    invoiceTopBarText: {
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: c.textLabel,
+    },
+    invoiceHeader: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      borderBottomWidth: 1.5,
+      borderBottomColor: c.text,
+      position: "relative",
+      zIndex: 30,
+    },
+    issuerCol: { flex: 1, minWidth: 240, padding: 20, position: "relative", zIndex: 1 },
+    fieldHint: { fontSize: 12, color: c.textMuted, marginTop: 8, lineHeight: 17 },
+    // Sits between both halves; its box hangs from the header's top edge
+    // (no top border), like the boxed letra on a printed factura.
+    letraCol: { width: 116, alignItems: "center", paddingBottom: 16 },
+    letraBox: {
+      width: 64,
+      height: 64,
+      borderWidth: 1.5,
+      borderTopWidth: 0,
+      borderColor: c.text,
+      borderBottomLeftRadius: 10,
+      borderBottomRightRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: c.bgInput,
+    },
+    letraBoxText: { fontSize: 30, fontWeight: "800", color: c.text, lineHeight: 34 },
+    letraBoxEmpty: { color: c.textMuted },
+    letraBoxCode: { fontSize: 9, fontWeight: "700", color: c.textMuted, marginTop: 1 },
+    letraPicker: { flexDirection: "row", gap: 6, marginTop: 10 },
+    letraOption: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.borderInput,
+      backgroundColor: c.bgInput,
+      alignItems: "center",
+      justifyContent: "center",
+      ...(Platform.OS === "web" ? ({ cursor: "pointer" } as object) : {}),
+    },
+    letraOptionActive: { backgroundColor: c.accent, borderColor: c.accent },
+    letraOptionText: { fontSize: 13.5, fontWeight: "700", color: c.textLabel },
+    letraOptionTextActive: { color: "#fff" },
+    docDataCol: { flex: 1, minWidth: 260, padding: 20, position: "relative", zIndex: 1 },
+    invoiceTitle: {
+      fontSize: 22,
+      fontWeight: "800",
+      letterSpacing: 0.5,
+      color: c.text,
+      marginBottom: 14,
+    },
+    docDataRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 12,
+      marginBottom: 12,
+      position: "relative",
+      zIndex: 1,
+    },
+    // The fecha row's date picker opens over the CUIT row below it.
+    docDataRowRaised: { zIndex: 2 },
+    docDataItem: { flex: 1, minWidth: 120, position: "relative" },
+    invoiceLinesHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      flexWrap: "wrap",
+      gap: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+    },
+    invoiceTotals: {
+      alignItems: "flex-end",
+      padding: 16,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+    },
+    invoiceTotalsBox: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      gap: 14,
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      borderWidth: 1.5,
+      borderColor: c.text,
+      borderRadius: 10,
+      backgroundColor: c.eqOperational.bg,
+    },
+    invoiceTotalLabel: { fontSize: 15, fontWeight: "700", color: c.textLabel },
+    extraSection: {
+      marginTop: 16,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 16,
+      backgroundColor: c.bgCard,
+    },
+    extraRow: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginTop: 14 },
   });
 }
