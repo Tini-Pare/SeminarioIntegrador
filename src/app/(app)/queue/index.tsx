@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
@@ -22,7 +23,13 @@ import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { usePagination } from "../../../lib/usePagination";
 import { FinishTaskModal } from "../../../components/FinishTaskModal";
-import { CalendarIcon, LocationIcon, UserIcon, WarningIcon } from "../../../components/icons";
+import {
+  CalendarIcon,
+  EquipmentIcon,
+  LocationIcon,
+  UserIcon,
+  WarningIcon,
+} from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { withSiglas } from "../../../components/Sigla";
 import { formatOrderNumber } from "../../../lib/orderNumber";
@@ -373,6 +380,20 @@ export default function QueueScreen() {
                   <View style={[styles.locationDot, { backgroundColor: locColor }]} />
                   <LocationIcon size={13} />
                   <Text style={styles.locationText}>{item.equipment.location}</Text>
+
+                  {/* Straight to the equipo's detail (características + fault
+                      history, SCRUM-35) to check its past before starting. */}
+                  {item.equipmentId > 0 && (
+                    <Pressable
+                      style={styles.equipmentLink}
+                      onPress={() => router.push(`/equipment/${item.equipmentId}`)}
+                      hitSlop={6}
+                    >
+                      <EquipmentIcon size={14} color={colors.accent} />
+
+                      <Text style={styles.equipmentLinkText}>Ver equipo</Text>
+                    </Pressable>
+                  )}
                 </View>
 
                 {item.endDate ? (
@@ -518,6 +539,8 @@ function makeStyles(c: ThemeColors) {
     locationRow: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 6 },
     locationDot: { width: 7, height: 7, borderRadius: 4 },
     locationText: { fontSize: 13, color: c.textLabel, fontWeight: "500" },
+    equipmentLink: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 5 },
+    equipmentLinkText: { fontSize: 13, fontWeight: "600", color: c.accent },
     actionButton: {
       marginTop: 14,
       height: 40,

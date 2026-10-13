@@ -30,7 +30,6 @@ export type Database = {
           p_prov_id_proveedor: number;
           p_co_nombre: string | null;
           p_co_fecha_compra: string | null;
-          p_co_garantia: string | null;
           p_lineas: {
             rep_id: number;
             cantidad: number;
@@ -175,7 +174,6 @@ export type Database = {
           eq_nombre: string;
           eq_estado: "operational" | "waiting" | "repair";
           eq_modelo: string | null;
-          eq_fecha_garantia: string | null;
           eq_fecha_instalacion: string | null;
           eq_estado_registro: "activo" | "inactivo";
         };
@@ -187,7 +185,6 @@ export type Database = {
           eq_nombre: string;
           eq_estado?: "operational" | "waiting" | "repair";
           eq_modelo?: string | null;
-          eq_fecha_garantia?: string | null;
           eq_fecha_instalacion?: string | null;
           eq_estado_registro?: "activo" | "inactivo";
         };
@@ -199,7 +196,6 @@ export type Database = {
           eq_nombre?: string;
           eq_estado?: "operational" | "waiting" | "repair";
           eq_modelo?: string | null;
-          eq_fecha_garantia?: string | null;
           eq_fecha_instalacion?: string | null;
           eq_estado_registro?: "activo" | "inactivo";
         };
@@ -599,7 +595,6 @@ export type Database = {
         Row: {
           co_id_compra: number;
           prov_id_proveedor: number;
-          co_garantia: string | null;
           co_nombre: string | null;
           co_fecha_compra: string | null;
           co_costo_total: number | null;
@@ -611,7 +606,6 @@ export type Database = {
         Insert: {
           co_id_compra?: number;
           prov_id_proveedor: number;
-          co_garantia?: string | null;
           co_nombre?: string | null;
           co_fecha_compra?: string | null;
           co_costo_total?: number | null;
@@ -623,7 +617,6 @@ export type Database = {
         Update: {
           co_id_compra?: number;
           prov_id_proveedor?: number;
-          co_garantia?: string | null;
           co_nombre?: string | null;
           co_fecha_compra?: string | null;
           co_costo_total?: number | null;
@@ -869,7 +862,6 @@ export type Equipo = {
   active: boolean;
   model: string | null;
   installDate: string | null;
-  warrantyDate: string | null;
 };
 
 // One tarea genérica added to an orden_de_trabajo, with its own técnico and

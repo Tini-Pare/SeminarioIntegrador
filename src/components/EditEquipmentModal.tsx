@@ -22,14 +22,12 @@ const ESTADO_OPTIONS: RadioOption<"activo" | "inactivo">[] = [
 import {
   CustomDatePicker,
   fromDbDate,
-  isDateOnOrAfter,
   isDateWithinMax,
   isValidDateString,
-  parseDateString,
   toDbDate,
 } from "./CustomDatePicker";
 
-type OpenField = "type" | "location" | "install" | "warranty" | null;
+type OpenField = "type" | "location" | "install" | null;
 
 export function EditEquipmentModal({
   visible,
@@ -48,7 +46,6 @@ export function EditEquipmentModal({
   const [typeId, setTypeId] = useState<number | null>(equipment.typeId);
   const [locationId, setLocationId] = useState<number | null>(equipment.locationId);
   const [installDate, setInstallDate] = useState(fromDbDate(equipment.installDate));
-  const [warrantyDate, setWarrantyDate] = useState(fromDbDate(equipment.warrantyDate));
   const [estado, setEstado] = useState<"activo" | "inactivo">(
     equipment.active ? "activo" : "inactivo",
   );
@@ -81,7 +78,6 @@ export function EditEquipmentModal({
     setTypeId(equipment.typeId);
     setLocationId(equipment.locationId);
     setInstallDate(fromDbDate(equipment.installDate));
-    setWarrantyDate(fromDbDate(equipment.warrantyDate));
     setOpenField(null);
     setError(null);
 
@@ -102,8 +98,7 @@ export function EditEquipmentModal({
       !name.trim() ||
       typeId == null ||
       locationId == null ||
-      !installDate.trim() ||
-      !warrantyDate.trim()
+      !installDate.trim()
     ) {
       setError("Todos los campos son obligatorios.");
       return;
@@ -116,14 +111,6 @@ export function EditEquipmentModal({
       setError("La fecha de instalación no puede ser posterior a hoy.");
       return;
     }
-    if (!isValidDateString(warrantyDate.trim())) {
-      setError("Ingresá una fecha de garantía válida (dd/mm/aaaa).");
-      return;
-    }
-    if (!isDateOnOrAfter(warrantyDate.trim(), installDate.trim())) {
-      setError("La fecha de garantía no puede ser anterior a la fecha de instalación.");
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
@@ -134,7 +121,6 @@ export function EditEquipmentModal({
         locationId,
         model: model.trim(),
         installDate: toDbDate(installDate.trim()),
-        warrantyDate: toDbDate(warrantyDate.trim()),
         active: estado === "activo",
       });
       onSaved();
@@ -208,12 +194,7 @@ export function EditEquipmentModal({
             onOpenChange={(o) => setOpenField(o ? "location" : null)}
           />
 
-          <View
-            style={[
-              styles.fieldRow,
-              (openField === "install" || openField === "warranty") && styles.dateRowRaised,
-            ]}
-          >
+          <View style={[styles.fieldRow, openField === "install" && styles.dateRowRaised]}>
             <View style={styles.field}>
               <Text style={styles.label}>Fecha de instalación</Text>
               <CustomDatePicker
@@ -222,21 +203,6 @@ export function EditEquipmentModal({
                 open={openField === "install"}
                 onOpenChange={(o) => setOpenField(o ? "install" : null)}
                 maxDate={new Date()}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Fecha de garantía</Text>
-              <CustomDatePicker
-                value={warrantyDate}
-                onChange={setWarrantyDate}
-                open={openField === "warranty"}
-                onOpenChange={(o) => setOpenField(o ? "warranty" : null)}
-                minDate={
-                  isValidDateString(installDate.trim())
-                    ? (parseDateString(installDate.trim()) ?? undefined)
-                    : undefined
-                }
               />
             </View>
           </View>

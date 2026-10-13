@@ -47,7 +47,7 @@ export type SolicitudWithOrden = SolicitudRow & {
 // one) orden_de_trabajo with the fallo genérico diagnosed on it and every
 // tarea added to it (with the técnico's id and the tarea's name), and
 // every photo attached to the solicitud.
-const SOLICITUD_SELECT =
+export const SOLICITUD_SELECT =
   "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
 
 function resolvePhotoUrls(

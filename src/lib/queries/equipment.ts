@@ -1,6 +1,6 @@
 import { supabase } from "../supabase";
 import type { Database, Equipo, HistorialEntry, Solicitud } from "../../types/database";
-import { mapSolicitudRow, type SolicitudWithOrden } from "./faults";
+import { SOLICITUD_SELECT, mapSolicitudRow, type SolicitudWithOrden } from "./faults";
 
 type EquipoRow = Database["public"]["Tables"]["equipo"]["Row"] & {
   lugares: Database["public"]["Tables"]["lugares"]["Row"] | null;
@@ -20,7 +20,6 @@ function mapEquipo(row: EquipoRow): Equipo {
     active: row.eq_estado_registro === "activo",
     model: row.eq_modelo,
     installDate: row.eq_fecha_instalacion,
-    warrantyDate: row.eq_fecha_garantia,
   };
 }
 
@@ -46,7 +45,6 @@ type EquipmentInput = {
   locationId: number;
   model: string | null;
   installDate: string | null;
-  warrantyDate: string | null;
   // Only sent on update: a new equipment is born 'activo' (column default).
   active?: boolean;
 };
@@ -64,7 +62,6 @@ export async function createEquipment(input: EquipmentInput): Promise<Equipo> {
       lu_codigo: input.locationId,
       eq_modelo: input.model,
       eq_fecha_instalacion: input.installDate,
-      eq_fecha_garantia: input.warrantyDate,
     })
     .select("*, lugares(*), tipos_de_equipos(*)")
     .single();
@@ -87,7 +84,6 @@ export async function updateEquipment(id: number, changes: EquipmentInput): Prom
       lu_codigo: changes.locationId,
       eq_modelo: changes.model,
       eq_fecha_instalacion: changes.installDate,
-      eq_fecha_garantia: changes.warrantyDate,
       ...(changes.active !== undefined
         ? { eq_estado_registro: changes.active ? ("activo" as const) : ("inactivo" as const) }
         : {}),
@@ -130,16 +126,58 @@ export async function getEquipmentById(id: number): Promise<Equipo | null> {
   return mapEquipo(data as EquipoRow);
 }
 
-// Active only — the equipment detail's "Fallas activas" tab is the only
-// consumer, and a resolved solicitud shouldn't keep showing up there.
-export async function listFaultsByEquipment(equipmentId: number): Promise<Solicitud[]> {
+// Every solicitud ever reported on the equipo (active and closed), newest
+// first, with its OT, tareas, diagnósticos and repuestos used — the
+// equipment detail's "Historial de fallas" (SCRUM-35). The "Fallas activas"
+// block filters this same list with isActiveFault instead of a second query.
+export async function listFaultHistoryByEquipment(equipmentId: number): Promise<Solicitud[]> {
   const { data, error } = await supabase
     .from("solicitudes")
-    .select("*, orden_de_trabajo(*, fallo_por_orden(fallo(*))), solicitud_foto(*)")
+    .select(SOLICITUD_SELECT)
     .eq("eq_id_equipo", equipmentId)
     .order("sol_fecha_hora", { ascending: false });
   if (error) throw new Error(error.message);
-  return (data as SolicitudWithOrden[]).map(mapSolicitudRow).filter((s) => s.status !== "resolved");
+  return (data as SolicitudWithOrden[]).map(mapSolicitudRow);
+}
+
+// A solicitud closed without an OT ("rejected") is just as closed as a
+// resolved one — it must not count as an active fault on the equipo.
+export function isActiveFault(fault: Solicitud): boolean {
+  return fault.status !== "resolved" && fault.status !== "rejected";
+}
+
+export type FaultHistorySummary = {
+  total: number;
+  active: number;
+  lastReportedAt: string | null;
+  mostFrequentType: { name: string; count: number } | null;
+};
+
+// Header numbers of the "Historial de fallas" tab. Faults without a fallo
+// genérico (not evaluated yet, or closed without OT) don't compete for
+// "most frequent type"; on a tie the type of the most recent fault wins
+// (Map keeps insertion order and `faults` comes newest first).
+export function summarizeFaultHistory(faults: Solicitud[]): FaultHistorySummary {
+  const typeCounts = new Map<string, number>();
+  for (const f of faults) {
+    if (f.fault_type_name) {
+      typeCounts.set(f.fault_type_name, (typeCounts.get(f.fault_type_name) ?? 0) + 1);
+    }
+  }
+  let mostFrequentType: FaultHistorySummary["mostFrequentType"] = null;
+  for (const [name, count] of typeCounts) {
+    if (!mostFrequentType || count > mostFrequentType.count) mostFrequentType = { name, count };
+  }
+  const lastReportedAt = faults.reduce<string | null>(
+    (latest, f) => (!latest || f.created_at > latest ? f.created_at : latest),
+    null,
+  );
+  return {
+    total: faults.length,
+    active: faults.filter(isActiveFault).length,
+    lastReportedAt,
+    mostFrequentType,
+  };
 }
 
 export async function listHistoryByEquipment(equipmentId: number): Promise<HistorialEntry[]> {
