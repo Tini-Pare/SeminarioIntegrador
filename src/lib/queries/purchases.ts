@@ -82,12 +82,17 @@ export type RegisterPurchaseInput = {
   // When set, the purchase fulfils this pedido_compra: registrar_compra
   // links it and flips the pedido to 'recibido' in the same transaction.
   pedidoId?: number | null;
+  // Factura only: the remito came together with it, so the RPC also loads a
+  // remito for every line in full — stock enters and the purchase reads as
+  // received right away (migration 0026). Ignored for tique/remito.
+  conRemito?: boolean;
 };
 
 // All-or-nothing: the RPC inserts compras + linea_compra in one transaction
 // (see migrations 0010/0011). For remito/tique lines it also bumps
 // repuestos.rep_cantidad_actual there; for factura lines stock only moves
-// once remitos de recepción are loaded against the purchase (migration 0013).
+// once remitos de recepción are loaded against the purchase (migration 0013),
+// unless conRemito loads that remito in the same transaction (0026).
 export async function registrarCompra(input: RegisterPurchaseInput): Promise<number> {
   const { data, error } = await supabase.rpc("registrar_compra", {
     p_prov_id_proveedor: input.proveedorId,
@@ -105,6 +110,7 @@ export async function registrarCompra(input: RegisterPurchaseInput): Promise<num
     p_co_tipo_comprobante: input.tipoComprobante,
     p_co_punto_venta: input.puntoVenta?.trim() || null,
     p_co_letra: input.tipoComprobante === "factura" ? (input.letra ?? null) : null,
+    p_con_remito: input.tipoComprobante === "factura" && !!input.conRemito,
   });
   if (error) throw new Error(error.message);
   return data as number;

@@ -109,8 +109,48 @@ describe("registrarCompra", () => {
       p_co_tipo_comprobante: "factura",
       p_co_punto_venta: "0002",
       p_co_letra: "B",
+      p_con_remito: false,
     });
     expect(id).toBe(42);
+  });
+
+  it("asks the RPC to load the remito in the same call when the factura arrived with it", async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: 43, error: null });
+
+    await registrarCompra({
+      tipoComprobante: "factura",
+      letra: "A",
+      puntoVenta: "0001",
+      proveedorId: 3,
+      nombre: "00000012",
+      fecha: "2026-10-13",
+      lineas: [{ repId: 7, cantidad: 3, costoUnitario: 100 }],
+      conRemito: true,
+    });
+
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "registrar_compra",
+      expect.objectContaining({ p_co_tipo_comprobante: "factura", p_con_remito: true }),
+    );
+  });
+
+  it("never sends con remito for a tique or remito purchase", async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: 44, error: null });
+
+    await registrarCompra({
+      tipoComprobante: "tique",
+      puntoVenta: "0001",
+      proveedorId: 3,
+      nombre: "00000013",
+      fecha: "2026-10-13",
+      lineas: [{ repId: 7, cantidad: 1, costoUnitario: 100 }],
+      conRemito: true,
+    });
+
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "registrar_compra",
+      expect.objectContaining({ p_co_tipo_comprobante: "tique", p_con_remito: false }),
+    );
   });
 
   it("throws when the RPC returns an error", async () => {

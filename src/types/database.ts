@@ -40,6 +40,7 @@ export type Database = {
           p_co_tipo_comprobante?: string;
           p_co_punto_venta?: string | null;
           p_co_letra?: string | null;
+          p_con_remito?: boolean;
         };
         Returns: number;
       };

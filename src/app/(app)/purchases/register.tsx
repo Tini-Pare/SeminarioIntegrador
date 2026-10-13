@@ -302,6 +302,9 @@ export default function RegisterPurchaseScreen() {
   // No default on purpose: the admin copies it from the paper factura, a
   // preselected letter would get saved wrong without anyone noticing.
   const [letra, setLetra] = useState<FacturaLetra | null>(null);
+  // Factura only: whether its remito arrived with it. Defaults to "No" so
+  // stock never enters by accident; "Sí" loads the remito on save.
+  const [conRemito, setConRemito] = useState(false);
   const [puntoVenta, setPuntoVenta] = useState("");
   const [numero, setNumero] = useState("");
   const [proveedorId, setProveedorId] = useState<number | null>(null);
@@ -372,6 +375,7 @@ export default function RegisterPurchaseScreen() {
   function backToStep1() {
     setTipoComprobante(null);
     setLetra(null);
+    setConRemito(false);
   }
 
   const total = useMemo(
@@ -416,6 +420,7 @@ export default function RegisterPurchaseScreen() {
         fecha: toDbDate(fecha),
         lineas: validation.parsedLines,
         pedidoId: pedidoId ? Number(pedidoId) : null,
+        conRemito,
       });
       goBackToPurchases();
     } catch (e) {
@@ -760,8 +765,9 @@ export default function RegisterPurchaseScreen() {
 
                 <View style={styles.invoiceLinesHeader}>
                   <Text style={[styles.linesSub, { flex: 1, minWidth: 200 }]}>
-                    Cada línea define lo facturado; el stock se suma al cargar los remitos de
-                    recepción
+                    {conRemito
+                      ? "Cada línea define lo facturado; llegó con el remito, así que se suma al stock al guardar"
+                      : "Cada línea define lo facturado; el stock se suma al cargar los remitos de recepción"}
                   </Text>
 
                   {addLineButton}
@@ -774,6 +780,52 @@ export default function RegisterPurchaseScreen() {
                     <Text style={styles.invoiceTotalLabel}>Importe total:</Text>
 
                     <Text style={styles.summaryTotalAmount}>{totalText}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.receptionRow}>
+                  <View style={{ flex: 1, minWidth: 220 }}>
+                    <Text style={styles.label}>¿Llegó con remito?</Text>
+
+                    <Text style={styles.linesSub}>
+                      {conRemito
+                        ? "Se registra el remito junto con la factura: todo lo facturado entra al stock y la compra queda Recibida."
+                        : "La compra queda pendiente de recepción: los remitos se cargan después desde su detalle."}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.letraPicker, { marginTop: 0 }]}>
+                    {[
+                      { value: false, label: "No" },
+                      { value: true, label: "Sí" },
+                    ].map((opt) => {
+                      const active = conRemito === opt.value;
+                      return (
+                        <Pressable
+                          key={opt.label}
+                          style={[
+                            styles.letraOption,
+                            styles.receptionOption,
+                            active &&
+                              (opt.value ? styles.letraOptionActive : styles.receptionNoActive),
+                          ]}
+                          onPress={() => setConRemito(opt.value)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: active }}
+                          accessibilityLabel={`Llegó con remito: ${opt.label}`}
+                        >
+                          <Text
+                            style={[
+                              styles.letraOptionText,
+                              styles.receptionOptionText,
+                              active && styles.letraOptionTextActive,
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 </View>
               </View>
@@ -1231,6 +1283,23 @@ function makeStyles(c: ThemeColors) {
     letraOptionActive: { backgroundColor: c.accent, borderColor: c.accent },
     letraOptionText: { fontSize: 13.5, fontWeight: "700", color: c.textLabel },
     letraOptionTextActive: { color: "#fff" },
+    // "¿Llegó con remito?" row closing the factura, under the total.
+    receptionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 12,
+      padding: 16,
+      paddingHorizontal: 20,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+    },
+    // Same look as the letra boxes, just wide enough for "No"/"Sí".
+    receptionOption: { width: 52, height: 36 },
+    receptionOptionText: { fontSize: 15 },
+    // "No" reads as a decline, so it takes the destructive red instead of
+    // the accent green "Sí" uses.
+    receptionNoActive: { backgroundColor: c.destructive, borderColor: c.destructive },
     docDataCol: { flex: 1, minWidth: 260, padding: 20, position: "relative", zIndex: 1 },
     invoiceTitle: {
       fontSize: 22,
