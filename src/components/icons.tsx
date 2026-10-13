@@ -21,6 +21,23 @@ export function WarningIcon({ size = 16, color = "currentColor" }: IconProps) {
   );
 }
 
+export function ChevronDownIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M6 9l6 6 6-6" />
+    </Svg>
+  );
+}
+
 export function CheckIcon({ size = 16, color = "currentColor" }: IconProps) {
   return (
     <Svg

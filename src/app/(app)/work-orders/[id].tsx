@@ -60,6 +60,7 @@ const PRIORITY_LABELS: Record<Priority, string> = {
 
 function taskStatusLabel(task: SolicitudTask): string {
   if (task.endDate) return "Finalizada";
+  if (task.suspension) return "Suspendida";
   if (task.startDate) return "En curso";
   return "Pendiente";
 }
@@ -639,8 +640,18 @@ export default function WorkOrderDetail() {
                   </View>
                 </View>
 
-                {(task.consumedParts.length > 0 || task.diagnosis) && (
+                {(task.consumedParts.length > 0 || task.diagnosis || task.suspension) && (
                   <View style={styles.consumedRow}>
+                    {task.suspension && (
+                      <Text style={styles.consumedText}>
+                        <Text style={styles.consumedLabel}>
+                          Suspendida desde el {fromDbDate(task.suspension.since)}:{" "}
+                        </Text>
+                        {task.suspension.reason}
+                        {task.suspension.comment ? ` - ${task.suspension.comment}` : ""}
+                      </Text>
+                    )}
+
                     {task.consumedParts.length > 0 && (
                       <Text style={styles.consumedText}>
                         <Text style={styles.consumedLabel}>Repuestos usados: </Text>

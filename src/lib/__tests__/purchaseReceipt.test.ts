@@ -10,7 +10,6 @@ function purchase(overrides: Partial<PurchaseWithDetail>): PurchaseWithDetail {
   return {
     co_id_compra: 1,
     prov_id_proveedor: 1,
-    co_garantia: null,
     co_nombre: null,
     co_fecha_compra: null,
     co_costo_total: null,

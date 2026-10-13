@@ -49,6 +49,9 @@ function getTaskBadge(
   if (task.endDate) {
     return { label: "Finalizada", bg: c.faultResolved.bg, fg: c.faultResolved.fg };
   }
+  if (task.suspension) {
+    return { label: "Suspendida", bg: c.eqWaiting.bg, fg: c.eqWaiting.fg };
+  }
   if (task.startDate) {
     return { label: "En curso", bg: c.faultInProgress.bg, fg: c.faultInProgress.fg };
   }

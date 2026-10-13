@@ -98,9 +98,6 @@ export async function registrarCompra(input: RegisterPurchaseInput): Promise<num
     p_prov_id_proveedor: input.proveedorId,
     p_co_nombre: input.nombre?.trim() || null,
     p_co_fecha_compra: input.fecha ?? null,
-    // Garantía was dropped from the form (profes' review); the RPC still
-    // takes the param, so it's sent empty.
-    p_co_garantia: null,
     p_lineas: input.lineas.map((l) => ({
       rep_id: l.repId,
       cantidad: l.cantidad,

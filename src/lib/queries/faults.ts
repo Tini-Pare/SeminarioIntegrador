@@ -1,7 +1,7 @@
 import { getTodayDbDate } from "../../components/CustomDatePicker";
 import { supabase } from "../supabase";
 import type { Database } from "../../types/database";
-import type { Solicitud, SolicitudTask } from "../../types/database";
+import type { Solicitud, SolicitudTask, TaskSuspension } from "../../types/database";
 
 type SolicitudRow = Database["public"]["Tables"]["solicitudes"]["Row"];
 type OrdenRow = Database["public"]["Tables"]["orden_de_trabajo"]["Row"];
@@ -19,6 +19,18 @@ type TareaRow = Database["public"]["Tables"]["tareas_realizadas_orden"]["Row"];
 // p_id_tecnico are filtered out below — no UI yet to manage those.
 type RepuestoParaTareaRow = { rep_id: number; repta_canti_usada: number };
 type ConsumedPartRow = RepuestoParaTareaRow & { repuestos: { rep_nombre: string } | null };
+
+// null unless the tarea is suspended right now (SCRUM-37). The `?? null`s
+// also cover a database without migration 0029 yet, where `*` simply
+// doesn't bring these columns.
+function mapSuspension(row: TareaRow): TaskSuspension | null {
+  if (!row.taro_fecha_suspension) return null;
+  return {
+    since: row.taro_fecha_suspension,
+    reason: row.taro_motivo_suspension ?? "Sin motivo",
+    comment: row.taro_comentario_suspension ?? null,
+  };
+}
 
 function mapConsumedParts(rows: ConsumedPartRow[] | undefined) {
   return (rows ?? []).map((r) => ({
@@ -47,7 +59,7 @@ export type SolicitudWithOrden = SolicitudRow & {
 // one) orden_de_trabajo with the fallo genérico diagnosed on it and every
 // tarea added to it (with the técnico's id and the tarea's name), and
 // every photo attached to the solicitud.
-const SOLICITUD_SELECT =
+export const SOLICITUD_SELECT =
   "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
 
 function resolvePhotoUrls(
@@ -79,6 +91,7 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
       endDate: t.taro_fecha_fin,
       consumedParts: mapConsumedParts(t.repuesto_para_tarea),
       diagnosis: t.taro_diagnostico,
+      suspension: mapSuspension(t),
     }))
     // PostgREST doesn't guarantee the order of embedded rows (an updated
     // row can come back in a different position), so sort by id: tareas
@@ -542,6 +555,7 @@ export type MyTask = {
   faultTypeName: string | null;
   consumedParts: { repId: number; nombre: string; cantidad: number }[];
   diagnosis: string | null;
+  suspension: TaskSuspension | null;
 };
 
 type MyTaskRow = TareaRow & {
@@ -591,6 +605,7 @@ export async function listMyTasks(): Promise<MyTask[]> {
       faultTypeName: orden?.fallo_por_orden?.[0]?.fallo?.fa_nombre ?? null,
       consumedParts: mapConsumedParts(row.repuesto_para_tarea),
       diagnosis: row.taro_diagnostico,
+      suspension: mapSuspension(row),
     };
   });
 }
@@ -691,5 +706,107 @@ export async function finishTask(
   const allDone = (siblings ?? []).every((t) => t.taro_fecha_fin !== null);
   if (allDone) {
     await logHistorial(eqId, "Resuelta", "Todas las tareas de la orden fueron completadas.");
+  }
+}
+
+// Same select both suspend/resume check against before writing.
+const SUSPENSION_CHECK_SELECT =
+  "p_id_tecnico, taro_fecha_inicio, taro_fecha_fin, taro_fecha_suspension, tareas_generales(tag_nombre_tarea), orden_de_trabajo(eq_id_equipo)";
+
+type SuspensionCheckRow = Pick<
+  TareaRow,
+  "p_id_tecnico" | "taro_fecha_inicio" | "taro_fecha_fin" | "taro_fecha_suspension"
+> & {
+  tareas_generales: { tag_nombre_tarea: string } | null;
+  orden_de_trabajo: { eq_id_equipo: number } | null;
+};
+
+async function getSuspensionCheck(taskId: number): Promise<SuspensionCheckRow> {
+  const { data, error } = await supabase
+    .from("tareas_realizadas_orden")
+    .select(SUSPENSION_CHECK_SELECT)
+    .eq("taro_id_tarea_orden", taskId)
+    .single();
+  if (error) throw new Error(error.message);
+  return data as unknown as SuspensionCheckRow;
+}
+
+// SCRUM-37: the técnico puts their own tarea on hold, with a reason, to
+// leave a record of delayed work. Only a tarea in progress can be
+// suspended (also enforced by a check constraint, migration 0029). The OT
+// stays "En proceso" — a suspended tarea is still started and unfinished.
+export async function suspendTask(
+  taskId: number,
+  reason: string,
+  comment?: string | null,
+): Promise<void> {
+  const trimmedReason = reason?.trim() || "";
+  if (!trimmedReason) throw new Error("Indicá el motivo de la suspensión.");
+  const cleanComment = comment?.trim() || null;
+  if (trimmedReason === "Otro" && !cleanComment) {
+    throw new Error("Escribí el motivo para continuar.");
+  }
+
+  const userId = await currentUserId();
+  const task = await getSuspensionCheck(taskId);
+  if (task.p_id_tecnico !== userId) {
+    throw new Error("Solo el técnico asignado puede suspender esta tarea.");
+  }
+  if (!task.taro_fecha_inicio) throw new Error("Iniciá la tarea antes de suspenderla.");
+  if (task.taro_fecha_fin) throw new Error("Esta tarea ya está finalizada.");
+  if (task.taro_fecha_suspension) throw new Error("Esta tarea ya está suspendida.");
+
+  const { error } = await supabase
+    .from("tareas_realizadas_orden")
+    .update({
+      taro_fecha_suspension: getTodayDbDate(),
+      taro_motivo_suspension: trimmedReason,
+      // The comment is the reason's detail, so only "Otro" keeps it.
+      taro_comentario_suspension: trimmedReason === "Otro" ? cleanComment : null,
+    })
+    .eq("taro_id_tarea_orden", taskId);
+  if (error) throw new Error(error.message);
+
+  const eqId = task.orden_de_trabajo?.eq_id_equipo;
+  if (eqId) {
+    const taskName = task.tareas_generales?.tag_nombre_tarea ?? "Tarea";
+    const detail = trimmedReason === "Otro" && cleanComment ? ` - ${cleanComment}` : "";
+    await logHistorial(
+      eqId,
+      "Suspendida",
+      `Tarea suspendida: ${taskName}. Motivo: ${trimmedReason}${detail}`,
+    );
+  }
+}
+
+// Takes a suspended tarea back to "En curso". The suspension itself stays
+// on record in the equipo's historial (logged by suspendTask).
+export async function resumeTask(taskId: number): Promise<void> {
+  const userId = await currentUserId();
+  const task = await getSuspensionCheck(taskId);
+  if (task.p_id_tecnico !== userId) {
+    throw new Error("Solo el técnico asignado puede reanudar esta tarea.");
+  }
+  if (!task.taro_fecha_suspension) throw new Error("Esta tarea no está suspendida.");
+
+  const { error } = await supabase
+    .from("tareas_realizadas_orden")
+    .update({
+      taro_fecha_suspension: null,
+      taro_motivo_suspension: null,
+      taro_comentario_suspension: null,
+    })
+    .eq("taro_id_tarea_orden", taskId);
+  if (error) throw new Error(error.message);
+
+  const eqId = task.orden_de_trabajo?.eq_id_equipo;
+  if (eqId) {
+    const taskName = task.tareas_generales?.tag_nombre_tarea ?? "Tarea";
+    const since = new Date(`${task.taro_fecha_suspension}T00:00:00`).toLocaleDateString("es-AR");
+    await logHistorial(
+      eqId,
+      "Reanudada",
+      `Tarea reanudada: ${taskName} (suspendida desde el ${since})`,
+    );
   }
 }
