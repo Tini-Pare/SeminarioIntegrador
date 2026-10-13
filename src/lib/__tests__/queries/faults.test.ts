@@ -18,7 +18,9 @@ import {
   listMyRequests,
   listMyTasks,
   reassignTaskTechnician,
+  resumeTask,
   startTask,
+  suspendTask,
   updateOrderFaultType,
   updateOrderPlannedEndDate,
   updateOrderPriority,
@@ -289,6 +291,7 @@ describe("listAllRequests", () => {
             startDate: null,
             endDate: null,
             consumedParts: [],
+            suspension: null,
           },
           {
             id: 21,
@@ -298,6 +301,7 @@ describe("listAllRequests", () => {
             startDate: "2026-01-04",
             endDate: null,
             consumedParts: [],
+            suspension: null,
           },
         ],
       }),
@@ -796,6 +800,7 @@ describe("listMyTasks", () => {
         photoUrls: [],
         faultTypeName: "Pérdida de gas",
         consumedParts: [{ repId: 4, nombre: "Filtro de aire", cantidad: 2 }],
+        suspension: null,
       },
     ]);
   });
@@ -1064,5 +1069,158 @@ describe("finishTask", () => {
       2,
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Resuelta" }),
     );
+  });
+});
+
+describe("suspendTask / resumeTask", () => {
+  function mockSuspensionChecks(checkData: Record<string, unknown>) {
+    const checkSingle = jest.fn().mockResolvedValue({ data: checkData, error: null });
+    const checkEq = jest.fn().mockReturnValue({ single: checkSingle });
+    const select = jest.fn().mockReturnValue({ eq: checkEq });
+    const updateEq = jest.fn().mockResolvedValue({ error: null });
+    const update = jest.fn().mockReturnValue({ eq: updateEq });
+    const insertHistorial = jest.fn().mockResolvedValue({ error: null });
+
+    (supabase.from as jest.Mock).mockImplementation((table: string) =>
+      table === "historial" ? { insert: insertHistorial } : { select, update },
+    );
+
+    return { checkEq, update, updateEq, insertHistorial };
+  }
+
+  const inProgress = {
+    p_id_tecnico: "tec1",
+    taro_fecha_inicio: "2026-10-10",
+    taro_fecha_fin: null,
+    taro_fecha_suspension: null,
+    tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
+    orden_de_trabajo: { eq_id_equipo: 5 },
+  };
+
+  beforeEach(() => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "tec1" } } },
+    });
+  });
+
+  it("suspends a tarea in progress with its reason and logs historial", async () => {
+    const { checkEq, update, updateEq, insertHistorial } = mockSuspensionChecks(inProgress);
+
+    await suspendTask(11, "Falta de repuestos");
+
+    expect(checkEq).toHaveBeenCalledWith("taro_id_tarea_orden", 11);
+    expect(update).toHaveBeenCalledWith({
+      taro_fecha_suspension: expect.any(String),
+      taro_motivo_suspension: "Falta de repuestos",
+      taro_comentario_suspension: null,
+    });
+    expect(updateEq).toHaveBeenCalledWith("taro_id_tarea_orden", 11);
+    expect(insertHistorial).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eq_id_equipo: 5,
+        hi_tipo: "Suspendida",
+        hi_nota: "Tarea suspendida: Cambio de gas. Motivo: Falta de repuestos",
+      }),
+    );
+  });
+
+  it("keeps the comment only for 'Otro' and requires it there", async () => {
+    const { update, insertHistorial } = mockSuspensionChecks(inProgress);
+
+    await expect(suspendTask(11, "Otro", "   ")).rejects.toThrow(
+      "Escribí el motivo para continuar.",
+    );
+    expect(update).not.toHaveBeenCalled();
+
+    await suspendTask(11, "Otro", "  Falta la llave del depósito  ");
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taro_motivo_suspension: "Otro",
+        taro_comentario_suspension: "Falta la llave del depósito",
+      }),
+    );
+    expect(insertHistorial).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hi_nota: "Tarea suspendida: Cambio de gas. Motivo: Otro - Falta la llave del depósito",
+      }),
+    );
+  });
+
+  it("drops a comment sent with a predefined reason", async () => {
+    const { update } = mockSuspensionChecks(inProgress);
+
+    await suspendTask(11, "Requiere autorización", "ignorado");
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ taro_comentario_suspension: null }),
+    );
+  });
+
+  it.each([
+    [
+      { ...inProgress, p_id_tecnico: "otro" },
+      "Solo el técnico asignado puede suspender esta tarea.",
+    ],
+    [{ ...inProgress, taro_fecha_inicio: null }, "Iniciá la tarea antes de suspenderla."],
+    [{ ...inProgress, taro_fecha_fin: "2026-10-11" }, "Esta tarea ya está finalizada."],
+    [{ ...inProgress, taro_fecha_suspension: "2026-10-11" }, "Esta tarea ya está suspendida."],
+  ])(
+    "refuses to suspend when the tarea isn't in progress or isn't yours (%#)",
+    async (data, message) => {
+      const { update } = mockSuspensionChecks(data);
+
+      await expect(suspendTask(11, "Falta de repuestos")).rejects.toThrow(message);
+      expect(update).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses an empty reason before touching the database", async () => {
+    const { checkEq } = mockSuspensionChecks(inProgress);
+
+    await expect(suspendTask(11, "  ")).rejects.toThrow("Indicá el motivo de la suspensión.");
+    expect(checkEq).not.toHaveBeenCalled();
+  });
+
+  it("resumes a suspended tarea, clearing the suspension and logging historial", async () => {
+    const { update, updateEq, insertHistorial } = mockSuspensionChecks({
+      ...inProgress,
+      taro_fecha_suspension: "2026-10-11",
+    });
+
+    await resumeTask(11);
+
+    expect(update).toHaveBeenCalledWith({
+      taro_fecha_suspension: null,
+      taro_motivo_suspension: null,
+      taro_comentario_suspension: null,
+    });
+    expect(updateEq).toHaveBeenCalledWith("taro_id_tarea_orden", 11);
+    expect(insertHistorial).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eq_id_equipo: 5,
+        hi_tipo: "Reanudada",
+        hi_nota: expect.stringContaining("Tarea reanudada: Cambio de gas"),
+      }),
+    );
+  });
+
+  it("refuses to resume a tarea that isn't suspended", async () => {
+    const { update } = mockSuspensionChecks(inProgress);
+
+    await expect(resumeTask(11)).rejects.toThrow("Esta tarea no está suspendida.");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("refuses to resume someone else's tarea", async () => {
+    const { update } = mockSuspensionChecks({
+      ...inProgress,
+      p_id_tecnico: "otro",
+      taro_fecha_suspension: "2026-10-11",
+    });
+
+    await expect(resumeTask(11)).rejects.toThrow(
+      "Solo el técnico asignado puede reanudar esta tarea.",
+    );
+    expect(update).not.toHaveBeenCalled();
   });
 });

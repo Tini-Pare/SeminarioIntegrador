@@ -141,6 +141,9 @@ export default function EquipmentDetail() {
     Replanificada: colors.histAsignada,
     Diagnóstico: colors.histAsignada,
     "En curso": colors.histEnCurso,
+    // Same amber as a suspended tarea's badge in the Cola de trabajo.
+    Suspendida: colors.eqWaiting,
+    Reanudada: colors.histEnCurso,
     "Tarea finalizada": colors.histResuelta,
     Resuelta: colors.histResuelta,
     Cerrada: colors.histResuelta,
@@ -710,6 +713,7 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
 
 function taskStateLabel(task: SolicitudTask): string {
   if (task.endDate) return `Finalizada el ${formatDate(task.endDate)}`;
+  if (task.suspension) return `Suspendida desde el ${formatDate(task.suspension.since)}`;
   if (task.startDate) return "En curso";
   return "Pendiente";
 }
@@ -841,6 +845,14 @@ function FaultHistoryCard({
                 <Text style={styles.workTechnician}>
                   {names.get(t.technicianId) ?? "Técnico desconocido"}
                 </Text>
+
+                {t.suspension && (
+                  <Text style={styles.workDetail}>
+                    <Text style={styles.workDetailLabel}>Motivo de la suspensión: </Text>
+                    {t.suspension.reason}
+                    {t.suspension.comment ? ` - ${t.suspension.comment}` : ""}
+                  </Text>
+                )}
 
                 {t.diagnosis && (
                   <Text style={styles.workDetail}>

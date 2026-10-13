@@ -415,6 +415,11 @@ export type Database = {
           taro_fecha_inicio: string | null;
           taro_fecha_fin: string | null;
           taro_diagnostico: string | null;
+          // SCRUM-37 (migration 0028): all three null unless the tarea is
+          // currently suspended.
+          taro_fecha_suspension: string | null;
+          taro_motivo_suspension: string | null;
+          taro_comentario_suspension: string | null;
         };
         Insert: {
           taro_id_tarea_orden?: number;
@@ -425,6 +430,9 @@ export type Database = {
           taro_fecha_inicio?: string | null;
           taro_fecha_fin?: string | null;
           taro_diagnostico?: string | null;
+          taro_fecha_suspension?: string | null;
+          taro_motivo_suspension?: string | null;
+          taro_comentario_suspension?: string | null;
         };
         Update: {
           taro_id_tarea_orden?: number;
@@ -435,6 +443,9 @@ export type Database = {
           taro_fecha_inicio?: string | null;
           taro_fecha_fin?: string | null;
           taro_diagnostico?: string | null;
+          taro_fecha_suspension?: string | null;
+          taro_motivo_suspension?: string | null;
+          taro_comentario_suspension?: string | null;
         };
         Relationships: [
           {
@@ -880,6 +891,15 @@ export type SolicitudTask = {
   // The técnico's diagnóstico/observación written when finishing the tarea
   // (finalizar_tarea, migration 0023) — null if none was written.
   diagnosis: string | null;
+  // The current suspension (SCRUM-37, migration 0028) — null unless the
+  // tarea is on hold right now.
+  suspension: TaskSuspension | null;
+};
+
+export type TaskSuspension = {
+  since: string; // taro_fecha_suspension (date)
+  reason: string;
+  comment: string | null; // only for reason "Otro"
 };
 
 export type Solicitud = {

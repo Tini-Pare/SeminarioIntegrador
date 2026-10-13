@@ -13,7 +13,9 @@ import {
 import {
   finishTask,
   listMyTasks,
+  resumeTask,
   startTask,
+  suspendTask,
   type ConsumedPart,
   type MyTask,
 } from "../../../lib/queries/faults";
@@ -23,6 +25,7 @@ import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { usePagination } from "../../../lib/usePagination";
 import { FinishTaskModal } from "../../../components/FinishTaskModal";
+import { SuspendTaskModal } from "../../../components/SuspendTaskModal";
 import {
   CalendarIcon,
   EquipmentIcon,
@@ -55,16 +58,18 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   medium: "Media",
   high: "Alta",
 };
-type TaskStatus = "pending" | "in_progress" | "done";
+type TaskStatus = "pending" | "in_progress" | "suspended" | "done";
 type TaskStatusFilter = "all" | TaskStatus;
 
 const STATUS_FILTER_LABELS: Record<TaskStatus, string> = {
   pending: "Pendiente",
   in_progress: "En curso",
+  suspended: "Suspendida",
   done: "Finalizada",
 };
 function taskStatus(task: MyTask): TaskStatus {
   if (task.endDate) return "done";
+  if (task.suspension) return "suspended";
   if (task.startDate) return "in_progress";
   return "pending";
 }
@@ -73,10 +78,17 @@ function taskStatusLabel(task: MyTask): string {
   return STATUS_FILTER_LABELS[taskStatus(task)];
 }
 
+// Queue order: what can be worked on now first, suspended tareas after
+// them (waiting on something), finished ones last.
+const STATUS_RANK: Record<TaskStatus, number> = {
+  pending: 0,
+  in_progress: 1,
+  suspended: 2,
+  done: 3,
+};
+
 function taskRank(task: MyTask): number {
-  if (task.endDate) return 2;
-  if (task.startDate) return 1;
-  return 0;
+  return STATUS_RANK[taskStatus(task)];
 }
 
 export default function QueueScreen() {
@@ -86,6 +98,7 @@ export default function QueueScreen() {
   const [error, setError] = useState<string | null>(null);
   const [actingOn, setActingOn] = useState<number | null>(null);
   const [finishingTask, setFinishingTask] = useState<Item | null>(null);
+  const [suspendingTask, setSuspendingTask] = useState<Item | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
   const { colors } = useTheme();
@@ -165,13 +178,42 @@ export default function QueueScreen() {
     setFinishingTask(null);
   }
 
+  async function handleConfirmSuspend(input: { reason: string; comment?: string }) {
+    if (!suspendingTask) return;
+    await suspendTask(suspendingTask.taskRowId, input.reason, input.comment);
+    await load();
+    setSuspendingTask(null);
+  }
+
+  async function handleResume(item: Item) {
+    setActingOn(item.taskRowId);
+    try {
+      await resumeTask(item.taskRowId);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setActingOn(null);
+    }
+  }
+
   // Starting or finishing a tarea can't be undone from the app, so both ask
   // first. Starting uses a plain confirm dialog; finishing goes straight to
   // FinishTaskModal, which already is the confirmation step (it asks which
   // repuestos were used, since that quantity comes off stock) — chaining a
-  // confirm dialog before it would make the técnico confirm twice.
+  // confirm dialog before it would make the técnico confirm twice. A
+  // suspended tarea's main action is resuming it (it can't be finished
+  // while on hold).
   function askAction(item: Item) {
     if (item.endDate) return;
+    if (item.suspension) {
+      confirm({
+        title: "Reanudar tarea",
+        message: `¿Reanudar "${item.taskName}" en ${item.equipment.name}?`,
+        onConfirm: () => handleResume(item),
+      });
+      return;
+    }
     if (item.startDate) {
       setFinishingTask(item);
       return;
@@ -185,6 +227,7 @@ export default function QueueScreen() {
 
   function actionLabel(item: Item): string | null {
     if (!item.startDate) return "Iniciar tarea";
+    if (item.suspension) return "Reanudar tarea";
     if (!item.endDate) return "Finalizar tarea";
     return null;
   }
@@ -254,6 +297,7 @@ export default function QueueScreen() {
                 { value: "all", label: "Todas" },
                 { value: "pending", label: "Pendiente" },
                 { value: "in_progress", label: "En curso" },
+                { value: "suspended", label: "Suspendida" },
                 { value: "done", label: "Finalizada" },
               ],
             },
@@ -305,8 +349,22 @@ export default function QueueScreen() {
                       </View>
 
                       <View style={styles.row}>
-                        <View style={[styles.badge, { backgroundColor: colors.bgToggle }]}>
-                          <Text style={[styles.badgeText, { color: colors.textLabel }]}>
+                        <View
+                          style={[
+                            styles.badge,
+                            {
+                              backgroundColor: item.suspension
+                                ? colors.eqWaiting.bg
+                                : colors.bgToggle,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.badgeText,
+                              { color: item.suspension ? colors.eqWaiting.fg : colors.textLabel },
+                            ]}
+                          >
                             {taskStatusLabel(item)}
                           </Text>
                         </View>
@@ -412,17 +470,48 @@ export default function QueueScreen() {
                     )}
                   </View>
                 ) : (
-                  label && (
-                    <Pressable
-                      style={styles.actionButton}
-                      onPress={() => askAction(item)}
-                      disabled={actingOn === item.taskRowId}
-                    >
-                      <Text style={styles.actionText}>
-                        {actingOn === item.taskRowId ? "Procesando…" : label}
-                      </Text>
-                    </Pressable>
-                  )
+                  <>
+                    {item.suspension && (
+                      <View style={styles.suspendedBox}>
+                        <Text style={styles.suspendedTitle}>
+                          Suspendida desde el{" "}
+                          {new Date(`${item.suspension.since}T00:00:00`).toLocaleDateString(
+                            "es-AR",
+                          )}
+                        </Text>
+
+                        <Text style={styles.suspendedText}>
+                          Motivo: {item.suspension.reason}
+                          {item.suspension.comment ? ` - ${item.suspension.comment}` : ""}
+                        </Text>
+                      </View>
+                    )}
+
+                    {label && (
+                      <View style={styles.actionsRow}>
+                        <Pressable
+                          style={[styles.actionButton, styles.actionButtonMain]}
+                          onPress={() => askAction(item)}
+                          disabled={actingOn === item.taskRowId}
+                        >
+                          <Text style={styles.actionText}>
+                            {actingOn === item.taskRowId ? "Procesando…" : label}
+                          </Text>
+                        </Pressable>
+
+                        {/* Only a tarea in progress can be put on hold. */}
+                        {taskStatus(item) === "in_progress" && (
+                          <Pressable
+                            style={[styles.actionButton, styles.secondaryButton]}
+                            onPress={() => setSuspendingTask(item)}
+                            disabled={actingOn === item.taskRowId}
+                          >
+                            <Text style={styles.secondaryText}>Suspender</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    )}
+                  </>
                 )}
               </View>
             );
@@ -441,6 +530,18 @@ export default function QueueScreen() {
         taskName={finishingTask?.taskName ?? ""}
         equipmentLabel={
           finishingTask ? `${finishingTask.equipment.code} · ${finishingTask.equipment.name}` : ""
+        }
+      />
+
+      <SuspendTaskModal
+        visible={!!suspendingTask}
+        onClose={() => setSuspendingTask(null)}
+        onConfirm={handleConfirmSuspend}
+        taskName={suspendingTask?.taskName ?? ""}
+        equipmentLabel={
+          suspendingTask
+            ? `${suspendingTask.equipment.code} · ${suspendingTask.equipment.name}`
+            : ""
         }
       />
     </>
@@ -541,15 +642,32 @@ function makeStyles(c: ThemeColors) {
     locationText: { fontSize: 13, color: c.textLabel, fontWeight: "500" },
     equipmentLink: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 5 },
     equipmentLinkText: { fontSize: 13, fontWeight: "600", color: c.accent },
+    actionsRow: { flexDirection: "row", gap: 10, marginTop: 14 },
     actionButton: {
-      marginTop: 14,
       height: 40,
       borderRadius: 9,
       backgroundColor: c.accent,
       alignItems: "center",
       justifyContent: "center",
     },
+    actionButtonMain: { flex: 1 },
     actionText: { color: "#fff", fontSize: 13.5, fontWeight: "600" },
+    secondaryButton: {
+      paddingHorizontal: 18,
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.eqWaiting.fg,
+    },
+    secondaryText: { color: c.eqWaiting.fg, fontSize: 13.5, fontWeight: "600" },
+    suspendedBox: {
+      marginTop: 12,
+      padding: 10,
+      borderRadius: 8,
+      backgroundColor: c.eqWaiting.bg,
+      gap: 2,
+    },
+    suspendedTitle: { fontSize: 13, fontWeight: "700", color: c.eqWaiting.fg },
+    suspendedText: { fontSize: 12.5, color: c.text, lineHeight: 17 },
     doneRow: { marginTop: 14, gap: 4 },
     doneText: { color: c.success, fontSize: 13.5, fontWeight: "600" },
     consumedText: { fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
