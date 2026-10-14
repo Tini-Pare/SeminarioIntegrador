@@ -260,11 +260,9 @@ export default function EquipmentDetail() {
       const matchSearch = !q || faultSearchText(f, authorNames).includes(q);
       const matchStatus =
         !faultStatusFilter ||
-        (faultStatusFilter === "active"
-          ? isActiveFault(f)
-          : faultStatusFilter === "in_progress"
-            ? f.status === "in_progress" || f.status === "assigned"
-            : f.status === faultStatusFilter);
+        (faultStatusFilter === "in_progress"
+          ? f.status === "in_progress" || f.status === "assigned"
+          : f.status === faultStatusFilter);
       const matchPriority =
         !faultPriorityFilter ||
         (faultPriorityFilter === NONE ? f.priority === null : f.priority === faultPriorityFilter);
@@ -496,7 +494,6 @@ export default function EquipmentDetail() {
                   onChange: setFaultStatusFilter,
                   options: [
                     { value: "", label: "Todos" },
-                    { value: "active", label: "Activas" },
                     { value: "new", label: FAULT_STATUS_LABEL.new },
                     { value: "in_progress", label: FAULT_STATUS_LABEL.in_progress },
                     { value: "resolved", label: FAULT_STATUS_LABEL.resolved },
