@@ -519,12 +519,6 @@ export default function WorkOrderDetail() {
                 </Text>
               </Pressable>
             )}
-
-            {!isResolved && s.order_planned_end_date && (
-              <Pressable onPress={() => handleSavePlannedDate(true)} disabled={busy}>
-                <Text style={styles.linkButtonText}>Quitar</Text>
-              </Pressable>
-            )}
           </View>
         )}
 
