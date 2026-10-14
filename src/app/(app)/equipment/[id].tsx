@@ -61,6 +61,34 @@ const PRIORITY_RANK: Record<Exclude<Solicitud["priority"], null>, number> = {
   high: 2,
 };
 
+// historial.hi_tipo alone ("Asignada", "En curso") doesn't say what the
+// event was about, so each one is shown prefixed with its subject: the
+// fault report, the solicitud, the OT or one of its tareas. "Asignada" is
+// logged both when the OT is generated and when a tarea is added to it, so
+// that one is told apart by its note (see logHistorial callers in
+// lib/queries/faults.ts). Unknown types fall back to the raw value.
+const HISTORY_EVENT_LABEL: Record<string, string> = {
+  Reporte: "Falla · Reportada",
+  Cerrada: "Solicitud · Cerrada sin OT",
+  Asignada: "OT · Generada",
+  Diagnóstico: "OT · Diagnóstico",
+  Replanificada: "OT · Replanificada",
+  Resuelta: "OT · Resuelta",
+  Reasignada: "Tarea · Reasignada",
+  "En curso": "Tarea · Iniciada",
+  Suspendida: "Tarea · Suspendida",
+  Reanudada: "Tarea · Reanudada",
+  "Tarea finalizada": "Tarea · Finalizada",
+  Preventivo: "Mantenimiento · Preventivo",
+};
+
+function historyEventLabel(h: HistorialEntry): string {
+  if (h.type === "Asignada" && h.note.startsWith("Tarea agregada")) {
+    return "Tarea · Agregada a la OT";
+  }
+  return HISTORY_EVENT_LABEL[h.type] ?? h.type;
+}
+
 // Filter value meaning "the field is empty" (fault not evaluated yet, so no
 // prioridad / tipo de falla), next to "" which means "no filter".
 const NONE = "__none__";
@@ -277,7 +305,7 @@ export default function EquipmentDetail() {
   );
 
   const activityTypeOptions = useMemo(
-    () => [...new Set(history.map((h) => h.type))].sort(),
+    () => [...new Set(history.map(historyEventLabel))].sort((a, b) => a.localeCompare(b, "es")),
     [history],
   );
   const activityAuthorOptions = useMemo(
@@ -297,9 +325,9 @@ export default function EquipmentDetail() {
       const matchSearch =
         !q ||
         h.note.toLowerCase().includes(q) ||
-        h.type.toLowerCase().includes(q) ||
+        historyEventLabel(h).toLowerCase().includes(q) ||
         (authorNames.get(h.author_id) ?? "").toLowerCase().includes(q);
-      const matchType = !activityTypeFilter || h.type === activityTypeFilter;
+      const matchType = !activityTypeFilter || historyEventLabel(h) === activityTypeFilter;
       const matchAuthor = !activityAuthorFilter || h.author_id === activityAuthorFilter;
       return matchSearch && matchType && matchAuthor;
     });
@@ -309,7 +337,9 @@ export default function EquipmentDetail() {
     filteredHistory,
     {
       fecha: (h) => Date.parse(h.created_at),
-      tipo: (h) => h.type,
+      // Labels start with their subject, so this also groups the events
+      // by falla / OT / solicitud / tarea.
+      tipo: historyEventLabel,
       autor: (h) => authorNames.get(h.author_id) ?? null,
     },
     "fecha",
@@ -664,7 +694,9 @@ export default function EquipmentDetail() {
                     <View style={styles.timelineCard}>
                       <View style={styles.timelineHeader}>
                         <View style={[styles.tag, { backgroundColor: c.bg }]}>
-                          <Text style={[styles.tagText, { color: c.fg }]}>{h.type}</Text>
+                          <Text style={[styles.tagText, { color: c.fg }]}>
+                            {withSiglas(historyEventLabel(h))}
+                          </Text>
                         </View>
 
                         <Text style={styles.timelineDate}>
