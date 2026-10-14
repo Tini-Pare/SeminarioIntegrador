@@ -695,6 +695,25 @@ describe("updateOrderStartDate", () => {
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
     );
   });
+
+  it("translates the orden_fecha_estimada_chk violation to a friendly message", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "23514",
+        message:
+          'new row for relation "orden_de_trabajo" violates check constraint "orden_fecha_estimada_chk"',
+      },
+    });
+    const select = jest.fn().mockReturnValue({ single });
+    const eq = jest.fn().mockReturnValue({ select });
+    const update = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ update });
+
+    await expect(updateOrderStartDate(1, "2026-03-01")).rejects.toThrow(
+      "La fecha de inicio no puede ser posterior a la fecha estimada de resolución.",
+    );
+  });
 });
 
 describe("updateOrderPlannedEndDate", () => {

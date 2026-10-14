@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -16,6 +16,7 @@ import {
   CustomDatePicker,
   fromDbDate,
   isValidDateString,
+  parseDateString,
   toDbDate,
 } from "../../../components/CustomDatePicker";
 import { OrderFlowSteps } from "../../../components/OrderFlowSteps";
@@ -210,9 +211,28 @@ export default function WorkOrderDetail() {
     .filter((f) => f.fa_estado === "activo" || f.fa_id_fallo === currentFaultTypeId)
     .map((f) => ({ value: f.fa_id_fallo, label: f.fa_nombre }));
 
+  const orderStartDate = useMemo(
+    () =>
+      solicitud?.order_start_date
+        ? parseDateString(fromDbDate(solicitud.order_start_date)) ?? undefined
+        : undefined,
+    [solicitud?.order_start_date],
+  );
+
+  const orderPlannedEndDate = useMemo(
+    () =>
+      solicitud?.order_planned_end_date
+        ? parseDateString(fromDbDate(solicitud.order_planned_end_date)) ?? undefined
+        : undefined,
+    [solicitud?.order_planned_end_date],
+  );
+
   function startEditing(field: EditingField) {
     setError(null);
     setFaultSelectOpen(false);
+    if (field === "start") setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
+    if (field === "planned")
+      setPlannedDraft(solicitud ? fromDbDate(solicitud.order_planned_end_date) : "");
     if (field === "priority") setPriorityDraft(solicitud?.priority ?? null);
     if (field === "fault") setFaultDraft(currentFaultTypeId);
     setEditing(field);
@@ -265,6 +285,13 @@ export default function WorkOrderDetail() {
     if (!solicitud) return;
     if (!isValidDateString(dateDraft)) {
       setError("Ingresá una fecha válida (dd/mm/aaaa).");
+      return;
+    }
+    if (
+      solicitud.order_planned_end_date &&
+      toDbDate(dateDraft) > solicitud.order_planned_end_date
+    ) {
+      setError("La fecha de inicio no puede ser posterior a la fecha estimada de resolución.");
       return;
     }
     await save(() => updateOrderStartDate(solicitud.id, toDbDate(dateDraft)));
@@ -406,11 +433,24 @@ export default function WorkOrderDetail() {
         <PhotoCarousel photoUrls={s.photo_urls} height={320} />
 
         <Text style={styles.sectionTitle}>Fecha de inicio de la orden</Text>
+
         {editing === "start" ? (
           <View style={styles.dateEditRow}>
-            <CustomDatePicker value={dateDraft} onChange={setDateDraft} compact maxWidth={200} />
+            <CustomDatePicker
+              value={dateDraft}
+              onChange={setDateDraft}
+              compact
+              maxWidth={200}
+              maxDate={orderPlannedEndDate}
+            />
 
-            <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
+            <Pressable
+              style={styles.dateCancelButton}
+              onPress={() => {
+                setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
+                setEditing(null);
+              }}
+            >
               <Text style={styles.dateCancelText}>Cancelar</Text>
             </Pressable>
 
@@ -431,6 +471,7 @@ export default function WorkOrderDetail() {
         )}
 
         <Text style={styles.sectionTitle}>Fecha estimada de resolución</Text>
+
         {editing === "planned" ? (
           <View style={styles.dateEditRow}>
             <CustomDatePicker
@@ -438,9 +479,16 @@ export default function WorkOrderDetail() {
               onChange={setPlannedDraft}
               compact
               maxWidth={200}
+              minDate={orderStartDate}
             />
 
-            <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
+            <Pressable
+              style={styles.dateCancelButton}
+              onPress={() => {
+                setPlannedDraft(solicitud ? fromDbDate(solicitud.order_planned_end_date) : "");
+                setEditing(null);
+              }}
+            >
               <Text style={styles.dateCancelText}>Cancelar</Text>
             </Pressable>
 

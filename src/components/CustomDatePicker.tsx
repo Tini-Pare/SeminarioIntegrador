@@ -247,9 +247,15 @@ export function CustomDatePicker({
         setCurrentMonth(parsed.getMonth());
         setCurrentYear(parsed.getFullYear());
       } else {
-        const today = new Date();
-        setCurrentMonth(today.getMonth());
-        setCurrentYear(today.getFullYear());
+        const today = toDay(new Date());
+        let initialDate = today;
+        if (minDate && initialDate < toDay(minDate)) {
+          initialDate = toDay(minDate);
+        } else if (maxDate && initialDate > toDay(maxDate)) {
+          initialDate = toDay(maxDate);
+        }
+        setCurrentMonth(initialDate.getMonth());
+        setCurrentYear(initialDate.getFullYear());
       }
 
       if (
@@ -272,7 +278,7 @@ export function CustomDatePicker({
         });
       }
     }
-  }, [isOpen, value, windowHeight, compact]);
+  }, [isOpen, value, windowHeight, compact, minDate, maxDate]);
 
   const handleTextChange = (text: string) => {
     const result = formatAndValidateDateInput(text, value, minDate, maxDate);

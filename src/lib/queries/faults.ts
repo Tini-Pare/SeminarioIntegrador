@@ -492,7 +492,12 @@ export async function updateOrderStartDate(solicitudId: number, newDate: string)
     .eq("sol_id_solicitud", solicitudId)
     .select("eq_id_equipo")
     .single();
-  if (updateError) throw new Error(updateError.message);
+  if (updateError) {
+    if (updateError.code === "23514" && updateError.message.includes("orden_fecha_estimada_chk")) {
+      throw new Error("La fecha de inicio no puede ser posterior a la fecha estimada de resolución.");
+    }
+    throw new Error(updateError.message);
+  }
 
   await logHistorial(
     orden.eq_id_equipo,

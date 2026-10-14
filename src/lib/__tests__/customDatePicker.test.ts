@@ -243,5 +243,16 @@ describe("CustomDatePicker helpers", () => {
       // Cannot be in the future
       expect(formatAndValidateDateInput("25/09/2026", "25/09/202", parsedDateFrom, today)).toBeNull();
     });
+
+    it("restricts work order resolution date to on or after start date", () => {
+      const orderStartDate = parseDateString("12/10/2026")!; // 12/10/2026
+
+      // Cannot pick or type 09/10/2026 (prior to start date)
+      expect(formatAndValidateDateInput("09/10/2026", "09/10/202", orderStartDate)).toBeNull();
+      // Can pick or type same day
+      expect(formatAndValidateDateInput("12/10/2026", "12/10/202", orderStartDate)).toBe("12/10/2026");
+      // Can pick or type future dates
+      expect(formatAndValidateDateInput("15/10/2026", "15/10/202", orderStartDate)).toBe("15/10/2026");
+    });
   });
 });
