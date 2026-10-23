@@ -36,6 +36,7 @@ import { listSuppliers, type SupplierWithRubro } from "../../../lib/queries/supp
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Repuesto } from "../../../types/database";
 
@@ -134,14 +135,13 @@ export default function PurchasesScreen() {
   }, [purchases, estados]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     const dbFrom = isValidDateString(dateFrom) ? toDbDate(dateFrom) : null;
     const dbTo = isValidDateString(dateTo) ? toDbDate(dateTo) : null;
 
     return purchases.filter((p) => {
-      const provName = p.proveedores?.prov_nombre?.toLowerCase() ?? "";
       const matchSearch =
-        !q || provName.includes(q) || (comprobanteRef(p)?.toLowerCase().includes(q) ?? false);
+        !q || includesSearch(p.proveedores?.prov_nombre, q) || includesSearch(comprobanteRef(p), q);
 
       let matchDate = true;
       if (dbFrom) {
@@ -389,7 +389,7 @@ export default function PurchasesScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={col("total")}
+                style={[col("total"), styles.totalHeaderCell]}
               />
 
               <SortHeaderCell
@@ -434,7 +434,7 @@ export default function PurchasesScreen() {
                       <Text style={styles.dateCell}>{formatDate(p.co_fecha_compra)}</Text>
                     </View>
 
-                    <View style={col("total")}>
+                    <View style={[col("total"), styles.totalCol]}>
                       <Text style={styles.total}>
                         {p.co_costo_total != null && Number(p.co_costo_total) > 0
                           ? `$${Number(p.co_costo_total).toLocaleString("es-AR")}`
@@ -695,7 +695,18 @@ function makeStyles(c: ThemeColors) {
       fontWeight: "600",
       fontFamily: "monospace",
     },
-    total: { fontSize: 14.5, color: c.text, fontWeight: "600", fontFamily: "monospace" },
+    // Amounts are right-aligned so the digits line up by place value. The
+    // extra right padding keeps them off the "Estado" badge that starts
+    // left-aligned right after.
+    totalCol: { paddingRight: 24 },
+    totalHeaderCell: { justifyContent: "flex-end", paddingRight: 24 },
+    total: {
+      fontSize: 14.5,
+      color: c.text,
+      fontWeight: "600",
+      fontFamily: "monospace",
+      textAlign: "right",
+    },
     viewBtn: {
       width: 36,
       height: 36,

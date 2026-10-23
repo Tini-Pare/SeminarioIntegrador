@@ -22,6 +22,7 @@ import { deleteUser, listProfiles } from "../../../lib/queries/profiles";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Profile } from "../../../types/database";
 
@@ -103,10 +104,9 @@ export default function UsersScreen() {
   }
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     return profiles.filter((p) => {
-      const matchSearch =
-        !q || p.name.toLowerCase().includes(q) || (p.legajo ?? "").toLowerCase().includes(q);
+      const matchSearch = !q || includesSearch(p.name, q) || includesSearch(p.legajo, q);
       const matchRole = !roleFilter || p.role === roleFilter;
       const matchStatus = !statusFilter || (statusFilter === "active" ? p.active : !p.active);
       return matchSearch && matchRole && matchStatus;

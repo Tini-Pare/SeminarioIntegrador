@@ -24,6 +24,7 @@ import {
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Fallo } from "../../../types/database";
 
@@ -73,9 +74,9 @@ export default function FaultsScreen() {
   }
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     return faults.filter((f) => {
-      const matchSearch = !q || f.fa_nombre.toLowerCase().includes(q);
+      const matchSearch = !q || startsWithSearch(f.fa_nombre, q);
       const matchGravedad = !gravedadFilter || normalizeGravedad(f.fa_gravedad) === gravedadFilter;
       const matchEstado = !estadoFilter || f.fa_estado === estadoFilter;
       return matchSearch && matchGravedad && matchEstado;

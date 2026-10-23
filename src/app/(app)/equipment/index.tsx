@@ -25,6 +25,7 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Equipo, Profile } from "../../../types/database";
 
@@ -108,9 +109,9 @@ export default function EquipmentScreen() {
   }, [equipment]);
 
   const filteredEquipment = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     return equipment.filter((e) => {
-      const matchQ = !q || `${e.name} ${e.code} ${e.location}`.toLowerCase().includes(q);
+      const matchQ = !q || includesSearch(`${e.name} ${e.code} ${e.location}`, q);
       const matchStatus = !statusFilter || e.status === statusFilter;
       const matchLocation = !locationFilter || e.location?.trim() === locationFilter;
       const matchType = !typeFilter || e.type?.trim() === typeFilter;

@@ -36,6 +36,7 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { PedidoCompra, Repuesto } from "../../../types/database";
 
@@ -326,18 +327,17 @@ export default function PurchaseOrdersScreen() {
   }
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     const dbFrom = isValidDateString(dateFrom) ? toDbDate(dateFrom) : null;
     const dbTo = isValidDateString(dateTo) ? toDbDate(dateTo) : null;
     const cleanStatusFilter = statusFilter.trim().toLowerCase();
 
     return orders.filter((o) => {
       // 1. Search by technician name or spare part name
-      const techName = techNames.get(o.p_id_tecnico)?.toLowerCase() ?? "";
       const matchSearch =
         !q ||
-        techName.includes(q) ||
-        o.linea_pedido.some((l) => l.repuesto?.rep_nombre?.toLowerCase().includes(q));
+        includesSearch(techNames.get(o.p_id_tecnico), q) ||
+        o.linea_pedido.some((l) => startsWithSearch(l.repuesto?.rep_nombre, q));
 
       // 2. Status filter
       const oStatus = (o.ped_estado ?? "").toLowerCase().trim();

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import type { ConsumedPart } from "../lib/queries/faults";
 import { listSpareParts } from "../lib/queries/spareParts";
+import { normalizeSearch, startsWithSearch } from "../lib/search";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Repuesto } from "../types/database";
@@ -19,24 +20,6 @@ import { SearchIcon } from "./icons";
 import { RowActions } from "./RowActions";
 
 type UsedRow = { repId: number; qty: string };
-
-// Case- and accent-insensitive, so "camara" finds "Cámara".
-function normalize(text: string): string {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
-// True when `query` (already normalized) appears in `name` starting at the
-// beginning of a word: "ca" finds "Cable" and "Cámara" but not "Placa", and
-// "pan" finds "(panel)". Multi-word queries work too ("cable de").
-function matchesWordStart(name: string, query: string): boolean {
-  const text = normalize(name);
-  let i = text.indexOf(query);
-  while (i !== -1) {
-    if (i === 0 || !/[a-z0-9]/.test(text[i - 1])) return true;
-    i = text.indexOf(query, i + 1);
-  }
-  return false;
-}
 
 // Asked right before finishTask (queue/index.tsx): qué repuestos usó el
 // técnico para esta tarea, si usó alguno — 0 líneas es una respuesta
@@ -98,10 +81,11 @@ export function FinishTaskModal({
 
   const partById = new Map(spareParts.map((p) => [p.rep_id, p]));
   const addedIds = new Set(rows.map((r) => r.repId));
-  const query = normalize(search.trim());
-  // Nothing is listed until at least one letter is typed.
+  const query = normalizeSearch(search.trim());
+  // Nothing is listed until at least one letter is typed. Only names that
+  // start with it ("ace" finds "Aceite", not "Cable de acero").
   const results = query
-    ? spareParts.filter((p) => !addedIds.has(p.rep_id) && matchesWordStart(p.rep_nombre, query))
+    ? spareParts.filter((p) => !addedIds.has(p.rep_id) && startsWithSearch(p.rep_nombre, query))
     : [];
 
   function clearRowError(repId: number) {

@@ -11,7 +11,8 @@ import {
   type PurchaseWithDetail,
   type RemitoWithLines,
 } from "../../../lib/queries/purchases";
-import { comprobanteRef, comprobanteTipoLabel } from "../../../lib/comprobante";
+import { FACTURA_LETRAS, TIPO_LABEL } from "../../../lib/comprobante";
+import { makePurchaseDocumentStyles } from "../../../lib/purchaseDocumentStyles";
 import { listProfiles } from "../../../lib/queries/profiles";
 import {
   RECEIPT_STATE_LABEL,
@@ -24,6 +25,14 @@ import {
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import type { ComprobanteTipo } from "../../../types/database";
+
+// Badge of the plain (non-factura) layout, same as the one register.tsx
+// shows while loading it. Remito is legacy: new compras can't pick it.
+const DOC_BADGE: Record<Exclude<ComprobanteTipo, "factura">, { code: string; note: string }> = {
+  tique: { code: "T", note: "Tique" },
+  remito: { code: "R", note: "Remito" },
+};
 
 function formatDate(d: string | null): string {
   if (!d) return "—";
@@ -67,6 +76,7 @@ export default function PurchaseDetailScreen() {
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const doc = makePurchaseDocumentStyles(colors);
 
   const load = useCallback(async () => {
     if (!id || Number.isNaN(coId)) return;
@@ -179,6 +189,77 @@ export default function PurchaseDetailScreen() {
     );
   }
 
+  const tipo = purchase.co_tipo_comprobante;
+  const numberLabel = tipo === "tique" ? "Nro. de tique" : "Comp. Nro";
+  const dateLabel = tipo === "tique" ? "Fecha del tique" : "Fecha de emisión";
+  const letraCode = FACTURA_LETRAS.find((o) => o.letra === purchase.co_letra)?.code.toUpperCase();
+  const registrador = purchase.co_p_id_registrador
+    ? registradorNames.get(purchase.co_p_id_registrador)
+    : undefined;
+
+  const estadoBadge = (
+    <View style={[styles.estadoBadge, { backgroundColor: estadoColors.bg }]}>
+      <View style={[styles.estadoDot, { backgroundColor: estadoColors.fg }]} />
+
+      <Text style={[styles.estadoBadgeText, { color: estadoColors.fg }]}>
+        {RECEIPT_STATE_LABEL[estado]}
+      </Text>
+    </View>
+  );
+
+  // Who loaded it + its reception state, where register.tsx has the
+  // "Cambiar tipo" button.
+  const docStatus = (
+    <View style={styles.docStatus}>
+      {registrador && <Text style={styles.registrador}>Registró {registrador}</Text>}
+
+      {estadoBadge}
+    </View>
+  );
+
+  // Read-only version of register.tsx's line table: same columns and
+  // widths, minus the trash column.
+  const lineRows = (
+    <>
+      <View style={doc.tableHeadRow}>
+        <Text style={[doc.tableHeadText, doc.colNum, { color: "#fff" }]}>#</Text>
+
+        <Text style={[doc.tableHeadText, doc.colRepFlex]}>Repuesto</Text>
+
+        <Text style={[doc.tableHeadText, doc.colCant]}>Cantidad</Text>
+
+        <Text style={[doc.tableHeadText, doc.colCosto, doc.textRight]}>Precio unit.</Text>
+
+        <Text style={[doc.tableHeadText, doc.colTotal, doc.textRight]}>Subtotal</Text>
+      </View>
+
+      {purchase.linea_compra.map((l, idx) => {
+        const qty = l.lc_cantidad ?? 0;
+        const unit = l.lc_costo_unitario != null ? Number(l.lc_costo_unitario) : null;
+
+        return (
+          <View key={l.rep_id} style={doc.tableRow}>
+            <Text style={[doc.cellNum, doc.colNum]}>{idx + 1}</Text>
+
+            <Text style={[styles.cellText, doc.colRepFlex]} numberOfLines={2}>
+              {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
+            </Text>
+
+            <Text style={[styles.cellText, doc.cellNum, doc.colCant]}>{qty}</Text>
+
+            <Text style={[styles.cellText, doc.cellNum, doc.colCosto, doc.textRight]}>
+              {unit != null ? money(unit) : "—"}
+            </Text>
+
+            <Text style={[doc.cellTotal, doc.colTotal, doc.textRight]}>
+              {unit != null ? money(unit * qty) : "—"}
+            </Text>
+          </View>
+        );
+      })}
+    </>
+  );
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -191,58 +272,144 @@ export default function PurchaseDetailScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.headerCard}>
-          <View style={styles.headerLeft}>
-            <View style={styles.badgesRow}>
-              <View style={styles.tipoBadge}>
-                <Text style={styles.tipoBadgeText}>{comprobanteTipoLabel(purchase)}</Text>
+        {/* The comprobante is drawn exactly as register.tsx lays it out
+            while loading it (factura like the printed paper, tique as the
+            plain form), with each field's value where its input was. */}
+        {isFactura ? (
+          <View style={[doc.invoice, styles.docFirst]}>
+            <View style={doc.invoiceTopBar}>
+              <Text style={doc.invoiceTopBarText}>Comprobante del proveedor</Text>
+
+              {docStatus}
+            </View>
+
+            <View style={doc.invoiceHeader}>
+              <View style={doc.issuerCol}>
+                <Text style={doc.smallLabel}>Razón social del proveedor</Text>
+
+                <Text style={styles.issuerName}>{purchase.proveedores?.prov_nombre ?? "—"}</Text>
               </View>
 
-              <View style={[styles.estadoBadge, { backgroundColor: estadoColors.bg }]}>
-                <View style={[styles.estadoDot, { backgroundColor: estadoColors.fg }]} />
+              <View style={doc.letraCol}>
+                <View style={doc.letraBox}>
+                  <Text style={[doc.letraBoxText, !purchase.co_letra && doc.letraBoxEmpty]}>
+                    {purchase.co_letra ?? "—"}
+                  </Text>
 
-                <Text style={[styles.estadoBadgeText, { color: estadoColors.fg }]}>
-                  {RECEIPT_STATE_LABEL[estado]}
+                  <Text style={doc.letraBoxCode}>{letraCode ?? "COD. —"}</Text>
+                </View>
+              </View>
+
+              <View style={doc.docDataCol}>
+                <Text style={doc.invoiceTitle}>FACTURA</Text>
+
+                <View style={doc.docDataRow}>
+                  <View style={doc.docDataItem}>
+                    <Text style={doc.smallLabel}>Punto de venta</Text>
+                    <Text style={styles.docValue}>{purchase.co_punto_venta || "—"}</Text>
+                  </View>
+
+                  <View style={doc.docDataItem}>
+                    <Text style={doc.smallLabel}>{numberLabel}</Text>
+                    <Text style={styles.docValue}>{purchase.co_nombre || "—"}</Text>
+                  </View>
+                </View>
+
+                <View style={doc.docDataRow}>
+                  <View style={doc.docDataItem}>
+                    <Text style={doc.smallLabel}>{dateLabel}</Text>
+                    <Text style={styles.docValue}>{formatDate(purchase.co_fecha_compra)}</Text>
+                  </View>
+                </View>
+
+                <View style={doc.docDataRow}>
+                  <View style={doc.docDataItem}>
+                    {/* The supplier's current CUIT (compras don't keep a copy). */}
+                    <Text style={doc.smallLabel}>CUIT</Text>
+                    <Text style={styles.docValue}>{purchase.proveedores?.prov_cuit || "—"}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {lineRows}
+
+            <View style={doc.invoiceTotals}>
+              <View style={doc.invoiceTotalsBox}>
+                <Text style={doc.invoiceTotalLabel}>Importe total:</Text>
+
+                <Text style={doc.summaryTotalAmount}>{money(purchase.co_costo_total)}</Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={[doc.docHeader, styles.docFirst]}>
+              <View style={doc.docBadge}>
+                <Text style={doc.docBadgeCode}>{DOC_BADGE[tipo as "tique" | "remito"].code}</Text>
+                <Text style={doc.docBadgeNote}>{DOC_BADGE[tipo as "tique" | "remito"].note}</Text>
+              </View>
+
+              <View style={{ flex: 1, minWidth: 140 }}>
+                <Text style={doc.docHeaderTitle}>{TIPO_LABEL[tipo]}</Text>
+                <Text style={doc.docHeaderSub}>Datos del comprobante del proveedor</Text>
+              </View>
+
+              {docStatus}
+            </View>
+
+            <View style={doc.section}>
+              <View style={doc.docRow}>
+                <View style={doc.docItem}>
+                  <Text style={doc.smallLabel}>Punto de venta</Text>
+                  <Text style={styles.docValue}>{purchase.co_punto_venta || "—"}</Text>
+                </View>
+
+                <View style={doc.docItem}>
+                  <Text style={doc.smallLabel}>{numberLabel}</Text>
+                  <Text style={styles.docValue}>{purchase.co_nombre || "—"}</Text>
+                </View>
+
+                <View style={doc.docItem}>
+                  <Text style={doc.smallLabel}>{dateLabel}</Text>
+                  <Text style={styles.docValue}>{formatDate(purchase.co_fecha_compra)}</Text>
+                </View>
+              </View>
+
+              <View style={doc.provRow}>
+                <View style={doc.provCol}>
+                  <Text style={doc.smallLabel}>Proveedor</Text>
+                  <Text style={styles.docValue}>{purchase.proveedores?.prov_nombre ?? "—"}</Text>
+                </View>
+
+                <View style={doc.cuitCol}>
+                  <Text style={doc.smallLabel}>CUIT</Text>
+                  <Text style={styles.docValue}>{purchase.proveedores?.prov_cuit || "—"}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={doc.tableCard}>
+              <View style={doc.linesHeader}>
+                <Text style={doc.label}>Detalle del comprobante</Text>
+              </View>
+
+              {lineRows}
+
+              <View style={doc.tableFooter}>
+                <Text style={doc.summaryTotal}>
+                  Total del comprobante:{" "}
+                  <Text style={doc.summaryTotalAmount}>{money(purchase.co_costo_total)}</Text>
                 </Text>
               </View>
             </View>
+          </>
+        )}
 
-            <Text style={styles.pageTitle}>{purchase.proveedores?.prov_nombre ?? "Compra"}</Text>
-
-            <Text style={styles.headerSub}>
-              {formatDate(purchase.co_fecha_compra)}
-              {comprobanteRef(purchase) ? ` · N.º ${comprobanteRef(purchase)}` : ""}
-            </Text>
-
-            <View style={styles.metaRow}>
-              {/* The supplier's current CUIT (compras don't keep a copy). */}
-              <View style={styles.metaCol}>
-                <Text style={styles.metaLabel}>CUIT</Text>
-                <Text style={styles.metaValue}>{purchase.proveedores?.prov_cuit || "—"}</Text>
-              </View>
-
-              {purchase.co_p_id_registrador ? (
-                <View style={styles.metaCol}>
-                  <Text style={styles.metaLabel}>REGISTRÓ</Text>
-                  <Text style={styles.metaValue}>
-                    {registradorNames.get(purchase.co_p_id_registrador) ?? "—"}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          </View>
-
-          <View style={styles.headerRight}>
-            <Text style={styles.totalLabel}>{isFactura ? "Total facturado" : "Total"}</Text>
-
-            <Text style={styles.totalAmount}>{money(purchase.co_costo_total)}</Text>
-          </View>
-        </View>
-
-        {isFactura ? (
+        {isFactura && (
           <View style={styles.columnsRow}>
             <View style={styles.columnCard}>
-              <Text style={styles.sectionTitle}>Ítems facturados</Text>
+              <Text style={styles.sectionTitle}>Recepción por ítem</Text>
 
               <View style={styles.tableHead}>
                 <Text style={[styles.hCell, styles.colRep]}>REPUESTO</Text>
@@ -360,40 +527,6 @@ export default function PurchaseDetailScreen() {
               )}
             </View>
           </View>
-        ) : (
-          <View style={styles.singleCard}>
-            <Text style={styles.sectionTitle}>Ítems</Text>
-
-            <View style={styles.tableHead}>
-              <Text style={[styles.hCell, styles.colRep]}>REPUESTO</Text>
-              <Text style={[styles.hCell, styles.colCant]}>CANT.</Text>
-              <Text style={[styles.hCell, styles.colPrice]}>C. UNIT.</Text>
-              <Text style={[styles.hCell, styles.colSubtotal]}>SUBTOT.</Text>
-            </View>
-
-            {purchase.linea_compra.map((l) => {
-              const qty = l.lc_cantidad ?? 0;
-              const unit = l.lc_costo_unitario != null ? Number(l.lc_costo_unitario) : null;
-
-              return (
-                <View key={l.rep_id} style={styles.tableRow}>
-                  <Text style={[styles.cell, styles.colRep]} numberOfLines={2}>
-                    {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
-                  </Text>
-
-                  <Text style={[styles.cell, styles.colCant]}>{qty}</Text>
-
-                  <Text style={[styles.cell, styles.colPrice]}>
-                    {unit != null ? money(unit) : "—"}
-                  </Text>
-
-                  <Text style={[styles.cell, styles.colSubtotal]}>
-                    {unit != null ? money(unit * qty) : "—"}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
         )}
       </ScrollView>
 
@@ -431,7 +564,9 @@ export default function PurchaseDetailScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 20, paddingBottom: 64, width: "100%" },
+    // Same max width as register.tsx, so the comprobante keeps the
+    // proportions it had while being loaded.
+    content: { padding: 20, paddingBottom: 64, width: "100%", maxWidth: 1040 },
     center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
     topBar: { flexDirection: "row", marginBottom: 16 },
     backBtn: {
@@ -450,38 +585,20 @@ function makeStyles(c: ThemeColors) {
     backText: { color: c.textLabel, fontSize: 13.5 },
     error: { color: c.destructive, fontSize: 14 },
 
-    headerCard: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      flexWrap: "wrap",
-      gap: 20,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderLeftWidth: 5,
-      borderLeftColor: c.accent,
-      borderRadius: 16,
-      backgroundColor: c.bgCard,
-      padding: 24,
+    // The shared invoice/docHeader styles carry a top margin meant for
+    // register.tsx's step indicator above them; here they follow the top bar.
+    docFirst: { marginTop: 0 },
+    docStatus: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12 },
+    registrador: { fontSize: 13, color: c.textMuted },
+    // What each field's input holds while loading, as plain printed text.
+    docValue: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: c.text,
+      fontVariant: ["tabular-nums"],
     },
-    headerLeft: {
-      flex: 1,
-      minWidth: 260,
-    },
-    headerRight: {
-      alignItems: "flex-end",
-      justifyContent: "center",
-      minWidth: 160,
-      paddingTop: 2,
-    },
-    badgesRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-    tipoBadge: {
-      paddingHorizontal: 11,
-      paddingVertical: 3.5,
-      borderRadius: 999,
-      backgroundColor: c.bgNested,
-    },
-    tipoBadgeText: { fontSize: 12.5, fontWeight: "700", color: c.textLabel },
+    issuerName: { fontSize: 18, fontWeight: "700", color: c.text },
+    cellText: { fontSize: 14, color: c.text },
     estadoBadge: {
       flexDirection: "row",
       alignItems: "center",
@@ -496,27 +613,6 @@ function makeStyles(c: ThemeColors) {
       marginRight: 6,
     },
     estadoBadgeText: { fontSize: 12.5, fontWeight: "700" },
-    pageTitle: { fontSize: 24, fontWeight: "700", color: c.text, letterSpacing: -0.3 },
-    headerSub: { marginTop: 4, fontSize: 13.5, color: c.textMuted },
-    metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 28, marginTop: 16 },
-    metaCol: { gap: 3 },
-    metaLabel: {
-      fontSize: 11.5,
-      fontWeight: "700",
-      letterSpacing: 0.6,
-      color: c.textMuted,
-      textTransform: "uppercase",
-      fontFamily: "monospace",
-    },
-    metaValue: { fontSize: 14.5, fontWeight: "700", color: c.text },
-    totalLabel: { fontSize: 12.5, color: c.textSecondary, marginBottom: 4, textAlign: "right" },
-    totalAmount: {
-      fontSize: 32,
-      fontWeight: "800",
-      color: c.accent,
-      textAlign: "right",
-      letterSpacing: -0.5,
-    },
 
     columnsRow: {
       flexDirection: "row",
@@ -532,14 +628,6 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 16,
       backgroundColor: c.bgCard,
       padding: 22,
-    },
-    singleCard: {
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 16,
-      backgroundColor: c.bgCard,
-      padding: 22,
-      marginTop: 16,
     },
     sectionTitle: { fontSize: 16, fontWeight: "700", color: c.text },
     tableHead: {
@@ -573,8 +661,6 @@ function makeStyles(c: ThemeColors) {
     colRecibido: { width: 85, textAlign: "center", fontVariant: ["tabular-nums"] },
     // Wide enough for "Pendiente en recepción" on a single line.
     colEstado: { width: 165, alignItems: "flex-end", textAlign: "right" },
-    colPrice: { width: 105, textAlign: "right", fontVariant: ["tabular-nums"] },
-    colSubtotal: { width: 110, textAlign: "right", fontVariant: ["tabular-nums"] },
     lineBadge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },
     lineBadgeText: { fontSize: 12.5, fontWeight: "700" },
 

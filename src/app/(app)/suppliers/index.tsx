@@ -24,6 +24,7 @@ import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { useConfirm } from "../../../lib/useConfirm";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { TipoProveedor } from "../../../types/database";
 
@@ -88,13 +89,13 @@ export default function SuppliersScreen() {
   }
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     return suppliers.filter((s) => {
       const qDigits = cuitDigits(q);
       const matchSearch =
         !q ||
-        s.prov_nombre.toLowerCase().includes(q) ||
-        (s.prov_correo ?? "").toLowerCase().includes(q) ||
+        includesSearch(s.prov_nombre, q) ||
+        includesSearch(s.prov_correo, q) ||
         // Digits only, so "20227" and "20-227" both find 20-22725470-0.
         (qDigits.length > 0 && cuitDigits(s.prov_cuit ?? "").includes(qDigits));
       const matchRubro = !rubroFilter || s.rubro === rubroFilter;

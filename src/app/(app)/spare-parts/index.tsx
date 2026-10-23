@@ -26,6 +26,7 @@ import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { useConfirm } from "../../../lib/useConfirm";
 import { usePagination } from "../../../lib/usePagination";
+import { normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Repuesto } from "../../../types/database";
 
@@ -96,9 +97,9 @@ export default function SparePartsScreen() {
   }
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     return parts.filter((p) => {
-      const matchSearch = !q || p.rep_nombre.toLowerCase().includes(q);
+      const matchSearch = !q || startsWithSearch(p.rep_nombre, q);
       const matchStock = !stockFilter || stockStatus(p) === stockFilter;
       const matchEstado = !estadoFilter || p.rep_estado === estadoFilter;
       return matchSearch && matchStock && matchEstado;

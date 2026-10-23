@@ -24,7 +24,9 @@ import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { usePagination } from "../../../lib/usePagination";
+import { useTableSort } from "../../../lib/useTableSort";
 import { FinishTaskModal } from "../../../components/FinishTaskModal";
+import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { SuspendTaskModal } from "../../../components/SuspendTaskModal";
 import {
   CalendarIcon,
@@ -40,7 +42,7 @@ import { TableFilterBar } from "../../../components/TableFilterBar";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { useConfirm } from "../../../lib/useConfirm";
-import type { Equipo, Solicitud } from "../../../types/database";
+import type { Equipo, PastTaskSuspension, Solicitud } from "../../../types/database";
 
 // A técnico's queue is one row per tarea assigned to them — not one row
 // per OT. A solicitud/OT isn't work a técnico "has"; a tarea is (see
@@ -78,7 +80,18 @@ function taskStatusLabel(task: MyTask): string {
   return STATUS_FILTER_LABELS[taskStatus(task)];
 }
 
-// Queue order: what can be worked on now first, suspended tareas after
+function formatDbDate(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("es-AR");
+}
+
+// "Estuvo suspendida del 12/10/2026 al 14/10/2026 · Motivo: Falta de
+// repuestos" (or "Motivo: Otro - <comentario>").
+function lastSuspensionText(s: PastTaskSuspension): string {
+  const detail = s.comment ? ` - ${s.comment}` : "";
+  return `Estuvo suspendida del ${formatDbDate(s.since)} al ${formatDbDate(s.until)} · Motivo: ${s.reason}${detail}`;
+}
+
+// "Estado" order: what can be worked on now first, suspended tareas after
 // them (waiting on something), finished ones last.
 const STATUS_RANK: Record<TaskStatus, number> = {
   pending: 0,
@@ -87,8 +100,18 @@ const STATUS_RANK: Record<TaskStatus, number> = {
   done: 3,
 };
 
+// Ascending = most urgent first, which is what "Prioridad ▲" should mean.
+const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
+
 function taskRank(task: MyTask): number {
   return STATUS_RANK[taskStatus(task)];
+}
+
+// Base order before the técnico picks a sort: by estado, oldest solicitud
+// first within each. Sorting is stable, so it's also the tie-break for
+// "Prioridad" (same priority -> pending before finished, older first).
+function compareTasks(a: MyTask, b: MyTask): number {
+  return taskRank(a) - taskRank(b) || a.createdAt.localeCompare(b.createdAt);
 }
 
 export default function QueueScreen() {
@@ -126,7 +149,7 @@ export default function QueueScreen() {
             },
             reporterName: profileById.get(t.reportedBy)?.name ?? "Desconocido",
           }))
-          .sort((a, b) => taskRank(a) - taskRank(b)),
+          .sort(compareTasks),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -159,11 +182,20 @@ export default function QueueScreen() {
     setRefreshing(false);
   }
 
+  // Starting/finishing/suspending/resuming changes the tarea's status, so
+  // under a status filter it would just vanish from the list. Going back
+  // to "Todas" keeps it in sight with its new status.
+  function resetFilters() {
+    setPriorityFilter("all");
+    setStatusFilter("all");
+  }
+
   async function handleStart(item: Item) {
     setActingOn(item.taskRowId);
     try {
       await startTask(item.taskRowId);
       await load();
+      resetFilters();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -175,6 +207,7 @@ export default function QueueScreen() {
     if (!finishingTask) return;
     await finishTask(finishingTask.taskRowId, repuestos, diagnostico);
     await load();
+    resetFilters();
     setFinishingTask(null);
   }
 
@@ -182,6 +215,7 @@ export default function QueueScreen() {
     if (!suspendingTask) return;
     await suspendTask(suspendingTask.taskRowId, input.reason, input.comment);
     await load();
+    resetFilters();
     setSuspendingTask(null);
   }
 
@@ -190,6 +224,7 @@ export default function QueueScreen() {
     try {
       await resumeTask(item.taskRowId);
       await load();
+      resetFilters();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -245,15 +280,31 @@ export default function QueueScreen() {
     );
   }, [items, priorityFilter, statusFilter]);
 
+  // What's still left to do (not started, en curso or suspendida) among the
+  // listed tareas; finished ones are history, not work the técnico has.
+  const pendingCount = visibleItems.filter((t) => !t.endDate).length;
+
   const priorityColors: Record<Priority, { bg: string; fg: string }> = {
     low: colors.urgencyLow,
     medium: colors.urgencyMedium,
     high: colors.urgencyHigh,
   };
 
-  const { pageItems, page, pageCount, setPage } = usePagination(
+  // Defaults to Prioridad (most urgent first); Fecha ▲ is chronological,
+  // the oldest solicitud first.
+  const { sorted, field, dir, toggle } = useTableSort<Item>(
     visibleItems,
-    `${priorityFilter}|${statusFilter}`,
+    {
+      prioridad: (t) => PRIORITY_RANK[t.priority],
+      fecha: (t) => t.createdAt,
+      estado: (t) => taskRank(t),
+    },
+    "prioridad",
+  );
+
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    sorted,
+    `${priorityFilter}|${statusFilter}|${field}|${dir}`,
   );
 
   if (loading) return <ActivityIndicator style={styles.center} />;
@@ -304,10 +355,42 @@ export default function QueueScreen() {
           ]}
           right={
             <Text style={styles.count}>
-              {visibleItems.length} {visibleItems.length === 1 ? "tarea" : "tareas"}
+              {pendingCount} {pendingCount === 1 ? "tarea pendiente" : "tareas pendientes"}
             </Text>
           }
         />
+
+        {/* Cards have no table header, so the sortable "columns" live in a
+            bar styled like one — same as the equipo detail's fallas tab. */}
+        {visibleItems.length > 1 && (
+          <View style={styles.sortBar}>
+            <Text style={styles.sortBarLabel}>Ordenar por</Text>
+
+            <SortHeaderCell
+              label="Prioridad"
+              field="prioridad"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+            />
+
+            <SortHeaderCell
+              label="Fecha de solicitud"
+              field="fecha"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+            />
+
+            <SortHeaderCell
+              label="Estado"
+              field="estado"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+            />
+          </View>
+        )}
 
         {visibleItems.length === 0 ? (
           <Text style={styles.empty}>
@@ -458,6 +541,10 @@ export default function QueueScreen() {
                   <View style={styles.doneRow}>
                     <Text style={styles.doneText}>✓ Finalizada</Text>
 
+                    {item.diagnosis && (
+                      <Text style={styles.consumedText}>Diagnóstico: {item.diagnosis}</Text>
+                    )}
+
                     {item.consumedParts.length > 0 && (
                       <Text style={styles.consumedText}>
                         Repuestos usados:{" "}
@@ -465,12 +552,22 @@ export default function QueueScreen() {
                       </Text>
                     )}
 
-                    {item.diagnosis && (
-                      <Text style={styles.consumedText}>Diagnóstico: {item.diagnosis}</Text>
+                    {item.lastSuspension && (
+                      <Text style={styles.consumedText}>
+                        {lastSuspensionText(item.lastSuspension)}
+                      </Text>
                     )}
                   </View>
                 ) : (
                   <>
+                    {/* Resumed: a quiet reminder of why it had been on hold.
+                        While suspended again, the yellow box below says it. */}
+                    {!item.suspension && item.lastSuspension && (
+                      <Text style={styles.lastSuspensionText}>
+                        {lastSuspensionText(item.lastSuspension)}
+                      </Text>
+                    )}
+
                     {item.suspension && (
                       <View style={styles.suspendedBox}>
                         <Text style={styles.suspendedTitle}>
@@ -566,6 +663,27 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.destructive, marginBottom: 12 },
     empty: { padding: 40, textAlign: "center", color: c.textMuted },
     count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
+    // Same look as the equipo detail's sort bar.
+    sortBar: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      columnGap: 22,
+      rowGap: 8,
+      paddingHorizontal: 18,
+      paddingVertical: 11,
+      marginBottom: 14,
+      backgroundColor: c.accent,
+      borderRadius: 11,
+    },
+    sortBarLabel: {
+      fontSize: 11.5,
+      fontWeight: "500",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      color: "#fff",
+      opacity: 0.75,
+    },
     card: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -667,6 +785,7 @@ function makeStyles(c: ThemeColors) {
       gap: 2,
     },
     suspendedTitle: { fontSize: 13, fontWeight: "700", color: c.eqWaiting.fg },
+    lastSuspensionText: { marginTop: 12, fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
     suspendedText: { fontSize: 12.5, color: c.text, lineHeight: 17 },
     doneRow: { marginTop: 14, gap: 4 },
     doneText: { color: c.success, fontSize: 13.5, fontWeight: "600" },

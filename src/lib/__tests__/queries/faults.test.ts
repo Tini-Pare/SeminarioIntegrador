@@ -253,6 +253,11 @@ describe("listAllRequests", () => {
                   p_id_tecnico: "tec2",
                   taro_fecha_inicio: "2026-01-04",
                   taro_fecha_fin: null,
+                  // Suspended and resumed once (migration 0030).
+                  taro_fecha_suspension: "2026-01-05",
+                  taro_motivo_suspension: "Falta de repuestos",
+                  taro_comentario_suspension: null,
+                  taro_fecha_fin_suspension: "2026-01-06",
                   tareas_generales: { tag_nombre_tarea: "Limpieza de filtro" },
                 },
               ],
@@ -292,6 +297,7 @@ describe("listAllRequests", () => {
             endDate: null,
             consumedParts: [],
             suspension: null,
+            lastSuspension: null,
           },
           {
             id: 21,
@@ -302,6 +308,12 @@ describe("listAllRequests", () => {
             endDate: null,
             consumedParts: [],
             suspension: null,
+            lastSuspension: {
+              since: "2026-01-05",
+              until: "2026-01-06",
+              reason: "Falta de repuestos",
+              comment: null,
+            },
           },
         ],
       }),
@@ -820,6 +832,7 @@ describe("listMyTasks", () => {
         faultTypeName: "Pérdida de gas",
         consumedParts: [{ repId: 4, nombre: "Filtro de aire", cantidad: 2 }],
         suspension: null,
+        lastSuspension: null,
       },
     ]);
   });
@@ -1112,6 +1125,7 @@ describe("suspendTask / resumeTask", () => {
     taro_fecha_inicio: "2026-10-10",
     taro_fecha_fin: null,
     taro_fecha_suspension: null,
+    taro_fecha_fin_suspension: null,
     tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
     orden_de_trabajo: { eq_id_equipo: 5 },
   };
@@ -1132,6 +1146,7 @@ describe("suspendTask / resumeTask", () => {
       taro_fecha_suspension: expect.any(String),
       taro_motivo_suspension: "Falta de repuestos",
       taro_comentario_suspension: null,
+      taro_fecha_fin_suspension: null,
     });
     expect(updateEq).toHaveBeenCalledWith("taro_id_tarea_orden", 11);
     expect(insertHistorial).toHaveBeenCalledWith(
@@ -1200,7 +1215,7 @@ describe("suspendTask / resumeTask", () => {
     expect(checkEq).not.toHaveBeenCalled();
   });
 
-  it("resumes a suspended tarea, clearing the suspension and logging historial", async () => {
+  it("resumes a suspended tarea by closing the suspension (kept as the last one) and logs historial", async () => {
     const { update, updateEq, insertHistorial } = mockSuspensionChecks({
       ...inProgress,
       taro_fecha_suspension: "2026-10-11",
@@ -1208,10 +1223,9 @@ describe("suspendTask / resumeTask", () => {
 
     await resumeTask(11);
 
+    // Only the end date: fecha, motivo and comentario stay on the tarea.
     expect(update).toHaveBeenCalledWith({
-      taro_fecha_suspension: null,
-      taro_motivo_suspension: null,
-      taro_comentario_suspension: null,
+      taro_fecha_fin_suspension: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     });
     expect(updateEq).toHaveBeenCalledWith("taro_id_tarea_orden", 11);
     expect(insertHistorial).toHaveBeenCalledWith(
@@ -1221,6 +1235,34 @@ describe("suspendTask / resumeTask", () => {
         hi_nota: expect.stringContaining("Tarea reanudada: Cambio de gas"),
       }),
     );
+  });
+
+  it("lets a resumed tarea be suspended again, overwriting the last suspension", async () => {
+    const { update } = mockSuspensionChecks({
+      ...inProgress,
+      taro_fecha_suspension: "2026-10-11",
+      taro_fecha_fin_suspension: "2026-10-12",
+    });
+
+    await suspendTask(11, "Falta de repuestos");
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taro_motivo_suspension: "Falta de repuestos",
+        taro_fecha_fin_suspension: null,
+      }),
+    );
+  });
+
+  it("refuses to resume a tarea that was already resumed", async () => {
+    const { update } = mockSuspensionChecks({
+      ...inProgress,
+      taro_fecha_suspension: "2026-10-11",
+      taro_fecha_fin_suspension: "2026-10-12",
+    });
+
+    await expect(resumeTask(11)).rejects.toThrow("Esta tarea no está suspendida.");
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("refuses to resume a tarea that isn't suspended", async () => {

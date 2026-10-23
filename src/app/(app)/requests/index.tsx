@@ -21,6 +21,7 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import type { Solicitud, Equipo } from "../../../types/database";
 
 type Item = Solicitud & {
@@ -113,13 +114,13 @@ export default function RequestsScreen() {
   }, [items]);
 
   const filteredItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     return items.filter((item) => {
       const matchSearch =
         !q ||
-        item.equipment.name.toLowerCase().includes(q) ||
-        item.equipment.code.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q);
+        includesSearch(item.equipment.name, q) ||
+        includesSearch(item.equipment.code, q) ||
+        includesSearch(item.description, q);
 
       let matchStatus = true;
       if (statusFilter === "new") {

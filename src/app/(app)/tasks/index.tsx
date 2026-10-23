@@ -19,6 +19,7 @@ import { deleteGeneralTask, listGeneralTasks } from "../../../lib/queries/genera
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { TareaGeneral } from "../../../types/database";
 
@@ -60,13 +61,11 @@ export default function TasksScreen() {
   }
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     return tasks.filter((t) => {
       const hasDesc = !!t.tag_descripcion_tarea?.trim();
       const matchSearch =
-        !q ||
-        t.tag_nombre_tarea.toLowerCase().includes(q) ||
-        (t.tag_descripcion_tarea ?? "").toLowerCase().includes(q);
+        !q || startsWithSearch(t.tag_nombre_tarea, q) || includesSearch(t.tag_descripcion_tarea, q);
       const matchDesc = !descFilter || (descFilter === "with" ? hasDesc : !hasDesc);
       const matchEstado = !estadoFilter || t.tag_estado === estadoFilter;
       return matchSearch && matchDesc && matchEstado;

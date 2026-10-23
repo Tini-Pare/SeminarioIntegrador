@@ -24,6 +24,7 @@ import { StepIndicator } from "../../../components/StepIndicator";
 import { registrarCompra } from "../../../lib/queries/purchases";
 import { listSpareParts } from "../../../lib/queries/spareParts";
 import { listSuppliers, type SupplierWithRubro } from "../../../lib/queries/suppliers";
+import { makePurchaseDocumentStyles } from "../../../lib/purchaseDocumentStyles";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { FACTURA_LETRAS } from "../../../lib/comprobante";
@@ -318,7 +319,9 @@ export default function RegisterPurchaseScreen() {
   const [submitted, setSubmitted] = useState(false);
 
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  // The comprobante's own look is shared with the compra detail screen, so
+  // what's loaded here is what that screen shows afterwards.
+  const styles = { ...makePurchaseDocumentStyles(colors), ...makeStyles(colors) };
 
   const today = useMemo(() => new Date(), []);
 
@@ -536,7 +539,7 @@ export default function RegisterPurchaseScreen() {
 
         <Text style={[styles.tableHeadText, styles.colCant]}>Cantidad</Text>
 
-        <Text style={[styles.tableHeadText, styles.colCosto]}>Precio unit.</Text>
+        <Text style={[styles.tableHeadText, styles.colCosto, styles.textRight]}>Precio unit.</Text>
 
         <Text style={[styles.tableHeadText, styles.colTotal, styles.textRight]}>Subtotal</Text>
 
@@ -575,7 +578,7 @@ export default function RegisterPurchaseScreen() {
 
           <View style={styles.colCosto}>
             <TextInput
-              style={[styles.cellInput, costoError(l) && styles.cellInputError]}
+              style={[styles.cellInput, styles.textRight, costoError(l) && styles.cellInputError]}
               value={l.costo}
               onChangeText={(v) => updateLine(l.key, { costo: v })}
               placeholder="Ej: 1500"
@@ -961,7 +964,7 @@ function makeStyles(c: ThemeColors) {
       padding: 30,
     },
     // Bigger badge for the step-1 cards only — the step-2 doc header reuses
-    // the smaller `docBadge` below, inline next to the title/subtitle.
+    // the smaller shared `docBadge`, inline next to the title/subtitle.
     docCardBadge: {
       width: 60,
       height: 60,
@@ -975,32 +978,8 @@ function makeStyles(c: ThemeColors) {
     docCardBadgeNote: { fontSize: 10.5, color: c.textMuted, marginTop: 2 },
     docCardTitle: { fontSize: 20, fontWeight: "700", color: c.text, marginTop: 18 },
     docCardDesc: { fontSize: 14, lineHeight: 21, color: c.textMuted, marginTop: 8 },
-    docBadge: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      borderWidth: 1.5,
-      borderColor: c.text,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    docBadgeCode: { fontSize: 18, fontWeight: "700", color: c.text, lineHeight: 21 },
-    docBadgeNote: { fontSize: 8.5, color: c.textMuted, marginTop: 1 },
     docTitle: { fontSize: 16.5, fontWeight: "700", color: c.text, marginTop: 14 },
     docDesc: { fontSize: 12.5, lineHeight: 18, color: c.textMuted, marginTop: 6 },
-    docHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      flexWrap: "wrap",
-      gap: 12,
-      padding: 16,
-      borderRadius: 16,
-      backgroundColor: c.bgCard,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    docHeaderTitle: { fontSize: 16, fontWeight: "700", color: c.text },
-    docHeaderSub: { fontSize: 12.5, color: c.textMuted, marginTop: 2 },
     changeTypeBtn: {
       paddingHorizontal: 16,
       height: 38,
@@ -1012,31 +991,6 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     changeTypeText: { fontSize: 13, fontWeight: "700", color: c.textLabel },
-    // zIndex here isn't decorative: react-native-web gives every View its
-    // own stacking context (implicit position:relative), so a dropdown's
-    // raised zIndex only wins locally — against the sibling tableCard below
-    // it needs this card itself ranked higher, or tableCard (later in the
-    // DOM, same default zIndex 0) paints over the open dropdown.
-    section: {
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 16,
-      backgroundColor: c.bgCard,
-      padding: 20,
-      marginTop: 16,
-      zIndex: 20,
-    },
-    label: {
-      fontSize: 15,
-      fontWeight: "700",
-      color: c.text,
-    },
-    smallLabel: {
-      fontSize: 12.5,
-      fontWeight: "600",
-      color: c.textLabel,
-      marginBottom: 7,
-    },
     input: {
       minHeight: 44,
       paddingHorizontal: 14,
@@ -1061,26 +1015,6 @@ function makeStyles(c: ThemeColors) {
       fontSize: 12,
       marginTop: 4,
     },
-    docRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 14,
-      position: "relative",
-      zIndex: 40,
-    },
-    docRowRaised: { zIndex: 60 },
-    docItem: { flexGrow: 1, flexBasis: 150, minWidth: 150, position: "relative" },
-    dateCol: { zIndex: 60 },
-    provRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 14,
-      marginTop: 18,
-      position: "relative",
-      zIndex: 40,
-    },
-    provCol: { flexGrow: 2, flexBasis: 260, minWidth: 220, position: "relative" },
-    cuitCol: { flexGrow: 1, flexBasis: 160, minWidth: 160 },
     cuitBox: {
       minHeight: 44,
       paddingHorizontal: 14,
@@ -1093,23 +1027,6 @@ function makeStyles(c: ThemeColors) {
     cuitText: { fontSize: 14.5, color: c.textSecondary, fontVariant: ["tabular-nums"] },
     cuitPlaceholder: { fontSize: 14, color: c.textMuted },
     cuitMissing: { fontSize: 13.5, fontWeight: "600", color: c.destructive },
-    tableCard: {
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 16,
-      backgroundColor: c.bgCard,
-      marginTop: 16,
-      zIndex: 10,
-    },
-    linesHeader: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      justifyContent: "space-between",
-      gap: 12,
-      padding: 20,
-      paddingBottom: 16,
-    },
-    linesSub: { fontSize: 12, color: c.textMuted, marginTop: 3 },
     addLineBtn: {
       flexDirection: "row",
       alignItems: "center",
@@ -1122,41 +1039,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
     },
     addLineText: { fontSize: 13, fontWeight: "700", color: c.textLabel },
-    tableHeadRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      backgroundColor: c.accent,
-    },
-    tableHeadText: {
-      fontSize: 12.5,
-      fontWeight: "700",
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
-      color: "#fff",
-      fontFamily: "monospace",
-    },
-    tableRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
-      position: "relative",
-      zIndex: 40,
-    },
-    tableRowRaised: { zIndex: 50 },
-    colNum: { width: 22, fontSize: 13, color: c.textMuted, fontVariant: ["tabular-nums"] },
-    colRepFlex: { flex: 2.2, minWidth: 150 },
-    colCant: { width: 76 },
-    colCosto: { flex: 1, minWidth: 100 },
-    colTotal: { flex: 1, minWidth: 90 },
-    colRemove: { width: 34 },
-    textRight: { textAlign: "right" },
     cellInput: {
       height: 40,
       paddingHorizontal: 12,
@@ -1168,8 +1050,6 @@ function makeStyles(c: ThemeColors) {
       color: c.text,
       fontVariant: ["tabular-nums"],
     },
-    cellNum: { fontVariant: ["tabular-nums"] },
-    cellTotal: { fontSize: 14, fontWeight: "700", color: c.text, fontVariant: ["tabular-nums"] },
     removeBtn: {
       width: 32,
       height: 32,
@@ -1189,85 +1069,7 @@ function makeStyles(c: ThemeColors) {
       opacity: 0.35,
       ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as object) : {}),
     },
-    tableFooter: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      alignItems: "center",
-      backgroundColor: c.eqOperational.bg,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-      borderBottomLeftRadius: 15,
-      borderBottomRightRadius: 15,
-    },
-    summaryTotal: {
-      fontSize: 15,
-      fontWeight: "700",
-      color: c.textLabel,
-    },
-    summaryTotalAmount: {
-      fontSize: 20,
-      fontWeight: "800",
-      color: c.accent,
-      fontVariant: ["tabular-nums"],
-    },
     error: { color: c.destructive, marginTop: 14, fontSize: 16, fontWeight: "700" },
-    // ---- Factura layout (mirrors a printed factura) ----
-    raised: { zIndex: 60 },
-    invoice: {
-      marginTop: 16,
-      borderWidth: 1.5,
-      borderColor: c.text,
-      borderRadius: 14,
-      backgroundColor: c.bgCard,
-      zIndex: 20,
-    },
-    invoiceTopBar: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderBottomWidth: 1.5,
-      borderBottomColor: c.text,
-    },
-    invoiceTopBarText: {
-      fontSize: 12,
-      fontWeight: "700",
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
-      color: c.textLabel,
-    },
-    invoiceHeader: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      borderBottomWidth: 1.5,
-      borderBottomColor: c.text,
-      position: "relative",
-      zIndex: 30,
-    },
-    issuerCol: { flex: 1, minWidth: 240, padding: 20, position: "relative", zIndex: 1 },
-    fieldHint: { fontSize: 12, color: c.textMuted, marginTop: 8, lineHeight: 17 },
-    // Sits between both halves; its box hangs from the header's top edge
-    // (no top border), like the boxed letra on a printed factura.
-    letraCol: { width: 116, alignItems: "center", paddingBottom: 16 },
-    letraBox: {
-      width: 64,
-      height: 64,
-      borderWidth: 1.5,
-      borderTopWidth: 0,
-      borderColor: c.text,
-      borderBottomLeftRadius: 10,
-      borderBottomRightRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: c.bgInput,
-    },
-    letraBoxText: { fontSize: 30, fontWeight: "800", color: c.text, lineHeight: 34 },
-    letraBoxEmpty: { color: c.textMuted },
-    letraBoxCode: { fontSize: 9, fontWeight: "700", color: c.textMuted, marginTop: 1 },
     letraPicker: { flexDirection: "row", gap: 6, marginTop: 10 },
     letraOption: {
       width: 30,
@@ -1300,51 +1102,5 @@ function makeStyles(c: ThemeColors) {
     // "No" reads as a decline, so it takes the destructive red instead of
     // the accent green "Sí" uses.
     receptionNoActive: { backgroundColor: c.destructive, borderColor: c.destructive },
-    docDataCol: { flex: 1, minWidth: 260, padding: 20, position: "relative", zIndex: 1 },
-    invoiceTitle: {
-      fontSize: 22,
-      fontWeight: "800",
-      letterSpacing: 0.5,
-      color: c.text,
-      marginBottom: 14,
-    },
-    docDataRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 12,
-      marginBottom: 12,
-      position: "relative",
-      zIndex: 1,
-    },
-    // The fecha row's date picker opens over the CUIT row below it.
-    docDataRowRaised: { zIndex: 2 },
-    docDataItem: { flex: 1, minWidth: 120, position: "relative" },
-    invoiceLinesHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      flexWrap: "wrap",
-      gap: 12,
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-    },
-    invoiceTotals: {
-      alignItems: "flex-end",
-      padding: 16,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
-    },
-    invoiceTotalsBox: {
-      flexDirection: "row",
-      alignItems: "baseline",
-      gap: 14,
-      paddingHorizontal: 18,
-      paddingVertical: 12,
-      borderWidth: 1.5,
-      borderColor: c.text,
-      borderRadius: 10,
-      backgroundColor: c.eqOperational.bg,
-    },
-    invoiceTotalLabel: { fontSize: 15, fontWeight: "700", color: c.textLabel },
   });
 }

@@ -26,6 +26,16 @@ const PRIORITY_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
   high: "Alta",
 };
 
+// Always dd/mm/yyyy ("05/03/2026", not "5/3/2026"), so every date is the
+// same width and what follows it lines up.
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 // onSelect is only passed by the admin's "Solicitudes" screen — that's the
 // only role that can act on a solicitud (generar OT, cerrar, reasignar
 // técnico, etc.), so it's the only one that gets the "Ver detalle" eye button.
@@ -81,31 +91,33 @@ export function RequestList({
             )}
 
             <View style={{ flex: 1, minWidth: 0 }}>
+              {/* Fixed-width date first, so the equipo (variable length) always
+                  starts at the same spot across cards. */}
               <View style={styles.headerRow}>
-                <Text style={styles.equipmentName}>{item.equipment.name}</Text>
-                <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
-
                 <View style={styles.dateWrap}>
                   <CalendarIcon size={14} color={colors.accent} />
 
-                  <Text style={styles.dateText}>
-                    {new Date(item.created_at).toLocaleDateString("es-AR")}
-                  </Text>
+                  <Text style={styles.dateText}>{formatDate(item.created_at)}</Text>
                 </View>
 
-                <View style={[styles.badge, { backgroundColor: st.bg }]}>
-                  <Text style={[styles.badgeText, { color: st.fg }]}>
-                    {STATUS_LABELS[item.status]}
-                  </Text>
-                </View>
+                <Text style={styles.equipmentName}>{item.equipment.name}</Text>
+                <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
 
-                {item.priority && (
-                  <View style={[styles.badge, { backgroundColor: prio!.bg }]}>
-                    <Text style={[styles.badgeText, { color: prio!.fg }]}>
-                      Prioridad {PRIORITY_LABELS[item.priority]}
+                <View style={styles.badges}>
+                  <View style={[styles.badge, { backgroundColor: st.bg }]}>
+                    <Text style={[styles.badgeText, { color: st.fg }]}>
+                      {STATUS_LABELS[item.status]}
                     </Text>
                   </View>
-                )}
+
+                  {item.priority && (
+                    <View style={[styles.badge, { backgroundColor: prio!.bg }]}>
+                      <Text style={[styles.badgeText, { color: prio!.fg }]}>
+                        Prioridad {PRIORITY_LABELS[item.priority]}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
 
               <Text style={styles.desc}>{item.description}</Text>
@@ -227,7 +239,9 @@ function makeStyles(c: ThemeColors) {
       fontSize: 15,
       fontWeight: "700",
       color: c.text,
+      fontVariant: ["tabular-nums"],
     },
+    badges: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
     equipmentName: { fontWeight: "600", fontSize: 14.5, color: c.text },
     equipmentCode: { fontFamily: "monospace", fontSize: 12.5, color: c.textMuted },
     badge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },

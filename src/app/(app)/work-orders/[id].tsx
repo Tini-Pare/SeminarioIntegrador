@@ -71,6 +71,8 @@ function taskStatusLabel(task: SolicitudTask): string {
 // prioridad, falla genérica, fecha de inicio y fecha estimada. Its estado
 // is still automatic (sync_orden_estado in 0017). Falla genérica comes
 // before the tareas grid on purpose: one diagnosis, then the work for it.
+// The four editable fields share one compact card, side by side, so the
+// tareas grid starts high on the page.
 // Late = the admin's target date passed and the OT still isn't resolved.
 // Derived on the fly, so it needs no column and no manual state change.
 function isOverdue(s: { status: string; order_planned_end_date: string | null }): boolean {
@@ -214,7 +216,7 @@ export default function WorkOrderDetail() {
   const orderStartDate = useMemo(
     () =>
       solicitud?.order_start_date
-        ? parseDateString(fromDbDate(solicitud.order_start_date)) ?? undefined
+        ? (parseDateString(fromDbDate(solicitud.order_start_date)) ?? undefined)
         : undefined,
     [solicitud?.order_start_date],
   );
@@ -222,7 +224,7 @@ export default function WorkOrderDetail() {
   const orderPlannedEndDate = useMemo(
     () =>
       solicitud?.order_planned_end_date
-        ? parseDateString(fromDbDate(solicitud.order_planned_end_date)) ?? undefined
+        ? (parseDateString(fromDbDate(solicitud.order_planned_end_date)) ?? undefined)
         : undefined,
     [solicitud?.order_planned_end_date],
   );
@@ -425,200 +427,231 @@ export default function WorkOrderDetail() {
               />
             )}
           </View>
+
+          <View style={styles.descBlock}>
+            <Text style={styles.metaLabel}>Descripción</Text>
+
+            <Text style={[styles.value, { marginTop: 4 }]}>{s.description}</Text>
+          </View>
+
+          <PhotoCarousel photoUrls={s.photo_urls} height={260} />
         </View>
 
-        <Text style={styles.sectionTitle}>Descripción</Text>
-        <Text style={styles.value}>{s.description}</Text>
+        {/* Inicio, fecha estimada, prioridad y falla side by side — stacked
+            one section each, they pushed the tareas grid far down. The field
+            being edited takes the whole row, so its date picker / chips /
+            select get room without squeezing the other three. */}
+        <View style={[styles.card, styles.planCard]}>
+          <View style={styles.planGrid}>
+            <View style={[styles.planCell, editing === "start" && styles.planCellEditing]}>
+              <Text style={styles.metaLabel}>Fecha de inicio de la orden</Text>
 
-        <PhotoCarousel photoUrls={s.photo_urls} height={320} />
+              {editing === "start" ? (
+                <View style={styles.dateEditRow}>
+                  <CustomDatePicker
+                    value={dateDraft}
+                    onChange={setDateDraft}
+                    compact
+                    maxWidth={200}
+                    maxDate={orderPlannedEndDate}
+                  />
 
-        <Text style={styles.sectionTitle}>Fecha de inicio de la orden</Text>
-
-        {editing === "start" ? (
-          <View style={styles.dateEditRow}>
-            <CustomDatePicker
-              value={dateDraft}
-              onChange={setDateDraft}
-              compact
-              maxWidth={200}
-              maxDate={orderPlannedEndDate}
-            />
-
-            <Pressable
-              style={styles.dateCancelButton}
-              onPress={() => {
-                setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
-                setEditing(null);
-              }}
-            >
-              <Text style={styles.dateCancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable style={styles.dateSaveButton} onPress={handleSaveDate} disabled={busy}>
-              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.row}>
-            <Text style={styles.value}>{fromDbDate(s.order_start_date) || "—"}</Text>
-
-            {!isResolved && (
-              <Pressable onPress={() => startEditing("start")}>
-                <Text style={styles.linkButtonText}>Reprogramar</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
-
-        <Text style={styles.sectionTitle}>Fecha estimada de resolución</Text>
-
-        {editing === "planned" ? (
-          <View style={styles.dateEditRow}>
-            <CustomDatePicker
-              value={plannedDraft}
-              onChange={setPlannedDraft}
-              compact
-              maxWidth={200}
-              minDate={orderStartDate}
-            />
-
-            <Pressable
-              style={styles.dateCancelButton}
-              onPress={() => {
-                setPlannedDraft(solicitud ? fromDbDate(solicitud.order_planned_end_date) : "");
-                setEditing(null);
-              }}
-            >
-              <Text style={styles.dateCancelText}>Cancelar</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.dateSaveButton}
-              onPress={() => handleSavePlannedDate()}
-              disabled={busy}
-            >
-              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.row}>
-            <Text style={styles.value}>
-              {fromDbDate(s.order_planned_end_date) || "Sin definir"}
-            </Text>
-
-            {isOverdue(s) && (
-              <Text style={{ color: colors.destructive, fontWeight: "600", fontSize: 13 }}>
-                Atrasada
-              </Text>
-            )}
-
-            {!isResolved && (
-              <Pressable onPress={() => startEditing("planned")}>
-                <Text style={styles.linkButtonText}>
-                  {s.order_planned_end_date ? "Reprogramar" : "Definir"}
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        )}
-
-        <Text style={styles.sectionTitle}>Prioridad</Text>
-        {editing === "priority" ? (
-          <View style={styles.dateEditRow}>
-            {PRIORITIES.map((p) => {
-              const selected = priorityDraft === p;
-              return (
-                <Pressable
-                  key={p}
-                  style={[
-                    styles.chip,
-                    selected && {
-                      backgroundColor: priorityColors[p].bg,
-                      borderColor: priorityColors[p].fg,
-                    },
-                  ]}
-                  onPress={() => setPriorityDraft(p)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      selected && { color: priorityColors[p].fg, fontWeight: "600" },
-                    ]}
+                  <Pressable
+                    style={styles.dateCancelButton}
+                    onPress={() => {
+                      setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
+                      setEditing(null);
+                    }}
                   >
-                    {PRIORITY_LABELS[p]}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <Text style={styles.dateCancelText}>Cancelar</Text>
+                  </Pressable>
 
-            <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
-              <Text style={styles.dateCancelText}>Cancelar</Text>
-            </Pressable>
+                  <Pressable style={styles.dateSaveButton} onPress={handleSaveDate} disabled={busy}>
+                    <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.planValueRow}>
+                  <Text style={styles.planValue}>{fromDbDate(s.order_start_date) || "—"}</Text>
 
-            <Pressable style={styles.dateSaveButton} onPress={handleSavePriority} disabled={busy}>
-              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.row}>
-            <Text style={styles.value}>{s.priority ? PRIORITY_LABELS[s.priority] : "—"}</Text>
-
-            {!isResolved && (
-              <Pressable onPress={() => startEditing("priority")}>
-                <Text style={styles.linkButtonText}>Cambiar</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
-
-        <Text style={styles.sectionTitle}>Falla genérica</Text>
-        {editing === "fault" ? (
-          <View style={styles.dateEditRow}>
-            <View style={styles.faultSelectWrap}>
-              <Select
-                value={faultDraft}
-                onChange={setFaultDraft}
-                options={faultTypeOptions}
-                placeholder={
-                  faultTypeOptions.length > 0 ? "Elegí un tipo de falla" : "No hay fallas cargadas"
-                }
-                disabled={faultTypeOptions.length === 0}
-                open={faultSelectOpen}
-                onOpenChange={setFaultSelectOpen}
-              />
+                  {!isResolved && (
+                    <Pressable onPress={() => startEditing("start")}>
+                      <Text style={styles.linkButtonText}>Reprogramar</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
             </View>
 
-            <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
-              <Text style={styles.dateCancelText}>Cancelar</Text>
-            </Pressable>
+            <View style={[styles.planCell, editing === "planned" && styles.planCellEditing]}>
+              <Text style={styles.metaLabel}>Fecha estimada de resolución</Text>
 
-            <Pressable
-              style={styles.dateSaveButton}
-              onPress={() => handleSaveFault()}
-              disabled={busy}
-            >
-              <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
-            </Pressable>
+              {editing === "planned" ? (
+                <View style={styles.dateEditRow}>
+                  <CustomDatePicker
+                    value={plannedDraft}
+                    onChange={setPlannedDraft}
+                    compact
+                    maxWidth={200}
+                    minDate={orderStartDate}
+                  />
+
+                  <Pressable
+                    style={styles.dateCancelButton}
+                    onPress={() => {
+                      setPlannedDraft(
+                        solicitud ? fromDbDate(solicitud.order_planned_end_date) : "",
+                      );
+                      setEditing(null);
+                    }}
+                  >
+                    <Text style={styles.dateCancelText}>Cancelar</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.dateSaveButton}
+                    onPress={() => handleSavePlannedDate()}
+                    disabled={busy}
+                  >
+                    <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.planValueRow}>
+                  <Text style={styles.planValue}>
+                    {fromDbDate(s.order_planned_end_date) || "Sin definir"}
+                  </Text>
+
+                  {isOverdue(s) && (
+                    <Text style={{ color: colors.destructive, fontWeight: "600", fontSize: 13 }}>
+                      Atrasada
+                    </Text>
+                  )}
+
+                  {!isResolved && (
+                    <Pressable onPress={() => startEditing("planned")}>
+                      <Text style={styles.linkButtonText}>
+                        {s.order_planned_end_date ? "Reprogramar" : "Definir"}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.planCell, editing === "priority" && styles.planCellEditing]}>
+              <Text style={styles.metaLabel}>Prioridad</Text>
+
+              {editing === "priority" ? (
+                <View style={styles.dateEditRow}>
+                  {PRIORITIES.map((p) => {
+                    const selected = priorityDraft === p;
+                    return (
+                      <Pressable
+                        key={p}
+                        style={[
+                          styles.chip,
+                          selected && {
+                            backgroundColor: priorityColors[p].bg,
+                            borderColor: priorityColors[p].fg,
+                          },
+                        ]}
+                        onPress={() => setPriorityDraft(p)}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            selected && { color: priorityColors[p].fg, fontWeight: "600" },
+                          ]}
+                        >
+                          {PRIORITY_LABELS[p]}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+
+                  <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
+                    <Text style={styles.dateCancelText}>Cancelar</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.dateSaveButton}
+                    onPress={handleSavePriority}
+                    disabled={busy}
+                  >
+                    <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.planValueRow}>
+                  <Text style={styles.planValue}>
+                    {s.priority ? PRIORITY_LABELS[s.priority] : "—"}
+                  </Text>
+
+                  {!isResolved && (
+                    <Pressable onPress={() => startEditing("priority")}>
+                      <Text style={styles.linkButtonText}>Cambiar</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.planCell, editing === "fault" && styles.planCellEditing]}>
+              <Text style={styles.metaLabel}>Falla genérica</Text>
+
+              {editing === "fault" ? (
+                <View style={styles.dateEditRow}>
+                  <View style={styles.faultSelectWrap}>
+                    <Select
+                      value={faultDraft}
+                      onChange={setFaultDraft}
+                      options={faultTypeOptions}
+                      placeholder={
+                        faultTypeOptions.length > 0
+                          ? "Elegí un tipo de falla"
+                          : "No hay fallas cargadas"
+                      }
+                      disabled={faultTypeOptions.length === 0}
+                      open={faultSelectOpen}
+                      onOpenChange={setFaultSelectOpen}
+                    />
+                  </View>
+
+                  <Pressable style={styles.dateCancelButton} onPress={() => setEditing(null)}>
+                    <Text style={styles.dateCancelText}>Cancelar</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.dateSaveButton}
+                    onPress={() => handleSaveFault()}
+                    disabled={busy}
+                  >
+                    <Text style={styles.dateSaveText}>{busy ? "Guardando…" : "Confirmar"}</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.planValueRow}>
+                  <Text style={styles.planValue}>{s.fault_type_name ?? "Sin diagnosticar"}</Text>
+
+                  {!isResolved && (
+                    <Pressable onPress={() => startEditing("fault")}>
+                      <Text style={styles.linkButtonText}>
+                        {s.fault_type_name ? "Cambiar" : "Definir"}
+                      </Text>
+                    </Pressable>
+                  )}
+
+                  {!isResolved && s.fault_type_name && (
+                    <Pressable onPress={() => handleSaveFault(true)} disabled={busy}>
+                      <Text style={styles.linkButtonText}>Quitar</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
+            </View>
           </View>
-        ) : (
-          <View style={styles.row}>
-            <Text style={styles.value}>{s.fault_type_name ?? "Sin diagnosticar"}</Text>
-
-            {!isResolved && (
-              <Pressable onPress={() => startEditing("fault")}>
-                <Text style={styles.linkButtonText}>
-                  {s.fault_type_name ? "Cambiar" : "Definir"}
-                </Text>
-              </Pressable>
-            )}
-
-            {!isResolved && s.fault_type_name && (
-              <Pressable onPress={() => handleSaveFault(true)} disabled={busy}>
-                <Text style={styles.linkButtonText}>Quitar</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
+        </View>
 
         {error && <Text style={styles.formError}>{error}</Text>}
 
@@ -682,22 +715,31 @@ export default function WorkOrderDetail() {
                   </View>
                 </View>
 
-                {(task.consumedParts.length > 0 || task.diagnosis || task.suspension) && (
+                {(task.consumedParts.length > 0 ||
+                  task.diagnosis ||
+                  task.suspension ||
+                  task.lastSuspension) && (
                   <View style={styles.consumedRow}>
                     {task.suspension && (
                       <Text style={styles.consumedText}>
                         <Text style={styles.consumedLabel}>
-                          Suspendida desde el {fromDbDate(task.suspension.since)}:{" "}
+                          Suspendida desde el {fromDbDate(task.suspension.since)} · Motivo:{" "}
                         </Text>
                         {task.suspension.reason}
                         {task.suspension.comment ? ` - ${task.suspension.comment}` : ""}
                       </Text>
                     )}
 
-                    {task.consumedParts.length > 0 && (
+                    {/* While suspended again, the current one above is the
+                        latest; the previous one would only add noise. */}
+                    {!task.suspension && task.lastSuspension && (
                       <Text style={styles.consumedText}>
-                        <Text style={styles.consumedLabel}>Repuestos usados: </Text>
-                        {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                        <Text style={styles.consumedLabel}>
+                          Última suspensión: del {fromDbDate(task.lastSuspension.since)} al{" "}
+                          {fromDbDate(task.lastSuspension.until)} · Motivo:{" "}
+                        </Text>
+                        {task.lastSuspension.reason}
+                        {task.lastSuspension.comment ? ` - ${task.lastSuspension.comment}` : ""}
                       </Text>
                     )}
 
@@ -705,6 +747,13 @@ export default function WorkOrderDetail() {
                       <Text style={styles.consumedText}>
                         <Text style={styles.consumedLabel}>Diagnóstico: </Text>
                         {task.diagnosis}
+                      </Text>
+                    )}
+
+                    {task.consumedParts.length > 0 && (
+                      <Text style={styles.consumedText}>
+                        <Text style={styles.consumedLabel}>Repuestos usados: </Text>
+                        {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
                       </Text>
                     )}
                   </View>
@@ -810,13 +859,37 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 10,
     },
     value: { fontSize: 14.5, color: c.textLabel, lineHeight: 21 },
-    row: { flexDirection: "row", alignItems: "center", gap: 16 },
+    // Same label look as MetaCell, for the description and the plan fields.
+    metaLabel: { fontSize: 11.5, fontWeight: "600", color: c.textMuted },
+    descBlock: {
+      marginTop: 18,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+    },
+    // Above the tareas table (later sibling), so an open date picker or
+    // falla select hanging out of it isn't covered.
+    planCard: { marginTop: 16, paddingVertical: 18, zIndex: 10 },
+    planGrid: { flexDirection: "row", flexWrap: "wrap", columnGap: 28, rowGap: 18 },
+    // 4 per row on desktop; they wrap two by two on a narrower window.
+    planCell: { flexGrow: 1, flexBasis: 190, minWidth: 190 },
+    planCellEditing: { flexBasis: "100%", zIndex: 60 },
+    planValueRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      columnGap: 14,
+      rowGap: 4,
+      marginTop: 5,
+    },
+    planValue: { fontSize: 14.5, fontWeight: "600", color: c.text },
     linkButtonText: { fontSize: 13, fontWeight: "600", color: c.accent },
     dateEditRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
       flexWrap: "wrap",
+      marginTop: 8,
       // The open calendar hangs out of this row; without its own stacking
       // context the tareas table below (later sibling) covers it.
       position: "relative",

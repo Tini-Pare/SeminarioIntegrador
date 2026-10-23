@@ -93,25 +93,24 @@ describe("FinishTaskModal", () => {
     expect(queryByText("Cable de acero para tracción 10mm")).toBeNull();
   });
 
-  it("only matches at the start of a word", async () => {
+  it("only matches at the start of the name", async () => {
     const { getByText, queryByText, getByPlaceholderText } = await renderModal();
     await fireEvent.press(getByText("+ Repuesto"));
     const input = getByPlaceholderText("Buscar repuesto…");
 
-    // "ca" starts "Cable" and "Cámara", but in "tracción" it's mid-word.
+    // "ca" starts "Cable" and "Cámara".
     await fireEvent.changeText(input, "ca");
     expect(getByText("Cable de acero para tracción 10mm")).toBeTruthy();
     expect(getByText("Cámara frigorífica (panel)")).toBeTruthy();
     expect(queryByText("Burlete de goma EPDM 2.0")).toBeNull();
 
-    await fireEvent.changeText(input, "accion");
+    // Later words don't count: "acero" and "panel" aren't at the start.
+    await fireEvent.changeText(input, "ace");
+    expect(getByText("Ningún repuesto coincide con la búsqueda.")).toBeTruthy();
+    await fireEvent.changeText(input, "pan");
     expect(getByText("Ningún repuesto coincide con la búsqueda.")).toBeTruthy();
 
-    // Any word counts, also after punctuation, and the query can span words.
-    await fireEvent.changeText(input, "trac");
-    expect(getByText("Cable de acero para tracción 10mm")).toBeTruthy();
-    await fireEvent.changeText(input, "pan");
-    expect(getByText("Cámara frigorífica (panel)")).toBeTruthy();
+    // The query can span words.
     await fireEvent.changeText(input, "cable de ac");
     expect(getByText("Cable de acero para tracción 10mm")).toBeTruthy();
   });
