@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { AccountMenu } from "../../components/AccountMenu";
 import {
+  CalendarIcon,
   ChevronDownIcon,
   EquipmentIcon,
   EquipmentTypeIcon,
@@ -170,6 +171,12 @@ export default function AppLayout() {
             label: "Órdenes de trabajo",
             href: "/work-orders",
             Icon: WorkOrderIcon,
+          },
+          {
+            key: "maintenance-plans",
+            label: "Planes de mantenimiento",
+            href: "/maintenance-plans",
+            Icon: CalendarIcon,
           },
           { key: "faults", label: "Fallas", href: "/faults", Icon: WarningIcon },
           { key: "tasks", label: "Tareas", href: "/tasks", Icon: GeneralTaskIcon },

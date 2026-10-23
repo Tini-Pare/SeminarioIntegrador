@@ -75,6 +75,36 @@ export type Database = {
         };
         Returns: void;
       };
+      crear_plan_mantenimiento: {
+        Args: {
+          p_te_id: number;
+          p_nombre: string;
+          p_descripcion: string | null;
+          p_frecuencia: number;
+          p_estado: string;
+          p_tareas: number[];
+          p_equipos: { eq_id: number; fecha_ult_mant: string }[];
+        };
+        Returns: number;
+      };
+      editar_plan_mantenimiento: {
+        Args: {
+          p_pm_id: number;
+          p_nombre: string;
+          p_descripcion: string | null;
+          p_frecuencia: number;
+          p_estado: string;
+          p_tareas: number[];
+          p_equipos: { eq_id: number; fecha_ult_mant: string }[];
+        };
+        Returns: void;
+      };
+      eliminar_plan_mantenimiento: {
+        Args: {
+          p_pm_id: number;
+        };
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -839,6 +869,143 @@ export type Database = {
           },
         ];
       };
+      plan_mantenimiento: {
+        Row: {
+          pm_id_plan: number;
+          te_id: number;
+          pm_nombre_plan: string;
+          pm_descripcion_plan: string | null;
+          pm_frecuencia: number;
+          pm_estado: "activo" | "inactivo";
+        };
+        Insert: {
+          pm_id_plan?: number;
+          te_id: number;
+          pm_nombre_plan: string;
+          pm_descripcion_plan?: string | null;
+          pm_frecuencia: number;
+          pm_estado?: "activo" | "inactivo";
+        };
+        Update: {
+          pm_id_plan?: number;
+          te_id?: number;
+          pm_nombre_plan?: string;
+          pm_descripcion_plan?: string | null;
+          pm_frecuencia?: number;
+          pm_estado?: "activo" | "inactivo";
+        };
+        Relationships: [
+          {
+            foreignKeyName: "plan_mantenimiento_te_id_fkey";
+            columns: ["te_id"];
+            isOneToOne: false;
+            referencedRelation: "tipos_de_equipos";
+            referencedColumns: ["te_id"];
+          },
+        ];
+      };
+      mantenimiento_equipo: {
+        Row: {
+          pm_id_plan: number;
+          eq_id_equipo: number;
+          me_fecha_ult_mant: string;
+        };
+        Insert: {
+          pm_id_plan: number;
+          eq_id_equipo: number;
+          me_fecha_ult_mant: string;
+        };
+        Update: {
+          pm_id_plan?: number;
+          eq_id_equipo?: number;
+          me_fecha_ult_mant?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mantenimiento_equipo_pm_id_plan_fkey";
+            columns: ["pm_id_plan"];
+            isOneToOne: false;
+            referencedRelation: "plan_mantenimiento";
+            referencedColumns: ["pm_id_plan"];
+          },
+          {
+            foreignKeyName: "mantenimiento_equipo_eq_id_equipo_fkey";
+            columns: ["eq_id_equipo"];
+            isOneToOne: false;
+            referencedRelation: "equipo";
+            referencedColumns: ["eq_id_equipo"];
+          },
+        ];
+      };
+      tarea_prevista_plan: {
+        Row: {
+          tag_id_tarea: number;
+          pm_id_plan: number;
+        };
+        Insert: {
+          tag_id_tarea: number;
+          pm_id_plan: number;
+        };
+        Update: {
+          tag_id_tarea?: number;
+          pm_id_plan?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tarea_prevista_plan_tag_id_tarea_fkey";
+            columns: ["tag_id_tarea"];
+            isOneToOne: false;
+            referencedRelation: "tareas_generales";
+            referencedColumns: ["tag_id_tarea"];
+          },
+          {
+            foreignKeyName: "tarea_prevista_plan_pm_id_plan_fkey";
+            columns: ["pm_id_plan"];
+            isOneToOne: false;
+            referencedRelation: "plan_mantenimiento";
+            referencedColumns: ["pm_id_plan"];
+          },
+        ];
+      };
+      v_planes_mantenimiento: {
+        Row: {
+          pm_id_plan: number;
+          te_id: number;
+          te_nombre: string;
+          pm_nombre_plan: string;
+          pm_descripcion_plan: string | null;
+          pm_frecuencia: number;
+          pm_estado: "activo" | "inactivo";
+          task_count: number;
+          equipment_count: number;
+          prox_vencimiento: string | null;
+        };
+        Insert: {
+          pm_id_plan?: number;
+          te_id: number;
+          te_nombre: string;
+          pm_nombre_plan: string;
+          pm_descripcion_plan?: string | null;
+          pm_frecuencia: number;
+          pm_estado?: "activo" | "inactivo";
+          task_count?: number;
+          equipment_count?: number;
+          prox_vencimiento?: string | null;
+        };
+        Update: {
+          pm_id_plan?: number;
+          te_id?: number;
+          te_nombre?: string;
+          pm_nombre_plan?: string;
+          pm_descripcion_plan?: string | null;
+          pm_frecuencia?: number;
+          pm_estado?: "activo" | "inactivo";
+          task_count?: number;
+          equipment_count?: number;
+          prox_vencimiento?: string | null;
+        };
+        Relationships: [];
+      };
     };
   };
 };
@@ -847,6 +1014,10 @@ export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Lugar = Database["public"]["Tables"]["lugares"]["Row"];
 export type TipoEquipo = Database["public"]["Tables"]["tipos_de_equipos"]["Row"];
 export type TareaGeneral = Database["public"]["Tables"]["tareas_generales"]["Row"];
+export type PlanMantenimiento = Database["public"]["Tables"]["plan_mantenimiento"]["Row"];
+export type MantenimientoEquipo = Database["public"]["Tables"]["mantenimiento_equipo"]["Row"];
+export type TareaPrevistaPlan = Database["public"]["Tables"]["tarea_prevista_plan"]["Row"];
+export type PlanMantenimientoItem = Database["public"]["Tables"]["v_planes_mantenimiento"]["Row"];
 export type Fallo = Database["public"]["Tables"]["fallo"]["Row"];
 export type Repuesto = Database["public"]["Tables"]["repuestos"]["Row"];
 export type TipoProveedor = Database["public"]["Tables"]["tipos_proveedores"]["Row"];
