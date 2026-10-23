@@ -67,6 +67,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
         ],
         diagnosis: null,
         suspension: null,
+        lastSuspension: null,
       },
       {
         id: 2,
@@ -78,6 +79,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
         consumedParts: [],
         diagnosis: null,
         suspension: null,
+        lastSuspension: null,
       },
     ],
   };
@@ -160,6 +162,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
           consumedParts: [],
           diagnosis: "Termostato descalibrado, se ajustó.",
           suspension: null,
+          lastSuspension: null,
         },
       ],
     };

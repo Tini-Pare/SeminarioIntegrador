@@ -1,7 +1,12 @@
 import { getTodayDbDate } from "../../components/CustomDatePicker";
 import { supabase } from "../supabase";
 import type { Database } from "../../types/database";
-import type { Solicitud, SolicitudTask, TaskSuspension } from "../../types/database";
+import type {
+  PastTaskSuspension,
+  Solicitud,
+  SolicitudTask,
+  TaskSuspension,
+} from "../../types/database";
 
 type SolicitudRow = Database["public"]["Tables"]["solicitudes"]["Row"];
 type OrdenRow = Database["public"]["Tables"]["orden_de_trabajo"]["Row"];
@@ -20,13 +25,34 @@ type TareaRow = Database["public"]["Tables"]["tareas_realizadas_orden"]["Row"];
 type RepuestoParaTareaRow = { rep_id: number; repta_canti_usada: number };
 type ConsumedPartRow = RepuestoParaTareaRow & { repuestos: { rep_nombre: string } | null };
 
+// A tarea's 0029 columns hold its last suspension; since 0030 resuming
+// only sets taro_fecha_fin_suspension instead of clearing them. So it's
+// suspended right now while that end date is empty.
+function isSuspendedNow(
+  row: Pick<TareaRow, "taro_fecha_suspension" | "taro_fecha_fin_suspension">,
+): boolean {
+  return !!row.taro_fecha_suspension && !row.taro_fecha_fin_suspension;
+}
+
 // null unless the tarea is suspended right now (SCRUM-37). The `?? null`s
-// also cover a database without migration 0029 yet, where `*` simply
+// also cover a database without migrations 0029/0030 yet, where `*` simply
 // doesn't bring these columns.
 function mapSuspension(row: TareaRow): TaskSuspension | null {
-  if (!row.taro_fecha_suspension) return null;
+  if (!isSuspendedNow(row)) return null;
+  return {
+    since: row.taro_fecha_suspension!,
+    reason: row.taro_motivo_suspension ?? "Sin motivo",
+    comment: row.taro_comentario_suspension ?? null,
+  };
+}
+
+// The last suspension once it ended (resumed), so the OT and the queue
+// still show why the tarea was on hold.
+function mapLastSuspension(row: TareaRow): PastTaskSuspension | null {
+  if (!row.taro_fecha_suspension || !row.taro_fecha_fin_suspension) return null;
   return {
     since: row.taro_fecha_suspension,
+    until: row.taro_fecha_fin_suspension,
     reason: row.taro_motivo_suspension ?? "Sin motivo",
     comment: row.taro_comentario_suspension ?? null,
   };
@@ -92,6 +118,7 @@ export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
       consumedParts: mapConsumedParts(t.repuesto_para_tarea),
       diagnosis: t.taro_diagnostico,
       suspension: mapSuspension(t),
+      lastSuspension: mapLastSuspension(t),
     }))
     // PostgREST doesn't guarantee the order of embedded rows (an updated
     // row can come back in a different position), so sort by id: tareas
@@ -494,7 +521,9 @@ export async function updateOrderStartDate(solicitudId: number, newDate: string)
     .single();
   if (updateError) {
     if (updateError.code === "23514" && updateError.message.includes("orden_fecha_estimada_chk")) {
-      throw new Error("La fecha de inicio no puede ser posterior a la fecha estimada de resolución.");
+      throw new Error(
+        "La fecha de inicio no puede ser posterior a la fecha estimada de resolución.",
+      );
     }
     throw new Error(updateError.message);
   }
@@ -561,6 +590,7 @@ export type MyTask = {
   consumedParts: { repId: number; nombre: string; cantidad: number }[];
   diagnosis: string | null;
   suspension: TaskSuspension | null;
+  lastSuspension: PastTaskSuspension | null;
 };
 
 type MyTaskRow = TareaRow & {
@@ -611,6 +641,7 @@ export async function listMyTasks(): Promise<MyTask[]> {
       consumedParts: mapConsumedParts(row.repuesto_para_tarea),
       diagnosis: row.taro_diagnostico,
       suspension: mapSuspension(row),
+      lastSuspension: mapLastSuspension(row),
     };
   });
 }
@@ -716,11 +747,15 @@ export async function finishTask(
 
 // Same select both suspend/resume check against before writing.
 const SUSPENSION_CHECK_SELECT =
-  "p_id_tecnico, taro_fecha_inicio, taro_fecha_fin, taro_fecha_suspension, tareas_generales(tag_nombre_tarea), orden_de_trabajo(eq_id_equipo)";
+  "p_id_tecnico, taro_fecha_inicio, taro_fecha_fin, taro_fecha_suspension, taro_fecha_fin_suspension, tareas_generales(tag_nombre_tarea), orden_de_trabajo(eq_id_equipo)";
 
 type SuspensionCheckRow = Pick<
   TareaRow,
-  "p_id_tecnico" | "taro_fecha_inicio" | "taro_fecha_fin" | "taro_fecha_suspension"
+  | "p_id_tecnico"
+  | "taro_fecha_inicio"
+  | "taro_fecha_fin"
+  | "taro_fecha_suspension"
+  | "taro_fecha_fin_suspension"
 > & {
   tareas_generales: { tag_nombre_tarea: string } | null;
   orden_de_trabajo: { eq_id_equipo: number } | null;
@@ -759,8 +794,10 @@ export async function suspendTask(
   }
   if (!task.taro_fecha_inicio) throw new Error("Iniciá la tarea antes de suspenderla.");
   if (task.taro_fecha_fin) throw new Error("Esta tarea ya está finalizada.");
-  if (task.taro_fecha_suspension) throw new Error("Esta tarea ya está suspendida.");
+  if (isSuspendedNow(task)) throw new Error("Esta tarea ya está suspendida.");
 
+  // Overwrites the previous (already ended) suspension, if any: only the
+  // last one is kept on the tarea.
   const { error } = await supabase
     .from("tareas_realizadas_orden")
     .update({
@@ -768,6 +805,7 @@ export async function suspendTask(
       taro_motivo_suspension: trimmedReason,
       // The comment is the reason's detail, so only "Otro" keeps it.
       taro_comentario_suspension: trimmedReason === "Otro" ? cleanComment : null,
+      taro_fecha_fin_suspension: null,
     })
     .eq("taro_id_tarea_orden", taskId);
   if (error) throw new Error(error.message);
@@ -784,23 +822,21 @@ export async function suspendTask(
   }
 }
 
-// Takes a suspended tarea back to "En curso". The suspension itself stays
-// on record in the equipo's historial (logged by suspendTask).
+// Takes a suspended tarea back to "En curso" by closing its suspension
+// (migration 0030): date, reason and comment stay, so the OT and the
+// queue keep showing it as the last one. It's also on record in the
+// equipo's historial (logged by suspendTask).
 export async function resumeTask(taskId: number): Promise<void> {
   const userId = await currentUserId();
   const task = await getSuspensionCheck(taskId);
   if (task.p_id_tecnico !== userId) {
     throw new Error("Solo el técnico asignado puede reanudar esta tarea.");
   }
-  if (!task.taro_fecha_suspension) throw new Error("Esta tarea no está suspendida.");
+  if (!isSuspendedNow(task)) throw new Error("Esta tarea no está suspendida.");
 
   const { error } = await supabase
     .from("tareas_realizadas_orden")
-    .update({
-      taro_fecha_suspension: null,
-      taro_motivo_suspension: null,
-      taro_comentario_suspension: null,
-    })
+    .update({ taro_fecha_fin_suspension: getTodayDbDate() })
     .eq("taro_id_tarea_orden", taskId);
   if (error) throw new Error(error.message);
 

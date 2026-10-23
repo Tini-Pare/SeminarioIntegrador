@@ -715,22 +715,31 @@ export default function WorkOrderDetail() {
                   </View>
                 </View>
 
-                {(task.consumedParts.length > 0 || task.diagnosis || task.suspension) && (
+                {(task.consumedParts.length > 0 ||
+                  task.diagnosis ||
+                  task.suspension ||
+                  task.lastSuspension) && (
                   <View style={styles.consumedRow}>
                     {task.suspension && (
                       <Text style={styles.consumedText}>
                         <Text style={styles.consumedLabel}>
-                          Suspendida desde el {fromDbDate(task.suspension.since)}:{" "}
+                          Suspendida desde el {fromDbDate(task.suspension.since)} · Motivo:{" "}
                         </Text>
                         {task.suspension.reason}
                         {task.suspension.comment ? ` - ${task.suspension.comment}` : ""}
                       </Text>
                     )}
 
-                    {task.consumedParts.length > 0 && (
+                    {/* While suspended again, the current one above is the
+                        latest; the previous one would only add noise. */}
+                    {!task.suspension && task.lastSuspension && (
                       <Text style={styles.consumedText}>
-                        <Text style={styles.consumedLabel}>Repuestos usados: </Text>
-                        {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                        <Text style={styles.consumedLabel}>
+                          Última suspensión: del {fromDbDate(task.lastSuspension.since)} al{" "}
+                          {fromDbDate(task.lastSuspension.until)} · Motivo:{" "}
+                        </Text>
+                        {task.lastSuspension.reason}
+                        {task.lastSuspension.comment ? ` - ${task.lastSuspension.comment}` : ""}
                       </Text>
                     )}
 
@@ -738,6 +747,13 @@ export default function WorkOrderDetail() {
                       <Text style={styles.consumedText}>
                         <Text style={styles.consumedLabel}>Diagnóstico: </Text>
                         {task.diagnosis}
+                      </Text>
+                    )}
+
+                    {task.consumedParts.length > 0 && (
+                      <Text style={styles.consumedText}>
+                        <Text style={styles.consumedLabel}>Repuestos usados: </Text>
+                        {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
                       </Text>
                     )}
                   </View>

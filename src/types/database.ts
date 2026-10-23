@@ -416,11 +416,14 @@ export type Database = {
           taro_fecha_inicio: string | null;
           taro_fecha_fin: string | null;
           taro_diagnostico: string | null;
-          // SCRUM-37 (migration 0029): all three null unless the tarea is
-          // currently suspended.
+          // SCRUM-37 (migration 0029): all three null until the tarea is
+          // suspended for the first time. Since 0030 they're kept after
+          // resuming (the last suspension), with its end date below.
           taro_fecha_suspension: string | null;
           taro_motivo_suspension: string | null;
           taro_comentario_suspension: string | null;
+          // Migration 0030: set on resume; null while suspended right now.
+          taro_fecha_fin_suspension: string | null;
         };
         Insert: {
           taro_id_tarea_orden?: number;
@@ -434,6 +437,7 @@ export type Database = {
           taro_fecha_suspension?: string | null;
           taro_motivo_suspension?: string | null;
           taro_comentario_suspension?: string | null;
+          taro_fecha_fin_suspension?: string | null;
         };
         Update: {
           taro_id_tarea_orden?: number;
@@ -447,6 +451,7 @@ export type Database = {
           taro_fecha_suspension?: string | null;
           taro_motivo_suspension?: string | null;
           taro_comentario_suspension?: string | null;
+          taro_fecha_fin_suspension?: string | null;
         };
         Relationships: [
           {
@@ -895,12 +900,19 @@ export type SolicitudTask = {
   // The current suspension (SCRUM-37, migration 0029) — null unless the
   // tarea is on hold right now.
   suspension: TaskSuspension | null;
+  // The last suspension that already ended (migration 0030) — null until
+  // the tarea is resumed for the first time.
+  lastSuspension: PastTaskSuspension | null;
 };
 
 export type TaskSuspension = {
   since: string; // taro_fecha_suspension (date)
   reason: string;
   comment: string | null; // only for reason "Otro"
+};
+
+export type PastTaskSuspension = TaskSuspension & {
+  until: string; // taro_fecha_fin_suspension (date): when it was resumed
 };
 
 export type Solicitud = {
