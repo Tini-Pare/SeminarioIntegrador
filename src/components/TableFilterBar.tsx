@@ -36,6 +36,9 @@ export function TableFilterBar({
 
   const activeCount = filters.filter((f) => f.value !== f.options[0]?.value).length;
   const hasActive = activeCount > 0;
+  // The button goes accent-filled while the panel is open too, so its text
+  // and icon must follow the same condition or they'd stay dark on green.
+  const highlighted = open || hasActive;
 
   return (
     <View style={styles.wrap}>
@@ -57,12 +60,12 @@ export function TableFilterBar({
 
         {filters.length > 0 && (
           <Pressable
-            style={[styles.funnelBtn, (open || hasActive) && styles.funnelBtnActive]}
+            style={[styles.funnelBtn, highlighted && styles.funnelBtnActive]}
             onPress={() => setOpen((o) => !o)}
           >
-            <FunnelIcon size={14} color={hasActive ? "#fff" : colors.textLabel} />
+            <FunnelIcon size={14} color={highlighted ? "#fff" : colors.textLabel} />
 
-            <Text style={[styles.funnelText, hasActive && styles.funnelTextActive]}>
+            <Text style={[styles.funnelText, highlighted && styles.funnelTextActive]}>
               {hasActive ? `Filtros (${activeCount})` : "Filtros"}
             </Text>
           </Pressable>

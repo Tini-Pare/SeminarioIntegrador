@@ -159,11 +159,20 @@ export default function QueueScreen() {
     setRefreshing(false);
   }
 
+  // Starting/finishing/suspending/resuming changes the tarea's status, so
+  // under a status filter it would just vanish from the list. Going back
+  // to "Todas" keeps it in sight with its new status.
+  function resetFilters() {
+    setPriorityFilter("all");
+    setStatusFilter("all");
+  }
+
   async function handleStart(item: Item) {
     setActingOn(item.taskRowId);
     try {
       await startTask(item.taskRowId);
       await load();
+      resetFilters();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -175,6 +184,7 @@ export default function QueueScreen() {
     if (!finishingTask) return;
     await finishTask(finishingTask.taskRowId, repuestos, diagnostico);
     await load();
+    resetFilters();
     setFinishingTask(null);
   }
 
@@ -182,6 +192,7 @@ export default function QueueScreen() {
     if (!suspendingTask) return;
     await suspendTask(suspendingTask.taskRowId, input.reason, input.comment);
     await load();
+    resetFilters();
     setSuspendingTask(null);
   }
 
@@ -190,6 +201,7 @@ export default function QueueScreen() {
     try {
       await resumeTask(item.taskRowId);
       await load();
+      resetFilters();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
