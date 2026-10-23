@@ -536,7 +536,7 @@ export default function RegisterPurchaseScreen() {
 
         <Text style={[styles.tableHeadText, styles.colCant]}>Cantidad</Text>
 
-        <Text style={[styles.tableHeadText, styles.colCosto]}>Precio unit.</Text>
+        <Text style={[styles.tableHeadText, styles.colCosto, styles.textRight]}>Precio unit.</Text>
 
         <Text style={[styles.tableHeadText, styles.colTotal, styles.textRight]}>Subtotal</Text>
 
@@ -575,7 +575,7 @@ export default function RegisterPurchaseScreen() {
 
           <View style={styles.colCosto}>
             <TextInput
-              style={[styles.cellInput, costoError(l) && styles.cellInputError]}
+              style={[styles.cellInput, styles.textRight, costoError(l) && styles.cellInputError]}
               value={l.costo}
               onChangeText={(v) => updateLine(l.key, { costo: v })}
               placeholder="Ej: 1500"
