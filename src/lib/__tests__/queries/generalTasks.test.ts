@@ -8,6 +8,7 @@ import {
   createGeneralTask,
   deleteGeneralTask,
   listGeneralTasks,
+  searchGeneralTasks,
   updateGeneralTask,
 } from "../../queries/generalTasks";
 import { supabase } from "../../supabase";
@@ -194,5 +195,37 @@ describe("deleteGeneralTask", () => {
     (supabase.from as jest.Mock).mockReturnValue({ delete: del });
 
     await expect(deleteGeneralTask(5)).rejects.toThrow("server error");
+  });
+});
+
+describe("searchGeneralTasks", () => {
+  it("returns empty array when query is less than 2 characters", async () => {
+    const result = await searchGeneralTasks("a");
+    expect(result).toEqual([]);
+  });
+
+  it("searches active general tasks with ilike and limits results", async () => {
+    const limitFn = jest.fn().mockResolvedValue({
+      data: [
+        {
+          tag_id_tarea: 1,
+          tag_nombre_tarea: "Desobstrucción del desagüe",
+          tag_descripcion_tarea: "Destapar drenaje",
+          tag_estado: "activo",
+        },
+      ],
+      error: null,
+    });
+    const or = jest.fn().mockReturnValue({ limit: limitFn });
+    const eq = jest.fn().mockReturnValue({ or });
+    const select = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const results = await searchGeneralTasks("desagüe", 8);
+
+    expect(supabase.from).toHaveBeenCalledWith("tareas_generales");
+    expect(eq).toHaveBeenCalledWith("tag_estado", "activo");
+    expect(results).toHaveLength(1);
+    expect(results[0].tag_nombre_tarea).toBe("Desobstrucción del desagüe");
   });
 });

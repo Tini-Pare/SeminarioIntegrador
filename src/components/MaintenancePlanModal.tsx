@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,20 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { AddPlanTaskModal } from "./AddPlanTaskModal";
+import { ConfirmDialog } from "./ConfirmDialog";
+import {
+  CustomDatePicker,
+  fromDbDate,
+  getTodayDateString,
+  isDateWithinMax,
+  isValidDateString,
+  parseDateString,
+  toDbDate,
+} from "./CustomDatePicker";
+import { WarningIcon } from "./icons";
+import { Select } from "./Select";
+import { listEquipmentTypes, type EquipmentTypeWithCount } from "../lib/queries/equipmentTypes";
 import {
   createMaintenancePlan,
   getMaintenancePlan,
@@ -17,24 +32,22 @@ import {
   type EquipmentOptionForType,
   type MaintenancePlanDetail,
 } from "../lib/queries/maintenancePlans";
-import { listEquipmentTypes, type EquipmentTypeWithCount } from "../lib/queries/equipmentTypes";
-import { createGeneralTask, listGeneralTasks } from "../lib/queries/generalTasks";
-import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { useTheme } from "../lib/ThemeContext";
 import type { TareaGeneral } from "../types/database";
-import {
-  CustomDatePicker,
-  fromDbDate,
-  getTodayDateString,
-  isDateWithinMax,
-  isValidDateString,
-  toDbDate,
-} from "./CustomDatePicker";
-import { FormFooter } from "./FormFooter";
-import { CalendarIcon, InfoIcon, WarningIcon } from "./icons";
-import { Select } from "./Select";
 
 type ModalMode = "create" | "edit" | "view";
+
+// Calculate next due date in DD/MM/YYYY format: entered date + frequency in days
+function addDaysToDateString(dateStr: string | undefined, days: number): string {
+  if (!dateStr || !isValidDateString(dateStr) || !Number.isInteger(days) || days <= 0) {
+    return "—";
+  }
+  const d = parseDateString(dateStr);
+  if (!d) return "—";
+  const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);
+  return getTodayDateString(next);
+}
 
 export function MaintenancePlanModal({
   visible,
@@ -68,43 +81,52 @@ export function MaintenancePlanModal({
   const [typeName, setTypeName] = useState("");
   const [estado, setEstado] = useState<"activo" | "inactivo">("activo");
 
-  // Options
+  // Options & Selections
   const [types, setTypes] = useState<EquipmentTypeWithCount[]>([]);
-  const [catalogTasks, setCatalogTasks] = useState<TareaGeneral[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<TareaGeneral[]>([]);
-
-  // Equipment date rows: key is eq_id_equipo, value is formatted date (DD/MM/YYYY)
   const [equipments, setEquipments] = useState<EquipmentOptionForType[]>([]);
   const [equipmentDates, setEquipmentDates] = useState<Record<number, string>>({});
   const [commonDate, setCommonDate] = useState("");
   const [openField, setOpenField] = useState<string | null>(null);
 
-  // Sub-sections
-  const [isAddingTask, setIsAddingTask] = useState(false);
-  const [taskSearch, setTaskSearch] = useState("");
-  const [isCreatingNewTask, setIsCreatingNewTask] = useState(false);
-  const [newTaskName, setNewTaskName] = useState("");
-  const [newTaskDesc, setNewTaskDesc] = useState("");
-  const [creatingTask, setCreatingTask] = useState(false);
+  // Secondary modal: Agregar tarea al plan
+  const [addPlanTaskOpen, setAddPlanTaskOpen] = useState(false);
+  const addTaskBtnRef = useRef<View>(null);
 
-  // Load types & catalog tasks on modal open
+  // Discard changes confirmation
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  // Initial values snapshot for isDirty tracking
+  const [initialSnapshot, setInitialSnapshot] = useState<{
+    name: string;
+    description: string;
+    frequency: string;
+    typeId: number | null;
+    estado: "activo" | "inactivo";
+    taskIds: number[];
+    dates: Record<number, string>;
+  }>({
+    name: "",
+    description: "",
+    frequency: "",
+    typeId: null,
+    estado: "activo",
+    taskIds: [],
+    dates: {},
+  });
+
+  // Load types and plan details
   useEffect(() => {
     if (!visible) return;
 
     setError(null);
     setCommonDate("");
     setOpenField(null);
-    setIsAddingTask(false);
-    setIsCreatingNewTask(false);
-    setNewTaskName("");
-    setNewTaskDesc("");
+    setAddPlanTaskOpen(false);
+    setShowDiscardConfirm(false);
 
     listEquipmentTypes()
       .then(setTypes)
-      .catch(() => {});
-
-    listGeneralTasks()
-      .then(setCatalogTasks)
       .catch(() => {});
 
     if (planId) {
@@ -132,6 +154,16 @@ export function MaintenancePlanModal({
             dateMap[e.equipmentId] = fromDbDate(e.lastMaintenanceDate);
           });
           setEquipmentDates(dateMap);
+
+          setInitialSnapshot({
+            name: detail.name,
+            description: detail.description ?? "",
+            frequency: String(detail.frequency),
+            typeId: detail.typeId,
+            estado: detail.estado,
+            taskIds: detail.tasks.map((t) => t.tag_id_tarea),
+            dates: dateMap,
+          });
         })
         .catch((err) => {
           setError(err instanceof Error ? err.message : String(err));
@@ -149,6 +181,16 @@ export function MaintenancePlanModal({
       setEquipments([]);
       setEquipmentDates({});
       setLoading(false);
+
+      setInitialSnapshot({
+        name: "",
+        description: "",
+        frequency: "",
+        typeId: null,
+        estado: "activo",
+        taskIds: [],
+        dates: {},
+      });
     }
   }, [visible, planId]);
 
@@ -185,66 +227,52 @@ export function MaintenancePlanModal({
     setEquipmentDates(updated);
   }
 
-  // Remove a task chip
+  // Remove task from local list
   function handleRemoveTask(taskId: number) {
     if (isView) return;
-    const remaining = selectedTasks.filter((t) => t.tag_id_tarea !== taskId);
-    setSelectedTasks(remaining);
-    // If no tasks left and active, prompt or auto adjust
-    if (remaining.length === 0 && estado === "activo") {
-      setEstado("inactivo");
-    }
+    setSelectedTasks((prev) => prev.filter((t) => t.tag_id_tarea !== taskId));
   }
 
-  // Add an existing task from catalog
-  function handleSelectCatalogTask(task: TareaGeneral) {
+  // Add task confirmed from secondary modal
+  function handleTaskConfirmed(task: TareaGeneral) {
     if (selectedTasks.some((t) => t.tag_id_tarea === task.tag_id_tarea)) return;
     setSelectedTasks((prev) => [...prev, task]);
-    setIsAddingTask(false);
-    setTaskSearch("");
   }
 
-  // Create a brand new general task and add it to plan
-  async function handleCreateAndAddTask() {
-    if (!newTaskName.trim()) return;
-    setCreatingTask(true);
-    try {
-      const created = await createGeneralTask({
-        name: newTaskName.trim(),
-        description: newTaskDesc.trim() || null,
-        estado: "activo",
-      });
-      setCatalogTasks((prev) => [...prev, created]);
-      setSelectedTasks((prev) => [...prev, created]);
-      setNewTaskName("");
-      setNewTaskDesc("");
-      setIsCreatingNewTask(false);
-      setIsAddingTask(false);
-      setTaskSearch("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setCreatingTask(false);
+  // Form modification check (isDirty)
+  const isDirty = useMemo(() => {
+    if (isView) return false;
+    if (name !== initialSnapshot.name) return true;
+    if (description !== initialSnapshot.description) return true;
+    if (frequency !== initialSnapshot.frequency) return true;
+    if (typeId !== initialSnapshot.typeId) return true;
+    if (estado !== initialSnapshot.estado) return true;
+
+    const currIds = selectedTasks.map((t) => t.tag_id_tarea).sort().join(",");
+    const initIds = initialSnapshot.taskIds.slice().sort().join(",");
+    if (currIds !== initIds) return true;
+
+    for (const eq of equipments) {
+      if (equipmentDates[eq.id] !== initialSnapshot.dates[eq.id]) return true;
+    }
+    return false;
+  }, [name, description, frequency, typeId, estado, selectedTasks, equipments, equipmentDates, initialSnapshot, isView]);
+
+  function handleAttemptClose() {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+    } else {
+      onClose();
     }
   }
 
-  // Filter catalog tasks for selector
-  const availableTasks = useMemo(() => {
-    const selectedIds = new Set(selectedTasks.map((t) => t.tag_id_tarea));
-    const q = taskSearch.trim().toLowerCase();
-    return catalogTasks
-      .filter((t) => !selectedIds.has(t.tag_id_tarea) && t.tag_estado === "activo")
-      .filter((t) => !q || t.tag_nombre_tarea.toLowerCase().includes(q));
-  }, [catalogTasks, selectedTasks, taskSearch]);
-
-  // Validation
+  // Form Validation
   const freqNum = parseInt(frequency.trim(), 10);
   const isFrequencyValid = Number.isInteger(freqNum) && freqNum > 0;
   const isNameValid = name.trim().length > 0;
   const isTypeValid = typeId !== null;
   const isTasksValid = estado === "inactivo" || selectedTasks.length > 0;
 
-  // Equipment dates validation
   const areDatesValid = useMemo(() => {
     if (equipments.length === 0) return true;
     for (const eq of equipments) {
@@ -262,7 +290,7 @@ export function MaintenancePlanModal({
       if (!isNameValid) setError("Ingresá un nombre para el plan.");
       else if (!isTypeValid) setError("Seleccioná un tipo de equipo.");
       else if (!isFrequencyValid) setError("La frecuencia debe ser un número entero mayor a 0.");
-      else if (!isTasksValid) setError("Un plan activo debe tener al menos una tarea prevista.");
+      else if (!isTasksValid) setError("Un plan no puede quedar activo sin tareas previstas.");
       else if (!areDatesValid) setError("Verificá que todas las fechas sean válidas y no futuras.");
       return;
     }
@@ -305,16 +333,13 @@ export function MaintenancePlanModal({
   );
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={styles.headerIconWrap}>
-                <CalendarIcon size={20} color={colors.accent} />
-              </View>
-
-              <View>
+    <>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={handleAttemptClose}>
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.headerTextWrap}>
                 <Text style={styles.title}>
                   {isView
                     ? "Detalle del plan"
@@ -329,394 +354,285 @@ export function MaintenancePlanModal({
                     : "Se aplica a todos los equipos del tipo elegido"}
                 </Text>
               </View>
+
+              <Pressable
+                style={styles.closeBtn}
+                onPress={handleAttemptClose}
+                accessibilityLabel="Cerrar modal"
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </Pressable>
             </View>
 
-            <Pressable style={styles.closeBtn} onPress={onClose} accessibilityLabel="Cerrar modal">
-              <Text style={styles.closeBtnText}>✕</Text>
-            </Pressable>
-          </View>
+            {loading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="large" color={colors.accent} />
 
-          {loading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color={colors.accent} />
-
-              <Text style={styles.loadingText}>Cargando plan…</Text>
-            </View>
-          ) : (
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Field: Name */}
-              <View style={styles.field}>
-                <Text style={styles.label}>
-                  Nombre del plan <Text style={styles.required}>*</Text>
-                </Text>
-
-                <TextInput
-                  style={[styles.input, isView && styles.inputDisabled]}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Ej: Mantenimiento trimestral de filtros"
-                  placeholderTextColor={colors.textMuted}
-                  editable={!isView}
-                />
+                <Text style={styles.loadingText}>Cargando plan…</Text>
               </View>
+            ) : (
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* 1. Datos del plan */}
+                <View style={styles.section}>
+                  {/* Row 1: Nombre del plan | Tipo de equipo */}
+                  <View style={[styles.formRow, openField === "type" && styles.formRowRaised]}>
+                    <View style={styles.col}>
+                      <Text style={styles.label}>Nombre del plan</Text>
 
-              {/* Field Row: Tipo de equipo & Frecuencia */}
-              <View style={[styles.row, openField === "type" && styles.rowRaised]}>
-                <View
-                  style={[
-                    styles.field,
-                    styles.flex1,
-                    openField === "type" && styles.fieldRaised,
-                  ]}
-                >
-                  <Text style={styles.label}>
-                    Tipo de equipo <Text style={styles.required}>*</Text>
-                  </Text>
-
-                  {isCreate ? (
-                    <Select
-                      value={typeId}
-                      onChange={handleTypeChange}
-                      options={typeOptions}
-                      placeholder="Seleccioná un tipo"
-                      disabled={isView}
-                      open={openField === "type"}
-                      onOpenChange={(o) => setOpenField(o ? "type" : null)}
-                    />
-                  ) : (
-                    <View style={[styles.input, styles.inputDisabled]}>
-                      <Text style={styles.disabledText}>{typeName || "Tipo no definido"}</Text>
+                      <TextInput
+                        style={[styles.input, isView && styles.inputDisabled]}
+                        value={name}
+                        onChangeText={setName}
+                        placeholder="Ej: Inspección de sellos y desagüe"
+                        placeholderTextColor={colors.textMuted}
+                        editable={!isView}
+                      />
                     </View>
-                  )}
 
-                  {isEdit && (
-                    <Text style={styles.hint}>
-                      El tipo de equipo no se puede modificar (Regla de negocio R7).
-                    </Text>
-                  )}
-                </View>
+                    <View style={[styles.col, openField === "type" && styles.fieldRaised]}>
+                      <Text style={styles.label}>Tipo de equipo</Text>
 
-                <View style={[styles.field, styles.flex1]}>
-                  <Text style={styles.label}>
-                    Frecuencia (días) <Text style={styles.required}>*</Text>
-                  </Text>
+                      {isCreate ? (
+                        <Select
+                          value={typeId}
+                          onChange={handleTypeChange}
+                          options={typeOptions}
+                          placeholder="Seleccionar tipo…"
+                          disabled={isView}
+                          open={openField === "type"}
+                          onOpenChange={(o) => setOpenField(o ? "type" : null)}
+                        />
+                      ) : (
+                        <View style={[styles.input, styles.inputDisabled]}>
+                          <Text style={styles.disabledText}>{typeName || "Tipo no definido"}</Text>
+                        </View>
+                      )}
 
-                  <TextInput
-                    style={[styles.input, isView && styles.inputDisabled]}
-                    value={frequency}
-                    onChangeText={(txt) => setFrequency(txt.replace(/[^0-9]/g, ""))}
-                    placeholder="Ej: 30"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="numeric"
-                    editable={!isView}
-                  />
-
-                  {frequency.trim() !== "" && !isFrequencyValid && (
-                    <Text style={styles.fieldError}>Debe ser mayor a 0</Text>
-                  )}
-                </View>
-              </View>
-
-              {/* Field: Descripción */}
-              <View style={styles.field}>
-                <Text style={styles.label}>Descripción (opcional)</Text>
-
-                <TextInput
-                  style={[styles.input, styles.multiline, isView && styles.inputDisabled]}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Instrucciones generales o alcance del plan preventivo…"
-                  placeholderTextColor={colors.textMuted}
-                  multiline
-                  numberOfLines={2}
-                  editable={!isView}
-                />
-              </View>
-
-              {/* Field: Estado */}
-              <View style={styles.field}>
-                <Text style={styles.label}>Estado del plan</Text>
-
-                <View style={styles.statusToggleRow}>
-                  <Pressable
-                    style={[
-                      styles.statusToggleBtn,
-                      estado === "activo" && styles.statusToggleBtnActive,
-                      isView && styles.statusToggleBtnDisabled,
-                    ]}
-                    onPress={() => {
-                      if (isView) return;
-                      if (selectedTasks.length === 0) {
-                        setError("Para activar el plan, debés agregar al menos 1 tarea prevista.");
-                        return;
-                      }
-                      setEstado("activo");
-                      setError(null);
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.statusDot,
-                        { backgroundColor: estado === "activo" ? colors.success : colors.textMuted },
-                      ]}
-                    />
-
-                    <Text
-                      style={[
-                        styles.statusToggleText,
-                        estado === "activo" && styles.statusToggleTextActive,
-                      ]}
-                    >
-                      Activo
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.statusToggleBtn,
-                      estado === "inactivo" && styles.statusToggleBtnInactive,
-                      isView && styles.statusToggleBtnDisabled,
-                    ]}
-                    onPress={() => {
-                      if (isView) return;
-                      setEstado("inactivo");
-                      setError(null);
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.statusDot,
-                        {
-                          backgroundColor:
-                            estado === "inactivo" ? colors.textMuted : colors.border,
-                        },
-                      ]}
-                    />
-
-                    <Text
-                      style={[
-                        styles.statusToggleText,
-                        estado === "inactivo" && styles.statusToggleTextInactive,
-                      ]}
-                    >
-                      Inactivo
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {estado === "activo" && selectedTasks.length === 0 && (
-                  <Text style={styles.fieldError}>
-                    Un plan no puede quedar activo sin tareas previstas (R4).
-                  </Text>
-                )}
-              </View>
-
-              {/* Section: Tareas previstas */}
-              <View style={styles.sectionWrap}>
-                <View style={styles.sectionHeaderRow}>
-                  <View>
-                    <Text style={styles.sectionTitle}>Tareas previstas</Text>
-
-                    <Text style={styles.sectionSubtitle}>
-                      {selectedTasks.length === 0
-                        ? "Sin tareas seleccionadas (requerido al menos 1 para activar)"
-                        : `${selectedTasks.length} ${selectedTasks.length === 1 ? "tarea prevista" : "tareas previstas"}`}
-                    </Text>
-                  </View>
-
-                  {!isView && !isAddingTask && (
-                    <Pressable
-                      style={styles.addTaskBtn}
-                      onPress={() => setIsAddingTask(true)}
-                    >
-                      <Text style={styles.addTaskBtnText}>+ Agregar tarea</Text>
-                    </Pressable>
-                  )}
-                </View>
-
-                {/* Chips of selected tasks */}
-                <View style={styles.chipsWrap}>
-                  {selectedTasks.map((t) => (
-                    <View key={t.tag_id_tarea} style={styles.taskChip}>
-                      <Text style={styles.taskChipText}>{t.tag_nombre_tarea}</Text>
-
-                      {!isView && (
-                        <Pressable
-                          style={styles.taskChipRemove}
-                          onPress={() => handleRemoveTask(t.tag_id_tarea)}
-                          hitSlop={6}
-                        >
-                          <Text style={styles.taskChipRemoveText}>✕</Text>
-                        </Pressable>
+                      {isEdit && (
+                        <Text style={styles.hintText}>
+                          El tipo de equipo no se puede modificar (Regla R7).
+                        </Text>
                       )}
                     </View>
-                  ))}
-                </View>
+                  </View>
 
-                {/* Sub-selector for adding tasks */}
-                {isAddingTask && !isView && (
-                  <View style={styles.taskSelectorBox}>
-                    {!isCreatingNewTask ? (
-                      <>
-                        <View style={styles.selectorHeader}>
-                          <Text style={styles.selectorLabel}>Buscar tarea en el catálogo</Text>
+                  {/* Row 2: Frecuencia (días) | Estado del plan */}
+                  <View style={styles.formRow}>
+                    <View style={styles.col}>
+                      <Text style={styles.label}>Frecuencia (días)</Text>
 
-                          <Pressable onPress={() => setIsAddingTask(false)}>
-                            <Text style={styles.cancelLinkText}>Cancelar</Text>
-                          </Pressable>
-                        </View>
+                      <TextInput
+                        style={[styles.input, isView && styles.inputDisabled]}
+                        value={frequency}
+                        onChangeText={(txt) => setFrequency(txt.replace(/[^0-9]/g, ""))}
+                        placeholder="Ej: 60"
+                        placeholderTextColor={colors.textMuted}
+                        keyboardType="numeric"
+                        editable={!isView}
+                      />
 
-                        <TextInput
-                          style={styles.searchInput}
-                          value={taskSearch}
-                          onChangeText={setTaskSearch}
-                          placeholder="Filtrar por nombre de tarea…"
-                          placeholderTextColor={colors.textMuted}
-                          autoFocus
-                        />
+                      {frequency.trim() !== "" && !isFrequencyValid && (
+                        <Text style={styles.fieldError}>Debe ser mayor a 0</Text>
+                      )}
+                    </View>
 
-                        <ScrollView style={styles.taskListScroll} nestedScrollEnabled>
-                          {availableTasks.length === 0 ? (
-                            <View style={styles.noTasksWrap}>
-                              <Text style={styles.noTasksText}>
-                                No se encontraron tareas en el catálogo con ese nombre.
-                              </Text>
+                    <View style={styles.col}>
+                      <Text style={styles.label}>Estado del plan</Text>
 
-                              <Pressable
-                                style={styles.createTaskInlineBtn}
-                                onPress={() => {
-                                  setIsCreatingNewTask(true);
-                                  setNewTaskName(taskSearch.trim());
-                                }}
-                              >
-                                <Text style={styles.createTaskInlineBtnText}>
-                                  + Crear nueva tarea: {taskSearch.trim() || "general"}
-                                </Text>
-                              </Pressable>
-                            </View>
-                          ) : (
-                            availableTasks.map((t) => (
-                              <Pressable
-                                key={t.tag_id_tarea}
-                                style={styles.taskOptionRow}
-                                onPress={() => handleSelectCatalogTask(t)}
-                              >
-                                <View style={styles.flex1}>
-                                  <Text style={styles.taskOptionName}>{t.tag_nombre_tarea}</Text>
-
-                                  {t.tag_descripcion_tarea ? (
-                                    <Text style={styles.taskOptionDesc}>
-                                      {t.tag_descripcion_tarea}
-                                    </Text>
-                                  ) : null}
-                                </View>
-
-                                <Text style={styles.taskAddText}>+ Elegir</Text>
-                              </Pressable>
-                            ))
-                          )}
-                        </ScrollView>
-
+                      <View style={styles.statusToggleRow}>
                         <Pressable
-                          style={styles.createTaskSecondaryBtn}
-                          onPress={() => setIsCreatingNewTask(true)}
+                          style={[
+                            styles.statusToggleBtn,
+                            estado === "activo" && styles.statusToggleBtnActive,
+                            isView && styles.statusToggleBtnDisabled,
+                          ]}
+                          onPress={() => {
+                            if (isView) return;
+                            setEstado("activo");
+                          }}
                         >
-                          <Text style={styles.createTaskSecondaryBtnText}>
-                            + Crear una nueva tarea general
+                          <Text
+                            style={[
+                              styles.statusDot,
+                              { color: estado === "activo" ? colors.accent : colors.textMuted },
+                            ]}
+                          >
+                            •
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.statusToggleText,
+                              estado === "activo" && styles.statusToggleTextActive,
+                            ]}
+                          >
+                            Activo
                           </Text>
                         </Pressable>
-                      </>
-                    ) : (
-                      /* Inline creation form for general task */
-                      <View style={styles.newTaskForm}>
-                        <Text style={styles.selectorLabel}>Nueva tarea general en catálogo</Text>
 
-                        <TextInput
-                          style={styles.input}
-                          value={newTaskName}
-                          onChangeText={setNewTaskName}
-                          placeholder="Nombre de la tarea (ej: Lubricación de rodamientos)"
-                          placeholderTextColor={colors.textMuted}
-                        />
-
-                        <TextInput
-                          style={[styles.input, styles.multiline, { marginTop: 8 }]}
-                          value={newTaskDesc}
-                          onChangeText={setNewTaskDesc}
-                          placeholder="Descripción del procedimiento (opcional)"
-                          placeholderTextColor={colors.textMuted}
-                          multiline
-                        />
-
-                        <View style={styles.newTaskBtnRow}>
-                          <Pressable
-                            style={styles.newTaskCancelBtn}
-                            onPress={() => setIsCreatingNewTask(false)}
-                          >
-                            <Text style={styles.newTaskCancelBtnText}>Volver</Text>
-                          </Pressable>
-
-                          <Pressable
+                        <Pressable
+                          style={[
+                            styles.statusToggleBtn,
+                            estado === "inactivo" && styles.statusToggleBtnInactive,
+                            isView && styles.statusToggleBtnDisabled,
+                          ]}
+                          onPress={() => {
+                            if (isView) return;
+                            setEstado("inactivo");
+                          }}
+                        >
+                          <Text
                             style={[
-                              styles.newTaskSubmitBtn,
-                              (!newTaskName.trim() || creatingTask) && styles.disabledBtn,
+                              styles.statusDot,
+                              { color: estado === "inactivo" ? colors.text : colors.textMuted },
                             ]}
-                            onPress={handleCreateAndAddTask}
-                            disabled={!newTaskName.trim() || creatingTask}
                           >
-                            <Text style={styles.newTaskSubmitBtnText}>
-                              {creatingTask ? "Creando…" : "Crear y agregar"}
-                            </Text>
-                          </Pressable>
-                        </View>
+                            •
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.statusToggleText,
+                              estado === "inactivo" && styles.statusToggleTextInactive,
+                            ]}
+                          >
+                            Inactivo
+                          </Text>
+                        </Pressable>
+                      </View>
+
+                      {estado === "activo" && selectedTasks.length === 0 && (
+                        <Text style={styles.fieldError}>
+                          Un plan no puede quedar activo sin tareas previstas
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Row 3: Descripción */}
+                  <View style={styles.fieldFull}>
+                    <Text style={styles.label}>Descripción</Text>
+
+                    <TextInput
+                      style={[styles.input, styles.multiline, isView && styles.inputDisabled]}
+                      value={description}
+                      onChangeText={setDescription}
+                      placeholder="Control periódico de cierres y drenaje…"
+                      placeholderTextColor={colors.textMuted}
+                      multiline
+                      numberOfLines={2}
+                      editable={!isView}
+                    />
+                  </View>
+                </View>
+
+                {/* Divider line */}
+                <View style={styles.divider} />
+
+                {/* 2. Tareas previstas */}
+                <View style={styles.section}>
+                  <View style={styles.sectionHeaderRow}>
+                    <View style={styles.sectionHeadingText}>
+                      <Text style={styles.sectionTitle}>Tareas previstas</Text>
+
+                      <Text style={styles.sectionSubtitle}>
+                        Mínimo 1 tarea del catálogo para dejar el plan activo
+                      </Text>
+                    </View>
+
+                    {!isView && (
+                      <View ref={addTaskBtnRef}>
+                        <Pressable
+                          style={styles.addTaskBtn}
+                          onPress={() => setAddPlanTaskOpen(true)}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.addTaskBtnText}>+ Agregar tarea</Text>
+                        </Pressable>
                       </View>
                     )}
                   </View>
-                )}
-              </View>
 
-              {/* Section: Equipos y último mantenimiento */}
-              <View style={styles.sectionWrap}>
-                <View style={styles.sectionHeaderRow}>
-                  <View>
-                    <Text style={styles.sectionTitle}>Último mantenimiento por equipo</Text>
+                  {/* Tasks Table or Empty State */}
+                  {selectedTasks.length === 0 ? (
+                    <View style={styles.emptyBox}>
+                      <Text style={styles.emptyText}>
+                        {'Todavía no agregaste tareas. Usá "+ Agregar tarea".'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.table}>
+                      <View style={styles.tableHeader}>
+                        <Text style={[styles.headerCell, { flex: 1.4 }]}>TAREA</Text>
 
-                    <Text style={styles.sectionSubtitle}>
-                      {typeId == null
-                        ? "Elegí primero un tipo de equipo"
-                        : equipments.length === 0
-                          ? "Este tipo de equipo aún no tiene equipos registrados"
-                          : `Afecta a ${equipments.length} ${equipments.length === 1 ? "equipo" : "equipos"}`}
-                    </Text>
-                  </View>
+                        <Text style={[styles.headerCell, { flex: 2.2 }]}>DESCRIPCIÓN</Text>
+
+                        <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+                      </View>
+
+                      {selectedTasks.map((t, idx) => (
+                        <View
+                          key={t.tag_id_tarea}
+                          style={[styles.tableRow, idx % 2 === 1 && styles.rowAlt]}
+                        >
+                          <View style={{ flex: 1.4, paddingRight: 8 }}>
+                            <Text style={styles.cellStrong}>{t.tag_nombre_tarea}</Text>
+                          </View>
+
+                          <View style={{ flex: 2.2, paddingRight: 8 }}>
+                            <Text style={styles.cellDesc} numberOfLines={1}>
+                              {t.tag_descripcion_tarea || "—"}
+                            </Text>
+                          </View>
+
+                          <View style={styles.actionsCol}>
+                            {!isView && (
+                              <Pressable
+                                style={styles.removeBtn}
+                                onPress={() => handleRemoveTask(t.tag_id_tarea)}
+                                accessibilityRole="button"
+                              >
+                                <Text style={styles.removeBtnText}>Quitar</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
 
-                {typeId != null && equipments.length === 0 ? (
-                  <View style={styles.warningBanner}>
-                    <WarningIcon size={18} color={colors.urgencyMedium.accent} />
+                {/* Divider line */}
+                <View style={styles.divider} />
 
-                    <Text style={styles.warningBannerText}>
-                      Este tipo aún no tiene equipos. Podés crear el plan de todas formas y los
-                      equipos se asociarán al crearse.
-                    </Text>
-                  </View>
-                ) : null}
+                {/* 3. Último mantenimiento por equipo */}
+                <View style={styles.section}>
+                  <View style={styles.sectionHeaderRow}>
+                    <View style={styles.sectionHeadingText}>
+                      <Text style={styles.sectionTitle}>Último mantenimiento por equipo</Text>
 
-                {equipments.length > 0 && (
-                  <>
-                    {/* Shortcut: Set same date for all */}
-                    {!isView && (
+                      <Text style={styles.sectionSubtitle}>
+                        {typeId == null
+                          ? "Elegí primero un tipo de equipo"
+                          : equipments.length === 0
+                            ? "Este tipo de equipo aún no tiene equipos registrados"
+                            : `Afecta a ${equipments.length} ${equipments.length === 1 ? "equipo" : "equipos"} del tipo ${typeName}`}
+                      </Text>
+                    </View>
+
+                    {/* Common date shortcut for multiple equipments */}
+                    {!isView && equipments.length > 1 && (
                       <View
                         style={[
-                          styles.shortcutRow,
+                          styles.commonDateWrap,
                           openField === "commonDate" && styles.rowRaised,
                         ]}
                       >
-                        <View style={styles.shortcutDateInput}>
+                        <View style={styles.commonDateInput}>
                           <CustomDatePicker
                             value={commonDate}
                             onChange={setCommonDate}
@@ -730,25 +646,39 @@ export function MaintenancePlanModal({
 
                         <Pressable
                           style={[
-                            styles.applyAllBtn,
-                            (!commonDate || !isValidDateString(commonDate)) && styles.disabledBtn,
+                            styles.commonDateBtn,
+                            (!commonDate || !isValidDateString(commonDate)) && styles.commonDateBtnDisabled,
                           ]}
                           onPress={handleApplyCommonDate}
                           disabled={!commonDate || !isValidDateString(commonDate)}
                         >
-                          <Text style={styles.applyAllBtnText}>Aplicar a todos</Text>
+                          <Text style={styles.commonDateBtnText}>Aplicar a todos</Text>
                         </Pressable>
                       </View>
                     )}
+                  </View>
 
-                    {/* Equipment list */}
-                    <View style={styles.equipTable}>
-                      <View style={styles.equipTableHeader}>
-                        <Text style={[styles.equipTableTh, styles.flex1]}>EQUIPO · UBICACIÓN</Text>
+                  {typeId != null && equipments.length === 0 ? (
+                    <View style={styles.warningBanner}>
+                      <WarningIcon size={18} color={colors.urgencyMedium.accent} />
 
-                        <Text style={[styles.equipTableTh, styles.equipDateCol]}>
-                          ÚLTIMO MANTENIMIENTO
-                        </Text>
+                      <Text style={styles.warningBannerText}>
+                        Este tipo aún no tiene equipos. Podés crear el plan de todas formas y los
+                        equipos se asociarán al crearse.
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {equipments.length > 0 && (
+                    <View style={styles.table}>
+                      <View style={styles.tableHeader}>
+                        <Text style={[styles.headerCell, { flex: 1.8 }]}>EQUIPO</Text>
+
+                        <Text style={[styles.headerCell, { flex: 1.3 }]}>UBICACIÓN</Text>
+
+                        <Text style={[styles.headerCell, styles.dateCol]}>ÚLTIMO MANT.</Text>
+
+                        <Text style={[styles.headerCell, styles.dueCol]}>PRÓX. VENC.</Text>
                       </View>
 
                       {equipments.map((eq, idx) => {
@@ -760,28 +690,37 @@ export function MaintenancePlanModal({
                         const fieldKey = `eqDate-${eq.id}`;
                         const isOpen = openField === fieldKey;
 
+                        const dueDateStr = addDaysToDateString(dateVal, freqNum);
+
                         return (
                           <View
                             key={eq.id}
                             style={[
-                              styles.equipTableRow,
-                              idx % 2 === 1 && styles.equipTableRowAlt,
-                              isOpen && styles.equipTableRowRaised,
+                              styles.tableRow,
+                              idx % 2 === 1 && styles.rowAlt,
+                              isOpen && styles.equipRowRaised,
                               { zIndex: equipments.length - idx + (isOpen ? 100 : 0) },
                             ]}
                           >
-                            <View style={styles.flex1}>
-                              <Text style={styles.equipCodeText}>
-                                {eq.code}
-                                <Text style={styles.equipNameText}> · {eq.name}</Text>
+                            {/* Equipo name + code */}
+                            <View style={{ flex: 1.8, paddingRight: 8 }}>
+                              <Text style={styles.equipNameText} numberOfLines={2}>
+                                <Text style={styles.cellStrong}>{eq.name} </Text>
+                                <Text style={styles.equipCodeText}>{eq.code}</Text>
                               </Text>
-
-                              <Text style={styles.equipLocText}>{eq.location}</Text>
                             </View>
 
-                            <View style={styles.equipDateCol}>
+                            {/* Ubicación */}
+                            <View style={{ flex: 1.3, paddingRight: 8 }}>
+                              <Text style={styles.cellText} numberOfLines={1}>
+                                {eq.location}
+                              </Text>
+                            </View>
+
+                            {/* Último mantenimiento editable */}
+                            <View style={styles.dateCol}>
                               {isView ? (
-                                <Text style={styles.viewDateText}>{dateVal || "—"}</Text>
+                                <Text style={styles.cellText}>{dateVal || "—"}</Text>
                               ) : (
                                 <CustomDatePicker
                                   value={dateVal}
@@ -798,47 +737,95 @@ export function MaintenancePlanModal({
                                 />
                               )}
                             </View>
+
+                            {/* Próximo vencimiento calculated live */}
+                            <View style={styles.dueCol}>
+                              <Text style={styles.cellText}>{dueDateStr}</Text>
+                            </View>
                           </View>
                         );
                       })}
                     </View>
-                  </>
-                )}
+                  )}
 
-                {/* Info Note */}
-                <View style={styles.infoNoteBox}>
-                  <InfoIcon size={16} color={colors.accent} />
-
-                  <Text style={styles.infoNoteText}>
+                  {/* 4. Nota informativa */}
+                  <Text style={styles.infoNote}>
                     Próximo vencimiento = último mantenimiento + frecuencia. La OT se genera
-                    automáticamente cuando llega a término.
+                    automáticamente.
                   </Text>
                 </View>
-              </View>
 
-              {error && <Text style={styles.globalErrorText}>{error}</Text>}
-            </ScrollView>
-          )}
-
-          {/* Footer Actions */}
-          <View style={styles.footerWrap}>
-            {isView ? (
-              <Pressable style={styles.closeFullBtn} onPress={onClose}>
-                <Text style={styles.closeFullBtnText}>Cerrar</Text>
-              </Pressable>
-            ) : (
-              <FormFooter
-                onCancel={onClose}
-                onConfirm={handleSave}
-                busy={saving}
-                busyLabel={isEdit ? "Guardando…" : "Creando…"}
-                disabled={!isFormValid || saving}
-              />
+                {error && <Text style={styles.globalErrorText}>{error}</Text>}
+              </ScrollView>
             )}
+
+            {/* 5. Footer Buttons */}
+            <View style={styles.footerWrap}>
+              {isView ? (
+                <Pressable style={styles.closeFullBtn} onPress={onClose}>
+                  <Text style={styles.closeFullBtnText}>Cerrar</Text>
+                </Pressable>
+              ) : (
+                <View style={styles.footerActions}>
+                  <Pressable
+                    style={styles.cancelButton}
+                    onPress={handleAttemptClose}
+                    disabled={saving}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.cancelButtonText}>Cancelar</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.confirmButton,
+                      (!isFormValid || saving) && styles.confirmButtonDisabled,
+                    ]}
+                    onPress={handleSave}
+                    disabled={!isFormValid || saving}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.confirmButtonText}>
+                      {saving
+                        ? isEdit
+                          ? "Guardando…"
+                          : "Creando…"
+                        : isEdit
+                          ? "Guardar cambios"
+                          : "Crear plan"}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+
+      {/* Secondary Modal: Agregar tarea al plan */}
+      <AddPlanTaskModal
+        visible={addPlanTaskOpen}
+        planName={name}
+        typeName={typeName}
+        existingTaskIds={selectedTasks.map((t) => t.tag_id_tarea)}
+        onClose={() => setAddPlanTaskOpen(false)}
+        onConfirm={handleTaskConfirmed}
+      />
+
+      {/* Discard confirmation dialog */}
+      <ConfirmDialog
+        visible={showDiscardConfirm}
+        title="¿Descartar los cambios?"
+        message="Tenés cambios sin guardar en el plan de mantenimiento. Si salís ahora, se perderán."
+        confirmLabel="Descartar"
+        cancelLabel="Continuar editando"
+        onConfirm={() => {
+          setShowDiscardConfirm(false);
+          onClose();
+        }}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
+    </>
   );
 }
 
@@ -854,7 +841,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgModal,
       borderRadius: 16,
       width: "100%",
-      maxWidth: 680,
+      maxWidth: 780,
       maxHeight: "92%",
       alignSelf: "center",
       overflow: "hidden",
@@ -864,39 +851,26 @@ function makeStyles(c: ThemeColors) {
     header: {
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "center",
+      alignItems: "flex-start",
       paddingHorizontal: 24,
-      paddingTop: 20,
+      paddingTop: 22,
       paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
     },
-    headerLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
+    headerTextWrap: {
       flex: 1,
-    },
-    headerIconWrap: {
-      width: 40,
-      height: 40,
-      borderRadius: 10,
-      backgroundColor: c.bgNested,
-      alignItems: "center",
-      justifyContent: "center",
+      gap: 3,
     },
     title: {
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: "700",
       color: c.text,
     },
     subtitle: {
-      fontSize: 12.5,
+      fontSize: 13,
       color: c.textMuted,
-      marginTop: 2,
     },
     closeBtn: {
-      padding: 8,
+      padding: 6,
       borderRadius: 8,
     },
     closeBtnText: {
@@ -908,8 +882,9 @@ function makeStyles(c: ThemeColors) {
       flex: 1,
     },
     scrollContent: {
-      padding: 24,
-      gap: 16,
+      paddingHorizontal: 24,
+      paddingBottom: 24,
+      gap: 20,
     },
     loadingWrap: {
       padding: 48,
@@ -921,51 +896,52 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       color: c.textMuted,
     },
-    field: {
-      gap: 6,
-      position: "relative",
-      zIndex: 1,
+    section: {
+      gap: 14,
     },
-    row: {
+    formRow: {
       flexDirection: "row",
       gap: 16,
       position: "relative",
       zIndex: 1,
     },
-    rowRaised: {
+    formRowRaised: {
       zIndex: 100,
       elevation: 100,
+    },
+    col: {
+      flex: 1,
+      gap: 6,
+      position: "relative",
+      zIndex: 1,
+    },
+    fieldFull: {
+      gap: 6,
     },
     fieldRaised: {
       position: "relative",
       zIndex: 100,
       elevation: 100,
     },
-    flex1: {
-      flex: 1,
-    },
     label: {
       fontSize: 13,
       fontWeight: "600",
       color: c.text,
     },
-    required: {
-      color: c.destructive,
-    },
     input: {
       height: 44,
       borderRadius: 10,
       borderWidth: 1,
-      borderColor: c.border,
+      borderColor: c.borderInput,
       backgroundColor: c.bgInput,
-      paddingHorizontal: 12,
+      paddingHorizontal: 14,
       fontSize: 14,
       color: c.text,
-      justifyContent: "center",
     },
     inputDisabled: {
       backgroundColor: c.bgNested,
       borderColor: c.border,
+      justifyContent: "center",
     },
     disabledText: {
       fontSize: 14,
@@ -973,397 +949,317 @@ function makeStyles(c: ThemeColors) {
     },
     multiline: {
       height: 72,
-      paddingVertical: 8,
+      paddingVertical: 10,
       textAlignVertical: "top",
     },
-    hint: {
+    hintText: {
       fontSize: 11.5,
       color: c.textMuted,
       marginTop: 2,
     },
     fieldError: {
-      fontSize: 11.5,
+      fontSize: 12,
       color: c.destructive,
-      marginTop: 2,
+      marginTop: 3,
     },
     statusToggleRow: {
       flexDirection: "row",
       gap: 10,
+      alignItems: "center",
+      height: 44,
     },
     statusToggleBtn: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
+      gap: 6,
       paddingVertical: 8,
-      paddingHorizontal: 16,
+      paddingHorizontal: 14,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: c.border,
-      backgroundColor: c.bgCard,
+      backgroundColor: c.bgInput,
     },
     statusToggleBtnActive: {
-      borderColor: c.success,
       backgroundColor: c.eqOperational.bg,
+      borderColor: c.success,
     },
     statusToggleBtnInactive: {
+      backgroundColor: c.bgCard,
       borderColor: c.textMuted,
-      backgroundColor: c.bgNested,
     },
     statusToggleBtnDisabled: {
-      opacity: 0.8,
+      opacity: 0.6,
     },
     statusDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
+      fontSize: 18,
+      lineHeight: 18,
+      fontWeight: "900",
     },
     statusToggleText: {
-      fontSize: 13,
+      fontSize: 13.5,
       fontWeight: "600",
       color: c.textMuted,
     },
     statusToggleTextActive: {
-      color: c.success,
+      color: c.text,
     },
     statusToggleTextInactive: {
-      color: c.textMuted,
+      color: c.text,
     },
-    sectionWrap: {
-      marginTop: 6,
-      paddingTop: 16,
-      borderTopWidth: 1,
-      borderTopColor: c.border,
-      gap: 10,
+    divider: {
+      height: 1,
+      backgroundColor: c.borderRow,
     },
     sectionHeaderRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      gap: 12,
+      flexWrap: "wrap",
+    },
+    sectionHeadingText: {
+      flexShrink: 1,
+      minWidth: 0,
+      gap: 3,
     },
     sectionTitle: {
-      fontSize: 14.5,
+      fontSize: 16.5,
       fontWeight: "700",
       color: c.text,
     },
     sectionSubtitle: {
-      fontSize: 12,
+      fontSize: 13,
       color: c.textMuted,
-      marginTop: 1,
     },
     addTaskBtn: {
-      backgroundColor: c.bgNested,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
+      paddingHorizontal: 14,
+      height: 36,
       borderRadius: 8,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    addTaskBtnText: {
-      fontSize: 12.5,
-      fontWeight: "600",
-      color: c.accent,
-    },
-    chipsWrap: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-      minHeight: 28,
-    },
-    taskChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: c.bgNested,
-      borderWidth: 1,
-      borderColor: c.border,
-      paddingVertical: 5,
-      paddingHorizontal: 10,
-      borderRadius: 999,
-    },
-    taskChipText: {
-      fontSize: 12.5,
-      fontWeight: "500",
-      color: c.text,
-    },
-    taskChipRemove: {
-      width: 16,
-      height: 16,
-      borderRadius: 8,
-      backgroundColor: c.border,
+      backgroundColor: c.accent,
       alignItems: "center",
       justifyContent: "center",
     },
-    taskChipRemoveText: {
-      fontSize: 10,
-      color: c.textMuted,
-      lineHeight: 10,
+    addTaskBtnText: {
+      color: "#FFFFFF",
+      fontWeight: "600",
+      fontSize: 13,
     },
-    taskSelectorBox: {
-      backgroundColor: c.bgNested,
-      borderRadius: 12,
-      padding: 12,
+    emptyBox: {
+      backgroundColor: c.bgCard,
       borderWidth: 1,
       borderColor: c.border,
-      gap: 8,
-      marginTop: 6,
-    },
-    selectorHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
+      borderRadius: 14,
+      padding: 24,
       alignItems: "center",
+      justifyContent: "center",
     },
-    selectorLabel: {
-      fontSize: 12,
-      fontWeight: "700",
+    emptyText: {
+      fontSize: 13.5,
       color: c.textMuted,
-      textTransform: "uppercase",
+      textAlign: "center",
+    },
+    table: {
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      overflow: "hidden",
+      position: "relative",
+      zIndex: 1,
+    },
+    tableHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      backgroundColor: c.accent,
+      borderTopLeftRadius: 13,
+      borderTopRightRadius: 13,
+    },
+    headerCell: {
+      fontSize: 11.5,
+      fontWeight: "700",
       letterSpacing: 0.5,
+      textTransform: "uppercase",
+      color: "#FFFFFF",
+      fontFamily: "monospace",
     },
-    cancelLinkText: {
+    actionsCol: {
+      width: 90,
+      alignItems: "flex-end",
+    },
+    dateCol: {
+      width: 160,
+    },
+    dueCol: {
+      width: 120,
+    },
+    tableRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
+      position: "relative",
+    },
+    rowAlt: {
+      backgroundColor: c.bgRowAlt,
+    },
+    equipRowRaised: {
+      zIndex: 100,
+      elevation: 100,
+    },
+    cellStrong: {
+      fontWeight: "700",
+      fontSize: 13.5,
+      color: c.text,
+    },
+    cellDesc: {
+      fontSize: 13,
+      color: c.textSecondary,
+    },
+    cellText: {
+      fontSize: 13.5,
+      color: c.textLabel,
+    },
+    equipNameText: {
+      fontSize: 13.5,
+      color: c.text,
+    },
+    equipCodeText: {
       fontSize: 12,
-      color: c.accent,
-      fontWeight: "600",
+      color: c.textMuted,
+      fontFamily: "monospace",
     },
-    searchInput: {
-      height: 38,
+    removeBtn: {
+      paddingVertical: 5,
+      paddingHorizontal: 12,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: c.border,
       backgroundColor: c.bgCard,
-      paddingHorizontal: 10,
-      fontSize: 13,
-      color: c.text,
-    },
-    taskListScroll: {
-      maxHeight: 140,
-    },
-    taskOptionRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
       alignItems: "center",
-      paddingVertical: 8,
-      paddingHorizontal: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: c.border,
+      justifyContent: "center",
     },
-    taskOptionName: {
-      fontSize: 13,
+    removeBtnText: {
+      fontSize: 12.5,
       fontWeight: "600",
       color: c.text,
     },
-    taskOptionDesc: {
-      fontSize: 11.5,
-      color: c.textMuted,
-      marginTop: 2,
-    },
-    taskAddText: {
-      fontSize: 12,
-      fontWeight: "700",
-      color: c.accent,
-    },
-    noTasksWrap: {
-      paddingVertical: 12,
-      alignItems: "center",
-      gap: 8,
-    },
-    noTasksText: {
-      fontSize: 12,
-      color: c.textMuted,
-      textAlign: "center",
-    },
-    createTaskInlineBtn: {
-      paddingVertical: 4,
-      paddingHorizontal: 10,
-      borderRadius: 6,
-      backgroundColor: c.accent,
-    },
-    createTaskInlineBtnText: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: "#FFFFFF",
-    },
-    createTaskSecondaryBtn: {
-      alignItems: "center",
-      paddingVertical: 6,
-      borderTopWidth: 1,
-      borderTopColor: c.border,
-    },
-    createTaskSecondaryBtnText: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: c.accent,
-    },
-    newTaskForm: {
-      gap: 8,
-    },
-    newTaskBtnRow: {
+    commonDateWrap: {
       flexDirection: "row",
-      justifyContent: "flex-end",
+      alignItems: "center",
       gap: 8,
-      marginTop: 4,
+      position: "relative",
+      zIndex: 2,
     },
-    newTaskCancelBtn: {
-      paddingVertical: 6,
+    rowRaised: {
+      zIndex: 100,
+      elevation: 100,
+    },
+    commonDateInput: {
+      width: 170,
+    },
+    commonDateBtn: {
       paddingHorizontal: 12,
-      borderRadius: 6,
+      height: 36,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.bgCard,
+      alignItems: "center",
+      justifyContent: "center",
     },
-    newTaskCancelBtnText: {
-      fontSize: 12.5,
-      color: c.textMuted,
+    commonDateBtnDisabled: {
+      opacity: 0.5,
     },
-    newTaskSubmitBtn: {
-      paddingVertical: 6,
-      paddingHorizontal: 14,
-      borderRadius: 6,
-      backgroundColor: c.accent,
-    },
-    newTaskSubmitBtnText: {
+    commonDateBtnText: {
       fontSize: 12.5,
       fontWeight: "600",
-      color: "#FFFFFF",
+      color: c.text,
     },
     warningBanner: {
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
       backgroundColor: c.urgencyMedium.bg,
-      padding: 12,
-      borderRadius: 10,
       borderWidth: 1,
       borderColor: c.urgencyMedium.accent,
+      borderRadius: 10,
+      padding: 12,
     },
     warningBannerText: {
-      fontSize: 12.5,
-      color: c.text,
-      flex: 1,
-    },
-    shortcutRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      marginBottom: 6,
-    },
-    shortcutDateInput: {
-      flex: 1,
-      maxWidth: 220,
-    },
-    applyAllBtn: {
-      backgroundColor: c.bgNested,
-      borderWidth: 1,
-      borderColor: c.border,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderRadius: 8,
-    },
-    applyAllBtnText: {
-      fontSize: 12.5,
-      fontWeight: "600",
-      color: c.accent,
-    },
-    disabledBtn: {
-      opacity: 0.5,
-    },
-    equipTable: {
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.border,
-      position: "relative",
-      zIndex: 1,
-    },
-    equipTableHeader: {
-      flexDirection: "row",
-      backgroundColor: c.accent,
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      borderTopLeftRadius: 9,
-      borderTopRightRadius: 9,
-    },
-    equipTableTh: {
-      fontSize: 11,
-      fontWeight: "700",
-      color: "#FFFFFF",
-      letterSpacing: 0.5,
-      fontFamily: "monospace",
-    },
-    equipDateCol: {
-      width: 170,
-    },
-    equipTableRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      backgroundColor: c.bgRow,
-      borderTopWidth: 1,
-      borderTopColor: c.border,
-      position: "relative",
-    },
-    equipTableRowRaised: {
-      zIndex: 100,
-      elevation: 100,
-    },
-    equipTableRowAlt: {
-      backgroundColor: c.bgRowAlt,
-    },
-    equipCodeText: {
       fontSize: 13,
-      fontWeight: "700",
       color: c.text,
+      flex: 1,
     },
-    equipNameText: {
-      fontWeight: "400",
-      color: c.textMuted,
-    },
-    equipLocText: {
-      fontSize: 11.5,
+    infoNote: {
+      fontSize: 12.5,
       color: c.textMuted,
       marginTop: 2,
-    },
-    viewDateText: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: c.text,
-    },
-    infoNoteBox: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      backgroundColor: c.bgNested,
-      padding: 12,
-      borderRadius: 10,
-      marginTop: 4,
-    },
-    infoNoteText: {
-      fontSize: 12,
-      color: c.textMuted,
-      flex: 1,
-      lineHeight: 16,
+      paddingHorizontal: 2,
     },
     globalErrorText: {
-      fontSize: 13,
       color: c.destructive,
-      fontWeight: "600",
-      textAlign: "center",
+      fontSize: 13,
+      backgroundColor: c.bgNested,
+      padding: 12,
+      borderRadius: 8,
     },
     footerWrap: {
-      paddingHorizontal: 24,
-      paddingVertical: 16,
       borderTopWidth: 1,
       borderTopColor: c.border,
-      backgroundColor: c.bgCard,
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      backgroundColor: c.bgModal,
+    },
+    footerActions: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: 10,
+    },
+    cancelButton: {
+      height: 44,
+      paddingHorizontal: 22,
+      borderRadius: 10,
+      backgroundColor: "#dc2626",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cancelButtonText: {
+      color: "#FFFFFF",
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    confirmButton: {
+      height: 44,
+      paddingHorizontal: 24,
+      borderRadius: 10,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    confirmButtonDisabled: {
+      opacity: 0.45,
+      ...(Platform.OS === "web" ? ({ cursor: "not-allowed" } as object) : {}),
+    },
+    confirmButtonText: {
+      color: "#FFFFFF",
+      fontWeight: "600",
+      fontSize: 14,
     },
     closeFullBtn: {
-      backgroundColor: c.bgNested,
-      borderWidth: 1,
-      borderColor: c.border,
+      height: 44,
       borderRadius: 10,
-      paddingVertical: 12,
+      backgroundColor: c.accent,
       alignItems: "center",
+      justifyContent: "center",
     },
     closeFullBtnText: {
-      fontSize: 14,
+      color: "#FFFFFF",
       fontWeight: "600",
-      color: c.text,
+      fontSize: 14,
     },
   });
 }
