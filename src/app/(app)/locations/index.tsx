@@ -23,6 +23,7 @@ import type { LocationWithCount } from "../../../lib/queries/locations";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 
 // The row's trash icon is disabled while the record is still in use, so the
@@ -90,12 +91,10 @@ export default function LocationsScreen() {
   }, [locations]);
 
   const filteredLocations = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = normalizeSearch(search.trim());
     return locations.filter((l) => {
       const matchSearch =
-        !query ||
-        l.lu_nombre_sector.toLowerCase().includes(query) ||
-        (l.lu_piso ?? "").toLowerCase().includes(query);
+        !query || startsWithSearch(l.lu_nombre_sector, query) || includesSearch(l.lu_piso, query);
       const matchPiso = !pisoFilter || l.lu_piso?.trim() === pisoFilter;
       const matchEquipos =
         !equiposFilter ||

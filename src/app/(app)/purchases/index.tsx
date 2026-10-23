@@ -36,6 +36,7 @@ import { listSuppliers, type SupplierWithRubro } from "../../../lib/queries/supp
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Repuesto } from "../../../types/database";
 
@@ -134,14 +135,13 @@ export default function PurchasesScreen() {
   }, [purchases, estados]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     const dbFrom = isValidDateString(dateFrom) ? toDbDate(dateFrom) : null;
     const dbTo = isValidDateString(dateTo) ? toDbDate(dateTo) : null;
 
     return purchases.filter((p) => {
-      const provName = p.proveedores?.prov_nombre?.toLowerCase() ?? "";
       const matchSearch =
-        !q || provName.includes(q) || (comprobanteRef(p)?.toLowerCase().includes(q) ?? false);
+        !q || includesSearch(p.proveedores?.prov_nombre, q) || includesSearch(comprobanteRef(p), q);
 
       let matchDate = true;
       if (dbFrom) {

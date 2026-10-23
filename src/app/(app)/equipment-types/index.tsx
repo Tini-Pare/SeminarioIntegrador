@@ -21,6 +21,7 @@ import type { EquipmentTypeWithCount } from "../../../lib/queries/equipmentTypes
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 
 // The row's trash icon is disabled while the record is still in use, so the
@@ -80,9 +81,9 @@ export default function EquipmentTypesScreen() {
   }
 
   const filteredTypes = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = normalizeSearch(search.trim());
     return types.filter((t) => {
-      const matchSearch = !query || t.te_nombre.toLowerCase().includes(query);
+      const matchSearch = !query || startsWithSearch(t.te_nombre, query);
       const matchEquipos =
         !equiposFilter ||
         (equiposFilter === "with" ? t.equipmentCount > 0 : t.equipmentCount === 0);

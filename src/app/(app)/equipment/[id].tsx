@@ -28,6 +28,7 @@ import { formatOrderNumber } from "../../../lib/orderNumber";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import type { Equipo, Solicitud, SolicitudTask, HistorialEntry } from "../../../types/database";
 
 const PRIORITY_LABEL: Record<Exclude<Solicitud["priority"], null>, string> = {
@@ -108,9 +109,7 @@ function faultSearchText(f: Solicitud, names: Map<string, string>): string {
       t.diagnosis ?? "",
       ...t.consumedParts.map((p) => p.nombre),
     ]),
-  ]
-    .join(" ")
-    .toLowerCase();
+  ].join(" ");
 }
 
 // The equipo's características live in the card above the tabs, always
@@ -255,9 +254,9 @@ export default function EquipmentDetail() {
   );
 
   const filteredFaults = useMemo(() => {
-    const q = faultSearch.trim().toLowerCase();
+    const q = normalizeSearch(faultSearch.trim());
     return faults.filter((f) => {
-      const matchSearch = !q || faultSearchText(f, authorNames).includes(q);
+      const matchSearch = !q || includesSearch(faultSearchText(f, authorNames), q);
       const matchStatus =
         !faultStatusFilter ||
         (faultStatusFilter === "in_progress"
@@ -318,13 +317,13 @@ export default function EquipmentDetail() {
   );
 
   const filteredHistory = useMemo(() => {
-    const q = activitySearch.trim().toLowerCase();
+    const q = normalizeSearch(activitySearch.trim());
     return history.filter((h) => {
       const matchSearch =
         !q ||
-        h.note.toLowerCase().includes(q) ||
-        historyEventLabel(h).toLowerCase().includes(q) ||
-        (authorNames.get(h.author_id) ?? "").toLowerCase().includes(q);
+        includesSearch(h.note, q) ||
+        includesSearch(historyEventLabel(h), q) ||
+        includesSearch(authorNames.get(h.author_id), q);
       const matchType = !activityTypeFilter || historyEventLabel(h) === activityTypeFilter;
       const matchAuthor = !activityAuthorFilter || h.author_id === activityAuthorFilter;
       return matchSearch && matchType && matchAuthor;

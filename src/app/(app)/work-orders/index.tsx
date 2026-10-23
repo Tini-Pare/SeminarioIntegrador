@@ -22,6 +22,7 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Equipo, Solicitud } from "../../../types/database";
 
@@ -118,14 +119,14 @@ export default function WorkOrdersScreen() {
   }
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search.trim());
     return items.filter((r) => {
       const matchSearch =
         !q ||
-        (r.order_id != null && formatOrderNumber(r.order_id).toLowerCase().includes(q)) ||
-        r.equipment.code.toLowerCase().includes(q) ||
-        r.equipment.name.toLowerCase().includes(q) ||
-        r.description.toLowerCase().includes(q);
+        (r.order_id != null && includesSearch(formatOrderNumber(r.order_id), q)) ||
+        includesSearch(r.equipment.code, q) ||
+        includesSearch(r.equipment.name, q) ||
+        includesSearch(r.description, q);
       const matchStatus = !statusFilter || r.status === statusFilter;
       const matchPriority = !priorityFilter || r.priority === priorityFilter;
       return matchSearch && matchStatus && matchPriority;
