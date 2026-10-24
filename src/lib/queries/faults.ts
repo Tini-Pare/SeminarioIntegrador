@@ -1,7 +1,7 @@
 import { getTodayDbDate } from "../../components/CustomDatePicker";
 import { supabase } from "../supabase";
-import type { Database } from "../../types/database";
 import type {
+  Database,
   PastTaskSuspension,
   Solicitud,
   SolicitudTask,
@@ -322,6 +322,8 @@ export function mapWorkOrderRow(row: WorkOrderWithDetail): WorkOrder {
   return {
     id: row.ot_id_orden,
     equipment_id: row.eq_id_equipo,
+    sol_id_solicitud: row.sol_id_solicitud ?? null,
+    plan_id_manequipo: row.plan_id_manequipo ?? null,
     type: row.ot_tipo_orden,
     status: row.ot_estado,
     priority: row.ot_prioridad,
@@ -344,6 +346,23 @@ export function mapWorkOrderRow(row: WorkOrderWithDetail): WorkOrder {
   };
 }
 
+export type WorkOrderOrigin = "solicitud" | "plan" | "none";
+
+export function getWorkOrderOrigin(order: {
+  sol_id_solicitud?: number | null;
+  plan_id_manequipo?: number | null;
+  solicitud?: { id: number } | null;
+  plan_name?: string | null;
+  type?: string;
+}): WorkOrderOrigin {
+  const hasSolicitud = Boolean(order.sol_id_solicitud != null || order.solicitud);
+  const hasPlan = Boolean(order.plan_id_manequipo != null || order.plan_name);
+
+  if (hasSolicitud && !hasPlan) return "solicitud";
+  if (!hasSolicitud && hasPlan) return "plan";
+  return "none";
+}
+
 // Every OT, whatever it came from — the "Órdenes de trabajo" screen.
 export async function listWorkOrders(): Promise<WorkOrder[]> {
   const { data, error } = await supabase
@@ -352,6 +371,31 @@ export async function listWorkOrders(): Promise<WorkOrder[]> {
     .order("ot_id_orden", { ascending: false });
   if (error) throw new Error(error.message);
   return (data as unknown as WorkOrderWithDetail[]).map(mapWorkOrderRow);
+}
+
+// Server-side aggregated counts of work orders by origin (using count: exact and head: true).
+export async function countWorkOrdersByOrigin(): Promise<{
+  total: number;
+  solicitud: number;
+  plan: number;
+}> {
+  const [totalRes, solRes, planRes] = await Promise.all([
+    supabase.from("orden_de_trabajo").select("ot_id_orden", { count: "exact", head: true }),
+    supabase
+      .from("orden_de_trabajo")
+      .select("ot_id_orden", { count: "exact", head: true })
+      .not("sol_id_solicitud", "is", null),
+    supabase
+      .from("orden_de_trabajo")
+      .select("ot_id_orden", { count: "exact", head: true })
+      .not("plan_id_manequipo", "is", null),
+  ]);
+  if (totalRes.error) throw new Error(totalRes.error.message);
+  return {
+    total: totalRes.count ?? 0,
+    solicitud: solRes.count ?? 0,
+    plan: planRes.count ?? 0,
+  };
 }
 
 // The OT full-screen page (work-orders/[id]) loads one OT by its own id.

@@ -1152,6 +1152,8 @@ export type Solicitud = {
 export type WorkOrder = {
   id: number;
   equipment_id: number;
+  sol_id_solicitud?: number | null;
+  plan_id_manequipo?: number | null;
   type: string;
   status: "assigned" | "in_progress" | "resolved";
   priority: "low" | "medium" | "high";

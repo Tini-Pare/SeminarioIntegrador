@@ -1,7 +1,9 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -9,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { fromDbDate } from "../../../components/CustomDatePicker";
+import { RefreshCwIcon, WarningIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
 import { Sigla } from "../../../components/Sigla";
@@ -16,12 +19,16 @@ import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { formatOrderNumber } from "../../../lib/orderNumber";
 import { listEquipment } from "../../../lib/queries/equipment";
-import { listWorkOrders } from "../../../lib/queries/faults";
+import {
+  getWorkOrderOrigin,
+  listWorkOrders,
+  type WorkOrderOrigin,
+} from "../../../lib/queries/faults";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
-import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Equipo, WorkOrder } from "../../../types/database";
 
@@ -31,6 +38,7 @@ type Item = WorkOrder & {
 
 type OrderStatus = WorkOrder["status"];
 type Priority = WorkOrder["priority"];
+type OriginTab = "todas" | "solicitud" | "plan";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   assigned: "Asignada",
@@ -38,19 +46,33 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   resolved: "Resuelta",
 };
 const STATUS_RANK: Record<OrderStatus, number> = { assigned: 0, in_progress: 1, resolved: 2 };
+
+// The priority labels are in Spanish. The 'notranslate' attribute is added in JSX
+// to prevent automated browser translation (e.g. Chrome translating 'Media' to 'Medios de comunicación').
 const PRIORITY_LABELS: Record<Priority, string> = { low: "Baja", medium: "Media", high: "Alta" };
+const PRIORITY_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2 };
+
 // ot_tipo_orden is free text in the DB; anything not listed here shows as is.
 const TYPE_LABELS: Record<string, string> = {
   correctivo: "Correctivo",
   preventivo: "Preventivo",
   instalacion: "Instalación",
 };
-const PRIORITY_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2 };
 
-// Every orden_de_trabajo, whether it came from a solicitud or not —
-// solicitudes still pendiente, or closed without one (SCRUM-27), belong on
-// the "Solicitudes" screen instead, not here.
+function getOriginLabel(item: Item): string {
+  const origin = getWorkOrderOrigin(item);
+  if (origin === "solicitud") return "Solicitud";
+  if (origin === "plan") return "Plan preventivo";
+  return "Sin origen";
+}
+
+// Every orden_de_trabajo, whether it came from a solicitud, maintenance plan, or installation.
 export default function WorkOrdersScreen() {
+  const params = useLocalSearchParams<{ origen?: string }>();
+  const initialTab: OriginTab =
+    params.origen === "solicitud" || params.origen === "plan" ? params.origen : "todas";
+
+  const [activeTab, setActiveTab] = useState<OriginTab>(initialTab);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
@@ -74,6 +96,15 @@ export default function WorkOrdersScreen() {
     medium: colors.urgencyMedium,
     high: colors.urgencyHigh,
   };
+
+  // Sync tab state when URL search param changes (e.g. browser navigation or reload).
+  useEffect(() => {
+    const targetTab: OriginTab =
+      params.origen === "solicitud" || params.origen === "plan" ? params.origen : "todas";
+    if (targetTab !== activeTab) {
+      setActiveTab(targetTab);
+    }
+  }, [params.origen, activeTab]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -102,8 +133,6 @@ export default function WorkOrdersScreen() {
     const channel = supabase
       .channel(`work-orders-changes-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "orden_de_trabajo" }, load)
-      // A first tarea doesn't change the OT's estado, but it does turn its
-      // "Sin tareas" badge into "Asignada".
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tareas_realizadas_orden" },
@@ -121,7 +150,8 @@ export default function WorkOrdersScreen() {
     setRefreshing(false);
   }
 
-  const filtered = useMemo(() => {
+  // Base list filtered by search and header dropdown filters.
+  const baseFiltered = useMemo(() => {
     const q = normalizeSearch(search.trim());
     return items.filter((r) => {
       const matchSearch =
@@ -129,7 +159,9 @@ export default function WorkOrdersScreen() {
         includesSearch(formatOrderNumber(r.id), q) ||
         includesSearch(r.equipment.code, q) ||
         includesSearch(r.equipment.name, q) ||
-        includesSearch(r.solicitud?.description ?? r.observation ?? "", q);
+        includesSearch(r.solicitud?.description ?? "", q) ||
+        includesSearch(r.plan_name ?? "", q) ||
+        includesSearch(r.observation ?? "", q);
       const matchStatus = !statusFilter || r.status === statusFilter;
       const matchPriority = !priorityFilter || r.priority === priorityFilter;
       const matchType = !typeFilter || r.type === typeFilter;
@@ -137,12 +169,37 @@ export default function WorkOrdersScreen() {
     });
   }, [items, search, statusFilter, priorityFilter, typeFilter]);
 
+  // Tab counters respect active search and dropdown filters.
+  const counts = useMemo(() => {
+    let todas = 0;
+    let solicitud = 0;
+    let plan = 0;
+    for (const r of baseFiltered) {
+      todas++;
+      const origin = getWorkOrderOrigin(r);
+      if (origin === "solicitud") solicitud++;
+      else if (origin === "plan") plan++;
+    }
+    return { todas, solicitud, plan };
+  }, [baseFiltered]);
+
+  // Active tab determines which items are shown in the grid.
+  const filtered = useMemo(() => {
+    if (activeTab === "solicitud") {
+      return baseFiltered.filter((r) => getWorkOrderOrigin(r) === "solicitud");
+    }
+    if (activeTab === "plan") {
+      return baseFiltered.filter((r) => getWorkOrderOrigin(r) === "plan");
+    }
+    return baseFiltered;
+  }, [baseFiltered, activeTab]);
+
   const { sorted, field, dir, toggle } = useTableSort<Item>(
     filtered,
     {
       numero: (r) => r.id,
       equipo: (r) => r.equipment.code,
-      tipo: (r) => TYPE_LABELS[r.type] ?? r.type,
+      origen: (r) => getOriginLabel(r),
       estado: (r) => STATUS_RANK[r.status],
       prioridad: (r) => PRIORITY_RANK[r.priority],
       inicio: (r) => r.start_date,
@@ -152,9 +209,56 @@ export default function WorkOrdersScreen() {
 
   const ordersPage = usePagination(
     sorted,
-    `${search}|${statusFilter}|${priorityFilter}|${typeFilter}|${field}|${dir}`,
+    `${activeTab}|${search}|${statusFilter}|${priorityFilter}|${typeFilter}|${field}|${dir}`,
     8,
   );
+
+  function handleTabChange(tab: OriginTab) {
+    if (tab === activeTab) return;
+    setActiveTab(tab);
+    ordersPage.setPage(1);
+    if (tab === "todas") {
+      router.setParams({ origen: undefined });
+    } else {
+      router.setParams({ origen: tab });
+    }
+  }
+
+  const tabOptions: { key: OriginTab; label: string }[] = [
+    { key: "todas", label: `Todas (${counts.todas})` },
+    { key: "solicitud", label: `Por solicitud (${counts.solicitud})` },
+    { key: "plan", label: `Por plan (${counts.plan})` },
+  ];
+
+  function handleTabKeyDown(e: any, index: number) {
+    if (Platform.OS !== "web") return;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = (index + 1) % tabOptions.length;
+      handleTabChange(tabOptions[next].key);
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const prev = (index - 1 + tabOptions.length) % tabOptions.length;
+      handleTabChange(tabOptions[prev].key);
+    }
+  }
+
+  const activeTabCount =
+    activeTab === "solicitud"
+      ? counts.solicitud
+      : activeTab === "plan"
+        ? counts.plan
+        : counts.todas;
+
+  const emptyMessage = useMemo(() => {
+    if (items.length === 0) {
+      return "Todavía no se generó ninguna orden de trabajo.";
+    }
+    if (activeTab === "plan" && !items.some((o) => getWorkOrderOrigin(o) === "plan")) {
+      return "Todavía no se generaron OT desde planes de mantenimiento.";
+    }
+    return "No hay órdenes para mostrar.";
+  }, [items, activeTab]);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
@@ -167,8 +271,9 @@ export default function WorkOrdersScreen() {
       <View style={styles.pageHeader}>
         <View style={styles.sectionHeadingText}>
           <Text style={styles.title}>Órdenes de trabajo</Text>
+
           <Text style={styles.subtitle}>
-            Todas las <Sigla>OT</Sigla> generadas y su estado actual
+            Todas las <Sigla>OT</Sigla> generadas, por solicitud o por plan de mantenimiento
           </Text>
         </View>
       </View>
@@ -178,7 +283,7 @@ export default function WorkOrdersScreen() {
       <TableFilterBar
         searchValue={search}
         onSearch={setSearch}
-        searchPlaceholder="Buscar por N° de OT, equipo o descripción…"
+        searchPlaceholder="Buscar por N° de OT, equipo, plan o descripción…"
         filters={[
           {
             key: "estado",
@@ -219,17 +324,50 @@ export default function WorkOrdersScreen() {
         ]}
         right={
           <Text style={styles.count}>
-            {sorted.length} {sorted.length === 1 ? "orden" : "órdenes"}
+            {activeTabCount} {activeTabCount === 1 ? "orden" : "órdenes"}
           </Text>
         }
       />
 
+      <View
+        style={styles.tabsContainer}
+        {...(Platform.OS === "web"
+          ? ({ role: "tablist", "aria-label": "Filtrar por origen de la orden" } as any)
+          : {})}
+      >
+        {tabOptions.map((tab, idx) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <Pressable
+              key={tab.key}
+              style={[styles.tabPill, isActive ? styles.tabPillActive : styles.tabPillInactive]}
+              onPress={() => handleTabChange(tab.key)}
+              {...(Platform.OS === "web"
+                ? ({
+                    role: "tab",
+                    "aria-selected": isActive,
+                    tabIndex: isActive ? 0 : -1,
+                    onKeyDown: (e: any) => handleTabKeyDown(e, idx),
+                  } as any)
+                : {})}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+            >
+              <Text
+                style={[
+                  styles.tabPillText,
+                  isActive ? styles.tabPillTextActive : styles.tabPillTextInactive,
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       {sorted.length === 0 ? (
-        <Text style={styles.empty}>
-          {items.length === 0
-            ? "Todavía no se generó ninguna orden de trabajo."
-            : "Nada coincide con la búsqueda."}
-        </Text>
+        <Text style={styles.empty}>{emptyMessage}</Text>
       ) : (
         <View style={styles.table}>
           <View style={styles.tableHeader}>
@@ -239,7 +377,7 @@ export default function WorkOrdersScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 0.9 }}
+              style={{ flex: 0.85 }}
             />
 
             <SortHeaderCell
@@ -248,16 +386,16 @@ export default function WorkOrdersScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 1.6 }}
+              style={{ flex: 1.8 }}
             />
 
             <SortHeaderCell
-              label="Tipo"
-              field="tipo"
+              label="Origen"
+              field="origen"
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 0.9 }}
+              style={{ flex: 1.8 }}
             />
 
             <SortHeaderCell
@@ -275,7 +413,7 @@ export default function WorkOrdersScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 1 }}
+              style={{ flex: 0.95 }}
             />
 
             <SortHeaderCell
@@ -284,7 +422,7 @@ export default function WorkOrdersScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 0.9 }}
+              style={{ flex: 0.85 }}
             />
 
             <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
@@ -294,22 +432,58 @@ export default function WorkOrdersScreen() {
             const status = item.status;
             const st = statusColors[status];
             const prio = priorityColors[item.priority];
+            const origin: WorkOrderOrigin = getWorkOrderOrigin(item);
+
+            let subtitleText = "—";
+            if (origin === "solicitud") {
+              subtitleText = item.solicitud?.description || "Sin descripción";
+            } else if (origin === "plan") {
+              subtitleText = item.plan_name || "Plan de mantenimiento";
+            } else if (item.observation) {
+              subtitleText = item.observation;
+            }
+
             return (
               <View key={item.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
                 <View style={styles.rowMain}>
-                  <View style={{ flex: 0.9, justifyContent: "center" }}>
+                  <View style={{ flex: 0.85, justifyContent: "center" }}>
                     <Text style={styles.orderNumber}>{formatOrderNumber(item.id)}</Text>
                   </View>
 
-                  <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
+                  <View style={{ flex: 1.8, justifyContent: "center", paddingRight: 12 }}>
                     <Text style={styles.name} numberOfLines={1}>
                       {item.equipment.name}
                     </Text>
+
                     <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
                   </View>
 
-                  <View style={{ flex: 0.9, justifyContent: "center" }}>
-                    <Text style={styles.cellText}>{TYPE_LABELS[item.type] ?? item.type}</Text>
+                  <View style={{ flex: 1.8, justifyContent: "center", paddingRight: 12 }}>
+                    {origin === "solicitud" ? (
+                      <View style={[styles.originChip, styles.originChipSolicitud]}>
+                        <WarningIcon size={12} color="#8a2a22" />
+
+                        <Text style={styles.originChipTextSolicitud}>Solicitud</Text>
+                      </View>
+                    ) : origin === "plan" ? (
+                      <View style={[styles.originChip, styles.originChipPlan]}>
+                        <RefreshCwIcon size={12} color="#2d4a7a" />
+
+                        <Text style={styles.originChipTextPlan}>Plan preventivo</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.originChip, styles.originChipNone]}>
+                        <Text style={styles.originChipTextNone}>Sin origen</Text>
+                      </View>
+                    )}
+
+                    <Text
+                      style={styles.originSubtitle}
+                      numberOfLines={1}
+                      {...(Platform.OS === "web" ? ({ title: subtitleText } as any) : {})}
+                    >
+                      {subtitleText}
+                    </Text>
                   </View>
 
                   <View style={{ flex: 1, justifyContent: "center" }}>
@@ -322,15 +496,25 @@ export default function WorkOrdersScreen() {
                     </View>
                   </View>
 
-                  <View style={{ flex: 1, justifyContent: "center" }}>
-                    <View style={[styles.badge, { backgroundColor: prio.bg }]}>
-                      <Text style={[styles.badgeText, { color: prio.fg }]}>
+                  <View style={{ flex: 0.95, justifyContent: "center" }}>
+                    <View
+                      style={[styles.badge, { backgroundColor: prio.bg }]}
+                      {...(Platform.OS === "web"
+                        ? ({ className: "notranslate", translate: "no" } as any)
+                        : {})}
+                    >
+                      <Text
+                        style={[styles.badgeText, { color: prio.fg }]}
+                        {...(Platform.OS === "web"
+                          ? ({ className: "notranslate", translate: "no" } as any)
+                          : {})}
+                      >
                         {PRIORITY_LABELS[item.priority]}
                       </Text>
                     </View>
                   </View>
 
-                  <View style={{ flex: 0.9, justifyContent: "center" }}>
+                  <View style={{ flex: 0.85, justifyContent: "center" }}>
                     <Text style={styles.cellText}>{fromDbDate(item.start_date) || "—"}</Text>
                   </View>
                 </View>
@@ -380,6 +564,39 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.destructive, marginBottom: 12 },
     count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
     empty: { color: c.textMuted, fontSize: 13.5, marginTop: 4 },
+    tabsContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 16,
+      marginTop: 4,
+    },
+    tabPill: {
+      paddingHorizontal: 15,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      ...(Platform.OS === "web" ? ({ cursor: "pointer" } as any) : {}),
+    },
+    tabPillActive: {
+      backgroundColor: c.accent,
+      borderColor: c.accent,
+    },
+    tabPillInactive: {
+      backgroundColor: c.bgCard,
+      borderColor: c.borderInput,
+    },
+    tabPillText: {
+      fontSize: 13,
+      fontWeight: "500",
+    },
+    tabPillTextActive: {
+      color: "#ffffff",
+      fontWeight: "600",
+    },
+    tabPillTextInactive: {
+      color: c.textLabel,
+    },
     table: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -419,6 +636,44 @@ function makeStyles(c: ThemeColors) {
     orderNumber: { fontFamily: "monospace", fontSize: 13.5, fontWeight: "700", color: c.text },
     equipmentCode: { fontFamily: "monospace", fontSize: 12, color: c.textMuted, marginTop: 2 },
     cellText: { fontSize: 13.5, color: c.textLabel },
+    originChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "flex-start",
+      gap: 5,
+      paddingHorizontal: 9,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    originChipSolicitud: {
+      backgroundColor: "#f6d5d2",
+    },
+    originChipTextSolicitud: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#8a2a22",
+    },
+    originChipPlan: {
+      backgroundColor: "#dbe4f3",
+    },
+    originChipTextPlan: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#2d4a7a",
+    },
+    originChipNone: {
+      backgroundColor: "#edeadd",
+    },
+    originChipTextNone: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#6e7364",
+    },
+    originSubtitle: {
+      fontSize: 12,
+      color: c.textMuted,
+      marginTop: 3,
+    },
     badge: {
       alignSelf: "flex-start",
       paddingHorizontal: 11,
