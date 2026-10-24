@@ -1,9 +1,7 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -38,7 +36,6 @@ type Item = WorkOrder & {
 
 type OrderStatus = WorkOrder["status"];
 type Priority = WorkOrder["priority"];
-type OriginTab = "todas" | "solicitud" | "plan";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   assigned: "Asignada",
@@ -68,11 +65,6 @@ function getOriginLabel(item: Item): string {
 
 // Every orden_de_trabajo, whether it came from a solicitud, maintenance plan, or installation.
 export default function WorkOrdersScreen() {
-  const params = useLocalSearchParams<{ origen?: string }>();
-  const initialTab: OriginTab =
-    params.origen === "solicitud" || params.origen === "plan" ? params.origen : "todas";
-
-  const [activeTab, setActiveTab] = useState<OriginTab>(initialTab);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
@@ -96,15 +88,6 @@ export default function WorkOrdersScreen() {
     medium: colors.urgencyMedium,
     high: colors.urgencyHigh,
   };
-
-  // Sync tab state when URL search param changes (e.g. browser navigation or reload).
-  useEffect(() => {
-    const targetTab: OriginTab =
-      params.origen === "solicitud" || params.origen === "plan" ? params.origen : "todas";
-    if (targetTab !== activeTab) {
-      setActiveTab(targetTab);
-    }
-  }, [params.origen, activeTab]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -150,8 +133,8 @@ export default function WorkOrdersScreen() {
     setRefreshing(false);
   }
 
-  // Base list filtered by search and header dropdown filters.
-  const baseFiltered = useMemo(() => {
+  // List filtered by search and header dropdown filters.
+  const filtered = useMemo(() => {
     const q = normalizeSearch(search.trim());
     return items.filter((r) => {
       const matchSearch =
@@ -169,31 +152,6 @@ export default function WorkOrdersScreen() {
     });
   }, [items, search, statusFilter, priorityFilter, typeFilter]);
 
-  // Tab counters respect active search and dropdown filters.
-  const counts = useMemo(() => {
-    let todas = 0;
-    let solicitud = 0;
-    let plan = 0;
-    for (const r of baseFiltered) {
-      todas++;
-      const origin = getWorkOrderOrigin(r);
-      if (origin === "solicitud") solicitud++;
-      else if (origin === "plan") plan++;
-    }
-    return { todas, solicitud, plan };
-  }, [baseFiltered]);
-
-  // Active tab determines which items are shown in the grid.
-  const filtered = useMemo(() => {
-    if (activeTab === "solicitud") {
-      return baseFiltered.filter((r) => getWorkOrderOrigin(r) === "solicitud");
-    }
-    if (activeTab === "plan") {
-      return baseFiltered.filter((r) => getWorkOrderOrigin(r) === "plan");
-    }
-    return baseFiltered;
-  }, [baseFiltered, activeTab]);
-
   const { sorted, field, dir, toggle } = useTableSort<Item>(
     filtered,
     {
@@ -209,56 +167,16 @@ export default function WorkOrdersScreen() {
 
   const ordersPage = usePagination(
     sorted,
-    `${activeTab}|${search}|${statusFilter}|${priorityFilter}|${typeFilter}|${field}|${dir}`,
+    `${search}|${statusFilter}|${priorityFilter}|${typeFilter}|${field}|${dir}`,
     8,
   );
-
-  function handleTabChange(tab: OriginTab) {
-    if (tab === activeTab) return;
-    setActiveTab(tab);
-    ordersPage.setPage(1);
-    if (tab === "todas") {
-      router.setParams({ origen: undefined });
-    } else {
-      router.setParams({ origen: tab });
-    }
-  }
-
-  const tabOptions: { key: OriginTab; label: string }[] = [
-    { key: "todas", label: `Todas (${counts.todas})` },
-    { key: "solicitud", label: `Por solicitud (${counts.solicitud})` },
-    { key: "plan", label: `Por plan (${counts.plan})` },
-  ];
-
-  function handleTabKeyDown(e: any, index: number) {
-    if (Platform.OS !== "web") return;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-      e.preventDefault();
-      const next = (index + 1) % tabOptions.length;
-      handleTabChange(tabOptions[next].key);
-    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-      e.preventDefault();
-      const prev = (index - 1 + tabOptions.length) % tabOptions.length;
-      handleTabChange(tabOptions[prev].key);
-    }
-  }
-
-  const activeTabCount =
-    activeTab === "solicitud"
-      ? counts.solicitud
-      : activeTab === "plan"
-        ? counts.plan
-        : counts.todas;
 
   const emptyMessage = useMemo(() => {
     if (items.length === 0) {
       return "Todavía no se generó ninguna orden de trabajo.";
     }
-    if (activeTab === "plan" && !items.some((o) => getWorkOrderOrigin(o) === "plan")) {
-      return "Todavía no se generaron OT desde planes de mantenimiento.";
-    }
     return "No hay órdenes para mostrar.";
-  }, [items, activeTab]);
+  }, [items]);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
@@ -324,47 +242,10 @@ export default function WorkOrdersScreen() {
         ]}
         right={
           <Text style={styles.count}>
-            {activeTabCount} {activeTabCount === 1 ? "orden" : "órdenes"}
+            {sorted.length} {sorted.length === 1 ? "orden" : "órdenes"}
           </Text>
         }
       />
-
-      <View
-        style={styles.tabsContainer}
-        {...(Platform.OS === "web"
-          ? ({ role: "tablist", "aria-label": "Filtrar por origen de la orden" } as any)
-          : {})}
-      >
-        {tabOptions.map((tab, idx) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <Pressable
-              key={tab.key}
-              style={[styles.tabPill, isActive ? styles.tabPillActive : styles.tabPillInactive]}
-              onPress={() => handleTabChange(tab.key)}
-              {...(Platform.OS === "web"
-                ? ({
-                    role: "tab",
-                    "aria-selected": isActive,
-                    tabIndex: isActive ? 0 : -1,
-                    onKeyDown: (e: any) => handleTabKeyDown(e, idx),
-                  } as any)
-                : {})}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: isActive }}
-            >
-              <Text
-                style={[
-                  styles.tabPillText,
-                  isActive ? styles.tabPillTextActive : styles.tabPillTextInactive,
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
 
       {sorted.length === 0 ? (
         <Text style={styles.empty}>{emptyMessage}</Text>
@@ -564,39 +445,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.destructive, marginBottom: 12 },
     count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
     empty: { color: c.textMuted, fontSize: 13.5, marginTop: 4 },
-    tabsContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 16,
-      marginTop: 4,
-    },
-    tabPill: {
-      paddingHorizontal: 15,
-      paddingVertical: 7,
-      borderRadius: 999,
-      borderWidth: 1,
-      ...(Platform.OS === "web" ? ({ cursor: "pointer" } as any) : {}),
-    },
-    tabPillActive: {
-      backgroundColor: c.accent,
-      borderColor: c.accent,
-    },
-    tabPillInactive: {
-      backgroundColor: c.bgCard,
-      borderColor: c.borderInput,
-    },
-    tabPillText: {
-      fontSize: 13,
-      fontWeight: "500",
-    },
-    tabPillTextActive: {
-      color: "#ffffff",
-      fontWeight: "600",
-    },
-    tabPillTextInactive: {
-      color: c.textLabel,
-    },
+
     table: {
       backgroundColor: c.bgCard,
       borderWidth: 1,

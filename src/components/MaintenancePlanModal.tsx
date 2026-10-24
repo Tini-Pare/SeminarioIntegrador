@@ -18,8 +18,11 @@ import {
   isValidDateString,
   parseDateString,
 } from "./CustomDatePicker";
+import { DetailModal } from "./DetailModal";
+import { RowActions } from "./RowActions";
 import { WarningIcon } from "./icons";
 import { Select } from "./Select";
+import { Tooltip } from "./Tooltip";
 import { listEquipmentTypes, type EquipmentTypeWithCount } from "../lib/queries/equipmentTypes";
 import {
   createMaintenancePlan,
@@ -91,6 +94,9 @@ export function MaintenancePlanModal({
   // Secondary modal: Agregar tarea al plan
   const [addPlanTaskOpen, setAddPlanTaskOpen] = useState(false);
   const addTaskBtnRef = useRef<View>(null);
+
+  // View task detail modal
+  const [viewingTask, setViewingTask] = useState<TareaGeneral | null>(null);
 
   // Discard changes confirmation
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -247,18 +253,21 @@ export function MaintenancePlanModal({
 
   // Form Validation
   const freqNum = parseInt(frequency.trim(), 10);
-  const isFrequencyValid = Number.isInteger(freqNum) && freqNum > 0;
+  const isFrequencyValid = Number.isInteger(freqNum) && freqNum > 0 && freqNum <= 999;
   const isNameValid = name.trim().length > 0;
   const isTypeValid = typeId !== null;
+  const isDescriptionValid = description.trim().length > 0;
   const isTasksValid = estado === "inactivo" || selectedTasks.length > 0;
 
-  const isFormValid = isNameValid && isTypeValid && isFrequencyValid && isTasksValid;
+  const isFormValid =
+    isNameValid && isTypeValid && isFrequencyValid && isDescriptionValid && isTasksValid;
 
   async function handleSave() {
     if (!isFormValid) {
       if (!isNameValid) setError("Ingresá un nombre para el plan.");
       else if (!isTypeValid) setError("Seleccioná un tipo de equipo.");
-      else if (!isFrequencyValid) setError("La frecuencia debe ser un número entero mayor a 0.");
+      else if (!isFrequencyValid) setError("La frecuencia debe ser un número entero entre 1 y 999.");
+      else if (!isDescriptionValid) setError("Ingresá una descripción para el plan.");
       else if (!isTasksValid) setError("Un plan no puede quedar activo sin tareas previstas.");
       return;
     }
@@ -345,7 +354,21 @@ export function MaintenancePlanModal({
                   {/* Row 1: Nombre del plan | Tipo de equipo */}
                   <View style={[styles.formRow, openField === "type" && styles.formRowRaised]}>
                     <View style={styles.col}>
-                      <Text style={styles.label}>Nombre del plan</Text>
+                      <View style={styles.labelRow}>
+                        <Text style={styles.label}>Nombre del plan</Text>
+
+                        <Tooltip text="Campo obligatorio">
+                          <Text
+                            style={styles.requiredAsterisk}
+                            accessibilityLabel="Campo obligatorio"
+                            {...(Platform.OS === "web"
+                              ? ({ title: "Campo obligatorio", cursor: "help" } as any)
+                              : {})}
+                          >
+                            *
+                          </Text>
+                        </Tooltip>
+                      </View>
 
                       <TextInput
                         style={[styles.input, isView && styles.inputDisabled]}
@@ -358,7 +381,23 @@ export function MaintenancePlanModal({
                     </View>
 
                     <View style={[styles.col, openField === "type" && styles.fieldRaised]}>
-                      <Text style={styles.label}>Tipo de equipo</Text>
+                      <View style={styles.labelRow}>
+                        <Text style={styles.label}>Tipo de equipo</Text>
+
+                        {isCreate && (
+                          <Tooltip text="Campo obligatorio">
+                            <Text
+                              style={styles.requiredAsterisk}
+                              accessibilityLabel="Campo obligatorio"
+                              {...(Platform.OS === "web"
+                                ? ({ title: "Campo obligatorio", cursor: "help" } as any)
+                                : {})}
+                            >
+                              *
+                            </Text>
+                          </Tooltip>
+                        )}
+                      </View>
 
                       {isCreate ? (
                         <Select
@@ -378,7 +417,7 @@ export function MaintenancePlanModal({
 
                       {isEdit && (
                         <Text style={styles.hintText}>
-                          El tipo de equipo no se puede modificar (Regla R7).
+                          El tipo de equipo no se puede modificar.
                         </Text>
                       )}
                     </View>
@@ -387,12 +426,29 @@ export function MaintenancePlanModal({
                   {/* Row 2: Frecuencia (días) | Estado del plan */}
                   <View style={styles.formRow}>
                     <View style={styles.col}>
-                      <Text style={styles.label}>Frecuencia (días)</Text>
+                      <View style={styles.labelRow}>
+                        <Text style={styles.label}>Frecuencia (días)</Text>
+
+                        <Tooltip text="Campo obligatorio">
+                          <Text
+                            style={styles.requiredAsterisk}
+                            accessibilityLabel="Campo obligatorio"
+                            {...(Platform.OS === "web"
+                              ? ({ title: "Campo obligatorio", cursor: "help" } as any)
+                              : {})}
+                          >
+                            *
+                          </Text>
+                        </Tooltip>
+                      </View>
 
                       <TextInput
                         style={[styles.input, isView && styles.inputDisabled]}
                         value={frequency}
-                        onChangeText={(txt) => setFrequency(txt.replace(/[^0-9]/g, ""))}
+                        onChangeText={(txt) =>
+                          setFrequency(txt.replace(/[^0-9]/g, "").slice(0, 3))
+                        }
+                        maxLength={3}
                         placeholder="Ej: 60"
                         placeholderTextColor={colors.textMuted}
                         keyboardType="numeric"
@@ -400,7 +456,7 @@ export function MaintenancePlanModal({
                       />
 
                       {frequency.trim() !== "" && !isFrequencyValid && (
-                        <Text style={styles.fieldError}>Debe ser mayor a 0</Text>
+                        <Text style={styles.fieldError}>Debe ser un número entre 1 y 999</Text>
                       )}
                     </View>
 
@@ -479,7 +535,21 @@ export function MaintenancePlanModal({
 
                   {/* Row 3: Descripción */}
                   <View style={styles.fieldFull}>
-                    <Text style={styles.label}>Descripción</Text>
+                    <View style={styles.labelRow}>
+                      <Text style={styles.label}>Descripción</Text>
+
+                      <Tooltip text="Campo obligatorio">
+                        <Text
+                          style={styles.requiredAsterisk}
+                          accessibilityLabel="Campo obligatorio"
+                          {...(Platform.OS === "web"
+                            ? ({ title: "Campo obligatorio", cursor: "help" } as any)
+                            : {})}
+                        >
+                          *
+                        </Text>
+                      </Tooltip>
+                    </View>
 
                     <TextInput
                       style={[styles.input, styles.multiline, isView && styles.inputDisabled]}
@@ -535,7 +605,9 @@ export function MaintenancePlanModal({
 
                         <Text style={[styles.headerCell, { flex: 2.2 }]}>DESCRIPCIÓN</Text>
 
-                        <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+                        <View style={styles.actionsCol}>
+                          <Text style={styles.headerCell}>ACCIONES</Text>
+                        </View>
                       </View>
 
                       {selectedTasks.map((t, idx) => (
@@ -554,15 +626,12 @@ export function MaintenancePlanModal({
                           </View>
 
                           <View style={styles.actionsCol}>
-                            {!isView && (
-                              <Pressable
-                                style={styles.removeBtn}
-                                onPress={() => handleRemoveTask(t.tag_id_tarea)}
-                                accessibilityRole="button"
-                              >
-                                <Text style={styles.removeBtnText}>Quitar</Text>
-                              </Pressable>
-                            )}
+                            <RowActions
+                              onView={() => setViewingTask(t)}
+                              onDelete={!isView ? () => handleRemoveTask(t.tag_id_tarea) : undefined}
+                              viewTooltip="Ver detalle"
+                              deleteTooltip="Quitar tarea"
+                            />
                           </View>
                         </View>
                       ))}
@@ -570,101 +639,107 @@ export function MaintenancePlanModal({
                   )}
                 </View>
 
-                {/* Divider line */}
-                <View style={styles.divider} />
+                {/* 3. Último mantenimiento por equipo: hidden when creating a new plan, kept when viewing or editing */}
+                {!isCreate && (
+                  <>
+                    <View style={styles.divider} />
 
-                {/* 3. Último mantenimiento por equipo */}
-                <View style={styles.section}>
-                  <View style={styles.sectionHeaderRow}>
-                    <View style={styles.sectionHeadingText}>
-                      <Text style={styles.sectionTitle}>Último mantenimiento por equipo</Text>
+                    <View style={styles.section}>
+                      <View style={styles.sectionHeaderRow}>
+                        <View style={styles.sectionHeadingText}>
+                          <Text style={styles.sectionTitle}>Último mantenimiento por equipo</Text>
 
-                      <Text style={styles.sectionSubtitle}>
-                        {typeId == null
-                          ? "Elegí primero un tipo de equipo"
-                          : equipments.length === 0
-                            ? "Este tipo de equipo aún no tiene equipos registrados"
-                            : `Afecta a ${equipments.length} ${equipments.length === 1 ? "equipo" : "equipos"} del tipo ${typeName}`}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {typeId != null && equipments.length === 0 ? (
-                    <View style={styles.warningBanner}>
-                      <WarningIcon size={18} color={colors.urgencyMedium.accent} />
-
-                      <Text style={styles.warningBannerText}>
-                        Este tipo aún no tiene equipos. Podés crear el plan de todas formas y los
-                        equipos se asociarán al crearse.
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {equipments.length > 0 && (
-                    <View style={styles.table}>
-                      <View style={styles.tableHeader}>
-                        <Text style={[styles.headerCell, { flex: 1.8 }]}>EQUIPO</Text>
-
-                        <Text style={[styles.headerCell, { flex: 1.3 }]}>UBICACIÓN</Text>
-
-                        <Text style={[styles.headerCell, styles.dateCol]}>ÚLTIMO MANT.</Text>
-
-                        <Text style={[styles.headerCell, styles.dueCol]}>PRÓX. VENC.</Text>
+                          <Text style={styles.sectionSubtitle}>
+                            {typeId == null
+                              ? "Elegí primero un tipo de equipo"
+                              : equipments.length === 0
+                                ? "Este tipo de equipo aún no tiene equipos registrados"
+                                : `Afecta a ${equipments.length} ${equipments.length === 1 ? "equipo" : "equipos"} del tipo ${typeName}`}
+                          </Text>
+                        </View>
                       </View>
 
-                      {equipments.map((eq, idx) => {
-                        const dateVal = equipmentDates[eq.id] ?? "";
-                        // No last maintenance = due now: an active plan
-                        // generates its OT as soon as it's saved.
-                        const dueDateStr = dateVal
-                          ? addDaysToDateString(dateVal, freqNum)
-                          : estado === "activo"
-                            ? "Inmediato"
-                            : "—";
+                      {typeId != null && equipments.length === 0 ? (
+                        <View style={styles.warningBanner}>
+                          <WarningIcon size={18} color={colors.urgencyMedium.accent} />
 
-                        return (
-                          <View
-                            key={eq.id}
-                            style={[styles.tableRow, idx % 2 === 1 && styles.rowAlt]}
-                          >
-                            {/* Equipo name + code */}
-                            <View style={{ flex: 1.8, paddingRight: 8 }}>
-                              <Text style={styles.equipNameText} numberOfLines={2}>
-                                <Text style={styles.cellStrong}>{eq.name} </Text>
-                                <Text style={styles.equipCodeText}>{eq.code}</Text>
-                              </Text>
-                            </View>
+                          <Text style={styles.warningBannerText}>
+                            Este tipo aún no tiene equipos. Podés crear el plan de todas formas y los
+                            equipos se asociarán al crearse.
+                          </Text>
+                        </View>
+                      ) : null}
 
-                            {/* Ubicación */}
-                            <View style={{ flex: 1.3, paddingRight: 8 }}>
-                              <Text style={styles.cellText} numberOfLines={1}>
-                                {eq.location}
-                              </Text>
-                            </View>
+                      {equipments.length > 0 && (
+                        <View style={styles.table}>
+                          <View style={styles.tableHeader}>
+                            <Text style={[styles.headerCell, { flex: 1.8 }]}>EQUIPO</Text>
 
-                            {/* Último mantenimiento: set by its resolved preventive OTs */}
-                            <View style={styles.dateCol}>
-                              <Text style={styles.cellText}>{dateVal || "Sin registro"}</Text>
-                            </View>
+                            <Text style={[styles.headerCell, { flex: 1.3 }]}>UBICACIÓN</Text>
 
-                            {/* Próximo vencimiento calculated live */}
-                            <View style={styles.dueCol}>
-                              <Text style={styles.cellText}>{dueDateStr}</Text>
-                            </View>
+                            <Text style={[styles.headerCell, styles.dateCol]}>ÚLTIMO MANT.</Text>
+
+                            <Text style={[styles.headerCell, styles.dueCol]}>PRÓX. MANT.</Text>
                           </View>
-                        );
-                      })}
-                    </View>
-                  )}
 
-                  {/* 4. Nota informativa */}
-                  <Text style={styles.infoNote}>
-                    Próximo vencimiento = último mantenimiento + frecuencia. Al vencer, se genera
-                    sola la OT preventiva, asignada al técnico con menos tareas abiertas; al
-                    resolverse, actualiza el último mantenimiento del equipo. Un equipo sin registro
-                    genera su OT apenas el plan queda activo.
-                  </Text>
-                </View>
+                          {equipments.map((eq, idx) => {
+                            const dateVal = equipmentDates[eq.id] ?? "";
+                            // No last maintenance = due now: an active plan
+                            // generates its OT as soon as it's saved.
+                            const dueDateStr = dateVal
+                              ? addDaysToDateString(dateVal, freqNum)
+                              : estado === "activo"
+                                ? "Inmediato"
+                                : "—";
+
+                            return (
+                              <View
+                                key={eq.id}
+                                style={[styles.tableRow, idx % 2 === 1 && styles.rowAlt]}
+                              >
+                                {/* Equipo name + code */}
+                                <View style={{ flex: 1.8, paddingRight: 8 }}>
+                                  <Text style={styles.cellStrong} numberOfLines={1}>
+                                    {eq.name}
+                                  </Text>
+
+                                  <Text style={styles.equipCodeText} numberOfLines={1}>
+                                    {eq.code}
+                                  </Text>
+                                </View>
+
+                                {/* Ubicación */}
+                                <View style={{ flex: 1.3, paddingRight: 8 }}>
+                                  <Text style={styles.cellText} numberOfLines={1}>
+                                    {eq.location}
+                                  </Text>
+                                </View>
+
+                                {/* Último mantenimiento: set by its resolved preventive OTs */}
+                                <View style={styles.dateCol}>
+                                  <Text style={styles.cellText}>{dateVal || "Sin registro"}</Text>
+                                </View>
+
+                                {/* Próximo vencimiento calculated live */}
+                                <View style={styles.dueCol}>
+                                  <Text style={styles.cellText}>{dueDateStr}</Text>
+                                </View>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      )}
+
+                      {/* 4. Nota informativa */}
+                      <Text style={styles.infoNote}>
+                        Próximo vencimiento = último mantenimiento + frecuencia. Al vencer, se genera
+                        sola la OT preventiva, asignada al técnico con menos tareas abiertas; al
+                        resolverse, actualiza el último mantenimiento del equipo. Un equipo sin registro
+                        genera su OT apenas el plan queda activo.
+                      </Text>
+                    </View>
+                  </>
+                )}
 
                 {error && <Text style={styles.globalErrorText}>{error}</Text>}
               </ScrollView>
@@ -700,10 +775,8 @@ export function MaintenancePlanModal({
                       {saving
                         ? isEdit
                           ? "Guardando…"
-                          : "Creando…"
-                        : isEdit
-                          ? "Guardar cambios"
-                          : "Crear plan"}
+                          : "Confirmando…"
+                        : "Confirmar"}
                     </Text>
                   </Pressable>
                 </View>
@@ -728,13 +801,32 @@ export function MaintenancePlanModal({
         visible={showDiscardConfirm}
         title="¿Descartar los cambios?"
         message="Tenés cambios sin guardar en el plan de mantenimiento. Si salís ahora, se perderán."
-        confirmLabel="Descartar"
-        cancelLabel="Continuar editando"
+        confirmLabel="Confirmar"
+        cancelLabel="Cancelar"
         onConfirm={() => {
           setShowDiscardConfirm(false);
           onClose();
         }}
         onCancel={() => setShowDiscardConfirm(false)}
+      />
+
+      {/* Task detail modal */}
+      <DetailModal
+        visible={!!viewingTask}
+        onClose={() => setViewingTask(null)}
+        actionTitle="Ver tarea prevista"
+        title={viewingTask?.tag_nombre_tarea ?? ""}
+        description={viewingTask?.tag_descripcion_tarea}
+        fields={
+          viewingTask
+            ? [
+                {
+                  label: "Estado",
+                  value: viewingTask.tag_estado === "inactivo" ? "Inactivo" : "Activo",
+                },
+              ]
+            : undefined
+        }
       />
     </>
   );
@@ -834,10 +926,22 @@ function makeStyles(c: ThemeColors) {
       zIndex: 100,
       elevation: 100,
     },
+    labelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
     label: {
       fontSize: 13,
       fontWeight: "600",
       color: c.text,
+    },
+    requiredAsterisk: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: c.destructive,
+      lineHeight: 14,
+      paddingHorizontal: 2,
     },
     input: {
       height: 44,
@@ -997,7 +1101,8 @@ function makeStyles(c: ThemeColors) {
     },
     actionsCol: {
       width: 90,
-      alignItems: "flex-end",
+      alignItems: "center",
+      justifyContent: "center",
     },
     dateCol: {
       width: 160,
@@ -1038,22 +1143,9 @@ function makeStyles(c: ThemeColors) {
       fontSize: 12,
       color: c.textMuted,
       fontFamily: "monospace",
+      marginTop: 2,
     },
-    removeBtn: {
-      paddingVertical: 5,
-      paddingHorizontal: 12,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    removeBtnText: {
-      fontSize: 12.5,
-      fontWeight: "600",
-      color: c.text,
-    },
+
     warningBanner: {
       flexDirection: "row",
       alignItems: "center",

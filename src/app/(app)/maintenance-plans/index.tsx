@@ -11,13 +11,12 @@ import {
   View,
 } from "react-native";
 import { MaintenancePlanModal } from "../../../components/MaintenancePlanModal";
+import { RowActions } from "../../../components/RowActions";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
-import { Tooltip } from "../../../components/Tooltip";
-import { EyeIcon, PencilIcon, TrashIcon, WarningIcon } from "../../../components/icons";
+import { WarningIcon } from "../../../components/icons";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
-import { fromDbDate } from "../../../components/CustomDatePicker";
 import {
   deactivateMaintenancePlan,
   deleteMaintenancePlan,
@@ -320,7 +319,7 @@ export default function MaintenancePlansScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1.8 }}
+                style={{ flex: 2.2 }}
               />
 
               <SortHeaderCell
@@ -329,7 +328,7 @@ export default function MaintenancePlansScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1.3 }}
+                style={{ flex: 1.6 }}
               />
 
               <SortHeaderCell
@@ -338,7 +337,7 @@ export default function MaintenancePlansScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1.1 }}
+                style={{ flex: 1.2 }}
               />
 
               <SortHeaderCell
@@ -347,7 +346,7 @@ export default function MaintenancePlansScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 0.9 }}
+                style={{ flex: 1 }}
               />
 
               <SortHeaderCell
@@ -356,16 +355,7 @@ export default function MaintenancePlansScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 0.9 }}
-              />
-
-              <SortHeaderCell
-                label="PRÓX. VENC."
-                field="vencimiento"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1.4 }}
+                style={{ flex: 1 }}
               />
 
               <SortHeaderCell
@@ -374,7 +364,7 @@ export default function MaintenancePlansScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1 }}
+                style={{ flex: 1.1 }}
               />
 
               <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
@@ -440,23 +430,16 @@ export default function MaintenancePlansScreen() {
                       {p.task_count} tareas · {p.equipment_count} eq.
                     </Text>
                   </View>
-
-                  <View style={styles.cardMetaItem}>
-                    <Text style={styles.cardMetaLabel}>PRÓXIMO VENCIMIENTO</Text>
-
-                    <DueText plan={p} colors={colors} styles={styles} />
-                  </View>
                 </View>
 
                 <View style={styles.cardActions}>
-                  <PlanRowActions
-                    plan={p}
-                    isAdmin={isAdmin}
+                  <RowActions
                     onView={() => handleOpenView(p)}
-                    onEdit={() => handleOpenEdit(p)}
-                    onDelete={() => handleDeleteClick(p)}
-                    colors={colors}
-                    styles={styles}
+                    onEdit={isAdmin ? () => handleOpenEdit(p) : undefined}
+                    onDelete={isAdmin ? () => handleDeleteClick(p) : undefined}
+                    viewTooltip="Ver plan"
+                    editTooltip="Editar plan"
+                    deleteTooltip="Eliminar o dar de baja"
                   />
                 </View>
               </View>
@@ -542,51 +525,6 @@ export default function MaintenancePlansScreen() {
   );
 }
 
-function DueText({
-  plan,
-  colors,
-  styles,
-}: {
-  plan: PlanMantenimientoItem;
-  colors: ThemeColors;
-  styles: ReturnType<typeof makeStyles>;
-}) {
-  const { prox_vencimiento, pm_estado, equipment_count } = plan;
-
-  if (pm_estado === "inactivo" || equipment_count === 0 || !prox_vencimiento) {
-    return <Text style={styles.dueMuted}>—</Text>;
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(prox_vencimiento + "T00:00:00");
-  const diffTime = due.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const formatted = fromDbDate(prox_vencimiento);
-
-  if (diffDays < 0) {
-    return (
-      <View style={[styles.dueBadge, { backgroundColor: colors.urgencyHigh.bg }]}>
-        <Text style={[styles.dueBadgeText, { color: colors.destructive }]}>
-          {formatted} (vencido)
-        </Text>
-      </View>
-    );
-  }
-
-  if (diffDays <= 7) {
-    return (
-      <View style={[styles.dueBadge, { backgroundColor: colors.urgencyMedium.bg }]}>
-        <Text style={[styles.dueBadgeText, { color: colors.urgencyMedium.accent }]}>
-          {formatted} (próx. {diffDays}d)
-        </Text>
-      </View>
-    );
-  }
-
-  return <Text style={styles.dueNormal}>{formatted}</Text>;
-}
-
 function ActiveBadge({
   active,
   styles,
@@ -639,7 +577,7 @@ function PlanTableRow({
       ]}
     >
       {/* Plan Column */}
-      <View style={{ flex: 1.8 }}>
+      <View style={{ flex: 2.2 }}>
         <Text style={styles.planNameText} numberOfLines={1}>
           {p.pm_nombre_plan}
         </Text>
@@ -652,100 +590,43 @@ function PlanTableRow({
       </View>
 
       {/* Tipo */}
-      <View style={{ flex: 1.3 }}>
+      <View style={{ flex: 1.6 }}>
         <Text style={styles.typeText} numberOfLines={1}>
           {p.te_nombre}
         </Text>
       </View>
 
       {/* Frecuencia */}
-      <View style={{ flex: 1.1 }}>
+      <View style={{ flex: 1.2 }}>
         <Text style={styles.cellText}>Cada {p.pm_frecuencia} días</Text>
       </View>
 
       {/* Tareas */}
-      <View style={{ flex: 0.9 }}>
+      <View style={{ flex: 1 }}>
         <Text style={styles.cellText}>{p.task_count}</Text>
       </View>
 
       {/* Equipos */}
-      <View style={{ flex: 0.9 }}>
+      <View style={{ flex: 1 }}>
         <Text style={styles.cellText}>{p.equipment_count}</Text>
       </View>
 
-      {/* Próx. Venc. */}
-      <View style={{ flex: 1.4 }}>
-        <DueText plan={p} colors={colors} styles={styles} />
-      </View>
-
       {/* Estado */}
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1.1 }}>
         <ActiveBadge active={p.pm_estado === "activo"} styles={styles} colors={colors} />
       </View>
 
       {/* Acciones */}
       <View style={styles.actionsCol}>
-        <PlanRowActions
-          plan={p}
-          isAdmin={isAdmin}
+        <RowActions
           onView={onView}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          colors={colors}
-          styles={styles}
+          onEdit={isAdmin ? onEdit : undefined}
+          onDelete={isAdmin ? onDelete : undefined}
+          viewTooltip="Ver plan"
+          editTooltip="Editar plan"
+          deleteTooltip="Eliminar o dar de baja"
         />
       </View>
-    </View>
-  );
-}
-
-function PlanRowActions({
-  isAdmin,
-  onView,
-  onEdit,
-  onDelete,
-  colors,
-  styles,
-}: {
-  plan: PlanMantenimientoItem;
-  isAdmin: boolean;
-  onView: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  colors: ThemeColors;
-  styles: ReturnType<typeof makeStyles>;
-}) {
-  return (
-    <View style={styles.actionsWrap}>
-      <Tooltip text="Ver detalle">
-        <Pressable style={styles.actionBtn} onPress={onView} accessibilityLabel="Ver plan">
-          <EyeIcon size={16} color={colors.textMuted} />
-        </Pressable>
-      </Tooltip>
-
-      {isAdmin && (
-        <>
-          <Tooltip text="Editar plan">
-            <Pressable
-              style={styles.actionBtn}
-              onPress={onEdit}
-              accessibilityLabel="Editar plan"
-            >
-              <PencilIcon size={15} color={colors.textMuted} />
-            </Pressable>
-          </Tooltip>
-
-          <Tooltip text="Eliminar o dar de baja">
-            <Pressable
-              style={styles.actionBtn}
-              onPress={onDelete}
-              accessibilityLabel="Eliminar plan"
-            >
-              <TrashIcon size={15} color={colors.destructive} />
-            </Pressable>
-          </Tooltip>
-        </>
-      )}
     </View>
   );
 }
@@ -972,8 +853,9 @@ function makeStyles(c: ThemeColors) {
       fontFamily: "monospace",
     },
     actionsCol: {
-      width: 110,
-      alignItems: "flex-end",
+      width: 128,
+      flexShrink: 0,
+      alignItems: "flex-start",
     },
     tableRow: {
       flexDirection: "row",
@@ -1008,25 +890,6 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13,
       color: c.text,
     },
-    dueNormal: {
-      fontSize: 13,
-      color: c.text,
-      fontWeight: "500",
-    },
-    dueMuted: {
-      fontSize: 13,
-      color: c.textMuted,
-    },
-    dueBadge: {
-      alignSelf: "flex-start",
-      paddingVertical: 3,
-      paddingHorizontal: 8,
-      borderRadius: 6,
-    },
-    dueBadgeText: {
-      fontSize: 12,
-      fontWeight: "600",
-    },
     statusChip: {
       flexDirection: "row",
       alignItems: "center",
@@ -1041,15 +904,6 @@ function makeStyles(c: ThemeColors) {
     statusText: {
       fontSize: 12.5,
       fontWeight: "600",
-    },
-    actionsWrap: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    actionBtn: {
-      padding: 6,
-      borderRadius: 6,
     },
     cardList: {
       gap: 12,
