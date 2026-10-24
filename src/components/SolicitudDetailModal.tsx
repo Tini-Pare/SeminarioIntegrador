@@ -157,17 +157,18 @@ export function SolicitudDetailModal({
   }
 
   async function handleGenerate(input: { priority: "low" | "medium" | "high" }) {
-    await generateOrder(s.id, input);
+    const orderId = await generateOrder(s.id, input);
     setGenerateOpen(false);
     closeEverything();
-    goToOrder(true);
+    goToOrder(orderId, true);
   }
 
-  // `created` makes the OT screen confirm "Se generó la OT-XXXX".
-  function goToOrder(created = false) {
+  // The OT screen is keyed by the OT's own id, not the solicitud's.
+  // `created` makes it confirm "Se generó la OT-XXXX".
+  function goToOrder(orderId: number, created = false) {
     router.push({
       pathname: "/work-orders/[id]",
-      params: created ? { id: String(s.id), created: "1" } : { id: String(s.id) },
+      params: created ? { id: String(orderId), created: "1" } : { id: String(orderId) },
     });
   }
 
@@ -432,7 +433,7 @@ export function SolicitudDetailModal({
                     style={styles.goToOrderFullButton}
                     onPress={() => {
                       onClose();
-                      goToOrder();
+                      if (s.order_id != null) goToOrder(s.order_id);
                     }}
                   >
                     <Text style={styles.goToOrderButtonText}>Ver orden de trabajo</Text>

@@ -179,7 +179,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
     expect(getByText("Termostato descalibrado, se ajustó.")).toBeTruthy();
   });
 
-  it("navigates to work order screen and closes modal on button press", async () => {
+  it("navigates to the OT's own screen (by ot_id_orden) and closes modal on button press", async () => {
     const onClose = jest.fn();
 
     const { getByText } = await render(
@@ -192,7 +192,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
     expect(onClose).toHaveBeenCalled();
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/work-orders/[id]",
-      params: { id: "10" },
+      params: { id: "101" },
     });
   });
 });

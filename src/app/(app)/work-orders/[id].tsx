@@ -28,7 +28,7 @@ import { formatOrderNumber } from "../../../lib/orderNumber";
 import { getEquipmentById } from "../../../lib/queries/equipment";
 import {
   addTaskToOrder,
-  getSolicitudById,
+  getWorkOrderById,
   reassignTaskTechnician,
   updateOrderFaultType,
   updateOrderPlannedEndDate,
@@ -40,17 +40,21 @@ import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Equipo, Fallo, Profile, Solicitud, SolicitudTask } from "../../../types/database";
+import type { Equipo, Fallo, Profile, SolicitudTask, WorkOrder } from "../../../types/database";
 
-type Priority = Exclude<Solicitud["priority"], null>;
+type Priority = WorkOrder["priority"];
 type EditingField = "start" | "planned" | "priority" | "fault" | null;
 
-const STATUS_LABELS: Record<Solicitud["status"], string> = {
-  new: "Nueva",
+const STATUS_LABELS: Record<WorkOrder["status"], string> = {
   assigned: "En proceso",
   in_progress: "En proceso",
   resolved: "Resuelta",
-  rejected: "Rechazada",
+};
+// ot_tipo_orden is free text in the DB; anything not listed here shows as is.
+const TYPE_LABELS: Record<string, string> = {
+  correctivo: "Correctivo",
+  preventivo: "Preventivo",
+  instalacion: "Instalación",
 };
 const PRIORITIES: Priority[] = ["low", "medium", "high"];
 const PRIORITY_LABELS: Record<Priority, string> = {
@@ -75,19 +79,19 @@ function taskStatusLabel(task: SolicitudTask): string {
 // tareas grid starts high on the page.
 // Late = the admin's target date passed and the OT still isn't resolved.
 // Derived on the fly, so it needs no column and no manual state change.
-function isOverdue(s: { status: string; order_planned_end_date: string | null }): boolean {
-  if (s.status === "resolved" || !s.order_planned_end_date) return false;
+function isOverdue(s: { status: string; planned_end_date: string | null }): boolean {
+  if (s.status === "resolved" || !s.planned_end_date) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return new Date(`${s.order_planned_end_date}T00:00:00`) < today;
+  return new Date(`${s.planned_end_date}T00:00:00`) < today;
 }
 
 export default function WorkOrderDetail() {
   // `created` is set by SolicitudDetailModal right after generating the OT,
   // so this screen can confirm it with its number ("Se generó la OT-0027").
   const { id, created } = useLocalSearchParams<{ id: string; created?: string }>();
-  const solicitudId = id ? Number(id) : NaN;
-  const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
+  const orderId = id ? Number(id) : NaN;
+  const [order, setOrder] = useState<WorkOrder | null>(null);
   const [equipment, setEquipment] = useState<Equipo | null>(null);
   const [profileById, setProfileById] = useState<Map<string, Profile>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -110,31 +114,29 @@ export default function WorkOrderDetail() {
   // instead of popping in right after the spinner.
   const appear = useRef(new Animated.Value(0)).current;
 
-  const statusColors: Record<Solicitud["status"], { bg: string; fg: string }> = {
-    new: colors.faultNew,
+  const statusColors: Record<WorkOrder["status"], { bg: string; fg: string }> = {
     assigned: colors.faultAssigned,
     in_progress: colors.faultInProgress,
     resolved: colors.faultResolved,
-    rejected: colors.faultRejected,
   };
-  const priorityColors: Record<Exclude<Solicitud["priority"], null>, { bg: string; fg: string }> = {
+  const priorityColors: Record<Priority, { bg: string; fg: string }> = {
     low: colors.urgencyLow,
     medium: colors.urgencyMedium,
     high: colors.urgencyHigh,
   };
 
   const load = useCallback(async () => {
-    if (!id || Number.isNaN(solicitudId)) return;
+    if (!id || Number.isNaN(orderId)) return;
     setError(null);
     try {
-      const [sol, profiles] = await Promise.all([getSolicitudById(solicitudId), listProfiles()]);
-      setSolicitud(sol);
+      const [ot, profiles] = await Promise.all([getWorkOrderById(orderId), listProfiles()]);
+      setOrder(ot);
       setProfileById(new Map(profiles.map((p) => [p.id, p])));
-      if (sol) setEquipment(await getEquipmentById(sol.equipment_id));
+      if (ot) setEquipment(await getEquipmentById(ot.equipment_id));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [id, solicitudId]);
+  }, [id, orderId]);
 
   useEffect(() => {
     load().finally(() => setLoading(false));
@@ -158,7 +160,7 @@ export default function WorkOrderDetail() {
   }, []);
 
   useEffect(() => {
-    if (!id || Number.isNaN(solicitudId)) return;
+    if (!id || Number.isNaN(orderId)) return;
     const channel = supabase
       .channel(`work-order-detail-${id}-${Math.random().toString(36).slice(2)}`)
       .on(
@@ -166,8 +168,8 @@ export default function WorkOrderDetail() {
         {
           event: "*",
           schema: "public",
-          table: "solicitudes",
-          filter: `sol_id_solicitud=eq.${solicitudId}`,
+          table: "orden_de_trabajo",
+          filter: `ot_id_orden=eq.${orderId}`,
         },
         load,
       )
@@ -176,37 +178,30 @@ export default function WorkOrderDetail() {
         {
           event: "*",
           schema: "public",
-          table: "orden_de_trabajo",
-          filter: `sol_id_solicitud=eq.${solicitudId}`,
+          table: "tareas_realizadas_orden",
+          filter: `ot_id_orden=eq.${orderId}`,
         },
-        load,
-      )
-      // tareas_realizadas_orden has no sol_id_solicitud column to filter by
-      // directly (it hangs off ot_id_orden) — just reload on any change.
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "tareas_realizadas_orden" },
         load,
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, solicitudId, load]);
+  }, [id, orderId, load]);
 
   useEffect(() => {
     setAddTaskOpen(false);
     setReassigningTask(null);
     setEditing(null);
     setError(null);
-    setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
-    setPlannedDraft(solicitud ? fromDbDate(solicitud.order_planned_end_date) : "");
-  }, [solicitud]);
+    setDateDraft(order ? fromDbDate(order.start_date) : "");
+    setPlannedDraft(order ? fromDbDate(order.planned_end_date) : "");
+  }, [order]);
 
   // fallo_por_orden only reaches the screen as the fallo's name; names are
   // unique (0006), so the current one can be preselected by name.
   const currentFaultTypeId =
-    faultTypes.find((f) => f.fa_nombre === solicitud?.fault_type_name)?.fa_id_fallo ?? null;
+    faultTypes.find((f) => f.fa_nombre === order?.fault_type_name)?.fa_id_fallo ?? null;
   // Inactive fallos can't be picked for a new diagnosis, but the one already
   // on the OT stays in the list so the editor can show it.
   const faultTypeOptions = faultTypes
@@ -215,27 +210,24 @@ export default function WorkOrderDetail() {
 
   const orderStartDate = useMemo(
     () =>
-      solicitud?.order_start_date
-        ? (parseDateString(fromDbDate(solicitud.order_start_date)) ?? undefined)
-        : undefined,
-    [solicitud?.order_start_date],
+      order?.start_date ? (parseDateString(fromDbDate(order.start_date)) ?? undefined) : undefined,
+    [order?.start_date],
   );
 
   const orderPlannedEndDate = useMemo(
     () =>
-      solicitud?.order_planned_end_date
-        ? (parseDateString(fromDbDate(solicitud.order_planned_end_date)) ?? undefined)
+      order?.planned_end_date
+        ? (parseDateString(fromDbDate(order.planned_end_date)) ?? undefined)
         : undefined,
-    [solicitud?.order_planned_end_date],
+    [order?.planned_end_date],
   );
 
   function startEditing(field: EditingField) {
     setError(null);
     setFaultSelectOpen(false);
-    if (field === "start") setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
-    if (field === "planned")
-      setPlannedDraft(solicitud ? fromDbDate(solicitud.order_planned_end_date) : "");
-    if (field === "priority") setPriorityDraft(solicitud?.priority ?? null);
+    if (field === "start") setDateDraft(order ? fromDbDate(order.start_date) : "");
+    if (field === "planned") setPlannedDraft(order ? fromDbDate(order.planned_end_date) : "");
+    if (field === "priority") setPriorityDraft(order?.priority ?? null);
     if (field === "fault") setFaultDraft(currentFaultTypeId);
     setEditing(field);
   }
@@ -256,22 +248,22 @@ export default function WorkOrderDetail() {
   }
 
   async function handleSavePriority() {
-    if (!solicitud || !priorityDraft) return;
-    await save(() => updateOrderPriority(solicitud.id, priorityDraft));
+    if (!order || !priorityDraft) return;
+    await save(() => updateOrderPriority(order.id, priorityDraft));
   }
 
   async function handleSaveFault(clear = false) {
-    if (!solicitud) return;
+    if (!order) return;
     if (!clear && faultDraft == null) {
       setError("Elegí una falla genérica.");
       return;
     }
-    await save(() => updateOrderFaultType(solicitud.id, clear ? null : faultDraft));
+    await save(() => updateOrderFaultType(order.id, clear ? null : faultDraft));
   }
 
   async function handleAddTask(input: { taskId: number; technicianId: string }) {
-    if (!solicitud) return;
-    await addTaskToOrder(solicitud.id, input);
+    if (!order) return;
+    await addTaskToOrder(order.id, input);
     await load();
     setAddTaskOpen(false);
   }
@@ -284,38 +276,29 @@ export default function WorkOrderDetail() {
   }
 
   async function handleSaveDate() {
-    if (!solicitud) return;
+    if (!order) return;
     if (!isValidDateString(dateDraft)) {
       setError("Ingresá una fecha válida (dd/mm/aaaa).");
       return;
     }
-    if (
-      solicitud.order_planned_end_date &&
-      toDbDate(dateDraft) > solicitud.order_planned_end_date
-    ) {
+    if (order.planned_end_date && toDbDate(dateDraft) > order.planned_end_date) {
       setError("La fecha de inicio no puede ser posterior a la fecha estimada de resolución.");
       return;
     }
-    await save(() => updateOrderStartDate(solicitud.id, toDbDate(dateDraft)));
+    await save(() => updateOrderStartDate(order.id, toDbDate(dateDraft)));
   }
 
   async function handleSavePlannedDate(clear = false) {
-    if (!solicitud) return;
+    if (!order) return;
     if (!clear && !isValidDateString(plannedDraft)) {
       setError("Ingresá una fecha válida (dd/mm/aaaa).");
       return;
     }
-    if (
-      !clear &&
-      solicitud.order_start_date &&
-      toDbDate(plannedDraft) < solicitud.order_start_date
-    ) {
+    if (!clear && order.start_date && toDbDate(plannedDraft) < order.start_date) {
       setError("La fecha estimada no puede ser anterior a la fecha de inicio de la orden.");
       return;
     }
-    await save(() =>
-      updateOrderPlannedEndDate(solicitud.id, clear ? null : toDbDate(plannedDraft)),
-    );
+    await save(() => updateOrderPlannedEndDate(order.id, clear ? null : toDbDate(plannedDraft)));
   }
 
   if (loading) {
@@ -326,7 +309,7 @@ export default function WorkOrderDetail() {
       </>
     );
   }
-  if (!solicitud || solicitud.order_id == null) {
+  if (!order) {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
@@ -335,13 +318,16 @@ export default function WorkOrderDetail() {
     );
   }
 
-  const s = solicitud;
-  const orderNumber = formatOrderNumber(solicitud.order_id);
+  const s = order;
+  const orderNumber = formatOrderNumber(order.id);
   const isResolved = s.status === "resolved";
   // A just-generated OT has no tareas yet; its DB estado is 'assigned',
   // which would read as if someone were already on it.
   const statusLabel =
     s.tasks.length === 0 && s.status === "assigned" ? "Sin tareas" : STATUS_LABELS[s.status];
+  // What the solicitud reported, or the OT's own observación when it didn't
+  // come from one.
+  const description = s.solicitud?.description ?? s.observation;
 
   return (
     <>
@@ -367,8 +353,11 @@ export default function WorkOrderDetail() {
         </View>
 
         {/* Last step of Solicitud → OT → Tareas: shown until the OT gets
-            its first tarea, then the flow is done and it goes away. */}
-        {s.tasks.length === 0 && <OrderFlowSteps stage="tareas" style={styles.flowSteps} />}
+            its first tarea, then the flow is done and it goes away. An OT
+            that didn't come from a solicitud isn't part of that flow. */}
+        {s.solicitud && s.tasks.length === 0 && (
+          <OrderFlowSteps stage="tareas" style={styles.flowSteps} />
+        )}
 
         {showCreated && (
           <View style={styles.createdBanner}>
@@ -394,47 +383,55 @@ export default function WorkOrderDetail() {
               </Text>
             </View>
 
-            {s.priority && (
-              <View style={[styles.badge, { backgroundColor: priorityColors[s.priority].bg }]}>
-                <Text style={[styles.badgeText, { color: priorityColors[s.priority].fg }]}>
-                  Prioridad {PRIORITY_LABELS[s.priority]}
-                </Text>
-              </View>
-            )}
+            <View style={[styles.badge, { backgroundColor: priorityColors[s.priority].bg }]}>
+              <Text style={[styles.badgeText, { color: priorityColors[s.priority].fg }]}>
+                Prioridad {PRIORITY_LABELS[s.priority]}
+              </Text>
+            </View>
           </View>
 
           <Text style={styles.title}>{equipment?.name ?? "Equipo desconocido"}</Text>
           <Text style={styles.subtitle}>{equipment?.location}</Text>
 
           <View style={styles.metaGrid}>
-            <MetaCell
-              label="Reportó"
-              value={profileById.get(s.reported_by)?.name ?? "Desconocido"}
-              colors={colors}
-            />
+            <MetaCell label="Tipo de orden" value={TYPE_LABELS[s.type] ?? s.type} colors={colors} />
 
-            <MetaCell
-              label="Fecha de solicitud"
-              value={new Date(s.created_at).toLocaleDateString("es-AR")}
-              colors={colors}
-            />
+            {/* Only an OT generated from a solicitud has someone who
+                reported it; preventivo / instalación ones don't. */}
+            {s.solicitud && (
+              <MetaCell
+                label="Reportó"
+                value={profileById.get(s.solicitud.reported_by)?.name ?? "Desconocido"}
+                colors={colors}
+              />
+            )}
 
-            {s.status === "resolved" && s.order_end_date && (
+            {s.solicitud && (
+              <MetaCell
+                label="Fecha de solicitud"
+                value={new Date(s.solicitud.created_at).toLocaleDateString("es-AR")}
+                colors={colors}
+              />
+            )}
+
+            {s.status === "resolved" && s.end_date && (
               <MetaCell
                 label="Fecha de finalización"
-                value={fromDbDate(s.order_end_date)}
+                value={fromDbDate(s.end_date)}
                 colors={colors}
               />
             )}
           </View>
 
-          <View style={styles.descBlock}>
-            <Text style={styles.metaLabel}>Descripción</Text>
+          {!!description && (
+            <View style={styles.descBlock}>
+              <Text style={styles.metaLabel}>Descripción</Text>
 
-            <Text style={[styles.value, { marginTop: 4 }]}>{s.description}</Text>
-          </View>
+              <Text style={[styles.value, { marginTop: 4 }]}>{description}</Text>
+            </View>
+          )}
 
-          <PhotoCarousel photoUrls={s.photo_urls} height={260} />
+          {s.solicitud && <PhotoCarousel photoUrls={s.solicitud.photo_urls} height={260} />}
         </View>
 
         {/* Inicio, fecha estimada, prioridad y falla side by side — stacked
@@ -459,7 +456,7 @@ export default function WorkOrderDetail() {
                   <Pressable
                     style={styles.dateCancelButton}
                     onPress={() => {
-                      setDateDraft(solicitud ? fromDbDate(solicitud.order_start_date) : "");
+                      setDateDraft(order ? fromDbDate(order.start_date) : "");
                       setEditing(null);
                     }}
                   >
@@ -472,7 +469,7 @@ export default function WorkOrderDetail() {
                 </View>
               ) : (
                 <View style={styles.planValueRow}>
-                  <Text style={styles.planValue}>{fromDbDate(s.order_start_date) || "—"}</Text>
+                  <Text style={styles.planValue}>{fromDbDate(s.start_date) || "—"}</Text>
 
                   {!isResolved && (
                     <Pressable onPress={() => startEditing("start")}>
@@ -499,9 +496,7 @@ export default function WorkOrderDetail() {
                   <Pressable
                     style={styles.dateCancelButton}
                     onPress={() => {
-                      setPlannedDraft(
-                        solicitud ? fromDbDate(solicitud.order_planned_end_date) : "",
-                      );
+                      setPlannedDraft(order ? fromDbDate(order.planned_end_date) : "");
                       setEditing(null);
                     }}
                   >
@@ -519,7 +514,7 @@ export default function WorkOrderDetail() {
               ) : (
                 <View style={styles.planValueRow}>
                   <Text style={styles.planValue}>
-                    {fromDbDate(s.order_planned_end_date) || "Sin definir"}
+                    {fromDbDate(s.planned_end_date) || "Sin definir"}
                   </Text>
 
                   {isOverdue(s) && (
@@ -531,7 +526,7 @@ export default function WorkOrderDetail() {
                   {!isResolved && (
                     <Pressable onPress={() => startEditing("planned")}>
                       <Text style={styles.linkButtonText}>
-                        {s.order_planned_end_date ? "Reprogramar" : "Definir"}
+                        {s.planned_end_date ? "Reprogramar" : "Definir"}
                       </Text>
                     </Pressable>
                   )}
@@ -584,9 +579,7 @@ export default function WorkOrderDetail() {
                 </View>
               ) : (
                 <View style={styles.planValueRow}>
-                  <Text style={styles.planValue}>
-                    {s.priority ? PRIORITY_LABELS[s.priority] : "—"}
-                  </Text>
+                  <Text style={styles.planValue}>{PRIORITY_LABELS[s.priority]}</Text>
 
                   {!isResolved && (
                     <Pressable onPress={() => startEditing("priority")}>

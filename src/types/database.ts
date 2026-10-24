@@ -1119,6 +1119,30 @@ export type Solicitud = {
   created_at: string;
 };
 
+// An orden_de_trabajo on its own, keyed by ot_id_orden — what the OT screens
+// work with. Unlike Solicitud it also covers OTs that don't come from a
+// solicitud (preventivo, instalación): `solicitud` is null for those.
+export type WorkOrder = {
+  id: number;
+  equipment_id: number;
+  type: string;
+  status: "assigned" | "in_progress" | "resolved";
+  priority: "low" | "medium" | "high";
+  start_date: string;
+  end_date: string | null;
+  planned_end_date: string | null;
+  observation: string | null;
+  fault_type_name: string | null;
+  tasks: SolicitudTask[];
+  solicitud: {
+    id: number;
+    reported_by: string;
+    description: string;
+    created_at: string;
+    photo_urls: string[];
+  } | null;
+};
+
 export type HistorialEntry = {
   id: string;
   equipment_id: number;

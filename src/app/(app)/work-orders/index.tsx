@@ -16,23 +16,21 @@ import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { formatOrderNumber } from "../../../lib/orderNumber";
 import { listEquipment } from "../../../lib/queries/equipment";
-import { listAllRequests } from "../../../lib/queries/faults";
-import { listProfiles } from "../../../lib/queries/profiles";
+import { listWorkOrders } from "../../../lib/queries/faults";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
-import type { Equipo, Solicitud } from "../../../types/database";
+import type { Equipo, WorkOrder } from "../../../types/database";
 
-type Item = Solicitud & {
+type Item = WorkOrder & {
   equipment: Pick<Equipo, "code" | "name">;
-  reporterName: string;
 };
 
-type OrderStatus = "assigned" | "in_progress" | "resolved";
-type Priority = Exclude<Solicitud["priority"], null>;
+type OrderStatus = WorkOrder["status"];
+type Priority = WorkOrder["priority"];
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   assigned: "Asignada",
@@ -43,7 +41,7 @@ const STATUS_RANK: Record<OrderStatus, number> = { assigned: 0, in_progress: 1, 
 const PRIORITY_LABELS: Record<Priority, string> = { low: "Baja", medium: "Media", high: "Alta" };
 const PRIORITY_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2 };
 
-// Every solicitud here already has an orden_de_trabajo (order_id != null) —
+// Every orden_de_trabajo, whether it came from a solicitud or not —
 // solicitudes still pendiente, or closed without one (SCRUM-27), belong on
 // the "Solicitudes" screen instead, not here.
 export default function WorkOrdersScreen() {
@@ -73,24 +71,16 @@ export default function WorkOrdersScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [requests, equipment, profiles] = await Promise.all([
-        listAllRequests(),
-        listEquipment(),
-        listProfiles(),
-      ]);
+      const [orders, equipment] = await Promise.all([listWorkOrders(), listEquipment()]);
       const equipmentById = new Map(equipment.map((e) => [e.id, e]));
-      const profileById = new Map(profiles.map((p) => [p.id, p]));
       setItems(
-        requests
-          .filter((r) => r.order_id != null)
-          .map((f) => ({
-            ...f,
-            equipment: equipmentById.get(f.equipment_id) ?? {
-              code: "—",
-              name: "Equipo desconocido",
-            },
-            reporterName: profileById.get(f.reported_by)?.name ?? "Desconocido",
-          })),
+        orders.map((o) => ({
+          ...o,
+          equipment: equipmentById.get(o.equipment_id) ?? {
+            code: "—",
+            name: "Equipo desconocido",
+          },
+        })),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -104,8 +94,14 @@ export default function WorkOrdersScreen() {
   useEffect(() => {
     const channel = supabase
       .channel(`work-orders-changes-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "orden_de_trabajo" }, load)
+      // A first tarea doesn't change the OT's estado, but it does turn its
+      // "Sin tareas" badge into "Asignada".
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tareas_realizadas_orden" },
+        load,
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -123,10 +119,10 @@ export default function WorkOrdersScreen() {
     return items.filter((r) => {
       const matchSearch =
         !q ||
-        (r.order_id != null && includesSearch(formatOrderNumber(r.order_id), q)) ||
+        includesSearch(formatOrderNumber(r.id), q) ||
         includesSearch(r.equipment.code, q) ||
         includesSearch(r.equipment.name, q) ||
-        includesSearch(r.description, q);
+        includesSearch(r.solicitud?.description ?? r.observation ?? "", q);
       const matchStatus = !statusFilter || r.status === statusFilter;
       const matchPriority = !priorityFilter || r.priority === priorityFilter;
       return matchSearch && matchStatus && matchPriority;
@@ -136,11 +132,11 @@ export default function WorkOrdersScreen() {
   const { sorted, field, dir, toggle } = useTableSort<Item>(
     filtered,
     {
-      numero: (r) => r.order_id ?? 0,
+      numero: (r) => r.id,
       equipo: (r) => r.equipment.code,
-      estado: (r) => STATUS_RANK[r.status as OrderStatus],
-      prioridad: (r) => (r.priority ? PRIORITY_RANK[r.priority] : -1),
-      inicio: (r) => r.order_start_date ?? "",
+      estado: (r) => STATUS_RANK[r.status],
+      prioridad: (r) => PRIORITY_RANK[r.priority],
+      inicio: (r) => r.start_date,
     },
     "estado",
   );
@@ -265,16 +261,14 @@ export default function WorkOrdersScreen() {
           </View>
 
           {ordersPage.pageItems.map((item, i) => {
-            const status = item.status as OrderStatus;
+            const status = item.status;
             const st = statusColors[status];
-            const prio = item.priority ? priorityColors[item.priority] : null;
+            const prio = priorityColors[item.priority];
             return (
               <View key={item.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
                 <View style={styles.rowMain}>
                   <View style={{ flex: 0.9, justifyContent: "center" }}>
-                    <Text style={styles.orderNumber}>
-                      {item.order_id != null ? formatOrderNumber(item.order_id) : "—"}
-                    </Text>
+                    <Text style={styles.orderNumber}>{formatOrderNumber(item.id)}</Text>
                   </View>
 
                   <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
@@ -295,19 +289,15 @@ export default function WorkOrdersScreen() {
                   </View>
 
                   <View style={{ flex: 1, justifyContent: "center" }}>
-                    {prio ? (
-                      <View style={[styles.badge, { backgroundColor: prio.bg }]}>
-                        <Text style={[styles.badgeText, { color: prio.fg }]}>
-                          {PRIORITY_LABELS[item.priority as Priority]}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.cellText}>—</Text>
-                    )}
+                    <View style={[styles.badge, { backgroundColor: prio.bg }]}>
+                      <Text style={[styles.badgeText, { color: prio.fg }]}>
+                        {PRIORITY_LABELS[item.priority]}
+                      </Text>
+                    </View>
                   </View>
 
                   <View style={{ flex: 0.9, justifyContent: "center" }}>
-                    <Text style={styles.cellText}>{fromDbDate(item.order_start_date) || "—"}</Text>
+                    <Text style={styles.cellText}>{fromDbDate(item.start_date) || "—"}</Text>
                   </View>
                 </View>
 
