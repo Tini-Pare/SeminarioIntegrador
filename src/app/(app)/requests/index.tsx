@@ -60,7 +60,13 @@ export default function RequestsScreen() {
         listEquipment(),
         listProfiles(),
       ]);
-      setEquipmentOptions(equipment.map(({ id, code, name }) => ({ id, code, name })));
+      // No fallas on an equipo that isn't installed yet (also blocked in
+      // the DB, 0033).
+      setEquipmentOptions(
+        equipment
+          .filter((e) => e.status !== "pending_install")
+          .map(({ id, code, name }) => ({ id, code, name })),
+      );
       const equipmentById = new Map(equipment.map((e) => [e.id, e]));
       const profileById = new Map(profiles.map((p) => [p.id, p]));
       setItems(

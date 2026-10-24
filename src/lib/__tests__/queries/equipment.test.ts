@@ -1,6 +1,7 @@
 jest.mock("../../supabase", () => ({
   supabase: {
     from: jest.fn(),
+    rpc: jest.fn(),
   },
 }));
 
@@ -305,90 +306,112 @@ describe("getEquipmentById", () => {
   });
 });
 
-describe("createEquipment", () => {
-  it("inserts te_id/lu_codigo directly from the given ids", async () => {
+describe("mapEquipo (via getEquipmentById)", () => {
+  it("shows a pending-installation equipo as pending_install, whatever its eq_estado", async () => {
     const single = jest.fn().mockResolvedValue({
       data: {
-        eq_id_equipo: 5,
+        eq_id_equipo: 2,
         te_id: 7,
         lu_codigo: 3,
-        eq_codigo: "AC-015",
-        eq_nombre: "AA Sala",
-        eq_estado: "operational",
+        eq_codigo: "AC-016",
+        eq_nombre: "AA Depósito",
+        eq_estado: "waiting",
         eq_estado_registro: "activo",
-        eq_modelo: "Split 3000F",
-        eq_fecha_instalacion: "2026-02-01",
-        lugares: { lu_nombre_sector: "Planta A" },
+        eq_pendiente_instalacion: true,
+        eq_modelo: null,
+        eq_fecha_instalacion: null,
+        lugares: { lu_nombre_sector: "Depósito" },
         tipos_de_equipos: { te_nombre: "Climatización" },
       },
       error: null,
     });
-    const select = jest.fn().mockReturnValue({ single });
-    const insert = jest.fn().mockReturnValue({ select });
-    (supabase.from as jest.Mock).mockReturnValue({ insert });
+    const eq = jest.fn().mockReturnValue({ single });
+    const select = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const result = await getEquipmentById(2);
+
+    expect(result?.status).toBe("pending_install");
+  });
+});
+
+describe("createEquipment", () => {
+  const base = {
+    code: "AC-015",
+    name: "AA Sala",
+    typeId: 7,
+    locationId: 3,
+    model: "Split 3000F",
+  };
+
+  it("registers an installed equipo through alta_equipo with its installation date", async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({
+      data: { eq_id: 5, ot_id: null },
+      error: null,
+    });
+
+    const result = await createEquipment({ ...base, pending: false, installDate: "2026-02-01" });
+
+    expect(supabase.rpc).toHaveBeenCalledWith("alta_equipo", {
+      p_codigo: "AC-015",
+      p_nombre: "AA Sala",
+      p_te_id: 7,
+      p_lu_codigo: 3,
+      p_modelo: "Split 3000F",
+      p_pendiente: false,
+      p_fecha_instalacion: "2026-02-01",
+    });
+    expect(result).toEqual({ equipmentId: 5, orderId: null });
+  });
+
+  it("registers a pending equipo with the técnico and prioridad of its installation OT", async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({
+      data: { eq_id: 6, ot_id: 31 },
+      error: null,
+    });
 
     const result = await createEquipment({
-      code: "AC-015",
-      name: "AA Sala",
-      typeId: 7,
-      locationId: 3,
-      model: "Split 3000F",
-      installDate: "2026-02-01",
+      ...base,
+      pending: true,
+      technicianId: "tec1",
+      priority: "high",
     });
 
-    expect(supabase.from).toHaveBeenCalledWith("equipo");
-    expect(insert).toHaveBeenCalledWith({
-      eq_codigo: "AC-015",
-      eq_nombre: "AA Sala",
-      te_id: 7,
-      lu_codigo: 3,
-      eq_modelo: "Split 3000F",
-      eq_fecha_instalacion: "2026-02-01",
+    expect(supabase.rpc).toHaveBeenCalledWith("alta_equipo", {
+      p_codigo: "AC-015",
+      p_nombre: "AA Sala",
+      p_te_id: 7,
+      p_lu_codigo: 3,
+      p_modelo: "Split 3000F",
+      p_pendiente: true,
+      p_tecnico: "tec1",
+      p_prioridad: "high",
     });
-    expect(result.id).toBe(5);
-    expect(result.typeId).toBe(7);
-    expect(result.locationId).toBe(3);
+    expect(result).toEqual({ equipmentId: 6, orderId: 31 });
   });
 
   it("throws when Supabase returns an error", async () => {
-    const single = jest.fn().mockResolvedValue({ data: null, error: { message: "insert failed" } });
-    const select = jest.fn().mockReturnValue({ single });
-    const insert = jest.fn().mockReturnValue({ select });
-    (supabase.from as jest.Mock).mockReturnValue({ insert });
+    (supabase.rpc as jest.Mock).mockResolvedValue({
+      data: null,
+      error: { message: "Elegí el técnico que va a instalar el equipo" },
+    });
 
     await expect(
-      createEquipment({
-        code: "X",
-        name: "Y",
-        typeId: 1,
-        locationId: 1,
-        model: null,
-        installDate: null,
-      }),
-    ).rejects.toThrow("insert failed");
+      createEquipment({ ...base, pending: true, technicianId: "", priority: "low" }),
+    ).rejects.toThrow("Elegí el técnico que va a instalar el equipo");
   });
 
   it("translates duplicate eq_codigo unique constraint error to friendly Spanish message", async () => {
-    const single = jest.fn().mockResolvedValue({
+    (supabase.rpc as jest.Mock).mockResolvedValue({
       data: null,
       error: {
         code: "23505",
         message: 'duplicate key value violates unique constraint "equipo_eq_codigo_key"',
       },
     });
-    const select = jest.fn().mockReturnValue({ single });
-    const insert = jest.fn().mockReturnValue({ select });
-    (supabase.from as jest.Mock).mockReturnValue({ insert });
 
     await expect(
-      createEquipment({
-        code: "AC-015",
-        name: "Y",
-        typeId: 1,
-        locationId: 1,
-        model: null,
-        installDate: null,
-      }),
+      createEquipment({ ...base, pending: false, installDate: "2026-02-01" }),
     ).rejects.toThrow("Ya existe un equipo con el código ingresado. Probá con otro código.");
   });
 });

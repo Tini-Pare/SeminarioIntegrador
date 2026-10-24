@@ -67,6 +67,20 @@ export type Database = {
         Args: { p_rc_id: number };
         Returns: void;
       };
+      alta_equipo: {
+        Args: {
+          p_codigo: string;
+          p_nombre: string;
+          p_te_id: number;
+          p_lu_codigo: number;
+          p_modelo: string | null;
+          p_pendiente: boolean;
+          p_fecha_instalacion?: string | null;
+          p_tecnico?: string | null;
+          p_prioridad?: "low" | "medium" | "high" | null;
+        };
+        Returns: { eq_id: number; ot_id: number | null };
+      };
       finalizar_tarea: {
         Args: {
           p_taro_id_tarea_orden: number;
@@ -157,6 +171,8 @@ export type Database = {
           tag_nombre_tarea: string;
           tag_descripcion_tarea: string | null;
           tag_estado: "activo" | "inactivo";
+          // Set only on system tareas the app relies on (0032): 'instalacion'.
+          tag_codigo_sistema: string | null;
         };
         Insert: {
           tag_id_tarea?: number;
@@ -207,6 +223,7 @@ export type Database = {
           eq_modelo: string | null;
           eq_fecha_instalacion: string | null;
           eq_estado_registro: "activo" | "inactivo";
+          eq_pendiente_instalacion: boolean;
         };
         Insert: {
           eq_id_equipo?: number;
@@ -218,6 +235,7 @@ export type Database = {
           eq_modelo?: string | null;
           eq_fecha_instalacion?: string | null;
           eq_estado_registro?: "activo" | "inactivo";
+          eq_pendiente_instalacion?: boolean;
         };
         Update: {
           eq_id_equipo?: number;
@@ -229,6 +247,7 @@ export type Database = {
           eq_modelo?: string | null;
           eq_fecha_instalacion?: string | null;
           eq_estado_registro?: "activo" | "inactivo";
+          eq_pendiente_instalacion?: boolean;
         };
         Relationships: [
           {
@@ -1045,7 +1064,10 @@ export type Equipo = {
   typeId: number;
   location: string;
   locationId: number;
-  status: "operational" | "waiting" | "repair";
+  // "pending_install" isn't an eq_estado value: it's eq_pendiente_instalacion
+  // (0032) taking precedence over the automatic estado until the
+  // installation tarea is finished.
+  status: "operational" | "waiting" | "repair" | "pending_install";
   // Registration state, separate from the automatic operational `status`.
   active: boolean;
   model: string | null;

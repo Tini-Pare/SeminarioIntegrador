@@ -37,12 +37,21 @@ import {
 } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { withSiglas } from "../../../components/Sigla";
+import { fromDbDate } from "../../../components/CustomDatePicker";
 import { formatOrderNumber } from "../../../lib/orderNumber";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { useConfirm } from "../../../lib/useConfirm";
 import type { Equipo, PastTaskSuspension, Solicitud } from "../../../types/database";
+
+// ot_tipo_orden of a tarea that didn't come from a solicitud; anything not
+// listed here shows as is.
+const ORDER_TYPE_LABELS: Record<string, string> = {
+  correctivo: "Correctivo",
+  preventivo: "Preventivo",
+  instalacion: "Instalación",
+};
 
 // A técnico's queue is one row per tarea assigned to them — not one row
 // per OT. A solicitud/OT isn't work a técnico "has"; a tarea is (see
@@ -474,12 +483,18 @@ export default function QueueScreen() {
                       </View>
 
                       <View style={styles.infoContent}>
-                        <Text style={styles.infoLabel}>Fecha de solicitud</Text>
+                        <Text style={styles.infoLabel}>
+                          {item.fromSolicitud ? "Fecha de solicitud" : "Fecha de la orden"}
+                        </Text>
 
                         <Text style={styles.infoValue}>
-                          {item.createdAt
-                            ? new Date(item.createdAt).toLocaleDateString("es-AR")
-                            : "—"}
+                          {!item.createdAt
+                            ? "—"
+                            : item.fromSolicitud
+                              ? new Date(item.createdAt).toLocaleDateString("es-AR")
+                              : // A date-only column: new Date() would read it as
+                                // UTC midnight and could show the day before.
+                                fromDbDate(item.createdAt)}
                         </Text>
                       </View>
                     </View>
@@ -492,10 +507,14 @@ export default function QueueScreen() {
                       </View>
 
                       <View style={styles.infoContent}>
-                        <Text style={styles.infoLabel}>Reportó</Text>
+                        <Text style={styles.infoLabel}>
+                          {item.fromSolicitud ? "Reportó" : "Tipo de orden"}
+                        </Text>
 
                         <Text style={styles.infoValue} numberOfLines={2}>
-                          {item.reporterName}
+                          {item.fromSolicitud
+                            ? item.reporterName
+                            : (ORDER_TYPE_LABELS[item.orderType] ?? item.orderType)}
                         </Text>
                       </View>
                     </View>

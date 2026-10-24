@@ -43,6 +43,7 @@ export type ThemeColors = {
   eqOperational: { bg: string; fg: string; dot: string };
   eqWaiting: { bg: string; fg: string; dot: string };
   eqRepair: { bg: string; fg: string; dot: string };
+  eqPendingInstall: { bg: string; fg: string; dot: string };
 
   faultNew: { bg: string; fg: string };
   faultAssigned: { bg: string; fg: string };
@@ -115,6 +116,7 @@ export const light: ThemeColors = {
   eqOperational: { bg: "#e5f1e8", fg: "#2c6a4e", dot: "#4a9b74" },
   eqWaiting: { bg: "#f7efdb", fg: "#8a5d12", dot: "#c99433" },
   eqRepair: { bg: "#f7e7e1", fg: "#963924", dot: "#c2503f" },
+  eqPendingInstall: { bg: "#e0ecf8", fg: "#1d5287", dot: "#4a7fb5" },
 
   faultNew: { bg: "#e6efe1", fg: "#4a7434" },
   faultAssigned: { bg: "#dfeae4", fg: "#2f7d5b" },

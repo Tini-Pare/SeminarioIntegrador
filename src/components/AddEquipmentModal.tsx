@@ -3,14 +3,18 @@ import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { createEquipment } from "../lib/queries/equipment";
 import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
 import { listLocations } from "../lib/queries/locations";
+import { listProfiles } from "../lib/queries/profiles";
 import { DropdownBackdrop } from "./DropdownBackdrop";
 import { FormFooter } from "./FormFooter";
+import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Select } from "./Select";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 import { CustomDatePicker, isDateWithinMax, isValidDateString, toDbDate } from "./CustomDatePicker";
 
-type OpenField = "type" | "location" | "install" | null;
+type OpenField = "type" | "location" | "install" | "technician" | null;
+type Installed = "si" | "no";
+type Priority = "low" | "medium" | "high";
 
 export function AddEquipmentModal({
   visible,
@@ -27,6 +31,12 @@ export function AddEquipmentModal({
   const [typeId, setTypeId] = useState<number | null>(null);
   const [locationId, setLocationId] = useState<number | null>(null);
   const [installDate, setInstallDate] = useState("");
+  // Asked every time, no default: an equipo already working and a new one
+  // still to be installed take different paths (see createEquipment).
+  const [installed, setInstalled] = useState<Installed | null>(null);
+  const [technicianId, setTechnicianId] = useState<string | null>(null);
+  const [priority, setPriority] = useState<Priority | null>(null);
+  const [technicians, setTechnicians] = useState<{ value: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [types, setTypes] = useState<{ value: number; label: string }[]>([]);
@@ -43,6 +53,9 @@ export function AddEquipmentModal({
     setTypeId(null);
     setLocationId(null);
     setInstallDate("");
+    setInstalled(null);
+    setTechnicianId(null);
+    setPriority(null);
     setOpenField(null);
     setError(null);
 
@@ -54,7 +67,26 @@ export function AddEquipmentModal({
         setLocations(rows.map((l) => ({ value: l.lu_codigo, label: l.lu_nombre_sector }))),
       )
       .catch(() => {});
+    listProfiles()
+      .then((rows) =>
+        setTechnicians(
+          rows
+            .filter((p) => p.role === "technician" && p.active)
+            .map((p) => ({ value: p.id, label: p.name })),
+        ),
+      )
+      .catch(() => {});
   }, [visible]);
+
+  const installedOptions: RadioOption<Installed>[] = [
+    { value: "si", label: "Sí, ya está funcionando" },
+    { value: "no", label: "No, hay que instalarlo" },
+  ];
+  const priorityOptions: RadioOption<Priority>[] = [
+    { value: "low", label: "Baja", badge: colors.urgencyLow },
+    { value: "medium", label: "Media", badge: colors.urgencyMedium },
+    { value: "high", label: "Alta", badge: colors.urgencyHigh },
+  ];
 
   const noTypes = types.length === 0;
   const noLocations = locations.length === 0;
@@ -67,30 +99,49 @@ export function AddEquipmentModal({
       !name.trim() ||
       typeId == null ||
       locationId == null ||
-      !installDate.trim()
+      installed == null
     ) {
       setError("Todos los campos son obligatorios.");
       return;
     }
-    if (!isValidDateString(installDate.trim())) {
-      setError("Ingresá una fecha de instalación válida (dd/mm/aaaa).");
-      return;
-    }
-    if (!isDateWithinMax(installDate.trim(), new Date())) {
-      setError("La fecha de instalación no puede ser posterior a hoy.");
-      return;
+    if (installed === "si") {
+      if (!installDate.trim()) {
+        setError("Ingresá la fecha de instalación.");
+        return;
+      }
+      if (!isValidDateString(installDate.trim())) {
+        setError("Ingresá una fecha de instalación válida (dd/mm/aaaa).");
+        return;
+      }
+      if (!isDateWithinMax(installDate.trim(), new Date())) {
+        setError("La fecha de instalación no puede ser posterior a hoy.");
+        return;
+      }
+    } else {
+      if (!technicianId) {
+        setError("Elegí el técnico que va a instalar el equipo.");
+        return;
+      }
+      if (!priority) {
+        setError("Elegí la prioridad de la instalación.");
+        return;
+      }
     }
     setSaving(true);
     setError(null);
     try {
-      await createEquipment({
+      const base = {
         code: code.trim(),
         name: name.trim(),
         typeId,
         locationId,
         model: model.trim(),
-        installDate: toDbDate(installDate.trim()),
-      });
+      };
+      await createEquipment(
+        installed === "si"
+          ? { ...base, pending: false, installDate: toDbDate(installDate.trim()) }
+          : { ...base, pending: true, technicianId: technicianId!, priority: priority! },
+      );
 
       onCreated();
       onClose();
@@ -110,7 +161,9 @@ export function AddEquipmentModal({
           <Text style={styles.title}>Crear equipo</Text>
 
           <Text style={styles.subtitle}>
-            Nace "Funcionando" — el estado se recalcula solo según las fallas activas.
+            {installed === "no"
+              ? 'Queda "Pendiente de instalación" con su orden de instalación. Al finalizarla se registra la fecha y entra en los planes de mantenimiento de su tipo.'
+              : 'Nace "Funcionando" y entra en los planes de mantenimiento de su tipo — el estado se recalcula solo según las fallas activas.'}
           </Text>
 
           <View style={styles.fieldRow}>
@@ -169,18 +222,57 @@ export function AddEquipmentModal({
             onOpenChange={(o) => setOpenField(o ? "location" : null)}
           />
 
-          <View style={[styles.fieldRow, openField === "install" && styles.dateRowRaised]}>
-            <View style={styles.field}>
-              <Text style={styles.label}>Fecha de instalación</Text>
-              <CustomDatePicker
-                value={installDate}
-                onChange={setInstallDate}
-                open={openField === "install"}
-                onOpenChange={(o) => setOpenField(o ? "install" : null)}
-                maxDate={new Date()}
-              />
+          <Text style={styles.label}>¿El equipo ya está instalado?</Text>
+          <RadioGroup
+            name="equipment-installed"
+            value={installed}
+            onChange={(v) => {
+              setInstalled(v);
+              setOpenField(null);
+              setError(null);
+            }}
+            options={installedOptions}
+          />
+
+          {installed === "si" && (
+            <View style={[styles.fieldRow, openField === "install" && styles.dateRowRaised]}>
+              <View style={styles.field}>
+                <Text style={styles.label}>Fecha de instalación</Text>
+                <CustomDatePicker
+                  value={installDate}
+                  onChange={setInstallDate}
+                  open={openField === "install"}
+                  onOpenChange={(o) => setOpenField(o ? "install" : null)}
+                  maxDate={new Date()}
+                />
+              </View>
             </View>
-          </View>
+          )}
+
+          {installed === "no" && (
+            <>
+              <Text style={styles.label}>Técnico que lo instala</Text>
+              <Select
+                value={technicianId}
+                onChange={setTechnicianId}
+                options={technicians}
+                placeholder={
+                  technicians.length > 0 ? "Elegí un técnico" : "No hay técnicos activos"
+                }
+                disabled={technicians.length === 0}
+                open={openField === "technician"}
+                onOpenChange={(o) => setOpenField(o ? "technician" : null)}
+              />
+
+              <Text style={styles.label}>Prioridad de la instalación</Text>
+              <RadioGroup
+                name="installation-priority"
+                value={priority}
+                onChange={setPriority}
+                options={priorityOptions}
+              />
+            </>
+          )}
 
           {blocked && (
             <Text style={styles.blockedNote}>

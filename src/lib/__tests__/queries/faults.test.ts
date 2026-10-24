@@ -968,8 +968,55 @@ describe("listMyTasks", () => {
         consumedParts: [{ repId: 4, nombre: "Filtro de aire", cantidad: 2 }],
         suspension: null,
         lastSuspension: null,
+        orderType: "correctivo",
+        fromSolicitud: true,
       },
     ]);
+  });
+
+  it("uses the OT's observación and fecha de inicio for a tarea that didn't come from a solicitud", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "tec1" } } },
+    });
+    const eqFn = jest.fn().mockResolvedValue({
+      data: [
+        {
+          taro_id_tarea_orden: 12,
+          ot_id_orden: 8,
+          tag_id_tarea: 20,
+          p_id_tecnico: "tec1",
+          taro_fecha_inicio: null,
+          taro_fecha_fin: null,
+          tareas_generales: { tag_nombre_tarea: "Instalación de equipo" },
+          repuesto_para_tarea: [],
+          orden_de_trabajo: {
+            ot_estado: "assigned",
+            ot_prioridad: "medium",
+            ot_tipo_orden: "instalacion",
+            ot_fecha_inicio: "2026-10-24",
+            ot_observacion: "Instalación y puesta en marcha del equipo nuevo.",
+            eq_id_equipo: 6,
+            fallo_por_orden: [],
+            solicitudes: null,
+          },
+        },
+      ],
+      error: null,
+    });
+    const select = jest.fn().mockReturnValue({ eq: eqFn });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const [task] = await listMyTasks();
+
+    expect(task).toEqual(
+      expect.objectContaining({
+        description: "Instalación y puesta en marcha del equipo nuevo.",
+        createdAt: "2026-10-24",
+        reportedBy: "",
+        orderType: "instalacion",
+        fromSolicitud: false,
+      }),
+    );
   });
 });
 

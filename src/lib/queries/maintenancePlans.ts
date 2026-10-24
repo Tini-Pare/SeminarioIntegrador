@@ -1,8 +1,5 @@
 import { supabase } from "../supabase";
-import type {
-  PlanMantenimientoItem,
-  TareaGeneral,
-} from "../../types/database";
+import type { PlanMantenimientoItem, TareaGeneral } from "../../types/database";
 
 export type MaintenancePlanEquipmentRow = {
   equipmentId: number;
@@ -115,14 +112,15 @@ export type EquipmentOptionForType = {
   location: string;
 };
 
-export async function listActiveEquipmentByType(
-  typeId: number,
-): Promise<EquipmentOptionForType[]> {
+export async function listActiveEquipmentByType(typeId: number): Promise<EquipmentOptionForType[]> {
   const { data, error } = await supabase
     .from("equipo")
     .select("eq_id_equipo, eq_codigo, eq_nombre, lugares(lu_nombre_sector)")
     .eq("te_id", typeId)
     .eq("eq_estado_registro", "activo")
+    // A pending-installation equipo joins the plans when it's installed
+    // (finalizar_tarea, 0032), not before.
+    .eq("eq_pendiente_instalacion", false)
     .order("eq_codigo");
 
   if (error) {
@@ -158,9 +156,13 @@ export async function createMaintenancePlan(input: MaintenancePlanInput): Promis
   return data as number;
 }
 
+// Editing a plan never touches its equipos' last maintenance dates: they're
+// entered once when the plan is created and from then on only resolving
+// the plan's preventive OTs moves them (0034 — editar_plan_mantenimiento
+// ignores p_equipos, so it's sent empty).
 export async function updateMaintenancePlan(
   id: number,
-  input: MaintenancePlanInput,
+  input: Omit<MaintenancePlanInput, "equipments">,
 ): Promise<void> {
   const { error } = await supabase.rpc("editar_plan_mantenimiento", {
     p_pm_id: id,
@@ -169,10 +171,7 @@ export async function updateMaintenancePlan(
     p_frecuencia: input.frequency,
     p_estado: input.estado,
     p_tareas: input.taskIds,
-    p_equipos: input.equipments.map((e) => ({
-      eq_id: e.equipmentId,
-      fecha_ult_mant: e.lastMaintenanceDate,
-    })),
+    p_equipos: [],
   });
 
   if (error) {

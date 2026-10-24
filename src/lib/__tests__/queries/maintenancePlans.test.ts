@@ -61,7 +61,7 @@ describe("listMaintenancePlans", () => {
 });
 
 describe("listActiveEquipmentByType", () => {
-  it("fetches active equipment by type with locations", async () => {
+  it("fetches active, installed equipment by type with locations", async () => {
     const mockOrder = jest.fn().mockResolvedValue({
       data: [
         {
@@ -73,7 +73,8 @@ describe("listActiveEquipmentByType", () => {
       ],
       error: null,
     });
-    const mockEqStatus = jest.fn().mockReturnValue({ order: mockOrder });
+    const mockEqPending = jest.fn().mockReturnValue({ order: mockOrder });
+    const mockEqStatus = jest.fn().mockReturnValue({ eq: mockEqPending });
     const mockEqType = jest.fn().mockReturnValue({ eq: mockEqStatus });
     const mockSelect = jest.fn().mockReturnValue({ eq: mockEqType });
 
@@ -84,6 +85,7 @@ describe("listActiveEquipmentByType", () => {
     expect(supabase.from).toHaveBeenCalledWith("equipo");
     expect(mockEqType).toHaveBeenCalledWith("te_id", 10);
     expect(mockEqStatus).toHaveBeenCalledWith("eq_estado_registro", "activo");
+    expect(mockEqPending).toHaveBeenCalledWith("eq_pendiente_instalacion", false);
     expect(result).toEqual([
       {
         id: 1,
@@ -152,7 +154,7 @@ describe("createMaintenancePlan", () => {
 });
 
 describe("updateMaintenancePlan", () => {
-  it("calls editar_plan_mantenimiento RPC", async () => {
+  it("calls editar_plan_mantenimiento RPC without any equipo dates", async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({
       data: null,
       error: null,
@@ -165,7 +167,6 @@ describe("updateMaintenancePlan", () => {
       frequency: 60,
       estado: "inactivo",
       taskIds: [1],
-      equipments: [{ equipmentId: 10, lastMaintenanceDate: "2026-09-15" }],
     });
 
     expect(supabase.rpc).toHaveBeenCalledWith("editar_plan_mantenimiento", {
@@ -175,7 +176,7 @@ describe("updateMaintenancePlan", () => {
       p_frecuencia: 60,
       p_estado: "inactivo",
       p_tareas: [1],
-      p_equipos: [{ eq_id: 10, fecha_ult_mant: "2026-09-15" }],
+      p_equipos: [],
     });
   });
 });

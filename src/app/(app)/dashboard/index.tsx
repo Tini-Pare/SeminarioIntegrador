@@ -88,6 +88,7 @@ export default function DashboardScreen() {
       operational: byStatus("operational"),
       waiting: byStatus("waiting"),
       repair: byStatus("repair"),
+      pendingInstall: byStatus("pending_install"),
       reqNew: requests.filter((r) => r.status === "new").length,
     };
   }, [equipment, requests]);
@@ -118,6 +119,11 @@ export default function DashboardScreen() {
     { label: "Funcionando", value: stats.operational, color: colors.eqOperational.dot },
     { label: "En espera", value: stats.waiting, color: colors.eqWaiting.dot },
     { label: "En reparación", value: stats.repair, color: colors.eqRepair.dot },
+    {
+      label: "Pendiente de instalación",
+      value: stats.pendingInstall,
+      color: colors.eqPendingInstall.dot,
+    },
   ];
 
   return (

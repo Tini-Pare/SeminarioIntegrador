@@ -16,7 +16,7 @@ function mapEquipo(row: EquipoRow): Equipo {
     typeId: row.te_id,
     location: row.lugares?.lu_nombre_sector ?? "",
     locationId: row.lu_codigo,
-    status: row.eq_estado,
+    status: row.eq_pendiente_instalacion ? "pending_install" : row.eq_estado,
     active: row.eq_estado_registro === "activo",
     model: row.eq_modelo,
     installDate: row.eq_fecha_instalacion,
@@ -38,6 +38,8 @@ export async function listEquipment(): Promise<Equipo[]> {
 // based on active solicitudes/ordenes — allowing manual edits created a
 // second writer that clashed with the automatic calculation (equipment
 // showed "En reparación" with "Sin fallas activas" at the same time).
+// installDate is null on update while the equipo is pending installation
+// (equipo_pendiente_sin_fecha_chk, 0033): finishing the tarea sets it.
 type EquipmentInput = {
   code: string;
   name: string;
@@ -49,29 +51,41 @@ type EquipmentInput = {
   active?: boolean;
 };
 
+// An equipo is registered either already installed (with its date) or
+// pending installation, which also generates its installation OT for the
+// chosen técnico. Either way alta_equipo (0033) also handles the plans de
+// mantenimiento of its tipo, all in one transaction.
+export type NewEquipmentInput = Omit<EquipmentInput, "installDate" | "active"> &
+  (
+    | { pending: false; installDate: string }
+    | { pending: true; technicianId: string; priority: "low" | "medium" | "high" }
+  );
+
 // 23505 = Postgres unique_violation — eq_codigo has a UNIQUE constraint
 // (equipo_eq_codigo_key). Surface a friendly Spanish message instead of the
 // raw database error.
-export async function createEquipment(input: EquipmentInput): Promise<Equipo> {
-  const { data, error } = await supabase
-    .from("equipo")
-    .insert({
-      eq_codigo: input.code,
-      eq_nombre: input.name,
-      te_id: input.typeId,
-      lu_codigo: input.locationId,
-      eq_modelo: input.model,
-      eq_fecha_instalacion: input.installDate,
-    })
-    .select("*, lugares(*), tipos_de_equipos(*)")
-    .single();
+export async function createEquipment(
+  input: NewEquipmentInput,
+): Promise<{ equipmentId: number; orderId: number | null }> {
+  const { data, error } = await supabase.rpc("alta_equipo", {
+    p_codigo: input.code,
+    p_nombre: input.name,
+    p_te_id: input.typeId,
+    p_lu_codigo: input.locationId,
+    p_modelo: input.model,
+    p_pendiente: input.pending,
+    ...(input.pending
+      ? { p_tecnico: input.technicianId, p_prioridad: input.priority }
+      : { p_fecha_instalacion: input.installDate }),
+  });
   if (error) {
     if (error.code === "23505" || error.message.includes("equipo_eq_codigo_key")) {
       throw new Error("Ya existe un equipo con el código ingresado. Probá con otro código.");
     }
     throw new Error(error.message);
   }
-  return mapEquipo(data as EquipoRow);
+  const result = data as { eq_id: number; ot_id: number | null };
+  return { equipmentId: result.eq_id, orderId: result.ot_id };
 }
 
 export async function updateEquipment(id: number, changes: EquipmentInput): Promise<void> {

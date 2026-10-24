@@ -673,6 +673,11 @@ export type MyTask = {
   diagnosis: string | null;
   suspension: TaskSuspension | null;
   lastSuspension: PastTaskSuspension | null;
+  // ot_tipo_orden. Only a correctivo comes from a solicitud; on the others
+  // (instalación, preventivo) description is the OT's observación,
+  // createdAt its fecha de inicio, and reportedBy is empty.
+  orderType: string;
+  fromSolicitud: boolean;
 };
 
 type MyTaskRow = TareaRow & {
@@ -714,9 +719,9 @@ export async function listMyTasks(): Promise<MyTask[]> {
       startDate: row.taro_fecha_inicio,
       endDate: row.taro_fecha_fin,
       equipmentId: orden?.eq_id_equipo ?? 0,
-      description: sol?.sol_descripcion ?? "",
+      description: sol?.sol_descripcion ?? orden?.ot_observacion ?? "",
       reportedBy: sol?.p_legajo_solicitante ?? "",
-      createdAt: sol?.sol_fecha_hora ?? "",
+      createdAt: sol?.sol_fecha_hora ?? orden?.ot_fecha_inicio ?? "",
       photoUrl: photoUrls[0] ?? null,
       photoUrls,
       faultTypeName: orden?.fallo_por_orden?.[0]?.fallo?.fa_nombre ?? null,
@@ -724,6 +729,8 @@ export async function listMyTasks(): Promise<MyTask[]> {
       diagnosis: row.taro_diagnostico,
       suspension: mapSuspension(row),
       lastSuspension: mapLastSuspension(row),
+      orderType: orden?.ot_tipo_orden ?? "correctivo",
+      fromSolicitud: !!sol,
     };
   });
 }

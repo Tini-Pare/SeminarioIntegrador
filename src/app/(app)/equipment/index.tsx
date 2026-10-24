@@ -33,11 +33,13 @@ const STATUS_RANK: Record<Equipo["status"], number> = {
   operational: 0,
   waiting: 1,
   repair: 2,
+  pending_install: 3,
 };
 const STATUS_LABELS: Record<Equipo["status"], string> = {
   operational: "Funcionando",
   waiting: "En espera",
   repair: "En reparación",
+  pending_install: "Pendiente de instalación",
 };
 
 export default function EquipmentScreen() {
@@ -225,6 +227,7 @@ export default function EquipmentScreen() {
                 { value: "operational", label: STATUS_LABELS.operational },
                 { value: "waiting", label: STATUS_LABELS.waiting },
                 { value: "repair", label: STATUS_LABELS.repair },
+                { value: "pending_install", label: STATUS_LABELS.pending_install },
               ],
             },
             {

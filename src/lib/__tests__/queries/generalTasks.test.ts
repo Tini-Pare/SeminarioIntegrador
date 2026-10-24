@@ -14,7 +14,7 @@ import {
 import { supabase } from "../../supabase";
 
 describe("listGeneralTasks", () => {
-  it("returns tasks ordered by name", async () => {
+  it("returns tasks ordered by name, leaving system tareas out", async () => {
     const order = jest.fn().mockResolvedValue({
       data: [
         { tag_id_tarea: 1, tag_nombre_tarea: "Calibrar termostato", tag_descripcion_tarea: null },
@@ -26,20 +26,23 @@ describe("listGeneralTasks", () => {
       ],
       error: null,
     });
-    const select = jest.fn().mockReturnValue({ order });
+    const is = jest.fn().mockReturnValue({ order });
+    const select = jest.fn().mockReturnValue({ is });
     (supabase.from as jest.Mock).mockReturnValue({ select });
 
     const result = await listGeneralTasks();
 
     expect(supabase.from).toHaveBeenCalledWith("tareas_generales");
     expect(select).toHaveBeenCalledWith("*");
+    expect(is).toHaveBeenCalledWith("tag_codigo_sistema", null);
     expect(order).toHaveBeenCalledWith("tag_nombre_tarea");
     expect(result).toHaveLength(2);
   });
 
   it("throws when Supabase returns an error", async () => {
     const order = jest.fn().mockResolvedValue({ data: null, error: { message: "boom" } });
-    const select = jest.fn().mockReturnValue({ order });
+    const is = jest.fn().mockReturnValue({ order });
+    const select = jest.fn().mockReturnValue({ is });
     (supabase.from as jest.Mock).mockReturnValue({ select });
 
     await expect(listGeneralTasks()).rejects.toThrow("boom");
@@ -204,7 +207,7 @@ describe("searchGeneralTasks", () => {
     expect(result).toEqual([]);
   });
 
-  it("searches active general tasks with ilike and limits results", async () => {
+  it("searches active, non-system general tasks with ilike and limits results", async () => {
     const limitFn = jest.fn().mockResolvedValue({
       data: [
         {
@@ -217,7 +220,8 @@ describe("searchGeneralTasks", () => {
       error: null,
     });
     const or = jest.fn().mockReturnValue({ limit: limitFn });
-    const eq = jest.fn().mockReturnValue({ or });
+    const is = jest.fn().mockReturnValue({ or });
+    const eq = jest.fn().mockReturnValue({ is });
     const select = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ select });
 
@@ -225,6 +229,7 @@ describe("searchGeneralTasks", () => {
 
     expect(supabase.from).toHaveBeenCalledWith("tareas_generales");
     expect(eq).toHaveBeenCalledWith("tag_estado", "activo");
+    expect(is).toHaveBeenCalledWith("tag_codigo_sistema", null);
     expect(results).toHaveLength(1);
     expect(results[0].tag_nombre_tarea).toBe("Desobstrucción del desagüe");
   });

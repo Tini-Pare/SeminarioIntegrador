@@ -65,6 +65,10 @@ export function MaintenancePlanModal({
   const isView = mode === "view";
   const isEdit = mode === "edit";
   const isCreate = mode === "create";
+  // Each equipo's last maintenance is entered once, when the plan is
+  // created; after that only resolving the plan's preventive OTs updates
+  // it (0034), so editing shows it read-only, same as viewing.
+  const datesEditable = isCreate;
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -248,7 +252,10 @@ export function MaintenancePlanModal({
     if (typeId !== initialSnapshot.typeId) return true;
     if (estado !== initialSnapshot.estado) return true;
 
-    const currIds = selectedTasks.map((t) => t.tag_id_tarea).sort().join(",");
+    const currIds = selectedTasks
+      .map((t) => t.tag_id_tarea)
+      .sort()
+      .join(",");
     const initIds = initialSnapshot.taskIds.slice().sort().join(",");
     if (currIds !== initIds) return true;
 
@@ -256,7 +263,18 @@ export function MaintenancePlanModal({
       if (equipmentDates[eq.id] !== initialSnapshot.dates[eq.id]) return true;
     }
     return false;
-  }, [name, description, frequency, typeId, estado, selectedTasks, equipments, equipmentDates, initialSnapshot, isView]);
+  }, [
+    name,
+    description,
+    frequency,
+    typeId,
+    estado,
+    selectedTasks,
+    equipments,
+    equipmentDates,
+    initialSnapshot,
+    isView,
+  ]);
 
   function handleAttemptClose() {
     if (isDirty) {
@@ -274,16 +292,17 @@ export function MaintenancePlanModal({
   const isTasksValid = estado === "inactivo" || selectedTasks.length > 0;
 
   const areDatesValid = useMemo(() => {
-    if (equipments.length === 0) return true;
+    if (!datesEditable || equipments.length === 0) return true;
     for (const eq of equipments) {
       const d = equipmentDates[eq.id];
       if (!d || !isValidDateString(d)) return false;
       if (!isDateWithinMax(d, new Date())) return false;
     }
     return true;
-  }, [equipments, equipmentDates]);
+  }, [datesEditable, equipments, equipmentDates]);
 
-  const isFormValid = isNameValid && isTypeValid && isFrequencyValid && isTasksValid && areDatesValid;
+  const isFormValid =
+    isNameValid && isTypeValid && isFrequencyValid && isTasksValid && areDatesValid;
 
   async function handleSave() {
     if (!isFormValid) {
@@ -306,16 +325,18 @@ export function MaintenancePlanModal({
         frequency: freqNum,
         estado,
         taskIds: selectedTasks.map((t) => t.tag_id_tarea),
-        equipments: equipments.map((eq) => ({
-          equipmentId: eq.id,
-          lastMaintenanceDate: toDbDate(equipmentDates[eq.id] ?? getTodayDateString()),
-        })),
       };
 
       if (isEdit && planId) {
         await updateMaintenancePlan(planId, payload);
       } else {
-        await createMaintenancePlan(payload);
+        await createMaintenancePlan({
+          ...payload,
+          equipments: equipments.map((eq) => ({
+            equipmentId: eq.id,
+            lastMaintenanceDate: toDbDate(equipmentDates[eq.id] ?? getTodayDateString()),
+          })),
+        });
       }
 
       onSaved();
@@ -625,7 +646,7 @@ export function MaintenancePlanModal({
                     </View>
 
                     {/* Common date shortcut for multiple equipments */}
-                    {!isView && equipments.length > 1 && (
+                    {datesEditable && equipments.length > 1 && (
                       <View
                         style={[
                           styles.commonDateWrap,
@@ -647,7 +668,8 @@ export function MaintenancePlanModal({
                         <Pressable
                           style={[
                             styles.commonDateBtn,
-                            (!commonDate || !isValidDateString(commonDate)) && styles.commonDateBtnDisabled,
+                            (!commonDate || !isValidDateString(commonDate)) &&
+                              styles.commonDateBtnDisabled,
                           ]}
                           onPress={handleApplyCommonDate}
                           disabled={!commonDate || !isValidDateString(commonDate)}
@@ -684,9 +706,10 @@ export function MaintenancePlanModal({
                       {equipments.map((eq, idx) => {
                         const dateVal = equipmentDates[eq.id] ?? "";
                         const hasErr =
-                          !dateVal ||
-                          !isValidDateString(dateVal) ||
-                          !isDateWithinMax(dateVal, new Date());
+                          datesEditable &&
+                          (!dateVal ||
+                            !isValidDateString(dateVal) ||
+                            !isDateWithinMax(dateVal, new Date()));
                         const fieldKey = `eqDate-${eq.id}`;
                         const isOpen = openField === fieldKey;
 
@@ -717,9 +740,9 @@ export function MaintenancePlanModal({
                               </Text>
                             </View>
 
-                            {/* Último mantenimiento editable */}
+                            {/* Último mantenimiento: only editable when creating */}
                             <View style={styles.dateCol}>
-                              {isView ? (
+                              {!datesEditable ? (
                                 <Text style={styles.cellText}>{dateVal || "—"}</Text>
                               ) : (
                                 <CustomDatePicker
@@ -750,8 +773,9 @@ export function MaintenancePlanModal({
 
                   {/* 4. Nota informativa */}
                   <Text style={styles.infoNote}>
-                    Próximo vencimiento = último mantenimiento + frecuencia. La OT se genera
-                    automáticamente.
+                    {datesEditable
+                      ? "Próximo vencimiento = último mantenimiento + frecuencia. La OT se genera automáticamente."
+                      : "Próximo vencimiento = último mantenimiento + frecuencia. El último mantenimiento se actualiza solo al resolverse las OT de mantenimiento preventivo del plan."}
                   </Text>
                 </View>
 

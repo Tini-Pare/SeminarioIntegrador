@@ -81,6 +81,8 @@ const HISTORY_EVENT_LABEL: Record<string, string> = {
   Reanudada: "Tarea · Reanudada",
   "Tarea finalizada": "Tarea · Finalizada",
   Preventivo: "Mantenimiento · Preventivo",
+  // Logged by finalizar_tarea (0032) when the installation tarea finishes.
+  Instalación: "Equipo · Instalado",
 };
 
 function historyEventLabel(h: HistorialEntry): string {
@@ -157,6 +159,7 @@ export default function EquipmentDetail() {
     operational: { label: "Funcionando", ...colors.eqOperational },
     waiting: { label: "En espera", ...colors.eqWaiting },
     repair: { label: "En reparación", ...colors.eqRepair },
+    pending_install: { label: "Pendiente de instalación", ...colors.eqPendingInstall },
   };
 
   // Maps history type strings to theme palette (same colors as fault-status badges
@@ -175,6 +178,7 @@ export default function EquipmentDetail() {
     Resuelta: colors.histResuelta,
     Cerrada: colors.histResuelta,
     Preventivo: colors.histResuelta,
+    Instalación: colors.histResuelta,
   };
 
   const loadEquipmentData = useCallback(async () => {

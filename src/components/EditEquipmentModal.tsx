@@ -57,18 +57,25 @@ export function EditEquipmentModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
+  // Its installation date comes from finishing the installation tarea
+  // (0032), so it can't be set by hand until then.
+  const pendingInstall = equipment.status === "pending_install";
   const statusMeta =
     equipment.status === "operational"
       ? colors.eqOperational
       : equipment.status === "waiting"
         ? colors.eqWaiting
-        : colors.eqRepair;
+        : pendingInstall
+          ? colors.eqPendingInstall
+          : colors.eqRepair;
   const statusLabel =
     equipment.status === "operational"
       ? "Funcionando"
       : equipment.status === "waiting"
         ? "En espera"
-        : "En reparación";
+        : pendingInstall
+          ? "Pendiente de instalación"
+          : "En reparación";
 
   useEffect(() => {
     if (!visible) return;
@@ -98,16 +105,16 @@ export function EditEquipmentModal({
       !name.trim() ||
       typeId == null ||
       locationId == null ||
-      !installDate.trim()
+      (!pendingInstall && !installDate.trim())
     ) {
       setError("Todos los campos son obligatorios.");
       return;
     }
-    if (!isValidDateString(installDate.trim())) {
+    if (!pendingInstall && !isValidDateString(installDate.trim())) {
       setError("Ingresá una fecha de instalación válida (dd/mm/aaaa).");
       return;
     }
-    if (!isDateWithinMax(installDate.trim(), new Date())) {
+    if (!pendingInstall && !isDateWithinMax(installDate.trim(), new Date())) {
       setError("La fecha de instalación no puede ser posterior a hoy.");
       return;
     }
@@ -120,7 +127,7 @@ export function EditEquipmentModal({
         typeId,
         locationId,
         model: model.trim(),
-        installDate: toDbDate(installDate.trim()),
+        installDate: pendingInstall ? null : toDbDate(installDate.trim()),
         active: estado === "activo",
       });
       onSaved();
@@ -197,13 +204,20 @@ export function EditEquipmentModal({
           <View style={[styles.fieldRow, openField === "install" && styles.dateRowRaised]}>
             <View style={styles.field}>
               <Text style={styles.label}>Fecha de instalación</Text>
-              <CustomDatePicker
-                value={installDate}
-                onChange={setInstallDate}
-                open={openField === "install"}
-                onOpenChange={(o) => setOpenField(o ? "install" : null)}
-                maxDate={new Date()}
-              />
+
+              {pendingInstall ? (
+                <Text style={styles.statusNote}>
+                  Se completa sola cuando el técnico finaliza la tarea de instalación.
+                </Text>
+              ) : (
+                <CustomDatePicker
+                  value={installDate}
+                  onChange={setInstallDate}
+                  open={openField === "install"}
+                  onOpenChange={(o) => setOpenField(o ? "install" : null)}
+                  maxDate={new Date()}
+                />
+              )}
             </View>
           </View>
 
@@ -213,7 +227,11 @@ export function EditEquipmentModal({
               <Text style={[styles.statusBadgeText, { color: statusMeta.fg }]}>{statusLabel}</Text>
             </View>
 
-            <Text style={styles.statusNote}>Automático, según fallas activas</Text>
+            <Text style={styles.statusNote}>
+              {pendingInstall
+                ? "Hasta que se finalice su orden de instalación"
+                : "Automático, según fallas activas"}
+            </Text>
           </View>
 
           <Text style={styles.label}>Estado del registro</Text>
