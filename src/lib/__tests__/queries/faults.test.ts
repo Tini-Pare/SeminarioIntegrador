@@ -34,7 +34,7 @@ const SOLICITUD_SELECT =
   "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
 
 const WORK_ORDER_SELECT =
-  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*))";
+  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)), plan_mantenimiento(pm_nombre_plan)";
 
 beforeEach(() => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
@@ -558,6 +558,7 @@ describe("getWorkOrderById", () => {
         ot_tipo_orden: "preventivo",
         ot_observacion: "Plan mensual de heladeras",
         solicitudes: null,
+        plan_mantenimiento: { pm_nombre_plan: "Heladeras mensual" },
       },
       error: null,
     });
@@ -571,6 +572,7 @@ describe("getWorkOrderById", () => {
       expect.objectContaining({
         type: "preventivo",
         observation: "Plan mensual de heladeras",
+        plan_name: "Heladeras mensual",
         solicitud: null,
       }),
     );

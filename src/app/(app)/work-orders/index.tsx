@@ -39,6 +39,12 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 };
 const STATUS_RANK: Record<OrderStatus, number> = { assigned: 0, in_progress: 1, resolved: 2 };
 const PRIORITY_LABELS: Record<Priority, string> = { low: "Baja", medium: "Media", high: "Alta" };
+// ot_tipo_orden is free text in the DB; anything not listed here shows as is.
+const TYPE_LABELS: Record<string, string> = {
+  correctivo: "Correctivo",
+  preventivo: "Preventivo",
+  instalacion: "Instalación",
+};
 const PRIORITY_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2 };
 
 // Every orden_de_trabajo, whether it came from a solicitud or not —
@@ -53,6 +59,7 @@ export default function WorkOrdersScreen() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -125,15 +132,17 @@ export default function WorkOrdersScreen() {
         includesSearch(r.solicitud?.description ?? r.observation ?? "", q);
       const matchStatus = !statusFilter || r.status === statusFilter;
       const matchPriority = !priorityFilter || r.priority === priorityFilter;
-      return matchSearch && matchStatus && matchPriority;
+      const matchType = !typeFilter || r.type === typeFilter;
+      return matchSearch && matchStatus && matchPriority && matchType;
     });
-  }, [items, search, statusFilter, priorityFilter]);
+  }, [items, search, statusFilter, priorityFilter, typeFilter]);
 
   const { sorted, field, dir, toggle } = useTableSort<Item>(
     filtered,
     {
       numero: (r) => r.id,
       equipo: (r) => r.equipment.code,
+      tipo: (r) => TYPE_LABELS[r.type] ?? r.type,
       estado: (r) => STATUS_RANK[r.status],
       prioridad: (r) => PRIORITY_RANK[r.priority],
       inicio: (r) => r.start_date,
@@ -143,7 +152,7 @@ export default function WorkOrdersScreen() {
 
   const ordersPage = usePagination(
     sorted,
-    `${search}|${statusFilter}|${priorityFilter}|${field}|${dir}`,
+    `${search}|${statusFilter}|${priorityFilter}|${typeFilter}|${field}|${dir}`,
     8,
   );
 
@@ -181,6 +190,18 @@ export default function WorkOrdersScreen() {
               { value: "assigned", label: STATUS_LABELS.assigned },
               { value: "in_progress", label: STATUS_LABELS.in_progress },
               { value: "resolved", label: STATUS_LABELS.resolved },
+            ],
+          },
+          {
+            key: "tipo",
+            label: "Tipo",
+            value: typeFilter,
+            onChange: setTypeFilter,
+            options: [
+              { value: "", label: "Todos" },
+              { value: "correctivo", label: TYPE_LABELS.correctivo },
+              { value: "preventivo", label: TYPE_LABELS.preventivo },
+              { value: "instalacion", label: TYPE_LABELS.instalacion },
             ],
           },
           {
@@ -231,6 +252,15 @@ export default function WorkOrdersScreen() {
             />
 
             <SortHeaderCell
+              label="Tipo"
+              field="tipo"
+              activeField={field}
+              dir={dir}
+              onSort={toggle}
+              style={{ flex: 0.9 }}
+            />
+
+            <SortHeaderCell
               label="Estado"
               field="estado"
               activeField={field}
@@ -276,6 +306,10 @@ export default function WorkOrdersScreen() {
                       {item.equipment.name}
                     </Text>
                     <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
+                  </View>
+
+                  <View style={{ flex: 0.9, justifyContent: "center" }}>
+                    <Text style={styles.cellText}>{TYPE_LABELS[item.type] ?? item.type}</Text>
                   </View>
 
                   <View style={{ flex: 1, justifyContent: "center" }}>

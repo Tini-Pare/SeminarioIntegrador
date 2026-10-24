@@ -194,6 +194,10 @@ export function summarizeFaultHistory(faults: Solicitud[]): FaultHistorySummary 
   };
 }
 
+// author_id of the events the system writes on its own (hi_autor_id null,
+// e.g. the daily preventive OT generation — 0035); shown as "Sistema".
+export const SYSTEM_AUTHOR_ID = "system";
+
 export async function listHistoryByEquipment(equipmentId: number): Promise<HistorialEntry[]> {
   const { data, error } = await supabase
     .from("historial")
@@ -206,7 +210,7 @@ export async function listHistoryByEquipment(equipmentId: number): Promise<Histo
     equipment_id: row.eq_id_equipo,
     type: row.hi_tipo,
     note: row.hi_nota,
-    author_id: row.hi_autor_id,
+    author_id: row.hi_autor_id ?? SYSTEM_AUTHOR_ID,
     created_at: row.hi_fecha_hora,
   }));
 }

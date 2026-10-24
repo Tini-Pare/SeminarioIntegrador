@@ -98,7 +98,7 @@ describe("listActiveEquipmentByType", () => {
 });
 
 describe("createMaintenancePlan", () => {
-  it("calls crear_plan_mantenimiento RPC with formatted arguments", async () => {
+  it("calls crear_plan_mantenimiento RPC with formatted arguments and no equipo dates", async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({
       data: 42,
       error: null,
@@ -111,10 +111,6 @@ describe("createMaintenancePlan", () => {
       frequency: 90,
       estado: "activo" as const,
       taskIds: [1, 2],
-      equipments: [
-        { equipmentId: 10, lastMaintenanceDate: "2026-10-01" },
-        { equipmentId: 11, lastMaintenanceDate: "2026-10-05" },
-      ],
     };
 
     const newId = await createMaintenancePlan(input);
@@ -126,10 +122,7 @@ describe("createMaintenancePlan", () => {
       p_frecuencia: 90,
       p_estado: "activo",
       p_tareas: [1, 2],
-      p_equipos: [
-        { eq_id: 10, fecha_ult_mant: "2026-10-01" },
-        { eq_id: 11, fecha_ult_mant: "2026-10-05" },
-      ],
+      p_equipos: [],
     });
     expect(newId).toBe(42);
   });
@@ -147,7 +140,6 @@ describe("createMaintenancePlan", () => {
         frequency: 30,
         estado: "activo",
         taskIds: [],
-        equipments: [],
       }),
     ).rejects.toThrow("Un plan activo debe tener al menos una tarea prevista");
   });

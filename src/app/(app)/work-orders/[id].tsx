@@ -396,6 +396,10 @@ export default function WorkOrderDetail() {
           <View style={styles.metaGrid}>
             <MetaCell label="Tipo de orden" value={TYPE_LABELS[s.type] ?? s.type} colors={colors} />
 
+            {s.plan_name && (
+              <MetaCell label="Plan de mantenimiento" value={s.plan_name} colors={colors} />
+            )}
+
             {/* Only an OT generated from a solicitud has someone who
                 reported it; preventivo / instalación ones don't. */}
             {s.solicitud && (

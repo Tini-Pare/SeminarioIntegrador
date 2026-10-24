@@ -6,7 +6,9 @@ export type MaintenancePlanEquipmentRow = {
   equipmentCode: string;
   equipmentName: string;
   locationName: string;
-  lastMaintenanceDate: string; // YYYY-MM-DD
+  // YYYY-MM-DD; null until the equipo's first preventive OT of the plan is
+  // resolved (0035).
+  lastMaintenanceDate: string | null;
 };
 
 export type MaintenancePlanDetail = {
@@ -28,10 +30,6 @@ export type MaintenancePlanInput = {
   frequency: number;
   estado: "activo" | "inactivo";
   taskIds: number[];
-  equipments: {
-    equipmentId: number;
-    lastMaintenanceDate: string; // YYYY-MM-DD
-  }[];
 };
 
 export async function listMaintenancePlans(): Promise<PlanMantenimientoItem[]> {
@@ -87,7 +85,7 @@ export async function getMaintenancePlan(id: number): Promise<MaintenancePlanDet
     equipmentCode: row.equipo?.eq_codigo ?? "",
     equipmentName: row.equipo?.eq_nombre ?? "",
     locationName: row.equipo?.lugares?.lu_nombre_sector ?? "",
-    lastMaintenanceDate: row.me_fecha_ult_mant ?? "",
+    lastMaintenanceDate: row.me_fecha_ult_mant ?? null,
   }));
 
   const typeInfo = (plan as any).tipos_de_equipos;
@@ -135,6 +133,10 @@ export async function listActiveEquipmentByType(typeId: number): Promise<Equipme
   }));
 }
 
+// The plan's equipos (every installed active one of its tipo) are added by
+// crear_plan_mantenimiento itself, with no last maintenance yet, and an
+// active plan generates their preventive OTs right away (0035) — so no
+// dates are sent.
 export async function createMaintenancePlan(input: MaintenancePlanInput): Promise<number> {
   const { data, error } = await supabase.rpc("crear_plan_mantenimiento", {
     p_te_id: input.typeId,
@@ -143,10 +145,7 @@ export async function createMaintenancePlan(input: MaintenancePlanInput): Promis
     p_frecuencia: input.frequency,
     p_estado: input.estado,
     p_tareas: input.taskIds,
-    p_equipos: input.equipments.map((e) => ({
-      eq_id: e.equipmentId,
-      fecha_ult_mant: e.lastMaintenanceDate,
-    })),
+    p_equipos: [],
   });
 
   if (error) {
@@ -156,13 +155,12 @@ export async function createMaintenancePlan(input: MaintenancePlanInput): Promis
   return data as number;
 }
 
-// Editing a plan never touches its equipos' last maintenance dates: they're
-// entered once when the plan is created and from then on only resolving
-// the plan's preventive OTs moves them (0034 — editar_plan_mantenimiento
-// ignores p_equipos, so it's sent empty).
+// Editing a plan never touches its equipos' last maintenance dates: only
+// resolving the plan's preventive OTs moves them (0034/0035 —
+// editar_plan_mantenimiento ignores p_equipos, so it's sent empty).
 export async function updateMaintenancePlan(
   id: number,
-  input: Omit<MaintenancePlanInput, "equipments">,
+  input: MaintenancePlanInput,
 ): Promise<void> {
   const { error } = await supabase.rpc("editar_plan_mantenimiento", {
     p_pm_id: id,

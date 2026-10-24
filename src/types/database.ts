@@ -81,6 +81,10 @@ export type Database = {
         };
         Returns: { eq_id: number; ot_id: number | null };
       };
+      generar_ots_preventivas: {
+        Args: { p_pm_id?: number | null };
+        Returns: number;
+      };
       finalizar_tarea: {
         Args: {
           p_taro_id_tarea_orden: number;
@@ -568,7 +572,8 @@ export type Database = {
           eq_id_equipo: number;
           hi_tipo: string;
           hi_nota: string;
-          hi_autor_id: string;
+          // null on events written by the system itself (0035)
+          hi_autor_id: string | null;
           hi_fecha_hora: string;
         };
         Insert: {
@@ -576,7 +581,7 @@ export type Database = {
           eq_id_equipo: number;
           hi_tipo: string;
           hi_nota: string;
-          hi_autor_id: string;
+          hi_autor_id?: string | null;
           hi_fecha_hora?: string;
         };
         Update: {
@@ -927,7 +932,7 @@ export type Database = {
         Row: {
           pm_id_plan: number;
           eq_id_equipo: number;
-          me_fecha_ult_mant: string;
+          me_fecha_ult_mant: string | null;
         };
         Insert: {
           pm_id_plan: number;
@@ -1154,6 +1159,8 @@ export type WorkOrder = {
   end_date: string | null;
   planned_end_date: string | null;
   observation: string | null;
+  // The plan de mantenimiento that generated it (preventivo only, 0035).
+  plan_name: string | null;
   fault_type_name: string | null;
   tasks: SolicitudTask[];
   solicitud: {

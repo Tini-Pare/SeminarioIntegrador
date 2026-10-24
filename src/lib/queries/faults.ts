@@ -308,13 +308,14 @@ type WorkOrderWithDetail = OrdenWithTasks & {
         | "sol_foto_url"
       > & { solicitud_foto?: SolicitudFotoRow[] })
     | null;
+  plan_mantenimiento?: { pm_nombre_plan: string } | null;
 };
 
 // The OT screens' select: the orden_de_trabajo with its falla, its tareas,
-// and the solicitud it came from — if any (null on an OT generated without
-// one, e.g. preventivo).
+// the solicitud it came from — if any (null on an OT generated without
+// one, e.g. preventivo) — and, on a preventivo, the plan that generated it.
 export const WORK_ORDER_SELECT =
-  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*))";
+  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)), plan_mantenimiento(pm_nombre_plan)";
 
 export function mapWorkOrderRow(row: WorkOrderWithDetail): WorkOrder {
   const sol = row.solicitudes;
@@ -328,6 +329,7 @@ export function mapWorkOrderRow(row: WorkOrderWithDetail): WorkOrder {
     end_date: row.ot_fecha_fin,
     planned_end_date: row.ot_fecha_estimada_fin,
     observation: row.ot_observacion,
+    plan_name: row.plan_mantenimiento?.pm_nombre_plan ?? null,
     fault_type_name: row.fallo_por_orden?.[0]?.fallo?.fa_nombre ?? null,
     tasks: mapTasks(row.tareas_realizadas_orden),
     solicitud: sol

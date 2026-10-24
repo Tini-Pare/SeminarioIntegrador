@@ -21,6 +21,7 @@ import {
   isActiveFault,
   listFaultHistoryByEquipment,
   listHistoryByEquipment,
+  SYSTEM_AUTHOR_ID,
   summarizeFaultHistory,
 } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
@@ -192,7 +193,9 @@ export default function EquipmentDetail() {
     setEquipment(e);
     setFaults(f);
     setHistory(h);
-    setAuthorNames(new Map(profiles.map((p) => [p.id, p.name])));
+    setAuthorNames(
+      new Map([[SYSTEM_AUTHOR_ID, "Sistema"], ...profiles.map((p) => [p.id, p.name] as const)]),
+    );
   }, [id, equipoId]);
 
   useEffect(() => {

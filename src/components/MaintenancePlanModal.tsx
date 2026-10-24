@@ -13,13 +13,10 @@ import {
 import { AddPlanTaskModal } from "./AddPlanTaskModal";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
-  CustomDatePicker,
   fromDbDate,
   getTodayDateString,
-  isDateWithinMax,
   isValidDateString,
   parseDateString,
-  toDbDate,
 } from "./CustomDatePicker";
 import { WarningIcon } from "./icons";
 import { Select } from "./Select";
@@ -65,10 +62,9 @@ export function MaintenancePlanModal({
   const isView = mode === "view";
   const isEdit = mode === "edit";
   const isCreate = mode === "create";
-  // Each equipo's last maintenance is entered once, when the plan is
-  // created; after that only resolving the plan's preventive OTs updates
-  // it (0034), so editing shows it read-only, same as viewing.
-  const datesEditable = isCreate;
+  // Each equipo's last maintenance is never typed in: a new plan starts
+  // with none, and only resolving one of its preventive OTs sets it
+  // (0035), so the column is read-only in every mode.
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -90,7 +86,6 @@ export function MaintenancePlanModal({
   const [selectedTasks, setSelectedTasks] = useState<TareaGeneral[]>([]);
   const [equipments, setEquipments] = useState<EquipmentOptionForType[]>([]);
   const [equipmentDates, setEquipmentDates] = useState<Record<number, string>>({});
-  const [commonDate, setCommonDate] = useState("");
   const [openField, setOpenField] = useState<string | null>(null);
 
   // Secondary modal: Agregar tarea al plan
@@ -108,7 +103,6 @@ export function MaintenancePlanModal({
     typeId: number | null;
     estado: "activo" | "inactivo";
     taskIds: number[];
-    dates: Record<number, string>;
   }>({
     name: "",
     description: "",
@@ -116,7 +110,6 @@ export function MaintenancePlanModal({
     typeId: null,
     estado: "activo",
     taskIds: [],
-    dates: {},
   });
 
   // Load types and plan details
@@ -124,7 +117,6 @@ export function MaintenancePlanModal({
     if (!visible) return;
 
     setError(null);
-    setCommonDate("");
     setOpenField(null);
     setAddPlanTaskOpen(false);
     setShowDiscardConfirm(false);
@@ -166,7 +158,6 @@ export function MaintenancePlanModal({
             typeId: detail.typeId,
             estado: detail.estado,
             taskIds: detail.tasks.map((t) => t.tag_id_tarea),
-            dates: dateMap,
           });
         })
         .catch((err) => {
@@ -193,7 +184,6 @@ export function MaintenancePlanModal({
         typeId: null,
         estado: "activo",
         taskIds: [],
-        dates: {},
       });
     }
   }, [visible, planId]);
@@ -208,27 +198,13 @@ export function MaintenancePlanModal({
     listActiveEquipmentByType(newTypeId)
       .then((items) => {
         setEquipments(items);
-        const initialDates: Record<number, string> = {};
-        const todayStr = getTodayDateString();
-        items.forEach((item) => {
-          initialDates[item.id] = todayStr;
-        });
-        setEquipmentDates(initialDates);
+        // No last maintenance yet: they're due as soon as the plan exists.
+        setEquipmentDates({});
       })
       .catch(() => {
         setEquipments([]);
         setEquipmentDates({});
       });
-  }
-
-  // Apply common date shortcut to all equipment rows
-  function handleApplyCommonDate() {
-    if (!commonDate || !isValidDateString(commonDate)) return;
-    const updated: Record<number, string> = {};
-    equipments.forEach((eq) => {
-      updated[eq.id] = commonDate;
-    });
-    setEquipmentDates(updated);
   }
 
   // Remove task from local list
@@ -258,23 +234,8 @@ export function MaintenancePlanModal({
       .join(",");
     const initIds = initialSnapshot.taskIds.slice().sort().join(",");
     if (currIds !== initIds) return true;
-
-    for (const eq of equipments) {
-      if (equipmentDates[eq.id] !== initialSnapshot.dates[eq.id]) return true;
-    }
     return false;
-  }, [
-    name,
-    description,
-    frequency,
-    typeId,
-    estado,
-    selectedTasks,
-    equipments,
-    equipmentDates,
-    initialSnapshot,
-    isView,
-  ]);
+  }, [name, description, frequency, typeId, estado, selectedTasks, initialSnapshot, isView]);
 
   function handleAttemptClose() {
     if (isDirty) {
@@ -291,18 +252,7 @@ export function MaintenancePlanModal({
   const isTypeValid = typeId !== null;
   const isTasksValid = estado === "inactivo" || selectedTasks.length > 0;
 
-  const areDatesValid = useMemo(() => {
-    if (!datesEditable || equipments.length === 0) return true;
-    for (const eq of equipments) {
-      const d = equipmentDates[eq.id];
-      if (!d || !isValidDateString(d)) return false;
-      if (!isDateWithinMax(d, new Date())) return false;
-    }
-    return true;
-  }, [datesEditable, equipments, equipmentDates]);
-
-  const isFormValid =
-    isNameValid && isTypeValid && isFrequencyValid && isTasksValid && areDatesValid;
+  const isFormValid = isNameValid && isTypeValid && isFrequencyValid && isTasksValid;
 
   async function handleSave() {
     if (!isFormValid) {
@@ -310,7 +260,6 @@ export function MaintenancePlanModal({
       else if (!isTypeValid) setError("Seleccioná un tipo de equipo.");
       else if (!isFrequencyValid) setError("La frecuencia debe ser un número entero mayor a 0.");
       else if (!isTasksValid) setError("Un plan no puede quedar activo sin tareas previstas.");
-      else if (!areDatesValid) setError("Verificá que todas las fechas sean válidas y no futuras.");
       return;
     }
 
@@ -330,13 +279,7 @@ export function MaintenancePlanModal({
       if (isEdit && planId) {
         await updateMaintenancePlan(planId, payload);
       } else {
-        await createMaintenancePlan({
-          ...payload,
-          equipments: equipments.map((eq) => ({
-            equipmentId: eq.id,
-            lastMaintenanceDate: toDbDate(equipmentDates[eq.id] ?? getTodayDateString()),
-          })),
-        });
+        await createMaintenancePlan(payload);
       }
 
       onSaved();
@@ -644,40 +587,6 @@ export function MaintenancePlanModal({
                             : `Afecta a ${equipments.length} ${equipments.length === 1 ? "equipo" : "equipos"} del tipo ${typeName}`}
                       </Text>
                     </View>
-
-                    {/* Common date shortcut for multiple equipments */}
-                    {datesEditable && equipments.length > 1 && (
-                      <View
-                        style={[
-                          styles.commonDateWrap,
-                          openField === "commonDate" && styles.rowRaised,
-                        ]}
-                      >
-                        <View style={styles.commonDateInput}>
-                          <CustomDatePicker
-                            value={commonDate}
-                            onChange={setCommonDate}
-                            placeholder="Misma fecha (dd/mm/aaaa)"
-                            maxDate={new Date()}
-                            compact
-                            open={openField === "commonDate"}
-                            onOpenChange={(o) => setOpenField(o ? "commonDate" : null)}
-                          />
-                        </View>
-
-                        <Pressable
-                          style={[
-                            styles.commonDateBtn,
-                            (!commonDate || !isValidDateString(commonDate)) &&
-                              styles.commonDateBtnDisabled,
-                          ]}
-                          onPress={handleApplyCommonDate}
-                          disabled={!commonDate || !isValidDateString(commonDate)}
-                        >
-                          <Text style={styles.commonDateBtnText}>Aplicar a todos</Text>
-                        </Pressable>
-                      </View>
-                    )}
                   </View>
 
                   {typeId != null && equipments.length === 0 ? (
@@ -705,25 +614,18 @@ export function MaintenancePlanModal({
 
                       {equipments.map((eq, idx) => {
                         const dateVal = equipmentDates[eq.id] ?? "";
-                        const hasErr =
-                          datesEditable &&
-                          (!dateVal ||
-                            !isValidDateString(dateVal) ||
-                            !isDateWithinMax(dateVal, new Date()));
-                        const fieldKey = `eqDate-${eq.id}`;
-                        const isOpen = openField === fieldKey;
-
-                        const dueDateStr = addDaysToDateString(dateVal, freqNum);
+                        // No last maintenance = due now: an active plan
+                        // generates its OT as soon as it's saved.
+                        const dueDateStr = dateVal
+                          ? addDaysToDateString(dateVal, freqNum)
+                          : estado === "activo"
+                            ? "Inmediato"
+                            : "—";
 
                         return (
                           <View
                             key={eq.id}
-                            style={[
-                              styles.tableRow,
-                              idx % 2 === 1 && styles.rowAlt,
-                              isOpen && styles.equipRowRaised,
-                              { zIndex: equipments.length - idx + (isOpen ? 100 : 0) },
-                            ]}
+                            style={[styles.tableRow, idx % 2 === 1 && styles.rowAlt]}
                           >
                             {/* Equipo name + code */}
                             <View style={{ flex: 1.8, paddingRight: 8 }}>
@@ -740,25 +642,9 @@ export function MaintenancePlanModal({
                               </Text>
                             </View>
 
-                            {/* Último mantenimiento: only editable when creating */}
+                            {/* Último mantenimiento: set by its resolved preventive OTs */}
                             <View style={styles.dateCol}>
-                              {!datesEditable ? (
-                                <Text style={styles.cellText}>{dateVal || "—"}</Text>
-                              ) : (
-                                <CustomDatePicker
-                                  value={dateVal}
-                                  onChange={(val) => {
-                                    setEquipmentDates((prev) => ({ ...prev, [eq.id]: val }));
-                                    if (error) setError(null);
-                                  }}
-                                  placeholder="dd/mm/aaaa"
-                                  maxDate={new Date()}
-                                  hasError={hasErr}
-                                  compact
-                                  open={isOpen}
-                                  onOpenChange={(o) => setOpenField(o ? fieldKey : null)}
-                                />
-                              )}
+                              <Text style={styles.cellText}>{dateVal || "Sin registro"}</Text>
                             </View>
 
                             {/* Próximo vencimiento calculated live */}
@@ -773,9 +659,10 @@ export function MaintenancePlanModal({
 
                   {/* 4. Nota informativa */}
                   <Text style={styles.infoNote}>
-                    {datesEditable
-                      ? "Próximo vencimiento = último mantenimiento + frecuencia. La OT se genera automáticamente."
-                      : "Próximo vencimiento = último mantenimiento + frecuencia. El último mantenimiento se actualiza solo al resolverse las OT de mantenimiento preventivo del plan."}
+                    Próximo vencimiento = último mantenimiento + frecuencia. Al vencer, se genera
+                    sola la OT preventiva, asignada al técnico con menos tareas abiertas; al
+                    resolverse, actualiza el último mantenimiento del equipo. Un equipo sin registro
+                    genera su OT apenas el plan queda activo.
                   </Text>
                 </View>
 
@@ -1130,10 +1017,6 @@ function makeStyles(c: ThemeColors) {
     rowAlt: {
       backgroundColor: c.bgRowAlt,
     },
-    equipRowRaised: {
-      zIndex: 100,
-      elevation: 100,
-    },
     cellStrong: {
       fontWeight: "700",
       fontSize: 13.5,
@@ -1167,38 +1050,6 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     removeBtnText: {
-      fontSize: 12.5,
-      fontWeight: "600",
-      color: c.text,
-    },
-    commonDateWrap: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      position: "relative",
-      zIndex: 2,
-    },
-    rowRaised: {
-      zIndex: 100,
-      elevation: 100,
-    },
-    commonDateInput: {
-      width: 170,
-    },
-    commonDateBtn: {
-      paddingHorizontal: 12,
-      height: 36,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    commonDateBtnDisabled: {
-      opacity: 0.5,
-    },
-    commonDateBtnText: {
       fontSize: 12.5,
       fontWeight: "600",
       color: c.text,
