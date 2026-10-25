@@ -1,5 +1,5 @@
 import { Slot, router, usePathname } from "expo-router";
-import { useEffect, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -34,6 +34,8 @@ import {
 } from "../../components/icons";
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signOut } from "../../lib/auth";
+import { countAlerts } from "../../lib/queries/alerts";
+import { supabase } from "../../lib/supabase";
 import { useTheme } from "../../lib/ThemeContext";
 import type { Profile } from "../../types/database";
 
@@ -87,6 +89,31 @@ function BrandDot({ colors }: { colors: [string, string] }) {
   );
 }
 
+// The nav row that carries each role's alert count: a técnico's critical
+// tareas, on their queue. The admin's count isn't in the nav — it's the
+// bell on Inicio's alerts panel.
+const ALERT_BADGE_KEY: Partial<Record<Profile["role"], string>> = {
+  technician: "queue",
+};
+
+// Tables whose changes can add or clear an alert (see alerts.ts).
+const ALERT_TABLES = [
+  "repuestos",
+  "orden_de_trabajo",
+  "tareas_realizadas_orden",
+  "mantenimiento_equipo",
+  "plan_mantenimiento",
+];
+
+function AlertBadge({ count, color }: { count: number; color: string }) {
+  if (count <= 0) return null;
+  return (
+    <View style={[styles.alertBadge, { backgroundColor: color }]}>
+      <Text style={styles.alertBadgeText}>{count > 99 ? "99+" : count}</Text>
+    </View>
+  );
+}
+
 function initials(name?: string | null) {
   if (!name) return "?";
   return name
@@ -115,6 +142,7 @@ export default function AppLayout() {
   const navLayouts = useRef<Record<string, { y: number; height: number; parent?: string }>>({});
   // Only one sidebar group open at a time, so the list stays short.
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
     getProfile().then((p) => {
@@ -129,6 +157,38 @@ export default function AppLayout() {
 
   const role = profile?.role;
   const isWide = width >= BREAKPOINT.tablet;
+  const alertBadgeKey = role ? ALERT_BADGE_KEY[role] : undefined;
+
+  const refreshAlerts = useCallback(() => {
+    if (!role || !ALERT_BADGE_KEY[role]) return;
+    // A failed count just leaves the last one showing; the screens
+    // themselves surface load errors.
+    countAlerts(role)
+      .then(setAlertCount)
+      .catch(() => {});
+  }, [role]);
+
+  // Recounted on every navigation (acting on an alert usually means
+  // visiting another screen) and live on any change that can affect it.
+  useEffect(() => {
+    refreshAlerts();
+  }, [refreshAlerts, pathname]);
+
+  useEffect(() => {
+    if (!role || !ALERT_BADGE_KEY[role]) return;
+    let channel = supabase.channel(`nav-alerts-${Math.random().toString(36).slice(2)}`);
+    for (const table of ALERT_TABLES) {
+      channel = channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table },
+        refreshAlerts,
+      );
+    }
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [role, refreshAlerts]);
 
   const equipmentItem: NavItem = {
     key: "equipment",
@@ -323,6 +383,10 @@ export default function AppLayout() {
         >
           {item.label}
         </Text>
+
+        {item.key === alertBadgeKey && (
+          <AlertBadge count={alertCount} color={colors.urgencyHigh.accent} />
+        )}
       </Pressable>
     );
   }
@@ -561,7 +625,15 @@ export default function AppLayout() {
                 if (!(group && active)) router.push(href as never);
               }}
             >
-              <entry.Icon size={19} color={active ? colors.accent : colors.textMuted} />
+              <View>
+                <entry.Icon size={19} color={active ? colors.accent : colors.textMuted} />
+
+                {entry.key === alertBadgeKey && alertCount > 0 && (
+                  <View style={styles.bottomBadgeAnchor}>
+                    <AlertBadge count={alertCount} color={colors.urgencyHigh.accent} />
+                  </View>
+                )}
+              </View>
               <Text
                 style={[
                   styles.bottomItemText,
@@ -662,6 +734,17 @@ const styles = StyleSheet.create({
   bottomBar: { flexDirection: "row", borderTopWidth: 1 },
   bottomItem: { flex: 1, alignItems: "center", gap: 3, paddingVertical: 12 },
   bottomItemText: { fontSize: 11.5, fontWeight: "500" },
+  alertBadge: {
+    marginLeft: "auto",
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  alertBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  bottomBadgeAnchor: { position: "absolute", top: -8, left: 12 },
   elevated: { zIndex: 50 },
   backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 40 },
   menuAnchorUp: { position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: 8 },

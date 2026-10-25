@@ -19,6 +19,7 @@ import {
   type ConsumedPart,
   type MyTask,
 } from "../../../lib/queries/faults";
+import { isCriticalTask } from "../../../lib/queries/alerts";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
@@ -293,6 +294,11 @@ export default function QueueScreen() {
   // listed tareas; finished ones are history, not work the técnico has.
   const pendingCount = visibleItems.filter((t) => !t.endDate).length;
 
+  // SCRUM-59: unfinished tareas on an OT the admin gave prioridad Alta —
+  // counted over every tarea, not just the filtered ones, so the warning
+  // can't be hidden by a filter.
+  const criticalItems = useMemo(() => items.filter(isCriticalTask), [items]);
+
   const priorityColors: Record<Priority, { bg: string; fg: string }> = {
     low: colors.urgencyLow,
     medium: colors.urgencyMedium,
@@ -333,6 +339,43 @@ export default function QueueScreen() {
         </View>
 
         {error && <Text style={styles.error}>{error}</Text>}
+
+        {criticalItems.length > 0 && (
+          <View style={styles.criticalBanner}>
+            <View style={styles.criticalHeader}>
+              <WarningIcon size={18} color={colors.urgencyHigh.fg} />
+
+              <Text style={styles.criticalTitle}>
+                {criticalItems.length === 1
+                  ? "Tenés 1 falla crítica para atender con prioridad"
+                  : `Tenés ${criticalItems.length} fallas críticas para atender con prioridad`}
+              </Text>
+            </View>
+
+            {criticalItems.slice(0, 5).map((item) => (
+              <Text key={item.taskRowId} style={styles.criticalRow}>
+                {withSiglas(formatOrderNumber(item.orderId))} · {item.equipment.name} ·{" "}
+                {item.taskName} ({taskStatusLabel(item).toLowerCase()})
+              </Text>
+            ))}
+
+            {criticalItems.length > 5 && (
+              <Text style={styles.criticalRow}>y {criticalItems.length - 5} más</Text>
+            )}
+
+            {priorityFilter !== "high" && (
+              <Pressable
+                style={styles.criticalButton}
+                onPress={() => {
+                  setPriorityFilter("high");
+                  setStatusFilter("all");
+                }}
+              >
+                <Text style={styles.criticalButtonText}>Ver solo prioridad alta</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
 
         <TableFilterBar
           filters={[
@@ -410,8 +453,15 @@ export default function QueueScreen() {
             const label = actionLabel(item);
             const prio = priorityColors[item.priority];
             const locColor = locationColors.get(item.equipment.location) ?? "#6a7b62";
+            const critical = isCriticalTask(item);
             return (
-              <View key={item.taskRowId} style={styles.card}>
+              <View
+                key={item.taskRowId}
+                style={[
+                  styles.card,
+                  critical && [styles.cardCritical, { borderLeftColor: colors.urgencyHigh.accent }],
+                ]}
+              >
                 <View style={styles.cardTop}>
                   <View style={styles.cardIdentity}>
                     {item.photoUrl ? (
@@ -466,6 +516,14 @@ export default function QueueScreen() {
                             Prioridad {PRIORITY_LABELS[item.priority]}
                           </Text>
                         </View>
+
+                        {critical && (
+                          <View
+                            style={[styles.badge, { backgroundColor: colors.urgencyHigh.accent }]}
+                          >
+                            <Text style={[styles.badgeText, { color: "#fff" }]}>Falla crítica</Text>
+                          </View>
+                        )}
                       </View>
 
                       {item.faultTypeName && (
@@ -711,6 +769,28 @@ function makeStyles(c: ThemeColors) {
       padding: 16,
       marginBottom: 12,
     },
+    cardCritical: { borderLeftWidth: 4 },
+    criticalBanner: {
+      backgroundColor: c.urgencyHigh.bg,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 16,
+      gap: 4,
+    },
+    criticalHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+    criticalTitle: { flexShrink: 1, fontSize: 14, fontWeight: "700", color: c.urgencyHigh.fg },
+    criticalRow: { fontSize: 13, color: c.text, lineHeight: 19 },
+    criticalButton: {
+      alignSelf: "flex-start",
+      marginTop: 8,
+      paddingHorizontal: 14,
+      height: 34,
+      borderRadius: 8,
+      backgroundColor: c.urgencyHigh.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    criticalButtonText: { color: "#fff", fontSize: 13, fontWeight: "600" },
     cardTop: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: 12 },
     cardIdentity: { flex: 1, minWidth: 240, flexDirection: "row", gap: 12 },
     cardMain: { flex: 1, minWidth: 0, gap: 6 },

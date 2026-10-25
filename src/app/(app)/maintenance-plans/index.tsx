@@ -17,6 +17,7 @@ import { TableFilterBar } from "../../../components/TableFilterBar";
 import { WarningIcon } from "../../../components/icons";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
+import { listPreventiveAlerts, preventiveDueLabel } from "../../../lib/queries/alerts";
 import {
   deactivateMaintenancePlan,
   deleteMaintenancePlan,
@@ -29,10 +30,11 @@ import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
-import type { PlanMantenimientoItem, Profile } from "../../../types/database";
+import type { AlertaPreventiva, PlanMantenimientoItem, Profile } from "../../../types/database";
 
 export default function MaintenancePlansScreen() {
   const [plans, setPlans] = useState<PlanMantenimientoItem[]>([]);
+  const [alerts, setAlerts] = useState<AlertaPreventiva[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -64,9 +66,10 @@ export default function MaintenancePlansScreen() {
 
   function reload() {
     if (!hasLoadedOnce.current) setLoading(true);
-    listMaintenancePlans()
-      .then((data) => {
+    Promise.all([listMaintenancePlans(), listPreventiveAlerts()])
+      .then(([data, alertList]) => {
         setPlans(data);
+        setAlerts(alertList);
         hasLoadedOnce.current = true;
       })
       .catch((e) => setError(e.message))
@@ -135,6 +138,11 @@ export default function MaintenancePlansScreen() {
     },
     "plan",
   );
+
+  // SCRUM-44: how many equipos are already overdue vs. coming up, for the
+  // banner above the table.
+  const overdueCount = alerts.filter((a) => a.dias_restantes <= 0).length;
+  const upcomingCount = alerts.length - overdueCount;
 
   // Pagination (8 items per page)
   const { pageItems, page, pageCount, setPage } = usePagination(
@@ -271,6 +279,36 @@ export default function MaintenancePlansScreen() {
           </View>
         )}
 
+        {alerts.length > 0 && (
+          <View style={styles.alertBanner}>
+            <View style={styles.alertBannerHeader}>
+              <WarningIcon size={16} color={colors.eqWaiting.fg} />
+
+              <Text style={styles.alertBannerTitle}>
+                {[
+                  overdueCount > 0 &&
+                    `${overdueCount} ${overdueCount === 1 ? "equipo vencido" : "equipos vencidos"}`,
+                  upcomingCount > 0 &&
+                    `${upcomingCount} ${upcomingCount === 1 ? "equipo" : "equipos"} por vencer`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Text>
+            </View>
+
+            {alerts.slice(0, 5).map((a) => (
+              <Text key={`${a.pm_id_plan}-${a.eq_id_equipo}`} style={styles.alertBannerRow}>
+                {a.eq_codigo} {a.eq_nombre} · {a.pm_nombre_plan} —{" "}
+                {preventiveDueLabel(a.dias_restantes).toLowerCase()}
+              </Text>
+            ))}
+
+            {alerts.length > 5 && (
+              <Text style={styles.alertBannerRow}>y {alerts.length - 5} más</Text>
+            )}
+          </View>
+        )}
+
         {/* Filter bar */}
         <TableFilterBar
           searchValue={search}
@@ -385,12 +423,7 @@ export default function MaintenancePlansScreen() {
             ))}
 
             {pageCount > 1 && (
-              <TablePagination
-                page={page}
-                pageCount={pageCount}
-                onPage={setPage}
-                styles={styles}
-              />
+              <TablePagination page={page} pageCount={pageCount} onPage={setPage} styles={styles} />
             )}
           </View>
         ) : (
@@ -420,7 +453,9 @@ export default function MaintenancePlansScreen() {
                   <View style={styles.cardMetaItem}>
                     <Text style={styles.cardMetaLabel}>FRECUENCIA</Text>
 
-                    <Text style={styles.cardMetaVal}>Cada {p.pm_frecuencia} días</Text>
+                    <Text style={styles.cardMetaVal}>
+                      Cada {p.pm_frecuencia} días · aviso {p.pm_dias_aviso} antes
+                    </Text>
                   </View>
 
                   <View style={styles.cardMetaItem}>
@@ -509,11 +544,7 @@ export default function MaintenancePlansScreen() {
                   disabled={deleting}
                 >
                   <Text style={styles.confirmAcceptText}>
-                    {deleting
-                      ? "Procesando…"
-                      : showDeactivatePrompt
-                        ? "Dar de baja"
-                        : "Eliminar"}
+                    {deleting ? "Procesando…" : showDeactivatePrompt ? "Dar de baja" : "Eliminar"}
                   </Text>
                 </Pressable>
               </View>
@@ -537,10 +568,7 @@ function ActiveBadge({
   return (
     <View style={styles.statusChip}>
       <View
-        style={[
-          styles.statusDot,
-          { backgroundColor: active ? colors.success : colors.textMuted },
-        ]}
+        style={[styles.statusDot, { backgroundColor: active ? colors.success : colors.textMuted }]}
       />
 
       <Text style={[styles.statusText, { color: active ? colors.success : colors.textMuted }]}>
@@ -570,12 +598,7 @@ function PlanTableRow({
   styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <View
-      style={[
-        styles.tableRow,
-        index % 2 === 1 ? styles.rowAlt : styles.rowNormal,
-      ]}
-    >
+    <View style={[styles.tableRow, index % 2 === 1 ? styles.rowAlt : styles.rowNormal]}>
       {/* Plan Column */}
       <View style={{ flex: 2.2 }}>
         <Text style={styles.planNameText} numberOfLines={1}>
@@ -599,6 +622,8 @@ function PlanTableRow({
       {/* Frecuencia */}
       <View style={{ flex: 1.2 }}>
         <Text style={styles.cellText}>Cada {p.pm_frecuencia} días</Text>
+
+        <Text style={styles.planDescText}>Aviso {p.pm_dias_aviso} días antes</Text>
       </View>
 
       {/* Tareas */}
@@ -796,6 +821,17 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 8,
       fontSize: 13,
     },
+    alertBanner: {
+      backgroundColor: c.eqWaiting.bg,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 14,
+      gap: 3,
+    },
+    alertBannerHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
+    alertBannerTitle: { color: c.eqWaiting.fg, fontSize: 13.5, fontWeight: "700" },
+    alertBannerRow: { color: c.text, fontSize: 12.5, lineHeight: 18 },
     successBanner: {
       flexDirection: "row",
       justifyContent: "space-between",

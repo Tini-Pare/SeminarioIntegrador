@@ -13,14 +13,28 @@ import {
 import { RequestList } from "../../../components/RequestList";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { StatusBarChart } from "../../../components/StatusBarChart";
+import { BellIcon } from "../../../components/icons";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
+import {
+  listLowStockParts,
+  listPreventiveAlerts,
+  preventiveDueLabel,
+} from "../../../lib/queries/alerts";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listAllRequests, summarizeTechnicians } from "../../../lib/queries/faults";
 import { listProfiles } from "../../../lib/queries/profiles";
+import { stockStatus } from "../../../lib/queries/spareParts";
+import { formatOrderNumber } from "../../../lib/orderNumber";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Equipo, Profile, Solicitud } from "../../../types/database";
+import type {
+  AlertaPreventiva,
+  Equipo,
+  Profile,
+  Repuesto,
+  Solicitud,
+} from "../../../types/database";
 
 type RequestItem = Solicitud & {
   equipment: Pick<Equipo, "code" | "name">;
@@ -33,11 +47,16 @@ type RequestItem = Solicitud & {
 // top-right corner (not center-cropped) to keep it visible on narrow screens.
 const HERO_BG_ASPECT_RATIO = 1516 / 464;
 
+// Rows shown per alert list before "y N más".
+const ALERTS_PREVIEW = 5;
+
 export default function DashboardScreen() {
   const [role, setRole] = useState<Profile["role"] | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState<Equipo[]>([]);
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [preventiveAlerts, setPreventiveAlerts] = useState<AlertaPreventiva[]>([]);
+  const [stockAlerts, setStockAlerts] = useState<Repuesto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [heroSize, setHeroSize] = useState({ width: 0, height: 0 });
   const { width } = useWindowDimensions();
@@ -52,11 +71,15 @@ export default function DashboardScreen() {
       setRole(profile?.role ?? null);
       if (profile?.role !== "admin") return;
 
-      const [faults, equip, profiles] = await Promise.all([
+      const [faults, equip, profiles, preventive, lowStock] = await Promise.all([
         listAllRequests(),
         listEquipment(),
         listProfiles(),
+        listPreventiveAlerts(),
+        listLowStockParts(),
       ]);
+      setPreventiveAlerts(preventive);
+      setStockAlerts(lowStock);
       const equipmentById = new Map(equip.map((e) => [e.id, e]));
       const profileById = new Map(profiles.map((p) => [p.id, p]));
       setEquipment(equip);
@@ -114,6 +137,8 @@ export default function DashboardScreen() {
 
   // Inicio is an admin overview; other roles start on the equipment list.
   if (role !== "admin") return <Redirect href="/equipment" />;
+
+  const alertCount = preventiveAlerts.length + stockAlerts.length;
 
   const equipmentBars = [
     { label: "Funcionando", value: stats.operational, color: colors.eqOperational.dot },
@@ -176,6 +201,126 @@ export default function DashboardScreen() {
 
       <StatusBarChart title="Equipos por estado" data={equipmentBars} totalLabel="en total" />
 
+      {/* SCRUM-43/44: what needs acting on before it becomes a problem. */}
+      <View style={[styles.panel, styles.alertsPanel]}>
+        <View style={[styles.panelHeader, styles.alertsHeader]}>
+          <View style={styles.bellWrap}>
+            <BellIcon
+              size={20}
+              color={alertCount > 0 ? colors.urgencyHigh.accent : colors.textMuted}
+            />
+
+            {alertCount > 0 && (
+              <View style={[styles.bellBadge, { backgroundColor: colors.urgencyHigh.accent }]}>
+                <Text style={styles.bellBadgeText}>{alertCount > 99 ? "99+" : alertCount}</Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.panelTitle}>Alertas</Text>
+        </View>
+
+        <View style={isWide ? styles.columns : styles.alertsStack}>
+          <View style={styles.column}>
+            <View style={styles.alertsSubHeader}>
+              <Text style={styles.alertsSubTitle}>Mantenimiento preventivo</Text>
+
+              <Pressable onPress={() => router.push("/maintenance-plans")}>
+                <Text style={styles.panelLink}>Ver planes</Text>
+              </Pressable>
+            </View>
+
+            {preventiveAlerts.length === 0 ? (
+              <Text style={styles.panelEmpty}>No hay mantenimientos próximos a vencer.</Text>
+            ) : (
+              preventiveAlerts.slice(0, ALERTS_PREVIEW).map((a) => {
+                const tone = a.dias_restantes <= 0 ? colors.urgencyHigh : colors.urgencyMedium;
+                return (
+                  <Pressable
+                    key={`${a.pm_id_plan}-${a.eq_id_equipo}`}
+                    style={styles.attentionRow}
+                    onPress={() =>
+                      router.push(
+                        a.ot_id_orden ? `/work-orders/${a.ot_id_orden}` : "/maintenance-plans",
+                      )
+                    }
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.attentionName} numberOfLines={1}>
+                        {a.eq_nombre}
+                      </Text>
+
+                      <Text style={styles.attentionMeta} numberOfLines={1}>
+                        {a.eq_codigo} · {a.pm_nombre_plan}
+                        {a.ot_id_orden ? ` · ${formatOrderNumber(a.ot_id_orden)}` : ""}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.alertBadge, { backgroundColor: tone.bg }]}>
+                      <Text style={[styles.alertBadgeText, { color: tone.fg }]}>
+                        {preventiveDueLabel(a.dias_restantes)}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
+
+            {preventiveAlerts.length > ALERTS_PREVIEW && (
+              <Text style={styles.alertsMore}>
+                y {preventiveAlerts.length - ALERTS_PREVIEW} más
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.column}>
+            <View style={styles.alertsSubHeader}>
+              <Text style={styles.alertsSubTitle}>Stock mínimo de repuestos</Text>
+
+              <Pressable onPress={() => router.push("/spare-parts")}>
+                <Text style={styles.panelLink}>Ver repuestos</Text>
+              </Pressable>
+            </View>
+
+            {stockAlerts.length === 0 ? (
+              <Text style={styles.panelEmpty}>Todos los repuestos están sobre su mínimo.</Text>
+            ) : (
+              stockAlerts.slice(0, ALERTS_PREVIEW).map((p) => {
+                const empty = stockStatus(p) === "sin_stock";
+                const tone = empty ? colors.urgencyHigh : colors.urgencyMedium;
+                return (
+                  <Pressable
+                    key={p.rep_id}
+                    style={styles.attentionRow}
+                    onPress={() => router.push("/spare-parts")}
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.attentionName} numberOfLines={1}>
+                        {p.rep_nombre}
+                      </Text>
+
+                      <Text style={styles.attentionMeta} numberOfLines={1}>
+                        Stock {p.rep_cantidad_actual} · Mín. {p.rep_stock_minimo}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.alertBadge, { backgroundColor: tone.bg }]}>
+                      <Text style={[styles.alertBadgeText, { color: tone.fg }]}>
+                        {empty ? "Sin stock" : "Stock bajo"}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
+
+            {stockAlerts.length > ALERTS_PREVIEW && (
+              <Text style={styles.alertsMore}>y {stockAlerts.length - ALERTS_PREVIEW} más</Text>
+            )}
+          </View>
+        </View>
+      </View>
+
       <View style={isWide ? styles.columns : undefined}>
         <View style={styles.column}>
           <View style={styles.panel}>
@@ -221,14 +366,6 @@ export default function DashboardScreen() {
             </View>
 
             <RequestList items={recentRequests} />
-          </View>
-
-          <View style={styles.placeholderPanel}>
-            <Text style={styles.panelTitle}>Plan de la semana</Text>
-            <Text style={styles.placeholderText}>
-              Los planes de mantenimiento preventivo y el calendario semanal llegan en una próxima
-              entrega.
-            </Text>
           </View>
         </View>
       </View>
@@ -322,15 +459,38 @@ function makeStyles(c: ThemeColors) {
     },
     attentionName: { fontSize: 14.5, fontWeight: "600", color: c.text },
     attentionMeta: { fontSize: 13, color: c.textMuted, marginTop: 2 },
-    placeholderPanel: {
-      backgroundColor: c.bgNested,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderStyle: "dashed",
-      borderRadius: 14,
-      padding: 16,
+    alertsPanel: { marginBottom: 20 },
+    alertsStack: { gap: 16 },
+    alertsSubHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       gap: 8,
+      marginBottom: 4,
     },
-    placeholderText: { fontSize: 13.5, color: c.textMuted, lineHeight: 19 },
+    alertsSubTitle: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: c.textMuted,
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
+    alertsMore: { fontSize: 12.5, color: c.textMuted, paddingTop: 8 },
+    alertsHeader: { justifyContent: "flex-start", gap: 12 },
+    bellWrap: { position: "relative", padding: 2 },
+    bellBadge: {
+      position: "absolute",
+      top: -6,
+      right: -9,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 5,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    bellBadgeText: { color: "#fff", fontSize: 10.5, fontWeight: "700" },
+    alertBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
+    alertBadgeText: { fontSize: 12, fontWeight: "600" },
   });
 }

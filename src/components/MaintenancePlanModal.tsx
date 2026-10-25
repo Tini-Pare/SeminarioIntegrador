@@ -38,6 +38,9 @@ import type { TareaGeneral } from "../types/database";
 
 type ModalMode = "create" | "edit" | "view";
 
+// What a new plan starts with; matches pm_dias_aviso's column default.
+const DEFAULT_WARNING_DAYS = "7";
+
 // Calculate next due date in DD/MM/YYYY format: entered date + frequency in days
 function addDaysToDateString(dateStr: string | undefined, days: number): string {
   if (!dateStr || !isValidDateString(dateStr) || !Number.isInteger(days) || days <= 0) {
@@ -80,6 +83,7 @@ export function MaintenancePlanModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [frequency, setFrequency] = useState("");
+  const [warningDays, setWarningDays] = useState(DEFAULT_WARNING_DAYS);
   const [typeId, setTypeId] = useState<number | null>(null);
   const [typeName, setTypeName] = useState("");
   const [estado, setEstado] = useState<"activo" | "inactivo">("activo");
@@ -106,6 +110,7 @@ export function MaintenancePlanModal({
     name: string;
     description: string;
     frequency: string;
+    warningDays: string;
     typeId: number | null;
     estado: "activo" | "inactivo";
     taskIds: number[];
@@ -113,6 +118,7 @@ export function MaintenancePlanModal({
     name: "",
     description: "",
     frequency: "",
+    warningDays: DEFAULT_WARNING_DAYS,
     typeId: null,
     estado: "activo",
     taskIds: [],
@@ -138,6 +144,7 @@ export function MaintenancePlanModal({
           setName(detail.name);
           setDescription(detail.description ?? "");
           setFrequency(String(detail.frequency));
+          setWarningDays(String(detail.warningDays));
           setTypeId(detail.typeId);
           setTypeName(detail.typeName);
           setEstado(detail.estado);
@@ -161,6 +168,7 @@ export function MaintenancePlanModal({
             name: detail.name,
             description: detail.description ?? "",
             frequency: String(detail.frequency),
+            warningDays: String(detail.warningDays),
             typeId: detail.typeId,
             estado: detail.estado,
             taskIds: detail.tasks.map((t) => t.tag_id_tarea),
@@ -175,6 +183,7 @@ export function MaintenancePlanModal({
       setName("");
       setDescription("");
       setFrequency("");
+      setWarningDays(DEFAULT_WARNING_DAYS);
       setTypeId(null);
       setTypeName("");
       setEstado("activo");
@@ -187,6 +196,7 @@ export function MaintenancePlanModal({
         name: "",
         description: "",
         frequency: "",
+        warningDays: DEFAULT_WARNING_DAYS,
         typeId: null,
         estado: "activo",
         taskIds: [],
@@ -231,6 +241,7 @@ export function MaintenancePlanModal({
     if (name !== initialSnapshot.name) return true;
     if (description !== initialSnapshot.description) return true;
     if (frequency !== initialSnapshot.frequency) return true;
+    if (warningDays !== initialSnapshot.warningDays) return true;
     if (typeId !== initialSnapshot.typeId) return true;
     if (estado !== initialSnapshot.estado) return true;
 
@@ -241,7 +252,17 @@ export function MaintenancePlanModal({
     const initIds = initialSnapshot.taskIds.slice().sort().join(",");
     if (currIds !== initIds) return true;
     return false;
-  }, [name, description, frequency, typeId, estado, selectedTasks, initialSnapshot, isView]);
+  }, [
+    name,
+    description,
+    frequency,
+    warningDays,
+    typeId,
+    estado,
+    selectedTasks,
+    initialSnapshot,
+    isView,
+  ]);
 
   function handleAttemptClose() {
     if (isDirty) {
@@ -254,19 +275,32 @@ export function MaintenancePlanModal({
   // Form Validation
   const freqNum = parseInt(frequency.trim(), 10);
   const isFrequencyValid = Number.isInteger(freqNum) && freqNum > 0 && freqNum <= 999;
+  // Shorter than the frecuencia, or the plan would be alerting the whole
+  // cycle (same rule as the RPCs, 0036). Only checked once the frecuencia
+  // itself is valid.
+  const warningNum = parseInt(warningDays.trim(), 10);
+  const isWarningValid =
+    Number.isInteger(warningNum) && warningNum >= 0 && (!isFrequencyValid || warningNum < freqNum);
   const isNameValid = name.trim().length > 0;
   const isTypeValid = typeId !== null;
   const isDescriptionValid = description.trim().length > 0;
   const isTasksValid = estado === "inactivo" || selectedTasks.length > 0;
 
   const isFormValid =
-    isNameValid && isTypeValid && isFrequencyValid && isDescriptionValid && isTasksValid;
+    isNameValid &&
+    isTypeValid &&
+    isFrequencyValid &&
+    isWarningValid &&
+    isDescriptionValid &&
+    isTasksValid;
 
   async function handleSave() {
     if (!isFormValid) {
       if (!isNameValid) setError("Ingresá un nombre para el plan.");
       else if (!isTypeValid) setError("Seleccioná un tipo de equipo.");
-      else if (!isFrequencyValid) setError("La frecuencia debe ser un número entero entre 1 y 999.");
+      else if (!isFrequencyValid)
+        setError("La frecuencia debe ser un número entero entre 1 y 999.");
+      else if (!isWarningValid) setError("El aviso anticipado debe ser menor que la frecuencia.");
       else if (!isDescriptionValid) setError("Ingresá una descripción para el plan.");
       else if (!isTasksValid) setError("Un plan no puede quedar activo sin tareas previstas.");
       return;
@@ -281,6 +315,7 @@ export function MaintenancePlanModal({
         name: name.trim(),
         description: description.trim() || null,
         frequency: freqNum,
+        warningDays: warningNum,
         estado,
         taskIds: selectedTasks.map((t) => t.tag_id_tarea),
       };
@@ -445,9 +480,7 @@ export function MaintenancePlanModal({
                       <TextInput
                         style={[styles.input, isView && styles.inputDisabled]}
                         value={frequency}
-                        onChangeText={(txt) =>
-                          setFrequency(txt.replace(/[^0-9]/g, "").slice(0, 3))
-                        }
+                        onChangeText={(txt) => setFrequency(txt.replace(/[^0-9]/g, "").slice(0, 3))}
                         maxLength={3}
                         placeholder="Ej: 60"
                         placeholderTextColor={colors.textMuted}
@@ -531,6 +564,50 @@ export function MaintenancePlanModal({
                         </Text>
                       )}
                     </View>
+                  </View>
+
+                  {/* Row 2b: Aviso anticipado (SCRUM-45) */}
+                  <View style={styles.formRow}>
+                    <View style={styles.col}>
+                      <View style={styles.labelRow}>
+                        <Text style={styles.label}>Aviso anticipado (días)</Text>
+
+                        <Tooltip text="Campo obligatorio">
+                          <Text
+                            style={styles.requiredAsterisk}
+                            accessibilityLabel="Campo obligatorio"
+                            {...(Platform.OS === "web"
+                              ? ({ title: "Campo obligatorio", cursor: "help" } as any)
+                              : {})}
+                          >
+                            *
+                          </Text>
+                        </Tooltip>
+                      </View>
+
+                      <TextInput
+                        style={[styles.input, isView && styles.inputDisabled]}
+                        value={warningDays}
+                        onChangeText={(txt) =>
+                          setWarningDays(txt.replace(/[^0-9]/g, "").slice(0, 3))
+                        }
+                        maxLength={3}
+                        placeholder={`Ej: ${DEFAULT_WARNING_DAYS}`}
+                        placeholderTextColor={colors.textMuted}
+                        keyboardType="numeric"
+                        editable={!isView}
+                      />
+
+                      {warningDays.trim() !== "" && !isWarningValid ? (
+                        <Text style={styles.fieldError}>Debe ser menor que la frecuencia</Text>
+                      ) : (
+                        <Text style={styles.hintText}>
+                          Días antes del vencimiento en que aparece la alerta en Inicio.
+                        </Text>
+                      )}
+                    </View>
+
+                    <View style={styles.col} />
                   </View>
 
                   {/* Row 3: Descripción */}
@@ -628,7 +705,9 @@ export function MaintenancePlanModal({
                           <View style={styles.actionsCol}>
                             <RowActions
                               onView={() => setViewingTask(t)}
-                              onDelete={!isView ? () => handleRemoveTask(t.tag_id_tarea) : undefined}
+                              onDelete={
+                                !isView ? () => handleRemoveTask(t.tag_id_tarea) : undefined
+                              }
                               viewTooltip="Ver detalle"
                               deleteTooltip="Quitar tarea"
                             />
@@ -664,8 +743,8 @@ export function MaintenancePlanModal({
                           <WarningIcon size={18} color={colors.urgencyMedium.accent} />
 
                           <Text style={styles.warningBannerText}>
-                            Este tipo aún no tiene equipos. Podés crear el plan de todas formas y los
-                            equipos se asociarán al crearse.
+                            Este tipo aún no tiene equipos. Podés crear el plan de todas formas y
+                            los equipos se asociarán al crearse.
                           </Text>
                         </View>
                       ) : null}
@@ -732,10 +811,10 @@ export function MaintenancePlanModal({
 
                       {/* 4. Nota informativa */}
                       <Text style={styles.infoNote}>
-                        Próximo vencimiento = último mantenimiento + frecuencia. Al vencer, se genera
-                        sola la OT preventiva, asignada al técnico con menos tareas abiertas; al
-                        resolverse, actualiza el último mantenimiento del equipo. Un equipo sin registro
-                        genera su OT apenas el plan queda activo.
+                        Próximo vencimiento = último mantenimiento + frecuencia. Al vencer, se
+                        genera sola la OT preventiva, asignada al técnico con menos tareas abiertas;
+                        al resolverse, actualiza el último mantenimiento del equipo. Un equipo sin
+                        registro genera su OT apenas el plan queda activo.
                       </Text>
                     </View>
                   </>
@@ -772,11 +851,7 @@ export function MaintenancePlanModal({
                     accessibilityRole="button"
                   >
                     <Text style={styles.confirmButtonText}>
-                      {saving
-                        ? isEdit
-                          ? "Guardando…"
-                          : "Confirmando…"
-                        : "Confirmar"}
+                      {saving ? (isEdit ? "Guardando…" : "Confirmando…") : "Confirmar"}
                     </Text>
                   </Pressable>
                 </View>

@@ -109,6 +109,7 @@ describe("createMaintenancePlan", () => {
       name: "Plan Trimestral",
       description: "Revision y filtros",
       frequency: 90,
+      warningDays: 10,
       estado: "activo" as const,
       taskIds: [1, 2],
     };
@@ -123,6 +124,7 @@ describe("createMaintenancePlan", () => {
       p_estado: "activo",
       p_tareas: [1, 2],
       p_equipos: [],
+      p_dias_aviso: 10,
     });
     expect(newId).toBe(42);
   });
@@ -138,6 +140,7 @@ describe("createMaintenancePlan", () => {
         typeId: 2,
         name: "Plan Vacío",
         frequency: 30,
+        warningDays: 7,
         estado: "activo",
         taskIds: [],
       }),
@@ -157,6 +160,7 @@ describe("updateMaintenancePlan", () => {
       name: "Plan Modificado",
       description: null,
       frequency: 60,
+      warningDays: 5,
       estado: "inactivo",
       taskIds: [1],
     });
@@ -169,6 +173,7 @@ describe("updateMaintenancePlan", () => {
       p_estado: "inactivo",
       p_tareas: [1],
       p_equipos: [],
+      p_dias_aviso: 5,
     });
   });
 });

@@ -15,6 +15,7 @@ import { SparePartModal } from "../../../components/SparePartModal";
 import { StockBadge } from "../../../components/StockBadge";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { getProfile } from "../../../lib/auth";
+import { lowStockParts } from "../../../lib/queries/alerts";
 import {
   deleteSparePart,
   listSpareParts,
@@ -123,10 +124,8 @@ export default function SparePartsScreen() {
     8,
   );
 
-  const lowCount = useMemo(
-    () => parts.filter((p) => p.rep_estado === "activo" && stockStatus(p) !== "ok").length,
-    [parts],
-  );
+  // Same rule as Inicio's stock alerts and the nav badge (alerts.ts).
+  const lowCount = useMemo(() => lowStockParts(parts).length, [parts]);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
