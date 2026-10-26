@@ -16,11 +16,7 @@ import { StatusBarChart } from "../../../components/StatusBarChart";
 import { BellIcon } from "../../../components/icons";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
-import {
-  listLowStockParts,
-  listPreventiveAlerts,
-  preventiveDueLabel,
-} from "../../../lib/queries/alerts";
+import { listLowStockParts } from "../../../lib/queries/alerts";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listAllRequests, summarizeTechnicians } from "../../../lib/queries/faults";
 import { listProfiles } from "../../../lib/queries/profiles";
@@ -29,7 +25,6 @@ import { formatOrderNumber } from "../../../lib/orderNumber";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import type {
-  AlertaPreventiva,
   Equipo,
   Profile,
   Repuesto,
@@ -55,7 +50,6 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState<Equipo[]>([]);
   const [requests, setRequests] = useState<RequestItem[]>([]);
-  const [preventiveAlerts, setPreventiveAlerts] = useState<AlertaPreventiva[]>([]);
   const [stockAlerts, setStockAlerts] = useState<Repuesto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [heroSize, setHeroSize] = useState({ width: 0, height: 0 });
@@ -71,14 +65,12 @@ export default function DashboardScreen() {
       setRole(profile?.role ?? null);
       if (profile?.role !== "admin") return;
 
-      const [faults, equip, profiles, preventive, lowStock] = await Promise.all([
+      const [faults, equip, profiles, lowStock] = await Promise.all([
         listAllRequests(),
         listEquipment(),
         listProfiles(),
-        listPreventiveAlerts(),
         listLowStockParts(),
       ]);
-      setPreventiveAlerts(preventive);
       setStockAlerts(lowStock);
       const equipmentById = new Map(equip.map((e) => [e.id, e]));
       const profileById = new Map(profiles.map((p) => [p.id, p]));
@@ -138,7 +130,7 @@ export default function DashboardScreen() {
   // Inicio is an admin overview; other roles start on the equipment list.
   if (role !== "admin") return <Redirect href="/equipment" />;
 
-  const alertCount = preventiveAlerts.length + stockAlerts.length;
+  const alertCount = stockAlerts.length;
 
   const equipmentBars = [
     { label: "Funcionando", value: stats.operational, color: colors.eqOperational.dot },
@@ -201,125 +193,52 @@ export default function DashboardScreen() {
 
       <StatusBarChart title="Equipos por estado" data={equipmentBars} totalLabel="en total" />
 
-      {/* SCRUM-43/44: what needs acting on before it becomes a problem. */}
-      <View style={[styles.panel, styles.alertsPanel]}>
-        <View style={[styles.panelHeader, styles.alertsHeader]}>
-          <View style={styles.bellWrap}>
-            <BellIcon
-              size={20}
-              color={alertCount > 0 ? colors.urgencyHigh.accent : colors.textMuted}
-            />
+      {/* SCRUM-43: stock alerts. */}
+      {stockAlerts.length > 0 && (
+        <View style={[styles.panel, styles.alertsPanel]}>
+          <View style={[styles.panelHeader, styles.alertsHeader]}>
+            <Text style={styles.panelTitle}>Stock mínimo de repuestos</Text>
 
-            {alertCount > 0 && (
-              <View style={[styles.bellBadge, { backgroundColor: colors.urgencyHigh.accent }]}>
-                <Text style={styles.bellBadgeText}>{alertCount > 99 ? "99+" : alertCount}</Text>
-              </View>
-            )}
+            <Pressable onPress={() => router.push("/spare-parts")}>
+              <Text style={styles.panelLink}>Ver repuestos</Text>
+            </Pressable>
           </View>
 
-          <Text style={styles.panelTitle}>Alertas</Text>
-        </View>
+          <View style={styles.alertsStack}>
+            {stockAlerts.slice(0, ALERTS_PREVIEW).map((p) => {
+              const empty = stockStatus(p) === "sin_stock";
+              const tone = empty ? colors.urgencyHigh : colors.urgencyMedium;
+              return (
+                <Pressable
+                  key={p.rep_id}
+                  style={styles.attentionRow}
+                  onPress={() => router.push("/spare-parts")}
+                >
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.attentionName} numberOfLines={1}>
+                      {p.rep_nombre}
+                    </Text>
 
-        <View style={isWide ? styles.columns : styles.alertsStack}>
-          <View style={styles.column}>
-            <View style={styles.alertsSubHeader}>
-              <Text style={styles.alertsSubTitle}>Mantenimiento preventivo</Text>
+                    <Text style={styles.attentionMeta} numberOfLines={1}>
+                      Stock {p.rep_cantidad_actual} · Mín. {p.rep_stock_minimo}
+                    </Text>
+                  </View>
 
-              <Pressable onPress={() => router.push("/maintenance-plans")}>
-                <Text style={styles.panelLink}>Ver planes</Text>
-              </Pressable>
-            </View>
-
-            {preventiveAlerts.length === 0 ? (
-              <Text style={styles.panelEmpty}>No hay mantenimientos próximos a vencer.</Text>
-            ) : (
-              preventiveAlerts.slice(0, ALERTS_PREVIEW).map((a) => {
-                const tone = a.dias_restantes <= 0 ? colors.urgencyHigh : colors.urgencyMedium;
-                return (
-                  <Pressable
-                    key={`${a.pm_id_plan}-${a.eq_id_equipo}`}
-                    style={styles.attentionRow}
-                    onPress={() =>
-                      router.push(
-                        a.ot_id_orden ? `/work-orders/${a.ot_id_orden}` : "/maintenance-plans",
-                      )
-                    }
-                  >
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.attentionName} numberOfLines={1}>
-                        {a.eq_nombre}
-                      </Text>
-
-                      <Text style={styles.attentionMeta} numberOfLines={1}>
-                        {a.eq_codigo} · {a.pm_nombre_plan}
-                        {a.ot_id_orden ? ` · ${formatOrderNumber(a.ot_id_orden)}` : ""}
-                      </Text>
-                    </View>
-
-                    <View style={[styles.alertBadge, { backgroundColor: tone.bg }]}>
-                      <Text style={[styles.alertBadgeText, { color: tone.fg }]}>
-                        {preventiveDueLabel(a.dias_restantes)}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })
-            )}
-
-            {preventiveAlerts.length > ALERTS_PREVIEW && (
-              <Text style={styles.alertsMore}>
-                y {preventiveAlerts.length - ALERTS_PREVIEW} más
-              </Text>
-            )}
-          </View>
-
-          <View style={styles.column}>
-            <View style={styles.alertsSubHeader}>
-              <Text style={styles.alertsSubTitle}>Stock mínimo de repuestos</Text>
-
-              <Pressable onPress={() => router.push("/spare-parts")}>
-                <Text style={styles.panelLink}>Ver repuestos</Text>
-              </Pressable>
-            </View>
-
-            {stockAlerts.length === 0 ? (
-              <Text style={styles.panelEmpty}>Todos los repuestos están sobre su mínimo.</Text>
-            ) : (
-              stockAlerts.slice(0, ALERTS_PREVIEW).map((p) => {
-                const empty = stockStatus(p) === "sin_stock";
-                const tone = empty ? colors.urgencyHigh : colors.urgencyMedium;
-                return (
-                  <Pressable
-                    key={p.rep_id}
-                    style={styles.attentionRow}
-                    onPress={() => router.push("/spare-parts")}
-                  >
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.attentionName} numberOfLines={1}>
-                        {p.rep_nombre}
-                      </Text>
-
-                      <Text style={styles.attentionMeta} numberOfLines={1}>
-                        Stock {p.rep_cantidad_actual} · Mín. {p.rep_stock_minimo}
-                      </Text>
-                    </View>
-
-                    <View style={[styles.alertBadge, { backgroundColor: tone.bg }]}>
-                      <Text style={[styles.alertBadgeText, { color: tone.fg }]}>
-                        {empty ? "Sin stock" : "Stock bajo"}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })
-            )}
+                  <View style={[styles.alertBadge, { backgroundColor: tone.bg }]}>
+                    <Text style={[styles.alertBadgeText, { color: tone.fg }]}>
+                      {empty ? "Sin stock" : "Stock bajo"}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
 
             {stockAlerts.length > ALERTS_PREVIEW && (
               <Text style={styles.alertsMore}>y {stockAlerts.length - ALERTS_PREVIEW} más</Text>
             )}
           </View>
         </View>
-      </View>
+      )}
 
       <View style={isWide ? styles.columns : undefined}>
         <View style={styles.column}>

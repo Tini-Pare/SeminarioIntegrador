@@ -102,7 +102,6 @@ export type Database = {
           p_estado: string;
           p_tareas: number[];
           p_equipos: { eq_id: number; fecha_ult_mant: string }[];
-          p_dias_aviso?: number;
         };
         Returns: number;
       };
@@ -115,7 +114,6 @@ export type Database = {
           p_estado: string;
           p_tareas: number[];
           p_equipos: { eq_id: number; fecha_ult_mant: string }[];
-          p_dias_aviso?: number;
         };
         Returns: void;
       };
@@ -903,7 +901,6 @@ export type Database = {
           pm_descripcion_plan: string | null;
           pm_frecuencia: number;
           pm_estado: "activo" | "inactivo";
-          pm_dias_aviso: number;
         };
         Insert: {
           pm_id_plan?: number;
@@ -912,7 +909,6 @@ export type Database = {
           pm_descripcion_plan?: string | null;
           pm_frecuencia: number;
           pm_estado?: "activo" | "inactivo";
-          pm_dias_aviso?: number;
         };
         Update: {
           pm_id_plan?: number;
@@ -921,7 +917,6 @@ export type Database = {
           pm_descripcion_plan?: string | null;
           pm_frecuencia?: number;
           pm_estado?: "activo" | "inactivo";
-          pm_dias_aviso?: number;
         };
         Relationships: [
           {
@@ -996,6 +991,35 @@ export type Database = {
           },
         ];
       };
+      notificacion_ot_leida: {
+        Row: {
+          notif_id: number;
+          user_id: string;
+          ot_id_orden: number;
+          fecha_leida: string;
+        };
+        Insert: {
+          notif_id?: number;
+          user_id: string;
+          ot_id_orden: number;
+          fecha_leida?: string;
+        };
+        Update: {
+          notif_id?: number;
+          user_id?: string;
+          ot_id_orden?: number;
+          fecha_leida?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notificacion_ot_leida_ot_id_orden_fkey";
+            columns: ["ot_id_orden"];
+            isOneToOne: false;
+            referencedRelation: "orden_de_trabajo";
+            referencedColumns: ["ot_id_orden"];
+          },
+        ];
+      };
       v_planes_mantenimiento: {
         Row: {
           pm_id_plan: number;
@@ -1008,7 +1032,6 @@ export type Database = {
           task_count: number;
           equipment_count: number;
           prox_vencimiento: string | null;
-          pm_dias_aviso: number;
         };
         Insert: {
           pm_id_plan?: number;
@@ -1021,7 +1044,6 @@ export type Database = {
           task_count?: number;
           equipment_count?: number;
           prox_vencimiento?: string | null;
-          pm_dias_aviso?: number;
         };
         Update: {
           pm_id_plan?: number;
@@ -1034,26 +1056,7 @@ export type Database = {
           task_count?: number;
           equipment_count?: number;
           prox_vencimiento?: string | null;
-          pm_dias_aviso?: number;
         };
-        Relationships: [];
-      };
-      v_alertas_preventivas: {
-        Row: {
-          pm_id_plan: number;
-          pm_nombre_plan: string;
-          pm_frecuencia: number;
-          pm_dias_aviso: number;
-          eq_id_equipo: number;
-          eq_codigo: string;
-          eq_nombre: string;
-          me_fecha_ult_mant: string | null;
-          fecha_vencimiento: string;
-          dias_restantes: number;
-          ot_id_orden: number | null;
-        };
-        Insert: never;
-        Update: never;
         Relationships: [];
       };
     };
@@ -1068,7 +1071,6 @@ export type PlanMantenimiento = Database["public"]["Tables"]["plan_mantenimiento
 export type MantenimientoEquipo = Database["public"]["Tables"]["mantenimiento_equipo"]["Row"];
 export type TareaPrevistaPlan = Database["public"]["Tables"]["tarea_prevista_plan"]["Row"];
 export type PlanMantenimientoItem = Database["public"]["Tables"]["v_planes_mantenimiento"]["Row"];
-export type AlertaPreventiva = Database["public"]["Tables"]["v_alertas_preventivas"]["Row"];
 export type Fallo = Database["public"]["Tables"]["fallo"]["Row"];
 export type Repuesto = Database["public"]["Tables"]["repuestos"]["Row"];
 export type TipoProveedor = Database["public"]["Tables"]["tipos_proveedores"]["Row"];

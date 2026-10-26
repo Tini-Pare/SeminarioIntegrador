@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -66,6 +66,7 @@ function getOriginLabel(item: Item): string {
 
 // Every orden_de_trabajo, whether it came from a solicitud, maintenance plan, or installation.
 export default function WorkOrdersScreen() {
+  const params = useLocalSearchParams<{ tipo?: string }>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
@@ -74,7 +75,13 @@ export default function WorkOrdersScreen() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState(params.tipo ?? "");
+
+  useEffect(() => {
+    if (params.tipo !== undefined) {
+      setTypeFilter(params.tipo);
+    }
+  }, [params.tipo]);
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);

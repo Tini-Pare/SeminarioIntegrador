@@ -1,10 +1,6 @@
 import { supabase } from "../supabase";
-import type { AlertaPreventiva, Profile, Repuesto } from "../../types/database";
+import type { Profile, Repuesto } from "../../types/database";
 import { stockStatus } from "./spareParts";
-
-// Alerts are never stored: each one is derived from the data it warns
-// about every time it's read, so it goes away by itself once the cause is
-// fixed (stock replenished, preventive OT resolved, critical tarea done).
 
 // SCRUM-43: active repuestos at or below their stock mínimo (sin stock
 // included). Inactive ones aren't bought anymore, so they don't warn.
@@ -18,29 +14,6 @@ export async function listLowStockParts(): Promise<Repuesto[]> {
   const { data, error } = await supabase.from("repuestos").select("*");
   if (error) throw new Error(error.message);
   return lowStockParts(data as Repuesto[]);
-}
-
-// SCRUM-44/45: equipos of an active plan due within the plan's aviso
-// (pm_dias_aviso) or already overdue — see v_alertas_preventivas (0036).
-// Most urgent first.
-export async function listPreventiveAlerts(): Promise<AlertaPreventiva[]> {
-  const { data, error } = await supabase
-    .from("v_alertas_preventivas")
-    .select("*")
-    .order("fecha_vencimiento")
-    .order("eq_codigo");
-  if (error) throw new Error(error.message);
-  return (data as AlertaPreventiva[]) ?? [];
-}
-
-// "Vence hoy" / "Vence en 3 días" / "Vencido hace 2 días".
-export function preventiveDueLabel(diasRestantes: number): string {
-  if (diasRestantes === 0) return "Vence hoy";
-  if (diasRestantes > 0) {
-    return `Vence en ${diasRestantes} ${diasRestantes === 1 ? "día" : "días"}`;
-  }
-  const late = -diasRestantes;
-  return `Vencido hace ${late} ${late === 1 ? "día" : "días"}`;
 }
 
 // SCRUM-59: a falla is critical when the solicitud's OT was given
@@ -77,13 +50,8 @@ export async function countMyCriticalTasks(): Promise<number> {
   return count ?? 0;
 }
 
-// How many alerts the nav badge shows for each role: the admin's stock and
-// preventive alerts, a técnico's critical tareas. Users get none.
+// How many alerts the nav badge shows for each role: a técnico's critical tareas.
 export async function countAlerts(role: Profile["role"]): Promise<number> {
-  if (role === "admin") {
-    const [parts, preventive] = await Promise.all([listLowStockParts(), listPreventiveAlerts()]);
-    return parts.length + preventive.length;
-  }
   if (role === "technician") return countMyCriticalTasks();
   return 0;
 }

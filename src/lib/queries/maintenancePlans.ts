@@ -18,9 +18,6 @@ export type MaintenancePlanDetail = {
   name: string;
   description: string | null;
   frequency: number;
-  // Days before an equipo's due date its preventive alert shows up
-  // (pm_dias_aviso, 0036).
-  warningDays: number;
   estado: "activo" | "inactivo";
   tasks: TareaGeneral[];
   equipments: MaintenancePlanEquipmentRow[];
@@ -31,7 +28,6 @@ export type MaintenancePlanInput = {
   name: string;
   description?: string | null;
   frequency: number;
-  warningDays: number;
   estado: "activo" | "inactivo";
   taskIds: number[];
 };
@@ -101,7 +97,6 @@ export async function getMaintenancePlan(id: number): Promise<MaintenancePlanDet
     name: plan.pm_nombre_plan,
     description: plan.pm_descripcion_plan,
     frequency: plan.pm_frecuencia,
-    warningDays: plan.pm_dias_aviso,
     estado: plan.pm_estado,
     tasks,
     equipments,
@@ -151,7 +146,6 @@ export async function createMaintenancePlan(input: MaintenancePlanInput): Promis
     p_estado: input.estado,
     p_tareas: input.taskIds,
     p_equipos: [],
-    p_dias_aviso: input.warningDays,
   });
 
   if (error) {
@@ -176,7 +170,6 @@ export async function updateMaintenancePlan(
     p_estado: input.estado,
     p_tareas: input.taskIds,
     p_equipos: [],
-    p_dias_aviso: input.warningDays,
   });
 
   if (error) {

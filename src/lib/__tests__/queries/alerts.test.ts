@@ -1,9 +1,7 @@
 import {
   countAlerts,
   isCriticalTask,
-  listPreventiveAlerts,
   lowStockParts,
-  preventiveDueLabel,
 } from "../../queries/alerts";
 import { supabase } from "../../supabase";
 import type { Repuesto } from "../../../types/database";
@@ -40,15 +38,6 @@ describe("lowStockParts", () => {
   });
 });
 
-describe("preventiveDueLabel", () => {
-  it("describes upcoming, today and overdue due dates", () => {
-    expect(preventiveDueLabel(3)).toBe("Vence en 3 días");
-    expect(preventiveDueLabel(1)).toBe("Vence en 1 día");
-    expect(preventiveDueLabel(0)).toBe("Vence hoy");
-    expect(preventiveDueLabel(-2)).toBe("Vencido hace 2 días");
-  });
-});
-
 describe("isCriticalTask", () => {
   it("is an unfinished tarea of a correctivo OT with prioridad alta", () => {
     expect(isCriticalTask({ priority: "high", orderType: "correctivo", endDate: null })).toBe(true);
@@ -64,37 +53,17 @@ describe("isCriticalTask", () => {
   });
 });
 
-describe("listPreventiveAlerts", () => {
-  it("reads v_alertas_preventivas, most urgent first", async () => {
-    const order2 = jest.fn().mockResolvedValue({ data: [{ eq_id_equipo: 1 }], error: null });
-    const order1 = jest.fn().mockReturnValue({ order: order2 });
-    const select = jest.fn().mockReturnValue({ order: order1 });
+describe("countAlerts", () => {
+  it("counts critical tasks for a technician", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "tech-1" } } },
+    });
+    const eq = jest.fn().mockResolvedValue({ count: 2, error: null });
+    const is = jest.fn().mockReturnValue({ eq: () => ({ eq }) });
+    const select = jest.fn().mockReturnValue({ eq: () => ({ is }) });
     (supabase.from as jest.Mock).mockReturnValue({ select });
 
-    const result = await listPreventiveAlerts();
-
-    expect(supabase.from).toHaveBeenCalledWith("v_alertas_preventivas");
-    expect(order1).toHaveBeenCalledWith("fecha_vencimiento");
-    expect(result).toHaveLength(1);
-  });
-});
-
-describe("countAlerts", () => {
-  it("adds up stock and preventive alerts for an admin", async () => {
-    (supabase.from as jest.Mock).mockImplementation((table: string) => {
-      if (table === "repuestos") {
-        return {
-          select: jest.fn().mockResolvedValue({
-            data: [part({ rep_id: 1, rep_cantidad_actual: 0 }), part({ rep_id: 2 })],
-            error: null,
-          }),
-        };
-      }
-      const order2 = jest.fn().mockResolvedValue({ data: [{}, {}], error: null });
-      return { select: () => ({ order: () => ({ order: order2 }) }) };
-    });
-
-    await expect(countAlerts("admin")).resolves.toBe(3);
+    await expect(countAlerts("technician")).resolves.toBe(2);
   });
 
   it("has nothing to count for a plain user", async () => {

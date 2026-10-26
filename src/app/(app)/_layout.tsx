@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,7 +16,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { AccountMenu } from "../../components/AccountMenu";
+import { NotificationsPanel } from "../../components/NotificationsPanel";
 import {
+  BellIcon,
   CalendarIcon,
   ChevronDownIcon,
   EquipmentIcon,
@@ -35,6 +38,12 @@ import {
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signOut } from "../../lib/auth";
 import { countAlerts } from "../../lib/queries/alerts";
+import {
+  listPreventiveNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+  type PreventiveNotification,
+} from "../../lib/queries/notifications";
 import { supabase } from "../../lib/supabase";
 import { useTheme } from "../../lib/ThemeContext";
 import type { Profile } from "../../types/database";
@@ -144,6 +153,11 @@ export default function AppLayout() {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [alertCount, setAlertCount] = useState(0);
 
+  // Admin preventive notifications state
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<PreventiveNotification[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+
   useEffect(() => {
     getProfile().then((p) => {
       if (p && !p.active) {
@@ -189,6 +203,66 @@ export default function AppLayout() {
       supabase.removeChannel(channel);
     };
   }, [role, refreshAlerts]);
+
+  // Load and subscribe to preventive notifications for admin
+  const loadNotifications = useCallback(async () => {
+    if (role !== "admin") return;
+    try {
+      const { notifications: list, unreadCount } = await listPreventiveNotifications();
+      setNotifications(list);
+      setUnreadNotifCount(unreadCount);
+    } catch {
+      // Graceful fallback
+    }
+  }, [role]);
+
+  useEffect(() => {
+    if (role !== "admin") return;
+    loadNotifications();
+  }, [role, loadNotifications, pathname]);
+
+  useEffect(() => {
+    if (role !== "admin") return;
+    const channel = supabase
+      .channel(`admin-notifs-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orden_de_trabajo" },
+        loadNotifications,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notificacion_ot_leida" },
+        loadNotifications,
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [role, loadNotifications]);
+
+  const handleMarkAllAsRead = async () => {
+    const allIds = notifications.flatMap((n) => n.orderIds);
+    await markAllNotificationsAsRead(allIds);
+    loadNotifications();
+  };
+
+  const handleSelectNotification = async (item: PreventiveNotification) => {
+    await markNotificationAsRead(item.orderIds);
+    loadNotifications();
+    setNotificationsOpen(false);
+    if (!item.isGrouped && item.orderId) {
+      router.push(`/work-orders/${item.orderId}` as never);
+    } else {
+      router.push("/work-orders?tipo=preventivo" as never);
+    }
+  };
+
+  const handleViewAllPreventive = () => {
+    setNotificationsOpen(false);
+    router.push("/work-orders?tipo=preventivo" as never);
+  };
 
   const equipmentItem: NavItem = {
     key: "equipment",
@@ -402,8 +476,27 @@ export default function AppLayout() {
           ]}
         >
           <View style={styles.brandRow}>
-            <BrandDot colors={colors.heroBlobColors} />
-            <Text style={[styles.brandName, { color: colors.textSidebar }]}>Mantia</Text>
+            <View style={styles.brandLeft}>
+              <BrandDot colors={colors.heroBlobColors} />
+              <Text style={[styles.brandName, { color: colors.textSidebar }]}>Mantia</Text>
+            </View>
+
+            {role === "admin" && (
+              <Pressable
+                style={[
+                  styles.bellButton,
+                  notificationsOpen && styles.bellButtonActive,
+                  { backgroundColor: colors.bgCard, borderColor: colors.border },
+                ]}
+                onPress={() => setNotificationsOpen((v) => !v)}
+                accessibilityLabel="Notificaciones"
+                accessibilityRole="button"
+              >
+                <BellIcon size={18} color={colors.text} />
+
+                {unreadNotifCount > 0 && <View style={styles.bellRedDot} />}
+              </Pressable>
+            )}
           </View>
 
           <ScrollView
@@ -508,7 +601,27 @@ export default function AppLayout() {
           <Slot />
         </View>
 
-        {menuOpen && <Pressable style={styles.backdrop} onPress={() => setMenuOpen(false)} />}
+        {(menuOpen || notificationsOpen) && (
+          <Pressable
+            style={styles.backdrop}
+            onPress={() => {
+              setMenuOpen(false);
+              setNotificationsOpen(false);
+            }}
+          />
+        )}
+
+        {role === "admin" && notificationsOpen && (
+          <View style={styles.desktopNotificationsOverlay}>
+            <NotificationsPanel
+              notifications={notifications}
+              unreadCount={unreadNotifCount}
+              onMarkAllAsRead={handleMarkAllAsRead}
+              onSelectNotification={handleSelectNotification}
+              onViewAllPreventive={handleViewAllPreventive}
+            />
+          </View>
+        )}
       </View>
     );
   }
@@ -523,8 +636,27 @@ export default function AppLayout() {
         ]}
       >
         <View style={styles.brandRow}>
-          <BrandDot colors={colors.heroBlobColors} />
-          <Text style={[styles.brandNameLight, { color: colors.textSidebar }]}>Mantia</Text>
+          <View style={styles.brandLeft}>
+            <BrandDot colors={colors.heroBlobColors} />
+            <Text style={[styles.brandNameLight, { color: colors.textSidebar }]}>Mantia</Text>
+          </View>
+
+          {role === "admin" && (
+            <Pressable
+              style={[
+                styles.bellButton,
+                notificationsOpen && styles.bellButtonActive,
+                { backgroundColor: colors.bgCard, borderColor: colors.border },
+              ]}
+              onPress={() => setNotificationsOpen((v) => !v)}
+              accessibilityLabel="Notificaciones"
+              accessibilityRole="button"
+            >
+              <BellIcon size={18} color={colors.text} />
+
+              {unreadNotifCount > 0 && <View style={styles.bellRedDot} />}
+            </Pressable>
+          )}
         </View>
 
         <View style={{ position: "relative" }}>
@@ -598,7 +730,27 @@ export default function AppLayout() {
         <Slot />
       </View>
 
-      {menuOpen && <Pressable style={styles.backdrop} onPress={() => setMenuOpen(false)} />}
+      {(menuOpen || notificationsOpen) && (
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => {
+            setMenuOpen(false);
+            setNotificationsOpen(false);
+          }}
+        />
+      )}
+
+      {role === "admin" && notificationsOpen && (
+        <View style={styles.narrowNotificationsOverlay}>
+          <NotificationsPanel
+            notifications={notifications}
+            unreadCount={unreadNotifCount}
+            onMarkAllAsRead={handleMarkAllAsRead}
+            onSelectNotification={handleSelectNotification}
+            onViewAllPreventive={handleViewAllPreventive}
+          />
+        </View>
+      )}
 
       <View
         style={[
@@ -656,8 +808,62 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   wideContainer: { flex: 1, flexDirection: "row", minHeight: 0 },
   sidebar: { width: 250, padding: 16, paddingTop: 20 },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 8 },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+  },
+  brandLeft: { flexDirection: "row", alignItems: "center", gap: 11 },
   brandName: { fontWeight: "600", fontSize: 17 },
+  bellButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    position: "relative",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
+        cursor: "pointer",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 2,
+        elevation: 2,
+      },
+    }),
+  },
+  bellButtonActive: {
+    opacity: 0.85,
+  },
+  bellRedDot: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#ef4444",
+  },
+  desktopNotificationsOverlay: {
+    position: "absolute",
+    top: 58,
+    left: 242,
+    zIndex: 1000,
+  },
+  narrowNotificationsOverlay: {
+    position: "absolute",
+    top: 56,
+    left: 12,
+    right: 12,
+    alignItems: "center",
+    zIndex: 1000,
+  },
   navScroll: { flex: 1 },
   navList: { gap: 3, paddingTop: 16, position: "relative" },
   navItem: {
@@ -745,8 +951,8 @@ const styles = StyleSheet.create({
   },
   alertBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   bottomBadgeAnchor: { position: "absolute", top: -8, left: 12 },
-  elevated: { zIndex: 50 },
-  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 40 },
+  elevated: { zIndex: 200 },
+  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 },
   menuAnchorUp: { position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: 8 },
   menuAnchorDown: { position: "absolute", top: "100%", right: 0, marginTop: 8 },
 });
