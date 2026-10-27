@@ -102,6 +102,7 @@ export type Database = {
           p_estado: string;
           p_tareas: number[];
           p_equipos: { eq_id: number; fecha_ult_mant: string }[];
+          p_hora_emision?: number;
         };
         Returns: number;
       };
@@ -114,6 +115,7 @@ export type Database = {
           p_estado: string;
           p_tareas: number[];
           p_equipos: { eq_id: number; fecha_ult_mant: string }[];
+          p_hora_emision?: number;
         };
         Returns: void;
       };
@@ -406,6 +408,8 @@ export type Database = {
           ot_observacion: string | null;
           ot_estado: "assigned" | "in_progress" | "resolved";
           ot_prioridad: "low" | "medium" | "high";
+          // When the OT was created (0039); ot_fecha_inicio is only a date.
+          ot_creada_en: string;
         };
         Insert: {
           ot_id_orden?: number;
@@ -420,6 +424,7 @@ export type Database = {
           ot_observacion?: string | null;
           ot_estado?: "assigned" | "in_progress" | "resolved";
           ot_prioridad: "low" | "medium" | "high";
+          ot_creada_en?: string;
         };
         Update: {
           ot_id_orden?: number;
@@ -434,6 +439,7 @@ export type Database = {
           ot_observacion?: string | null;
           ot_estado?: "assigned" | "in_progress" | "resolved";
           ot_prioridad?: "low" | "medium" | "high";
+          ot_creada_en?: string;
         };
         Relationships: [
           {
@@ -901,6 +907,8 @@ export type Database = {
           pm_descripcion_plan: string | null;
           pm_frecuencia: number;
           pm_estado: "activo" | "inactivo";
+          // Hour (Argentina, 0–23) its preventive OTs are emitted at (0039).
+          pm_hora_emision: number;
         };
         Insert: {
           pm_id_plan?: number;
@@ -909,6 +917,7 @@ export type Database = {
           pm_descripcion_plan?: string | null;
           pm_frecuencia: number;
           pm_estado?: "activo" | "inactivo";
+          pm_hora_emision?: number;
         };
         Update: {
           pm_id_plan?: number;
@@ -917,6 +926,7 @@ export type Database = {
           pm_descripcion_plan?: string | null;
           pm_frecuencia?: number;
           pm_estado?: "activo" | "inactivo";
+          pm_hora_emision?: number;
         };
         Relationships: [
           {
@@ -991,32 +1001,41 @@ export type Database = {
           },
         ];
       };
-      notificacion_ot_leida: {
+      // The admin's bell (0040): one row per notification per recipient,
+      // written only by triggers; the app just reads and marks no_leida.
+      notificacion: {
         Row: {
-          notif_id: number;
+          no_id: number;
           user_id: string;
-          ot_id_orden: number;
-          fecha_leida: string;
+          no_tipo: "ot_preventiva" | "stock_bajo" | "sin_stock";
+          ot_id_orden: number | null;
+          rep_id: number | null;
+          no_cantidad: number | null;
+          no_minimo: number | null;
+          no_leida: boolean;
+          // Set by a trigger when no_leida turns true (0041); read rows are
+          // deleted 7 days after it, any row 30 days after no_creada_en.
+          no_leida_en: string | null;
+          no_creada_en: string;
         };
-        Insert: {
-          notif_id?: number;
-          user_id: string;
-          ot_id_orden: number;
-          fecha_leida?: string;
-        };
+        Insert: never;
         Update: {
-          notif_id?: number;
-          user_id?: string;
-          ot_id_orden?: number;
-          fecha_leida?: string;
+          no_leida?: boolean;
         };
         Relationships: [
           {
-            foreignKeyName: "notificacion_ot_leida_ot_id_orden_fkey";
+            foreignKeyName: "notificacion_ot_id_orden_fkey";
             columns: ["ot_id_orden"];
             isOneToOne: false;
             referencedRelation: "orden_de_trabajo";
             referencedColumns: ["ot_id_orden"];
+          },
+          {
+            foreignKeyName: "notificacion_rep_id_fkey";
+            columns: ["rep_id"];
+            isOneToOne: false;
+            referencedRelation: "repuestos";
+            referencedColumns: ["rep_id"];
           },
         ];
       };

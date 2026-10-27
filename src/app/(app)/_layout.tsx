@@ -39,10 +39,9 @@ import { BREAKPOINT } from "../../constants";
 import { getProfile, signOut } from "../../lib/auth";
 import { countAlerts } from "../../lib/queries/alerts";
 import {
-  listPreventiveNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
-  type PreventiveNotification,
+  listNotifications,
+  markNotificationsAsRead,
+  type AppNotification,
 } from "../../lib/queries/notifications";
 import { supabase } from "../../lib/supabase";
 import { useTheme } from "../../lib/ThemeContext";
@@ -153,9 +152,9 @@ export default function AppLayout() {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [alertCount, setAlertCount] = useState(0);
 
-  // Admin preventive notifications state
+  // Admin notifications (preventive OTs, stock mínimo) state
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<PreventiveNotification[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   useEffect(() => {
@@ -172,6 +171,9 @@ export default function AppLayout() {
   const role = profile?.role;
   const isWide = width >= BREAKPOINT.tablet;
   const alertBadgeKey = role ? ALERT_BADGE_KEY[role] : undefined;
+  // Only the admin has the bell: a técnico's urgent tareas already show on
+  // their queue (nav count, "fallas críticas" banner).
+  const hasBell = role === "admin";
 
   const refreshAlerts = useCallback(() => {
     if (!role || !ALERT_BADGE_KEY[role]) return;
@@ -204,35 +206,32 @@ export default function AppLayout() {
     };
   }, [role, refreshAlerts]);
 
-  // Load and subscribe to preventive notifications for admin
+  // Load and subscribe to the signed-in user's notifications
   const loadNotifications = useCallback(async () => {
-    if (role !== "admin") return;
+    if (!hasBell) return;
     try {
-      const { notifications: list, unreadCount } = await listPreventiveNotifications();
+      const { notifications: list, unreadCount } = await listNotifications();
       setNotifications(list);
       setUnreadNotifCount(unreadCount);
     } catch {
       // Graceful fallback
     }
-  }, [role]);
+  }, [hasBell]);
 
   useEffect(() => {
-    if (role !== "admin") return;
+    if (!hasBell) return;
     loadNotifications();
-  }, [role, loadNotifications, pathname]);
+  }, [hasBell, loadNotifications, pathname]);
 
   useEffect(() => {
-    if (role !== "admin") return;
+    if (!hasBell) return;
     const channel = supabase
-      .channel(`admin-notifs-${Math.random().toString(36).slice(2)}`)
+      .channel(`notifs-${Math.random().toString(36).slice(2)}`)
+      // Rows are added by triggers and marked read here; RLS only lets
+      // each user see their own.
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "orden_de_trabajo" },
-        loadNotifications,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "notificacion_ot_leida" },
+        { event: "*", schema: "public", table: "notificacion" },
         loadNotifications,
       )
       .subscribe();
@@ -240,28 +239,31 @@ export default function AppLayout() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [role, loadNotifications]);
+  }, [hasBell, loadNotifications]);
 
   const handleMarkAllAsRead = async () => {
-    const allIds = notifications.flatMap((n) => n.orderIds);
-    await markAllNotificationsAsRead(allIds);
+    await markNotificationsAsRead(notifications);
     loadNotifications();
   };
 
-  const handleSelectNotification = async (item: PreventiveNotification) => {
-    await markNotificationAsRead(item.orderIds);
+  // The ✓ on one notification: the panel stays open.
+  const handleMarkOneAsRead = async (item: AppNotification) => {
+    await markNotificationsAsRead([item]);
+    loadNotifications();
+  };
+
+  // Each kind opens the screen it's about.
+  const handleSelectNotification = async (item: AppNotification) => {
+    await markNotificationsAsRead([item]);
     loadNotifications();
     setNotificationsOpen(false);
-    if (!item.isGrouped && item.orderId) {
+    if (item.kind === "stock_minimo") {
+      router.push(`/spare-parts?buscar=${encodeURIComponent(item.partName)}` as never);
+    } else if (!item.isGrouped && item.orderId) {
       router.push(`/work-orders/${item.orderId}` as never);
     } else {
       router.push("/work-orders?tipo=preventivo" as never);
     }
-  };
-
-  const handleViewAllPreventive = () => {
-    setNotificationsOpen(false);
-    router.push("/work-orders?tipo=preventivo" as never);
   };
 
   const equipmentItem: NavItem = {
@@ -481,7 +483,7 @@ export default function AppLayout() {
               <Text style={[styles.brandName, { color: colors.textSidebar }]}>Mantia</Text>
             </View>
 
-            {role === "admin" && (
+            {hasBell && (
               <Pressable
                 style={[
                   styles.bellButton,
@@ -611,14 +613,14 @@ export default function AppLayout() {
           />
         )}
 
-        {role === "admin" && notificationsOpen && (
+        {hasBell && notificationsOpen && (
           <View style={styles.desktopNotificationsOverlay}>
             <NotificationsPanel
               notifications={notifications}
               unreadCount={unreadNotifCount}
               onMarkAllAsRead={handleMarkAllAsRead}
+              onMarkAsRead={handleMarkOneAsRead}
               onSelectNotification={handleSelectNotification}
-              onViewAllPreventive={handleViewAllPreventive}
             />
           </View>
         )}
@@ -641,7 +643,7 @@ export default function AppLayout() {
             <Text style={[styles.brandNameLight, { color: colors.textSidebar }]}>Mantia</Text>
           </View>
 
-          {role === "admin" && (
+          {hasBell && (
             <Pressable
               style={[
                 styles.bellButton,
@@ -740,14 +742,14 @@ export default function AppLayout() {
         />
       )}
 
-      {role === "admin" && notificationsOpen && (
+      {hasBell && notificationsOpen && (
         <View style={styles.narrowNotificationsOverlay}>
           <NotificationsPanel
             notifications={notifications}
             unreadCount={unreadNotifCount}
             onMarkAllAsRead={handleMarkAllAsRead}
+            onMarkAsRead={handleMarkOneAsRead}
             onSelectNotification={handleSelectNotification}
-            onViewAllPreventive={handleViewAllPreventive}
           />
         </View>
       )}

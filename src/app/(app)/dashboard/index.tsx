@@ -13,7 +13,6 @@ import {
 import { RequestList } from "../../../components/RequestList";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { StatusBarChart } from "../../../components/StatusBarChart";
-import { BellIcon } from "../../../components/icons";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import { listLowStockParts } from "../../../lib/queries/alerts";
@@ -21,7 +20,6 @@ import { listEquipment } from "../../../lib/queries/equipment";
 import { listAllRequests, summarizeTechnicians } from "../../../lib/queries/faults";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { stockStatus } from "../../../lib/queries/spareParts";
-import { formatOrderNumber } from "../../../lib/orderNumber";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import type {
@@ -129,8 +127,6 @@ export default function DashboardScreen() {
 
   // Inicio is an admin overview; other roles start on the equipment list.
   if (role !== "admin") return <Redirect href="/equipment" />;
-
-  const alertCount = stockAlerts.length;
 
   const equipmentBars = [
     { label: "Funcionando", value: stats.operational, color: colors.eqOperational.dot },

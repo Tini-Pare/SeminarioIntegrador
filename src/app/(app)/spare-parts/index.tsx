@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -34,13 +35,21 @@ import type { Repuesto } from "../../../types/database";
 const STOCK_RANK: Record<StockStatus, number> = { sin_stock: 0, bajo: 1, ok: 2 };
 
 export default function SparePartsScreen() {
+  // ?buscar= comes from a stock notification on the bell, to land on that repuesto.
+  const params = useLocalSearchParams<{ buscar?: string }>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [parts, setParts] = useState<Repuesto[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(params.buscar ?? "");
+
+  useEffect(() => {
+    if (params.buscar !== undefined) {
+      setSearch(params.buscar);
+    }
+  }, [params.buscar]);
   const [stockFilter, setStockFilter] = useState("");
   const [estadoFilter, setEstadoFilter] = useState("");
 

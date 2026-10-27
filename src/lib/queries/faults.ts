@@ -346,7 +346,7 @@ export function mapWorkOrderRow(row: WorkOrderWithDetail): WorkOrder {
   };
 }
 
-export type WorkOrderOrigin = "solicitud" | "plan" | "none";
+export type WorkOrderOrigin = "solicitud" | "plan" | "instalacion" | "none";
 
 export function getWorkOrderOrigin(order: {
   sol_id_solicitud?: number | null;
@@ -360,6 +360,8 @@ export function getWorkOrderOrigin(order: {
 
   if (hasSolicitud && !hasPlan) return "solicitud";
   if (!hasSolicitud && hasPlan) return "plan";
+  // Installation OTs (0033) carry neither: they come from registering the equipo.
+  if (!hasSolicitud && !hasPlan && order.type === "instalacion") return "instalacion";
   return "none";
 }
 
@@ -371,31 +373,6 @@ export async function listWorkOrders(): Promise<WorkOrder[]> {
     .order("ot_id_orden", { ascending: false });
   if (error) throw new Error(error.message);
   return (data as unknown as WorkOrderWithDetail[]).map(mapWorkOrderRow);
-}
-
-// Server-side aggregated counts of work orders by origin (using count: exact and head: true).
-export async function countWorkOrdersByOrigin(): Promise<{
-  total: number;
-  solicitud: number;
-  plan: number;
-}> {
-  const [totalRes, solRes, planRes] = await Promise.all([
-    supabase.from("orden_de_trabajo").select("ot_id_orden", { count: "exact", head: true }),
-    supabase
-      .from("orden_de_trabajo")
-      .select("ot_id_orden", { count: "exact", head: true })
-      .not("sol_id_solicitud", "is", null),
-    supabase
-      .from("orden_de_trabajo")
-      .select("ot_id_orden", { count: "exact", head: true })
-      .not("plan_id_manequipo", "is", null),
-  ]);
-  if (totalRes.error) throw new Error(totalRes.error.message);
-  return {
-    total: totalRes.count ?? 0,
-    solicitud: solRes.count ?? 0,
-    plan: planRes.count ?? 0,
-  };
 }
 
 // The OT full-screen page (work-orders/[id]) loads one OT by its own id.

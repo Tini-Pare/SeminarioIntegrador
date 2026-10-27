@@ -1,23 +1,26 @@
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { RefreshCwIcon } from "./icons";
-import type { PreventiveNotification } from "../lib/queries/notifications";
+import { CheckIcon, RefreshCwIcon, SparePartIcon } from "./icons";
+import { Tooltip } from "./Tooltip";
+import type { AppNotification } from "../lib/queries/notifications";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 
 type NotificationsPanelProps = {
-  notifications: PreventiveNotification[];
+  notifications: AppNotification[];
   unreadCount: number;
   onMarkAllAsRead: () => void;
-  onSelectNotification: (item: PreventiveNotification) => void;
-  onViewAllPreventive: () => void;
+  // Just marks it read, without leaving the panel.
+  onMarkAsRead: (item: AppNotification) => void;
+  // Marks it read and goes to the screen it's about.
+  onSelectNotification: (item: AppNotification) => void;
 };
 
 export function NotificationsPanel({
   notifications,
   unreadCount,
   onMarkAllAsRead,
+  onMarkAsRead,
   onSelectNotification,
-  onViewAllPreventive,
 }: NotificationsPanelProps) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -53,11 +56,12 @@ export function NotificationsPanel({
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {notifications.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No hay notificaciones de OT preventivas.</Text>
+            <Text style={styles.emptyText}>No hay notificaciones.</Text>
           </View>
         ) : (
           notifications.map((item) => {
             const isUnread = !item.isRead;
+            const isStock = item.kind === "stock_minimo";
 
             return (
               <Pressable
@@ -65,8 +69,12 @@ export function NotificationsPanel({
                 style={[styles.itemRow, isUnread ? styles.itemUnread : styles.itemRead]}
                 onPress={() => onSelectNotification(item)}
               >
-                <View style={styles.iconCircle}>
-                  <RefreshCwIcon size={14} color="#2d4a7a" />
+                <View style={[styles.iconCircle, isStock && styles.iconCircleStock]}>
+                  {isStock ? (
+                    <SparePartIcon size={15} color="#9a4a0f" />
+                  ) : (
+                    <RefreshCwIcon size={14} color="#2d4a7a" />
+                  )}
                 </View>
 
                 <View style={styles.contentWrap}>
@@ -76,36 +84,65 @@ export function NotificationsPanel({
                     {isUnread && <View style={styles.redDot} />}
                   </View>
 
-                  {item.isGrouped ? (
-                    <Text style={styles.itemBody}>
-                      Se generaron <Text style={styles.boldText}>{item.count} OT preventivas</Text>{" "}
-                      del plan <Text style={styles.boldText}>«{item.planName}»</Text>.
-                    </Text>
-                  ) : (
-                    <Text style={styles.itemBody}>
-                      Se generó la <Text style={styles.boldText}>{item.orderNumber}</Text> del plan{" "}
-                      <Text style={styles.boldText}>{item.planName}</Text> para{" "}
-                      {item.equipmentName} ({item.equipmentCode}).
-                    </Text>
-                  )}
+                  <NotificationBody item={item} styles={styles} />
 
                   <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
                 </View>
+
+                {isUnread && (
+                  <Tooltip text="Marcar como leída">
+                    <Pressable
+                      style={styles.markOneButton}
+                      onPress={() => onMarkAsRead(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Marcar como leída"
+                    >
+                      <CheckIcon size={15} color={colors.accent} />
+                    </Pressable>
+                  </Tooltip>
+                )}
               </Pressable>
             );
           })
         )}
       </ScrollView>
-
-      {/* Footer */}
-      <Pressable
-        style={styles.footer}
-        onPress={onViewAllPreventive}
-        accessibilityRole="button"
-      >
-        <Text style={styles.footerLink}>Ver todas las OT preventivas →</Text>
-      </Pressable>
     </View>
+  );
+}
+
+function NotificationBody({
+  item,
+  styles,
+}: {
+  item: AppNotification;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  if (item.kind === "stock_minimo") {
+    const units = `${item.quantity} ${item.quantity === 1 ? "unidad" : "unidades"}`;
+    return item.eventType === "sin_stock" ? (
+      <Text style={styles.itemBody}>
+        <Text style={styles.boldText}>«{item.partName}»</Text> se quedó sin stock (mínimo{" "}
+        {item.minimum}).
+      </Text>
+    ) : (
+      <Text style={styles.itemBody}>
+        <Text style={styles.boldText}>«{item.partName}»</Text> quedó en{" "}
+        <Text style={styles.boldText}>{units}</Text> (mínimo {item.minimum}).
+      </Text>
+    );
+  }
+
+  return item.isGrouped ? (
+    <Text style={styles.itemBody}>
+      Se generaron <Text style={styles.boldText}>{item.count} OT preventivas</Text> del plan{" "}
+      <Text style={styles.boldText}>«{item.planName}»</Text>.
+    </Text>
+  ) : (
+    <Text style={styles.itemBody}>
+      Se generó la <Text style={styles.boldText}>{item.orderNumber}</Text> del plan{" "}
+      <Text style={styles.boldText}>{item.planName}</Text> para {item.equipmentName} (
+      {item.equipmentCode}).
+    </Text>
   );
 }
 
@@ -214,6 +251,9 @@ function makeStyles(c: ThemeColors) {
       marginTop: 2,
       flexShrink: 0,
     },
+    iconCircleStock: {
+      backgroundColor: "#fbe3cc",
+    },
     contentWrap: {
       flex: 1,
       minWidth: 0,
@@ -248,22 +288,19 @@ function makeStyles(c: ThemeColors) {
       color: c.textMuted,
       marginTop: 2,
     },
-    footer: {
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      borderTopWidth: 1,
-      borderTopColor: "rgba(0, 0, 0, 0.06)",
+    markOneButton: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
       alignItems: "center",
       justifyContent: "center",
+      borderWidth: 1,
+      borderColor: "rgba(0, 0, 0, 0.1)",
       backgroundColor: "#ffffff",
+      flexShrink: 0,
       ...Platform.select({
         web: { cursor: "pointer" },
       }),
-    },
-    footerLink: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: c.accent,
     },
   });
 }

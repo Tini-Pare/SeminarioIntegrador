@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { fromDbDate } from "../../../components/CustomDatePicker";
-import { RefreshCwIcon, WarningIcon } from "../../../components/icons";
+import { EquipmentIcon, RefreshCwIcon, WarningIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
 import { Sigla } from "../../../components/Sigla";
@@ -61,6 +61,7 @@ function getOriginLabel(item: Item): string {
   const origin = getWorkOrderOrigin(item);
   if (origin === "solicitud") return "Solicitud";
   if (origin === "plan") return "Plan preventivo";
+  if (origin === "instalacion") return "Instalación";
   return "Sin origen";
 }
 
@@ -360,6 +361,12 @@ export default function WorkOrdersScreen() {
 
                         <Text style={styles.originChipTextPlan}>Plan preventivo</Text>
                       </View>
+                    ) : origin === "instalacion" ? (
+                      <View style={[styles.originChip, styles.originChipInstalacion]}>
+                        <EquipmentIcon size={12} color="#8a5d12" />
+
+                        <Text style={styles.originChipTextInstalacion}>Instalación</Text>
+                      </View>
                     ) : (
                       <View style={[styles.originChip, styles.originChipNone]}>
                         <Text style={styles.originChipTextNone}>Sin origen</Text>
@@ -517,6 +524,14 @@ function makeStyles(c: ThemeColors) {
       fontSize: 12,
       fontWeight: "600",
       color: "#2d4a7a",
+    },
+    originChipInstalacion: {
+      backgroundColor: "#f7efdb",
+    },
+    originChipTextInstalacion: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#8a5d12",
     },
     originChipNone: {
       backgroundColor: "#edeadd",

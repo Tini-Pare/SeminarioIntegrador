@@ -18,6 +18,9 @@ export type MaintenancePlanDetail = {
   name: string;
   description: string | null;
   frequency: number;
+  // Hour (Argentina, 0–23) the plan's preventive OTs are emitted at on each
+  // equipo's due date (pm_hora_emision, 0039).
+  emissionHour: number;
   estado: "activo" | "inactivo";
   tasks: TareaGeneral[];
   equipments: MaintenancePlanEquipmentRow[];
@@ -28,6 +31,7 @@ export type MaintenancePlanInput = {
   name: string;
   description?: string | null;
   frequency: number;
+  emissionHour: number;
   estado: "activo" | "inactivo";
   taskIds: number[];
 };
@@ -97,6 +101,7 @@ export async function getMaintenancePlan(id: number): Promise<MaintenancePlanDet
     name: plan.pm_nombre_plan,
     description: plan.pm_descripcion_plan,
     frequency: plan.pm_frecuencia,
+    emissionHour: plan.pm_hora_emision,
     estado: plan.pm_estado,
     tasks,
     equipments,
@@ -146,6 +151,7 @@ export async function createMaintenancePlan(input: MaintenancePlanInput): Promis
     p_estado: input.estado,
     p_tareas: input.taskIds,
     p_equipos: [],
+    p_hora_emision: input.emissionHour,
   });
 
   if (error) {
@@ -170,6 +176,7 @@ export async function updateMaintenancePlan(
     p_estado: input.estado,
     p_tareas: input.taskIds,
     p_equipos: [],
+    p_hora_emision: input.emissionHour,
   });
 
   if (error) {

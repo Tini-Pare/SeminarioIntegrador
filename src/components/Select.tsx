@@ -24,6 +24,8 @@ export type SelectOption<T extends number | string = number> = { value: T; label
 // self-managed.
 // `inline` keeps the options in the document flow when a modal ScrollView
 // would otherwise clip or cover an absolute dropdown.
+// `searchable={false}` drops the search box, for short fixed lists (e.g.
+// the 24 hours) where it only takes up room.
 export function Select<T extends number | string = number>({
   value,
   onChange,
@@ -31,6 +33,7 @@ export function Select<T extends number | string = number>({
   placeholder = "Elegí una opción",
   disabled = false,
   inline = false,
+  searchable = true,
   open: openProp,
   onOpenChange,
   hasError = false,
@@ -41,6 +44,7 @@ export function Select<T extends number | string = number>({
   placeholder?: string;
   disabled?: boolean;
   inline?: boolean;
+  searchable?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hasError?: boolean;
@@ -117,15 +121,17 @@ export function Select<T extends number | string = number>({
           <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
 
           <View style={[styles.dropdown, inline && styles.dropdownInline]}>
-            <TextInput
-              ref={searchRef}
-              style={styles.search}
-              placeholder="Buscar…"
-              placeholderTextColor={colors.textMuted}
-              value={query}
-              onChangeText={setQuery}
-              autoCorrect={false}
-            />
+            {searchable && (
+              <TextInput
+                ref={searchRef}
+                style={styles.search}
+                placeholder="Buscar…"
+                placeholderTextColor={colors.textMuted}
+                value={query}
+                onChangeText={setQuery}
+                autoCorrect={false}
+              />
+            )}
 
             {filtered.length === 0 ? (
               <Text style={styles.noResults}>Sin resultados</Text>

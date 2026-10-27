@@ -38,6 +38,14 @@ import type { TareaGeneral } from "../types/database";
 
 type ModalMode = "create" | "edit" | "view";
 
+// What a new plan starts with; matches pm_hora_emision's column default.
+const DEFAULT_EMISSION_HOUR = 6;
+
+// Whole hours only: the generation job runs once an hour, on the hour (0039).
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => ({
+  value: h,
+  label: `${String(h).padStart(2, "0")}:00`,
+}));
 
 // Calculate next due date in DD/MM/YYYY format: entered date + frequency in days
 function addDaysToDateString(dateStr: string | undefined, days: number): string {
@@ -81,6 +89,7 @@ export function MaintenancePlanModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [frequency, setFrequency] = useState("");
+  const [emissionHour, setEmissionHour] = useState(DEFAULT_EMISSION_HOUR);
   const [typeId, setTypeId] = useState<number | null>(null);
   const [typeName, setTypeName] = useState("");
   const [estado, setEstado] = useState<"activo" | "inactivo">("activo");
@@ -107,6 +116,7 @@ export function MaintenancePlanModal({
     name: string;
     description: string;
     frequency: string;
+    emissionHour: number;
     typeId: number | null;
     estado: "activo" | "inactivo";
     taskIds: number[];
@@ -114,6 +124,7 @@ export function MaintenancePlanModal({
     name: "",
     description: "",
     frequency: "",
+    emissionHour: DEFAULT_EMISSION_HOUR,
     typeId: null,
     estado: "activo",
     taskIds: [],
@@ -139,6 +150,7 @@ export function MaintenancePlanModal({
           setName(detail.name);
           setDescription(detail.description ?? "");
           setFrequency(String(detail.frequency));
+          setEmissionHour(detail.emissionHour);
           setTypeId(detail.typeId);
           setTypeName(detail.typeName);
           setEstado(detail.estado);
@@ -162,6 +174,7 @@ export function MaintenancePlanModal({
             name: detail.name,
             description: detail.description ?? "",
             frequency: String(detail.frequency),
+            emissionHour: detail.emissionHour,
             typeId: detail.typeId,
             estado: detail.estado,
             taskIds: detail.tasks.map((t) => t.tag_id_tarea),
@@ -176,6 +189,7 @@ export function MaintenancePlanModal({
       setName("");
       setDescription("");
       setFrequency("");
+      setEmissionHour(DEFAULT_EMISSION_HOUR);
       setTypeId(null);
       setTypeName("");
       setEstado("activo");
@@ -188,6 +202,7 @@ export function MaintenancePlanModal({
         name: "",
         description: "",
         frequency: "",
+        emissionHour: DEFAULT_EMISSION_HOUR,
         typeId: null,
         estado: "activo",
         taskIds: [],
@@ -232,6 +247,7 @@ export function MaintenancePlanModal({
     if (name !== initialSnapshot.name) return true;
     if (description !== initialSnapshot.description) return true;
     if (frequency !== initialSnapshot.frequency) return true;
+    if (emissionHour !== initialSnapshot.emissionHour) return true;
     if (typeId !== initialSnapshot.typeId) return true;
     if (estado !== initialSnapshot.estado) return true;
 
@@ -246,6 +262,7 @@ export function MaintenancePlanModal({
     name,
     description,
     frequency,
+    emissionHour,
     typeId,
     estado,
     selectedTasks,
@@ -296,6 +313,7 @@ export function MaintenancePlanModal({
         name: name.trim(),
         description: description.trim() || null,
         frequency: freqNum,
+        emissionHour,
         estado,
         taskIds: selectedTasks.map((t) => t.tag_id_tarea),
       };
@@ -364,8 +382,9 @@ export function MaintenancePlanModal({
                 contentContainerStyle={styles.scrollContent}
                 keyboardShouldPersistTaps="handled"
               >
-                {/* 1. Datos del plan */}
-                <View style={styles.section}>
+                {/* 1. Datos del plan — raised while one of its dropdowns is
+                    open, or the sections below paint over the list */}
+                <View style={[styles.section, openField !== null && styles.sectionRaised]}>
                   {/* Row 1: Nombre del plan | Tipo de equipo */}
                   <View style={[styles.formRow, openField === "type" && styles.formRowRaised]}>
                     <View style={styles.col}>
@@ -438,39 +457,70 @@ export function MaintenancePlanModal({
                     </View>
                   </View>
 
-                  {/* Row 2: Frecuencia (días) | Estado del plan */}
-                  <View style={styles.formRow}>
-                    <View style={styles.col}>
-                      <View style={styles.labelRow}>
-                        <Text style={styles.label}>Frecuencia (días)</Text>
+                  {/* Row 2: Frecuencia (días) + Hora de emisión | Estado del plan */}
+                  <View style={[styles.formRow, openField === "hour" && styles.formRowRaised]}>
+                    <View style={[styles.col, openField === "hour" && styles.fieldRaised]}>
+                      <View style={styles.shortFieldsRow}>
+                        <View style={styles.shortField}>
+                          <View style={styles.labelRow}>
+                            <Text style={styles.label}>Frecuencia (días)</Text>
 
-                        <Tooltip text="Campo obligatorio">
-                          <Text
-                            style={styles.requiredAsterisk}
-                            accessibilityLabel="Campo obligatorio"
-                            {...(Platform.OS === "web"
-                              ? ({ title: "Campo obligatorio", cursor: "help" } as any)
-                              : {})}
-                          >
-                            *
-                          </Text>
-                        </Tooltip>
+                            <Tooltip text="Campo obligatorio">
+                              <Text
+                                style={styles.requiredAsterisk}
+                                accessibilityLabel="Campo obligatorio"
+                                {...(Platform.OS === "web"
+                                  ? ({ title: "Campo obligatorio", cursor: "help" } as any)
+                                  : {})}
+                              >
+                                *
+                              </Text>
+                            </Tooltip>
+                          </View>
+
+                          <TextInput
+                            style={[styles.input, isView && styles.inputDisabled]}
+                            value={frequency}
+                            onChangeText={(txt) =>
+                              setFrequency(txt.replace(/[^0-9]/g, "").slice(0, 3))
+                            }
+                            maxLength={3}
+                            placeholder="Ej: 60"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="numeric"
+                            editable={!isView}
+                          />
+                        </View>
+
+                        <View style={styles.shortField}>
+                          <View style={styles.labelRow}>
+                            <Text style={styles.label}>Hora de emisión</Text>
+                          </View>
+
+                          <Select
+                            value={emissionHour}
+                            onChange={(h) => {
+                              setEmissionHour(h);
+                              setOpenField(null);
+                            }}
+                            options={HOUR_OPTIONS}
+                            searchable={false}
+                            disabled={isView}
+                            open={openField === "hour"}
+                            onOpenChange={(o) => setOpenField(o ? "hour" : null)}
+                          />
+                        </View>
                       </View>
 
-                      <TextInput
-                        style={[styles.input, isView && styles.inputDisabled]}
-                        value={frequency}
-                        onChangeText={(txt) => setFrequency(txt.replace(/[^0-9]/g, "").slice(0, 3))}
-                        maxLength={3}
-                        placeholder="Ej: 60"
-                        placeholderTextColor={colors.textMuted}
-                        keyboardType="numeric"
-                        editable={!isView}
-                      />
-
                       {frequency.trim() !== "" && !isFrequencyValid && (
-                        <Text style={styles.fieldError}>Debe ser un número entre 1 y 999</Text>
+                        <Text style={styles.fieldError}>
+                          La frecuencia debe ser un número entre 1 y 999
+                        </Text>
                       )}
+
+                      <Text style={styles.hintText}>
+                        El día que vence cada equipo, su OT preventiva se emite a esa hora.
+                      </Text>
                     </View>
 
                     <View style={styles.col}>
@@ -545,7 +595,6 @@ export function MaintenancePlanModal({
                       )}
                     </View>
                   </View>
-
 
                   {/* Row 3: Descripción */}
                   <View style={styles.fieldFull}>
@@ -748,10 +797,11 @@ export function MaintenancePlanModal({
 
                       {/* 4. Nota informativa */}
                       <Text style={styles.infoNote}>
-                        Próximo vencimiento = último mantenimiento + frecuencia. Al vencer, se
-                        genera sola la OT preventiva, asignada al técnico con menos tareas abiertas;
-                        al resolverse, actualiza el último mantenimiento del equipo. Un equipo sin
-                        registro genera su OT apenas el plan queda activo.
+                        Próximo vencimiento = último mantenimiento + frecuencia. Ese día, a la hora
+                        de emisión, se genera sola la OT preventiva y cada tarea se asigna al
+                        técnico con menos tareas abiertas; al resolverse, actualiza el último
+                        mantenimiento del equipo. Un equipo sin registro genera su OT el mismo día
+                        en que el plan queda activo, a partir de la hora de emisión.
                       </Text>
                     </View>
                   </>
@@ -914,6 +964,11 @@ function makeStyles(c: ThemeColors) {
     section: {
       gap: 14,
     },
+    sectionRaised: {
+      position: "relative",
+      zIndex: 100,
+      elevation: 100,
+    },
     formRow: {
       flexDirection: "row",
       gap: 16,
@@ -931,6 +986,17 @@ function makeStyles(c: ThemeColors) {
       zIndex: 1,
     },
     fieldFull: {
+      gap: 6,
+    },
+    // Short values (a number of days, an hour): side by side and narrow
+    // instead of each taking a whole column.
+    shortFieldsRow: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    shortField: {
+      flex: 1,
+      maxWidth: 150,
       gap: 6,
     },
     fieldRaised: {

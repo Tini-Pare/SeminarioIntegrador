@@ -14,6 +14,7 @@ import {
   generateOrder,
   getSolicitudById,
   getWorkOrderById,
+  getWorkOrderOrigin,
   listActiveTaskCountsByTechnician,
   listAllRequests,
   listMyRequests,
@@ -532,6 +533,15 @@ describe("listWorkOrders", () => {
         },
       }),
     ]);
+  });
+});
+
+describe("getWorkOrderOrigin", () => {
+  it("tells solicitud, plan, instalación and unknown OTs apart", () => {
+    expect(getWorkOrderOrigin({ sol_id_solicitud: 3, type: "correctivo" })).toBe("solicitud");
+    expect(getWorkOrderOrigin({ plan_id_manequipo: 7, type: "preventivo" })).toBe("plan");
+    expect(getWorkOrderOrigin({ type: "instalacion" })).toBe("instalacion");
+    expect(getWorkOrderOrigin({ type: "correctivo" })).toBe("none");
   });
 });
 
