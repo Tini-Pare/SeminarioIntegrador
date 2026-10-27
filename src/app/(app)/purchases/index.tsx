@@ -339,7 +339,7 @@ export default function PurchasesScreen() {
           <Text style={styles.empty}>
             {purchases.length === 0
               ? "Todavía no hay compras registradas."
-              : "No hay compras que coincidan con la búsqueda o filtros."}
+              : "No hay compras que coincidan con la búsqueda o los filtros."}
           </Text>
         ) : (
           <View style={styles.table}>

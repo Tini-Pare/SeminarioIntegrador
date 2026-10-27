@@ -19,10 +19,10 @@ import {
   parseDateString,
 } from "./CustomDatePicker";
 import { DetailModal } from "./DetailModal";
+import { FieldLabel } from "./FieldLabel";
 import { RowActions } from "./RowActions";
 import { WarningIcon } from "./icons";
 import { Select } from "./Select";
-import { Tooltip } from "./Tooltip";
 import { listEquipmentTypes, type EquipmentTypeWithCount } from "../lib/queries/equipmentTypes";
 import {
   createMaintenancePlan,
@@ -287,11 +287,7 @@ export function MaintenancePlanModal({
   const isTasksValid = estado === "inactivo" || selectedTasks.length > 0;
 
   const isFormValid =
-    isNameValid &&
-    isTypeValid &&
-    isFrequencyValid &&
-    isDescriptionValid &&
-    isTasksValid;
+    isNameValid && isTypeValid && isFrequencyValid && isDescriptionValid && isTasksValid;
 
   async function handleSave() {
     if (!isFormValid) {
@@ -388,21 +384,7 @@ export function MaintenancePlanModal({
                   {/* Row 1: Nombre del plan | Tipo de equipo */}
                   <View style={[styles.formRow, openField === "type" && styles.formRowRaised]}>
                     <View style={styles.col}>
-                      <View style={styles.labelRow}>
-                        <Text style={styles.label}>Nombre del plan</Text>
-
-                        <Tooltip text="Campo obligatorio">
-                          <Text
-                            style={styles.requiredAsterisk}
-                            accessibilityLabel="Campo obligatorio"
-                            {...(Platform.OS === "web"
-                              ? ({ title: "Campo obligatorio", cursor: "help" } as any)
-                              : {})}
-                          >
-                            *
-                          </Text>
-                        </Tooltip>
-                      </View>
+                      <FieldLabel text="Nombre del plan" required={!isView} style={styles.label} />
 
                       <TextInput
                         style={[styles.input, isView && styles.inputDisabled]}
@@ -415,23 +397,7 @@ export function MaintenancePlanModal({
                     </View>
 
                     <View style={[styles.col, openField === "type" && styles.fieldRaised]}>
-                      <View style={styles.labelRow}>
-                        <Text style={styles.label}>Tipo de equipo</Text>
-
-                        {isCreate && (
-                          <Tooltip text="Campo obligatorio">
-                            <Text
-                              style={styles.requiredAsterisk}
-                              accessibilityLabel="Campo obligatorio"
-                              {...(Platform.OS === "web"
-                                ? ({ title: "Campo obligatorio", cursor: "help" } as any)
-                                : {})}
-                            >
-                              *
-                            </Text>
-                          </Tooltip>
-                        )}
-                      </View>
+                      <FieldLabel text="Tipo de equipo" required={isCreate} style={styles.label} />
 
                       {isCreate ? (
                         <Select
@@ -462,21 +428,11 @@ export function MaintenancePlanModal({
                     <View style={[styles.col, openField === "hour" && styles.fieldRaised]}>
                       <View style={styles.shortFieldsRow}>
                         <View style={styles.shortField}>
-                          <View style={styles.labelRow}>
-                            <Text style={styles.label}>Frecuencia (días)</Text>
-
-                            <Tooltip text="Campo obligatorio">
-                              <Text
-                                style={styles.requiredAsterisk}
-                                accessibilityLabel="Campo obligatorio"
-                                {...(Platform.OS === "web"
-                                  ? ({ title: "Campo obligatorio", cursor: "help" } as any)
-                                  : {})}
-                              >
-                                *
-                              </Text>
-                            </Tooltip>
-                          </View>
+                          <FieldLabel
+                            text="Frecuencia (días)"
+                            required={!isView}
+                            style={styles.label}
+                          />
 
                           <TextInput
                             style={[styles.input, isView && styles.inputDisabled]}
@@ -598,21 +554,7 @@ export function MaintenancePlanModal({
 
                   {/* Row 3: Descripción */}
                   <View style={styles.fieldFull}>
-                    <View style={styles.labelRow}>
-                      <Text style={styles.label}>Descripción</Text>
-
-                      <Tooltip text="Campo obligatorio">
-                        <Text
-                          style={styles.requiredAsterisk}
-                          accessibilityLabel="Campo obligatorio"
-                          {...(Platform.OS === "web"
-                            ? ({ title: "Campo obligatorio", cursor: "help" } as any)
-                            : {})}
-                        >
-                          *
-                        </Text>
-                      </Tooltip>
-                    </View>
+                    <FieldLabel text="Descripción" required={!isView} style={styles.label} />
 
                     <TextInput
                       style={[styles.input, styles.multiline, isView && styles.inputDisabled]}
@@ -1013,13 +955,6 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13,
       fontWeight: "600",
       color: c.text,
-    },
-    requiredAsterisk: {
-      fontSize: 14,
-      fontWeight: "700",
-      color: c.destructive,
-      lineHeight: 14,
-      paddingHorizontal: 2,
     },
     input: {
       height: 44,

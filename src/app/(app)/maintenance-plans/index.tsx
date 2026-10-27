@@ -2,7 +2,6 @@ import { Stack, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,7 +9,9 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { MaintenancePlanModal } from "../../../components/MaintenancePlanModal";
+import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
@@ -271,7 +272,6 @@ export default function MaintenancePlansScreen() {
           </View>
         )}
 
-
         {/* Filter bar */}
         <TableFilterBar
           searchValue={search}
@@ -310,7 +310,9 @@ export default function MaintenancePlansScreen() {
 
         {/* Table or Empty State */}
         {sorted.length === 0 ? (
-          <Text style={styles.empty}>No hay planes que coincidan con la búsqueda o filtro.</Text>
+          <Text style={styles.empty}>
+            No hay planes que coincidan con la búsqueda o los filtros.
+          </Text>
         ) : isWide ? (
           <View style={styles.table}>
             <View style={styles.tableHeader}>
@@ -384,10 +386,6 @@ export default function MaintenancePlansScreen() {
                 styles={styles}
               />
             ))}
-
-            {pageCount > 1 && (
-              <TablePagination page={page} pageCount={pageCount} onPage={setPage} styles={styles} />
-            )}
           </View>
         ) : (
           /* Mobile Card List */
@@ -416,7 +414,9 @@ export default function MaintenancePlansScreen() {
                   <View style={styles.cardMetaItem}>
                     <Text style={styles.cardMetaLabel}>FRECUENCIA</Text>
 
-                    <Text style={styles.cardMetaVal}>Cada {p.pm_frecuencia} días</Text>
+                    <Text style={styles.cardMetaVal}>
+                      Cada {p.pm_frecuencia} {p.pm_frecuencia === 1 ? "día" : "días"}
+                    </Text>
                   </View>
 
                   <View style={styles.cardMetaItem}>
@@ -440,19 +440,10 @@ export default function MaintenancePlansScreen() {
                 </View>
               </View>
             ))}
-
-            {pageCount > 1 && (
-              <View style={styles.mobilePaginationWrap}>
-                <TablePagination
-                  page={page}
-                  pageCount={pageCount}
-                  onPage={setPage}
-                  styles={styles}
-                />
-              </View>
-            )}
           </View>
         )}
+
+        <Pagination page={page} pageCount={pageCount} onPage={setPage} />
 
         {/* Create / Edit / View Modal */}
         <MaintenancePlanModal
@@ -463,55 +454,23 @@ export default function MaintenancePlansScreen() {
           mode={modalMode}
         />
 
-        {/* Delete / Deactivate Confirmation Modal */}
-        <Modal
+        {/* Delete / Deactivate confirmation — same dialog as the other screens */}
+        <ConfirmDialog
           visible={!!planToDelete}
-          transparent
-          animationType="fade"
-          onRequestClose={() => {
-            if (!deleting) setPlanToDelete(null);
+          title={showDeactivatePrompt ? "Plan con órdenes de trabajo" : "Eliminar plan"}
+          message={
+            showDeactivatePrompt
+              ? `El plan "${planToDelete?.pm_nombre_plan}" ya tiene órdenes de trabajo asociadas y no puede ser borrado físicamente para resguardar el historial. ¿Deseás darlo de baja marcándolo como Inactivo?`
+              : `¿Desea eliminar el plan "${planToDelete?.pm_nombre_plan}"? Esta acción borrará también sus tareas previstas y registros de mantenimiento.`
+          }
+          confirmLabel={showDeactivatePrompt ? "Dar de baja" : "Eliminar"}
+          busy={deleting}
+          onConfirm={showDeactivatePrompt ? handleConfirmDeactivate : handleConfirmDelete}
+          onCancel={() => {
+            setPlanToDelete(null);
+            setShowDeactivatePrompt(false);
           }}
-        >
-          <View style={styles.overlay}>
-            <View style={styles.confirmSheet}>
-              <Text style={styles.confirmTitle}>
-                {showDeactivatePrompt ? "Plan con órdenes de trabajo" : "Eliminar plan"}
-              </Text>
-
-              <Text style={styles.confirmMessage}>
-                {showDeactivatePrompt
-                  ? `El plan "${planToDelete?.pm_nombre_plan}" ya tiene órdenes de trabajo asociadas y no puede ser borrado físicamente para resguardar el historial. ¿Deseás darlo de baja marcándolo como Inactivo?`
-                  : `¿Desea eliminar el plan "${planToDelete?.pm_nombre_plan}"? Esta acción borrará también sus tareas previstas y registros de mantenimiento.`}
-              </Text>
-
-              <View style={styles.confirmActions}>
-                <Pressable
-                  style={styles.confirmCancelButton}
-                  onPress={() => {
-                    setPlanToDelete(null);
-                    setShowDeactivatePrompt(false);
-                  }}
-                  disabled={deleting}
-                >
-                  <Text style={styles.confirmCancelText}>Cancelar</Text>
-                </Pressable>
-
-                <Pressable
-                  style={[
-                    styles.confirmAcceptButton,
-                    showDeactivatePrompt && styles.confirmDeactivateButton,
-                  ]}
-                  onPress={showDeactivatePrompt ? handleConfirmDeactivate : handleConfirmDelete}
-                  disabled={deleting}
-                >
-                  <Text style={styles.confirmAcceptText}>
-                    {deleting ? "Procesando…" : showDeactivatePrompt ? "Dar de baja" : "Eliminar"}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        />
       </ScrollView>
     </>
   );
@@ -582,7 +541,9 @@ function PlanTableRow({
 
       {/* Frecuencia */}
       <View style={{ flex: 1.2 }}>
-        <Text style={styles.cellText}>Cada {p.pm_frecuencia} días</Text>
+        <Text style={styles.cellText}>
+          Cada {p.pm_frecuencia} {p.pm_frecuencia === 1 ? "día" : "días"}
+        </Text>
       </View>
 
       {/* Tareas */}
@@ -615,97 +576,6 @@ function PlanTableRow({
   );
 }
 
-function TablePagination({
-  page,
-  pageCount,
-  onPage,
-  styles,
-}: {
-  page: number;
-  pageCount: number;
-  onPage: (p: number) => void;
-  styles: ReturnType<typeof makeStyles>;
-}) {
-  if (pageCount <= 1) return null;
-
-  const pageNumbers: (number | string)[] = [];
-  for (let i = 1; i <= pageCount; i++) {
-    if (i === 1 || i === pageCount || (i >= page - 1 && i <= page + 1)) {
-      pageNumbers.push(i);
-    } else if (pageNumbers[pageNumbers.length - 1] !== "…") {
-      pageNumbers.push("…");
-    }
-  }
-
-  return (
-    <View style={styles.paginationWrap}>
-      <Pressable
-        style={[styles.pageNavBtn, page <= 1 ? styles.pageNavBtnDisabled : styles.pageNavBtnActive]}
-        onPress={() => onPage(page - 1)}
-        disabled={page <= 1}
-        accessibilityLabel="Página anterior"
-      >
-        <Text
-          style={[
-            styles.pageNavBtnText,
-            page <= 1 ? styles.pageNavBtnTextDisabled : styles.pageNavBtnTextActive,
-          ]}
-        >
-          ‹ Anterior
-        </Text>
-      </Pressable>
-
-      <View style={styles.pageNumbersWrap}>
-        {pageNumbers.map((p, idx) =>
-          typeof p === "number" ? (
-            <Pressable
-              key={`page-${p}`}
-              style={[
-                styles.pageNumberBtn,
-                p === page ? styles.pageNumberBtnActive : styles.pageNumberBtnInactive,
-              ]}
-              onPress={() => onPage(p)}
-              accessibilityLabel={`Página ${p}`}
-            >
-              <Text
-                style={[
-                  styles.pageNumberText,
-                  p === page ? styles.pageNumberTextActive : styles.pageNumberTextInactive,
-                ]}
-              >
-                {p}
-              </Text>
-            </Pressable>
-          ) : (
-            <Text key={`ellipsis-${idx}`} style={styles.pageEllipsisText}>
-              …
-            </Text>
-          ),
-        )}
-      </View>
-
-      <Pressable
-        style={[
-          styles.pageNavBtn,
-          page >= pageCount ? styles.pageNavBtnDisabled : styles.pageNavBtnActive,
-        ]}
-        onPress={() => onPage(page + 1)}
-        disabled={page >= pageCount}
-        accessibilityLabel="Página siguiente"
-      >
-        <Text
-          style={[
-            styles.pageNavBtnText,
-            page >= pageCount ? styles.pageNavBtnTextDisabled : styles.pageNavBtnTextActive,
-          ]}
-        >
-          Siguiente ›
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
-
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: {
@@ -713,7 +583,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bg,
     },
     content: {
-      padding: 24,
+      padding: 20,
       gap: 16,
     },
     center: {
@@ -746,16 +616,16 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
     },
     headerText: {
-      gap: 4,
+      gap: 3,
     },
     title: {
-      fontSize: 24,
-      fontWeight: "700",
+      fontSize: 22,
+      fontWeight: "600",
       color: c.text,
     },
     subtitle: {
       fontSize: 13.5,
-      color: c.textMuted,
+      color: c.textSecondary,
     },
     headerActions: {
       flexDirection: "row",
@@ -942,132 +812,6 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       justifyContent: "flex-end",
       marginTop: 4,
-    },
-    mobilePaginationWrap: {
-      marginTop: 8,
-    },
-    paginationWrap: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      borderTopWidth: 1,
-      borderTopColor: c.border,
-    },
-    pageNavBtn: {
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 8,
-      borderWidth: 1,
-    },
-    pageNavBtnActive: {
-      borderColor: c.border,
-      backgroundColor: c.bgNested,
-    },
-    pageNavBtnDisabled: {
-      borderColor: "transparent",
-      opacity: 0.4,
-    },
-    pageNavBtnText: {
-      fontSize: 13,
-      fontWeight: "600",
-    },
-    pageNavBtnTextActive: {
-      color: c.text,
-    },
-    pageNavBtnTextDisabled: {
-      color: c.textMuted,
-    },
-    pageNumbersWrap: {
-      flexDirection: "row",
-      gap: 6,
-      alignItems: "center",
-    },
-    pageNumberBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    pageNumberBtnActive: {
-      backgroundColor: c.accent,
-    },
-    pageNumberBtnInactive: {
-      backgroundColor: c.bgNested,
-    },
-    pageNumberText: {
-      fontSize: 13,
-      fontWeight: "600",
-    },
-    pageNumberTextActive: {
-      color: "#FFFFFF",
-    },
-    pageNumberTextInactive: {
-      color: c.text,
-    },
-    pageEllipsisText: {
-      fontSize: 13,
-      color: c.textMuted,
-      paddingHorizontal: 4,
-    },
-    overlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.55)",
-      justifyContent: "center",
-      padding: 20,
-    },
-    confirmSheet: {
-      backgroundColor: c.bgModal,
-      borderRadius: 16,
-      padding: 24,
-      width: "100%",
-      maxWidth: 480,
-      alignSelf: "center",
-      gap: 16,
-    },
-    confirmTitle: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: c.text,
-    },
-    confirmMessage: {
-      fontSize: 14,
-      color: c.textMuted,
-      lineHeight: 20,
-    },
-    confirmActions: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      gap: 12,
-      marginTop: 8,
-    },
-    confirmCancelButton: {
-      paddingVertical: 9,
-      paddingHorizontal: 16,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: c.border,
-    },
-    confirmCancelText: {
-      fontSize: 13.5,
-      fontWeight: "600",
-      color: c.text,
-    },
-    confirmAcceptButton: {
-      paddingVertical: 9,
-      paddingHorizontal: 18,
-      borderRadius: 8,
-      backgroundColor: c.destructive,
-    },
-    confirmDeactivateButton: {
-      backgroundColor: c.urgencyMedium.accent,
-    },
-    confirmAcceptText: {
-      fontSize: 13.5,
-      fontWeight: "600",
-      color: "#FFFFFF",
     },
   });
 }

@@ -45,9 +45,10 @@ import type { Equipo, Fallo, Profile, SolicitudTask, WorkOrder } from "../../../
 type Priority = WorkOrder["priority"];
 type EditingField = "start" | "planned" | "priority" | "fault" | null;
 
+// Same labels as the OT list (work-orders/index.tsx).
 const STATUS_LABELS: Record<WorkOrder["status"], string> = {
-  assigned: "En proceso",
-  in_progress: "En proceso",
+  assigned: "Asignada",
+  in_progress: "En curso",
   resolved: "Resuelta",
 };
 // ot_tipo_orden is free text in the DB; anything not listed here shows as is.

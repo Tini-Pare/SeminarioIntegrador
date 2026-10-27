@@ -184,7 +184,7 @@ export default function LocationsScreen() {
 
             {sorted.length === 0 ? (
               <Text style={styles.empty}>
-                No se encontraron ubicaciones que coincidan con la búsqueda.
+                No hay ubicaciones que coincidan con la búsqueda o los filtros.
               </Text>
             ) : isWide ? (
               <View style={styles.table}>

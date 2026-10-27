@@ -1,4 +1,4 @@
-import { Slot, router, usePathname } from "expo-router";
+import { Redirect, Slot, router, usePathname } from "expo-router";
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import {
   ActivityIndicator,
@@ -421,6 +421,17 @@ export default function AppLayout() {
         <ActivityIndicator />
       </View>
     );
+  }
+
+  // Each role only gets the screens in its nav (and their detail routes),
+  // plus Configuración: a técnico typing /users or /work-orders, or an
+  // admin typing /queue, lands on their first screen instead.
+  const allowedHrefs = [
+    ...navEntries.flatMap((e) => (isGroup(e) ? e.items : [e])).map((item) => item.href),
+    "/settings",
+  ];
+  if (profile && !allowedHrefs.some((href) => isActiveHref(pathname, href))) {
+    return <Redirect href={allowedHrefs[0] as never} />;
   }
 
   function goToSettings() {

@@ -5,6 +5,7 @@ import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
 import { listLocations } from "../lib/queries/locations";
 import { listProfiles } from "../lib/queries/profiles";
 import { DropdownBackdrop } from "./DropdownBackdrop";
+import { FieldLabel } from "./FieldLabel";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Select } from "./Select";
@@ -39,6 +40,9 @@ export function AddEquipmentModal({
   const [technicians, setTechnicians] = useState<{ value: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set by a failed submit: from then on the empty required fields are
+  // outlined in red.
+  const [showMissing, setShowMissing] = useState(false);
   const [types, setTypes] = useState<{ value: number; label: string }[]>([]);
   const [locations, setLocations] = useState<{ value: number; label: string }[]>([]);
   const [openField, setOpenField] = useState<OpenField>(null);
@@ -58,6 +62,7 @@ export function AddEquipmentModal({
     setPriority(null);
     setOpenField(null);
     setError(null);
+    setShowMissing(false);
 
     listEquipmentTypes()
       .then((rows) => setTypes(rows.map((t) => ({ value: t.te_id, label: t.te_nombre }))))
@@ -92,38 +97,32 @@ export function AddEquipmentModal({
   const noLocations = locations.length === 0;
   const blocked = noTypes || noLocations;
 
+  const missing = {
+    code: !code.trim(),
+    model: !model.trim(),
+    name: !name.trim(),
+    type: typeId == null,
+    location: locationId == null,
+    installed: installed == null,
+    installDate: installed === "si" && !installDate.trim(),
+    technician: installed === "no" && !technicianId,
+    priority: installed === "no" && !priority,
+  };
+  const isMissing = (field: keyof typeof missing) => showMissing && missing[field];
+
   async function handleSubmit() {
-    if (
-      !code.trim() ||
-      !model.trim() ||
-      !name.trim() ||
-      typeId == null ||
-      locationId == null ||
-      installed == null
-    ) {
-      setError("Todos los campos son obligatorios.");
+    if (Object.values(missing).some(Boolean)) {
+      setShowMissing(true);
+      setError("Completá los campos marcados.");
       return;
     }
     if (installed === "si") {
-      if (!installDate.trim()) {
-        setError("Ingresá la fecha de instalación.");
-        return;
-      }
       if (!isValidDateString(installDate.trim())) {
         setError("Ingresá una fecha de instalación válida (dd/mm/aaaa).");
         return;
       }
       if (!isDateWithinMax(installDate.trim(), new Date())) {
         setError("La fecha de instalación no puede ser posterior a hoy.");
-        return;
-      }
-    } else {
-      if (!technicianId) {
-        setError("Elegí el técnico que va a instalar el equipo.");
-        return;
-      }
-      if (!priority) {
-        setError("Elegí la prioridad de la instalación.");
         return;
       }
     }
@@ -133,8 +132,9 @@ export function AddEquipmentModal({
       const base = {
         code: code.trim(),
         name: name.trim(),
-        typeId,
-        locationId,
+        // Checked by `missing` above.
+        typeId: typeId!,
+        locationId: locationId!,
         model: model.trim(),
       };
       await createEquipment(
@@ -168,9 +168,9 @@ export function AddEquipmentModal({
 
           <View style={styles.fieldRow}>
             <View style={styles.field}>
-              <Text style={styles.label}>Código</Text>
+              <FieldLabel text="Código" required style={styles.label} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, isMissing("code") && styles.inputError]}
                 placeholder="Ej: AC-015"
                 placeholderTextColor={colors.textMuted}
                 value={code}
@@ -180,9 +180,9 @@ export function AddEquipmentModal({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Modelo</Text>
+              <FieldLabel text="Modelo" required style={styles.label} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, isMissing("model") && styles.inputError]}
                 placeholder="Ej: Split 3000F"
                 placeholderTextColor={colors.textMuted}
                 value={model}
@@ -191,38 +191,40 @@ export function AddEquipmentModal({
             </View>
           </View>
 
-          <Text style={styles.label}>Nombre</Text>
+          <FieldLabel text="Nombre" required style={styles.label} />
           <TextInput
-            style={styles.input}
+            style={[styles.input, isMissing("name") && styles.inputError]}
             placeholder="Ej: Aire Acondicionado"
             placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
           />
 
-          <Text style={styles.label}>Tipo</Text>
+          <FieldLabel text="Tipo" required style={styles.label} />
           <Select
             value={typeId}
             onChange={setTypeId}
             options={types}
             placeholder="Elegí un tipo de equipo"
             disabled={noTypes}
+            hasError={isMissing("type")}
             open={openField === "type"}
             onOpenChange={(o) => setOpenField(o ? "type" : null)}
           />
 
-          <Text style={styles.label}>Ubicación</Text>
+          <FieldLabel text="Ubicación" required style={styles.label} />
           <Select
             value={locationId}
             onChange={setLocationId}
             options={locations}
             placeholder="Elegí una ubicación"
             disabled={noLocations}
+            hasError={isMissing("location")}
             open={openField === "location"}
             onOpenChange={(o) => setOpenField(o ? "location" : null)}
           />
 
-          <Text style={styles.label}>¿El equipo ya está instalado?</Text>
+          <FieldLabel text="¿El equipo ya está instalado?" required style={styles.label} />
           <RadioGroup
             name="equipment-installed"
             value={installed}
@@ -237,13 +239,14 @@ export function AddEquipmentModal({
           {installed === "si" && (
             <View style={[styles.fieldRow, openField === "install" && styles.dateRowRaised]}>
               <View style={styles.field}>
-                <Text style={styles.label}>Fecha de instalación</Text>
+                <FieldLabel text="Fecha de instalación" required style={styles.label} />
                 <CustomDatePicker
                   value={installDate}
                   onChange={setInstallDate}
                   open={openField === "install"}
                   onOpenChange={(o) => setOpenField(o ? "install" : null)}
                   maxDate={new Date()}
+                  hasError={isMissing("installDate")}
                 />
               </View>
             </View>
@@ -251,7 +254,7 @@ export function AddEquipmentModal({
 
           {installed === "no" && (
             <>
-              <Text style={styles.label}>Técnico que lo instala</Text>
+              <FieldLabel text="Técnico que lo instala" required style={styles.label} />
               <Select
                 value={technicianId}
                 onChange={setTechnicianId}
@@ -260,11 +263,12 @@ export function AddEquipmentModal({
                   technicians.length > 0 ? "Elegí un técnico" : "No hay técnicos activos"
                 }
                 disabled={technicians.length === 0}
+                hasError={isMissing("technician")}
                 open={openField === "technician"}
                 onOpenChange={(o) => setOpenField(o ? "technician" : null)}
               />
 
-              <Text style={styles.label}>Prioridad de la instalación</Text>
+              <FieldLabel text="Prioridad de la instalación" required style={styles.label} />
               <RadioGroup
                 name="installation-priority"
                 value={priority}
@@ -339,6 +343,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       color: c.text,
     },
+    inputError: { borderColor: c.destructive, borderWidth: 1.5 },
     blockedNote: { color: c.textLabel, marginTop: 14, fontSize: 12.5, lineHeight: 17 },
     error: { color: c.destructive, marginTop: 14, fontSize: 13 },
   });

@@ -164,7 +164,7 @@ export default function SuppliersScreen() {
         <Text style={styles.empty}>
           {suppliers.length === 0
             ? "Todavía no hay proveedores cargados."
-            : "Nada coincide con la búsqueda."}
+            : "No hay proveedores que coincidan con la búsqueda o los filtros."}
         </Text>
       ) : (
         <View style={styles.table}>

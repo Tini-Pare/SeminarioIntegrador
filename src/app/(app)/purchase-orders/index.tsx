@@ -440,7 +440,7 @@ export default function PurchaseOrdersScreen() {
 
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar por técnico o repuesto…"
+            placeholder={isAdmin ? "Buscar por técnico o repuesto…" : "Buscar por repuesto…"}
             placeholderTextColor={colors.textMuted}
             value={search}
             onChangeText={setSearch}
@@ -573,7 +573,7 @@ export default function PurchaseOrdersScreen() {
             ? isAdmin
               ? "Todavía no hay pedidos de compra."
               : "Todavía no enviaste ningún pedido."
-            : "No hay pedidos que coincidan con la búsqueda o filtros."}
+            : "No hay pedidos que coincidan con la búsqueda o los filtros."}
         </Text>
       ) : (
         <View style={styles.table}>

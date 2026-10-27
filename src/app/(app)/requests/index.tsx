@@ -220,7 +220,7 @@ export default function RequestsScreen() {
         emptyMessage={
           items.length === 0
             ? "No hay solicitudes todavía. Reportá una falla con el botón de arriba."
-            : "No hay solicitudes que coincidan con la búsqueda o filtros."
+            : "No hay solicitudes que coincidan con la búsqueda o los filtros."
         }
       />
 

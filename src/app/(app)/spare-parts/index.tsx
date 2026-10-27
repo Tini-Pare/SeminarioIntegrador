@@ -231,7 +231,7 @@ export default function SparePartsScreen() {
         <Text style={styles.empty}>
           {parts.length === 0
             ? "Todavía no hay repuestos cargados."
-            : "Nada coincide con la búsqueda."}
+            : "No hay repuestos que coincidan con la búsqueda o los filtros."}
         </Text>
       ) : (
         <View style={styles.table}>

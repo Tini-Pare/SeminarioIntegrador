@@ -33,8 +33,10 @@ import {
   CalendarIcon,
   EquipmentIcon,
   LocationIcon,
+  RefreshCwIcon,
   UserIcon,
   WarningIcon,
+  WorkOrderIcon,
 } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { withSiglas } from "../../../components/Sigla";
@@ -446,7 +448,9 @@ export default function QueueScreen() {
 
         {visibleItems.length === 0 ? (
           <Text style={styles.empty}>
-            {items.length === 0 ? "No tenés tareas asignadas." : "Nada coincide con este filtro."}
+            {items.length === 0
+              ? "No tenés tareas asignadas."
+              : "No hay tareas que coincidan con los filtros."}
           </Text>
         ) : (
           pageItems.map((item) => {
@@ -468,7 +472,14 @@ export default function QueueScreen() {
                       <Image source={{ uri: item.photoUrl }} style={styles.photo} />
                     ) : (
                       <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
-                        <WarningIcon size={20} color={prio.fg} />
+                        {/* A falla's warning only for correctivos */}
+                        {item.orderType === "preventivo" ? (
+                          <RefreshCwIcon size={20} color={prio.fg} />
+                        ) : item.orderType === "instalacion" ? (
+                          <EquipmentIcon size={20} color={prio.fg} />
+                        ) : (
+                          <WarningIcon size={20} color={prio.fg} />
+                        )}
                       </View>
                     )}
 
@@ -561,7 +572,11 @@ export default function QueueScreen() {
 
                     <View style={styles.infoRow}>
                       <View style={styles.infoIconWrap}>
-                        <UserIcon size={15} color={colors.accent} />
+                        {item.fromSolicitud ? (
+                          <UserIcon size={15} color={colors.accent} />
+                        ) : (
+                          <WorkOrderIcon size={15} color={colors.accent} />
+                        )}
                       </View>
 
                       <View style={styles.infoContent}>

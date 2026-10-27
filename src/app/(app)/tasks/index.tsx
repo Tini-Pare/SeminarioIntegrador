@@ -159,7 +159,7 @@ export default function TasksScreen() {
         <Text style={styles.empty}>
           {tasks.length === 0
             ? "Todavía no hay tareas generales cargadas."
-            : "Nada coincide con la búsqueda."}
+            : "No hay tareas que coincidan con la búsqueda o los filtros."}
         </Text>
       ) : (
         <View style={styles.table}>

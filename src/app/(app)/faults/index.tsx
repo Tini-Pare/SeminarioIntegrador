@@ -186,7 +186,7 @@ export default function FaultsScreen() {
         <Text style={styles.empty}>
           {faults.length === 0
             ? "Todavía no hay fallas genéricas cargadas."
-            : "Nada coincide con la búsqueda."}
+            : "No hay fallas que coincidan con la búsqueda o los filtros."}
         </Text>
       ) : (
         <View style={styles.table}>

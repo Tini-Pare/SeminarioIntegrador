@@ -211,7 +211,7 @@ export default function UsersScreen() {
         <Text style={styles.empty}>
           {profiles.length === 0
             ? "Todavía no hay personas cargadas."
-            : "Nadie coincide con la búsqueda."}
+            : "No hay personas que coincidan con la búsqueda o los filtros."}
         </Text>
       ) : isWide ? (
         <View style={styles.table}>

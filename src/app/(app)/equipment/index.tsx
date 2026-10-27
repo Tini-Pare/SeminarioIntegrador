@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { Pagination } from "../../../components/Pagination";
 import { AddEquipmentModal } from "../../../components/AddEquipmentModal";
 import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
@@ -272,7 +273,9 @@ export default function EquipmentScreen() {
         />
 
         {sorted.length === 0 ? (
-          <Text style={styles.empty}>No hay equipos que coincidan con el filtro.</Text>
+          <Text style={styles.empty}>
+            No hay equipos que coincidan con la búsqueda o los filtros.
+          </Text>
         ) : isWide ? (
           <View style={styles.table}>
             <View style={styles.tableHeader}>
@@ -328,10 +331,6 @@ export default function EquipmentScreen() {
                 styles={styles}
               />
             ))}
-
-            {pageCount > 1 && (
-              <TablePagination page={page} pageCount={pageCount} onPage={setPage} styles={styles} />
-            )}
           </View>
         ) : (
           <View style={styles.cardList}>
@@ -376,19 +375,10 @@ export default function EquipmentScreen() {
                 </View>
               </View>
             ))}
-
-            {pageCount > 1 && (
-              <View style={styles.mobilePaginationWrap}>
-                <TablePagination
-                  page={page}
-                  pageCount={pageCount}
-                  onPage={setPage}
-                  styles={styles}
-                />
-              </View>
-            )}
           </View>
         )}
+
+        <Pagination page={page} pageCount={pageCount} onPage={setPage} />
 
         <AddEquipmentModal
           visible={addModalVisible}
@@ -595,111 +585,10 @@ function EquipmentTableRow({
   );
 }
 
-function getPageNumbers(current: number, total: number): (number | string)[] {
-  if (total <= 5) {
-    return Array.from({ length: total }, (_, i) => i + 1);
-  }
-  const pages: (number | string)[] = [1];
-  const start = Math.max(2, current - 1);
-  const end = Math.min(total - 1, current + 1);
-
-  if (start > 2) pages.push("…");
-  for (let i = start; i <= end; i++) {
-    pages.push(i);
-  }
-  if (end < total - 1) pages.push("…");
-  pages.push(total);
-  return pages;
-}
-
-function TablePagination({
-  page,
-  pageCount,
-  onPage,
-  styles,
-}: {
-  page: number;
-  pageCount: number;
-  onPage: (p: number) => void;
-  styles: ReturnType<typeof makeStyles>;
-}) {
-  if (pageCount <= 1) return null;
-
-  const pageNumbers = getPageNumbers(page, pageCount);
-
-  return (
-    <View style={styles.paginationWrap}>
-      <Pressable
-        style={[styles.pageNavBtn, page <= 1 ? styles.pageNavBtnDisabled : styles.pageNavBtnActive]}
-        onPress={() => onPage(page - 1)}
-        disabled={page <= 1}
-        accessibilityLabel="Página anterior"
-      >
-        <Text
-          style={[
-            styles.pageNavBtnText,
-            page <= 1 ? styles.pageNavBtnTextDisabled : styles.pageNavBtnTextActive,
-          ]}
-        >
-          ‹ Anterior
-        </Text>
-      </Pressable>
-
-      <View style={styles.pageNumbersWrap}>
-        {pageNumbers.map((p, idx) =>
-          typeof p === "number" ? (
-            <Pressable
-              key={`page-${p}`}
-              style={[
-                styles.pageNumberBtn,
-                p === page ? styles.pageNumberBtnActive : styles.pageNumberBtnInactive,
-              ]}
-              onPress={() => onPage(p)}
-              accessibilityLabel={`Página ${p}`}
-            >
-              <Text
-                style={[
-                  styles.pageNumberText,
-                  p === page ? styles.pageNumberTextActive : styles.pageNumberTextInactive,
-                ]}
-              >
-                {p}
-              </Text>
-            </Pressable>
-          ) : (
-            <View key={`ellipsis-${idx}`} style={styles.pageEllipsis}>
-              <Text style={styles.pageEllipsisText}>…</Text>
-            </View>
-          ),
-        )}
-      </View>
-
-      <Pressable
-        style={[
-          styles.pageNavBtn,
-          page >= pageCount ? styles.pageNavBtnDisabled : styles.pageNavBtnActive,
-        ]}
-        onPress={() => onPage(page + 1)}
-        disabled={page >= pageCount}
-        accessibilityLabel="Página siguiente"
-      >
-        <Text
-          style={[
-            styles.pageNavBtnText,
-            page >= pageCount ? styles.pageNavBtnTextDisabled : styles.pageNavBtnTextActive,
-          ]}
-        >
-          Siguiente ›
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
-
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16 },
+    content: { padding: 20 },
     center: { flex: 1 },
     error: { padding: 16, color: c.destructive },
     pageHeader: {
@@ -711,8 +600,8 @@ function makeStyles(c: ThemeColors) {
       flexWrap: "wrap",
     },
     headerText: { flexShrink: 1, minWidth: 0 },
-    title: { fontSize: 19, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 2, fontSize: 13, color: c.textSecondary },
+    title: { fontSize: 22, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     headerActions: {
       flexDirection: "row",
       gap: 10,
@@ -817,92 +706,6 @@ function makeStyles(c: ThemeColors) {
     locationDot: { width: 7, height: 7, borderRadius: 4 },
     locationText: { fontSize: 14, color: c.textSecondary, flexShrink: 1 },
     typeText: { fontSize: 14, color: c.textSecondary },
-    paginationWrap: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      flexWrap: "wrap",
-      gap: 10,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
-      backgroundColor: c.bgCard,
-    },
-    mobilePaginationWrap: {
-      marginTop: 6,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-      overflow: "hidden",
-    },
-    pageNavBtn: {
-      paddingHorizontal: 14,
-      height: 36,
-      borderRadius: 8,
-      borderWidth: 1,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    pageNavBtnDisabled: {
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-      opacity: 0.4,
-    },
-    pageNavBtnActive: {
-      borderColor: c.accent,
-      backgroundColor: c.accent,
-    },
-    pageNavBtnText: {
-      fontSize: 13,
-      fontWeight: "600",
-    },
-    pageNavBtnTextDisabled: {
-      color: c.textMuted,
-    },
-    pageNavBtnTextActive: {
-      color: "#fff",
-    },
-    pageNumbersWrap: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    pageNumberBtn: {
-      minWidth: 32,
-      height: 32,
-      paddingHorizontal: 6,
-      borderRadius: 8,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    pageNumberBtnActive: {
-      backgroundColor: c.accent,
-    },
-    pageNumberBtnInactive: {
-      backgroundColor: "transparent",
-    },
-    pageNumberText: {
-      fontSize: 13,
-      fontWeight: "600",
-    },
-    pageNumberTextActive: {
-      color: "#fff",
-    },
-    pageNumberTextInactive: {
-      color: c.textSecondary,
-    },
-    pageEllipsis: {
-      minWidth: 24,
-      height: 32,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    pageEllipsisText: {
-      fontSize: 13,
-      color: c.textMuted,
-    },
     cardList: { gap: 12, width: "100%" },
     card: {
       backgroundColor: c.bgCard,

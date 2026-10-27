@@ -113,7 +113,10 @@ export function TaskCombobox({
             onChangeText(txt);
             if (!open) setOpen(true);
           }}
-          onFocus={() => !disabled && setOpen(true)}
+          // Opens on a press, not on focus: a modal focuses its first input
+          // when it opens, and the list would cover the rest of the form.
+          onPressIn={() => !disabled && setOpen(true)}
+          {...(Platform.OS === "web" ? ({ onClick: () => !disabled && setOpen(true) } as any) : {})}
           placeholder={placeholder}
           placeholderTextColor={colors.textMuted}
           editable={!disabled}

@@ -4,6 +4,7 @@ import { updateEquipment } from "../lib/queries/equipment";
 import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
 import { listLocations } from "../lib/queries/locations";
 import { DropdownBackdrop } from "./DropdownBackdrop";
+import { FieldLabel } from "./FieldLabel";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Select } from "./Select";
@@ -51,6 +52,9 @@ export function EditEquipmentModal({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set by a failed submit: from then on the empty required fields are
+  // outlined in red.
+  const [showMissing, setShowMissing] = useState(false);
   const [types, setTypes] = useState<{ value: number; label: string }[]>([]);
   const [locations, setLocations] = useState<{ value: number; label: string }[]>([]);
   const [openField, setOpenField] = useState<OpenField>(null);
@@ -87,6 +91,7 @@ export function EditEquipmentModal({
     setInstallDate(fromDbDate(equipment.installDate));
     setOpenField(null);
     setError(null);
+    setShowMissing(false);
 
     listEquipmentTypes()
       .then((rows) => setTypes(rows.map((t) => ({ value: t.te_id, label: t.te_nombre }))))
@@ -98,16 +103,20 @@ export function EditEquipmentModal({
       .catch(() => {});
   }, [visible, equipment]);
 
+  const missing = {
+    code: !code.trim(),
+    model: !model.trim(),
+    name: !name.trim(),
+    type: typeId == null,
+    location: locationId == null,
+    installDate: !pendingInstall && !installDate.trim(),
+  };
+  const isMissing = (field: keyof typeof missing) => showMissing && missing[field];
+
   async function handleSubmit() {
-    if (
-      !code.trim() ||
-      !model.trim() ||
-      !name.trim() ||
-      typeId == null ||
-      locationId == null ||
-      (!pendingInstall && !installDate.trim())
-    ) {
-      setError("Todos los campos son obligatorios.");
+    if (Object.values(missing).some(Boolean)) {
+      setShowMissing(true);
+      setError("Completá los campos marcados.");
       return;
     }
     if (!pendingInstall && !isValidDateString(installDate.trim())) {
@@ -124,8 +133,9 @@ export function EditEquipmentModal({
       await updateEquipment(equipment.id, {
         code: code.trim(),
         name: name.trim(),
-        typeId,
-        locationId,
+        // Checked by `missing` above.
+        typeId: typeId!,
+        locationId: locationId!,
         model: model.trim(),
         installDate: pendingInstall ? null : toDbDate(installDate.trim()),
         active: estado === "activo",
@@ -149,9 +159,9 @@ export function EditEquipmentModal({
 
           <View style={styles.fieldRow}>
             <View style={styles.field}>
-              <Text style={styles.label}>Código</Text>
+              <FieldLabel text="Código" required style={styles.label} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, isMissing("code") && styles.inputError]}
                 placeholder="Ej: AC-015"
                 placeholderTextColor={colors.textMuted}
                 value={code}
@@ -161,9 +171,9 @@ export function EditEquipmentModal({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Modelo</Text>
+              <FieldLabel text="Modelo" required style={styles.label} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, isMissing("model") && styles.inputError]}
                 placeholder="Ej: Split 3000F"
                 placeholderTextColor={colors.textMuted}
                 value={model}
@@ -172,38 +182,44 @@ export function EditEquipmentModal({
             </View>
           </View>
 
-          <Text style={styles.label}>Nombre</Text>
+          <FieldLabel text="Nombre" required style={styles.label} />
           <TextInput
-            style={styles.input}
+            style={[styles.input, isMissing("name") && styles.inputError]}
             placeholder="Ej: Aire Acondicionado"
             placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
           />
 
-          <Text style={styles.label}>Tipo</Text>
+          <FieldLabel text="Tipo" required style={styles.label} />
           <Select
             value={typeId}
             onChange={setTypeId}
             options={types}
             placeholder="Elegí un tipo de equipo"
+            hasError={isMissing("type")}
             open={openField === "type"}
             onOpenChange={(o) => setOpenField(o ? "type" : null)}
           />
 
-          <Text style={styles.label}>Ubicación</Text>
+          <FieldLabel text="Ubicación" required style={styles.label} />
           <Select
             value={locationId}
             onChange={setLocationId}
             options={locations}
             placeholder="Elegí una ubicación"
+            hasError={isMissing("location")}
             open={openField === "location"}
             onOpenChange={(o) => setOpenField(o ? "location" : null)}
           />
 
           <View style={[styles.fieldRow, openField === "install" && styles.dateRowRaised]}>
             <View style={styles.field}>
-              <Text style={styles.label}>Fecha de instalación</Text>
+              <FieldLabel
+                text="Fecha de instalación"
+                required={!pendingInstall}
+                style={styles.label}
+              />
 
               {pendingInstall ? (
                 <Text style={styles.statusNote}>
@@ -216,6 +232,7 @@ export function EditEquipmentModal({
                   open={openField === "install"}
                   onOpenChange={(o) => setOpenField(o ? "install" : null)}
                   maxDate={new Date()}
+                  hasError={isMissing("installDate")}
                 />
               )}
             </View>
@@ -290,6 +307,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       color: c.text,
     },
+    inputError: { borderColor: c.destructive, borderWidth: 1.5 },
     statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
     statusBadge: {
       alignSelf: "flex-start",

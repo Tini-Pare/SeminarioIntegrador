@@ -22,12 +22,7 @@ import { listProfiles } from "../../../lib/queries/profiles";
 import { stockStatus } from "../../../lib/queries/spareParts";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type {
-  Equipo,
-  Profile,
-  Repuesto,
-  Solicitud,
-} from "../../../types/database";
+import type { Equipo, Profile, Repuesto, Solicitud } from "../../../types/database";
 
 type RequestItem = Solicitud & {
   equipment: Pick<Equipo, "code" | "name">;
@@ -171,8 +166,8 @@ export default function DashboardScreen() {
               : `${attention.length} ${attention.length === 1 ? "equipo" : "equipos"} fuera de servicio`}
           </Text>
           <Text style={styles.heroCopy}>
-            {stats.waiting} en espera · {stats.repair} en reparación · {stats.reqNew} solicitudes
-            sin asignar
+            {stats.waiting} en espera · {stats.repair} en reparación · {stats.reqNew}{" "}
+            {stats.reqNew === 1 ? "solicitud" : "solicitudes"} sin asignar
           </Text>
 
           <View style={styles.heroActions}>

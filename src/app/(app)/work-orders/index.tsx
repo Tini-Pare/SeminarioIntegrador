@@ -184,7 +184,7 @@ export default function WorkOrdersScreen() {
     if (items.length === 0) {
       return "Todavía no se generó ninguna orden de trabajo.";
     }
-    return "No hay órdenes para mostrar.";
+    return "No hay órdenes que coincidan con la búsqueda o los filtros.";
   }, [items]);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
