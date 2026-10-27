@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, StyleSheet, Text, View } from "react-native";
-import { createGeneralTask, listGeneralTasks } from "../lib/queries/generalTasks";
+import { listGeneralTasks } from "../lib/queries/generalTasks";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { TareaGeneral } from "../types/database";
@@ -9,8 +9,8 @@ import { TaskCombobox } from "./TaskCombobox";
 
 // Adds one tarea prevista to a plan, same format as AddTaskModal (adding a
 // tarea to an OT) minus the técnico: a plan's tareas get one only when its
-// preventive OTs are generated. A tarea typed by hand that isn't in the
-// catálogo is created there, like on the OT.
+// preventive OTs are generated. Unlike the OT, only tareas already in the
+// catálogo can be picked: new ones are created from the Tareas screen.
 export function AddPlanTaskModal({
   visible,
   planName = "",
@@ -29,7 +29,6 @@ export function AddPlanTaskModal({
   const [generalTasks, setGeneralTasks] = useState<TareaGeneral[]>([]);
   const [taskName, setTaskName] = useState("");
   const [open, setOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -40,10 +39,12 @@ export function AddPlanTaskModal({
     if (!visible) return;
     setTaskName("");
     setOpen(false);
-    setConfirming(false);
     setError(null);
+    // System tareas (the installation one) can't go in a plan (0032).
     listGeneralTasks()
-      .then((all) => setGeneralTasks(all.filter((t) => t.tag_estado === "activo")))
+      .then((all) =>
+        setGeneralTasks(all.filter((t) => t.tag_estado === "activo" && !t.tag_codigo_sistema)),
+      )
       .catch(() => setGeneralTasks([]));
   }, [visible]);
 
@@ -52,44 +53,31 @@ export function AddPlanTaskModal({
     .filter((t) => !existingTaskIds.includes(t.tag_id_tarea))
     .map((t) => ({ value: t.tag_id_tarea, label: t.tag_nombre_tarea }));
 
-  async function handleConfirm() {
+  function handleConfirm() {
     const trimmed = taskName.trim();
     if (!trimmed) {
-      setError("Elegí o escribí una tarea.");
+      setError("Elegí una tarea del catálogo.");
       return;
     }
 
     const matched = generalTasks.find(
       (t) => t.tag_nombre_tarea.trim().toLowerCase() === trimmed.toLowerCase(),
     );
-    if (matched && existingTaskIds.includes(matched.tag_id_tarea)) {
+    if (!matched) {
+      setError("Esa tarea no está en el catálogo. Para crear una nueva, usá la sección Tareas.");
+      return;
+    }
+    if (existingTaskIds.includes(matched.tag_id_tarea)) {
       setError("Esa tarea ya está en el plan.");
       return;
     }
 
-    setConfirming(true);
-    setError(null);
-
-    try {
-      const task =
-        matched ??
-        (await createGeneralTask({ name: trimmed, description: null, estado: "activo" }));
-      onConfirm(task);
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setConfirming(false);
-    }
+    onConfirm(matched);
+    onClose();
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={() => !confirming && onClose()}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>Agregar tarea al plan</Text>
@@ -110,20 +98,16 @@ export function AddPlanTaskModal({
                 setTaskName(opt.label);
                 setError(null);
               }}
-              placeholder="Escribí o elegí una tarea"
+              placeholder="Buscá o elegí una tarea del catálogo"
               open={open}
               onOpenChange={setOpen}
+              allowManual={false}
             />
           </View>
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <FormFooter
-            onCancel={onClose}
-            onConfirm={handleConfirm}
-            busy={confirming}
-            busyLabel="Agregando…"
-          />
+          <FormFooter onCancel={onClose} onConfirm={handleConfirm} />
         </View>
       </View>
     </Modal>
