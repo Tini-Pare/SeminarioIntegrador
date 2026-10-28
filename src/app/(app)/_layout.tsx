@@ -171,9 +171,9 @@ export default function AppLayout() {
   const role = profile?.role;
   const isWide = width >= BREAKPOINT.tablet;
   const alertBadgeKey = role ? ALERT_BADGE_KEY[role] : undefined;
-  // Only the admin has the bell: a técnico's urgent tareas already show on
-  // their queue (nav count, "fallas críticas" banner).
-  const hasBell = role === "admin";
+  // The admin's bell has preventive OTs and stock; a técnico's has the
+  // fallas críticas assigned to them (0045). Usuarios get no notifications.
+  const hasBell = role === "admin" || role === "technician";
 
   const refreshAlerts = useCallback(() => {
     if (!role || !ALERT_BADGE_KEY[role]) return;
@@ -259,6 +259,9 @@ export default function AppLayout() {
     setNotificationsOpen(false);
     if (item.kind === "stock_minimo") {
       router.push(`/spare-parts?buscar=${encodeURIComponent(item.partName)}` as never);
+    } else if (item.kind === "falla_critica") {
+      // A técnico works from their queue, not the admin's OT screen.
+      router.push("/queue?prioridad=alta" as never);
     } else if (!item.isGrouped && item.orderId) {
       router.push(`/work-orders/${item.orderId}` as never);
     } else {

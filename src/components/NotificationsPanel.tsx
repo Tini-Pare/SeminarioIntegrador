@@ -1,5 +1,5 @@
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { CheckIcon, RefreshCwIcon, SparePartIcon } from "./icons";
+import { CheckIcon, RefreshCwIcon, SparePartIcon, WarningIcon } from "./icons";
 import { Tooltip } from "./Tooltip";
 import type { AppNotification } from "../lib/queries/notifications";
 import type { ThemeColors } from "../lib/theme";
@@ -62,6 +62,7 @@ export function NotificationsPanel({
           notifications.map((item) => {
             const isUnread = !item.isRead;
             const isStock = item.kind === "stock_minimo";
+            const isCritical = item.kind === "falla_critica";
 
             return (
               <Pressable
@@ -69,9 +70,17 @@ export function NotificationsPanel({
                 style={[styles.itemRow, isUnread ? styles.itemUnread : styles.itemRead]}
                 onPress={() => onSelectNotification(item)}
               >
-                <View style={[styles.iconCircle, isStock && styles.iconCircleStock]}>
+                <View
+                  style={[
+                    styles.iconCircle,
+                    isStock && styles.iconCircleStock,
+                    isCritical && styles.iconCircleCritical,
+                  ]}
+                >
                   {isStock ? (
                     <SparePartIcon size={15} color="#9a4a0f" />
+                  ) : isCritical ? (
+                    <WarningIcon size={15} color="#dc2626" />
                   ) : (
                     <RefreshCwIcon size={14} color="#2d4a7a" />
                   )}
@@ -128,6 +137,16 @@ function NotificationBody({
       <Text style={styles.itemBody}>
         <Text style={styles.boldText}>«{item.partName}»</Text> quedó en{" "}
         <Text style={styles.boldText}>{units}</Text> (mínimo {item.minimum}).
+      </Text>
+    );
+  }
+
+  if (item.kind === "falla_critica") {
+    return (
+      <Text style={styles.itemBody}>
+        Tenés una tarea de la <Text style={styles.boldText}>{item.orderNumber}</Text>, con prioridad{" "}
+        <Text style={styles.boldText}>Alta</Text>, en {item.equipmentName} ({item.equipmentCode})
+        {item.faultDescription ? `: «${item.faultDescription}»` : ""}.
       </Text>
     );
   }
@@ -253,6 +272,9 @@ function makeStyles(c: ThemeColors) {
     },
     iconCircleStock: {
       backgroundColor: "#fbe3cc",
+    },
+    iconCircleCritical: {
+      backgroundColor: "#fee2e2",
     },
     contentWrap: {
       flex: 1,

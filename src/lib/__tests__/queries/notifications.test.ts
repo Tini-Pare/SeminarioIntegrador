@@ -1,9 +1,11 @@
 import {
+  buildCriticalFaultNotifications,
   buildStockNotifications,
   formatNotificationTime,
   groupPreventiveOrders,
   mergeNotifications,
   notificationRowIds,
+  type RawCriticalFault,
   type RawPreventiveOrder,
   type RawStockNotification,
 } from "../../queries/notifications";
@@ -179,6 +181,42 @@ describe("groupPreventiveOrders", () => {
       profileNames,
     );
     expect(aroundMidnight).toHaveLength(2);
+  });
+});
+
+function makeCriticalRow(overrides: Partial<RawCriticalFault>): RawCriticalFault {
+  return {
+    notificationId: 1,
+    isRead: false,
+    orderId: 45,
+    equipmentCode: "EX-110",
+    equipmentName: "Heladera Exhibidora Vertical",
+    faultDescription: "No enfría",
+    createdAt: "2026-10-26T12:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("buildCriticalFaultNotifications", () => {
+  it("builds one notification per row, pointing at its OT", () => {
+    const result = buildCriticalFaultNotifications([
+      makeCriticalRow({ notificationId: 3 }),
+      makeCriticalRow({ notificationId: 4, orderId: 46, isRead: true }),
+    ]);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      kind: "falla_critica",
+      id: "critical-3",
+      notificationIds: [3],
+      orderId: 45,
+      orderNumber: "OT-0045",
+      equipmentName: "Heladera Exhibidora Vertical",
+      faultDescription: "No enfría",
+      title: "Falla crítica asignada",
+      isRead: false,
+    });
+    expect(result[1].isRead).toBe(true);
   });
 });
 

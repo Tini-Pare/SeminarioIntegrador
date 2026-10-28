@@ -2,7 +2,8 @@ import { formatOrderNumber } from "../orderNumber";
 import { supabase } from "../supabase";
 
 // Every notification is a row of notificacion (0040), written by triggers
-// one per admin; read state is the row's own no_leida.
+// for its recipient (one row per admin, or the técnico a falla crítica is
+// assigned to, 0045); read state is the row's own no_leida.
 
 // An ot_preventiva row joined with its OT.
 export type RawPreventiveOrder = {
@@ -67,8 +68,38 @@ export type StockNotification = {
   subtitle: string;
 };
 
-// Everything the admin's bell shows.
-export type AppNotification = PreventiveNotification | StockNotification;
+// A falla_critica row (0045) joined with its OT: a tarea of a correctivo OT
+// with prioridad Alta is assigned to this técnico (or its OT was raised
+// to Alta).
+export type RawCriticalFault = {
+  notificationId: number;
+  isRead: boolean;
+  orderId: number;
+  equipmentCode: string;
+  equipmentName: string;
+  faultDescription: string;
+  createdAt: string;
+};
+
+export type CriticalFaultNotification = {
+  kind: "falla_critica";
+  id: string;
+  notificationIds: number[];
+  orderId: number;
+  orderNumber: string;
+  equipmentCode: string;
+  equipmentName: string;
+  faultDescription: string;
+  createdAt: string;
+  isRead: boolean;
+  title: string;
+  subtitle: string;
+};
+
+// Everything a bell shows: the admin gets preventive OTs and stock, a
+// técnico gets fallas críticas.
+export type AppNotification =
+  PreventiveNotification | StockNotification | CriticalFaultNotification;
 
 export function formatNotificationTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -216,6 +247,26 @@ export function buildStockNotifications(rows: RawStockNotification[]): StockNoti
   }));
 }
 
+// Never grouped: each one is a different OT the técnico has to attend.
+export function buildCriticalFaultNotifications(
+  rows: RawCriticalFault[],
+): CriticalFaultNotification[] {
+  return rows.map((r) => ({
+    kind: "falla_critica",
+    id: `critical-${r.notificationId}`,
+    notificationIds: [r.notificationId],
+    orderId: r.orderId,
+    orderNumber: formatOrderNumber(r.orderId),
+    equipmentCode: r.equipmentCode,
+    equipmentName: r.equipmentName,
+    faultDescription: r.faultDescription,
+    createdAt: r.createdAt,
+    isRead: r.isRead,
+    title: "Falla crítica asignada",
+    subtitle: formatNotificationTime(r.createdAt),
+  }));
+}
+
 // Every kind in one list, newest first.
 export function mergeNotifications(...lists: AppNotification[][]): AppNotification[] {
   return lists
@@ -253,6 +304,7 @@ export async function listNotifications(): Promise<{
         plan_id_manequipo,
         plan_mantenimiento(pm_nombre_plan),
         equipo(eq_codigo, eq_nombre),
+        solicitudes(sol_descripcion),
         tareas_realizadas_orden(p_id_tecnico)
       )
     `,
@@ -267,6 +319,7 @@ export async function listNotifications(): Promise<{
 
   const rawOrders: RawPreventiveOrder[] = [];
   const rawStock: RawStockNotification[] = [];
+  const rawCritical: RawCriticalFault[] = [];
 
   for (const row of (data ?? []) as any[]) {
     if (row.no_tipo === "ot_preventiva") {
@@ -286,6 +339,18 @@ export async function listNotifications(): Promise<{
         planName: ot.plan_mantenimiento?.pm_nombre_plan ?? "Plan preventivo",
         createdAt: row.no_creada_en,
         technicians,
+      });
+    } else if (row.no_tipo === "falla_critica") {
+      const ot = row.orden_de_trabajo;
+      if (!ot) continue;
+      rawCritical.push({
+        notificationId: row.no_id,
+        isRead: row.no_leida,
+        orderId: ot.ot_id_orden,
+        equipmentCode: ot.equipo?.eq_codigo ?? "—",
+        equipmentName: ot.equipo?.eq_nombre ?? "Equipo desconocido",
+        faultDescription: ot.solicitudes?.sol_descripcion ?? "",
+        createdAt: row.no_creada_en,
       });
     } else {
       rawStock.push({
@@ -317,6 +382,7 @@ export async function listNotifications(): Promise<{
   const notifications = mergeNotifications(
     groupPreventiveOrders(rawOrders, profileNamesById),
     buildStockNotifications(rawStock),
+    buildCriticalFaultNotifications(rawCritical),
   );
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 

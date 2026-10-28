@@ -1007,7 +1007,7 @@ export type Database = {
         Row: {
           no_id: number;
           user_id: string;
-          no_tipo: "ot_preventiva" | "stock_bajo" | "sin_stock";
+          no_tipo: "ot_preventiva" | "stock_bajo" | "sin_stock" | "falla_critica";
           ot_id_orden: number | null;
           rep_id: number | null;
           no_cantidad: number | null;

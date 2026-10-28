@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
@@ -136,6 +136,15 @@ export default function QueueScreen() {
   const [suspendingTask, setSuspendingTask] = useState<Item | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
+  // Opened from a "falla crítica" notification: show only prioridad Alta.
+  // An effect, not the initial state, since the queue may already be open.
+  const { prioridad } = useLocalSearchParams<{ prioridad?: string }>();
+  useEffect(() => {
+    if (prioridad === "alta") {
+      setPriorityFilter("high");
+      setStatusFilter("all");
+    }
+  }, [prioridad]);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const { confirm, dialog } = useConfirm();
