@@ -10,8 +10,8 @@ import { RadioGroup, type RadioOption } from "./RadioGroup";
 // Registration state, same shape as repuestos: a task with history can't be
 // deleted, it's marked inactive instead.
 const ESTADO_OPTIONS: RadioOption<TareaGeneral["tag_estado"]>[] = [
-  { value: "activo", label: "Activo" },
-  { value: "inactivo", label: "Inactivo" },
+  { value: "activo", label: "Activa" },
+  { value: "inactivo", label: "Inactiva" },
 ];
 
 export function GeneralTaskModal({

@@ -17,8 +17,8 @@ import { RadioGroup, type RadioOption } from "./RadioGroup";
 // Registration state, same shape as repuestos: an item with history can't be
 // deleted, it's marked inactive instead.
 const ESTADO_OPTIONS: RadioOption<Fallo["fa_estado"]>[] = [
-  { value: "activo", label: "Activo" },
-  { value: "inactivo", label: "Inactivo" },
+  { value: "activo", label: "Activa" },
+  { value: "inactivo", label: "Inactiva" },
 ];
 
 const GRAVEDAD_RADIO_OPTIONS: RadioOption<Gravedad>[] = GRAVEDAD_OPTIONS.map((g) => ({

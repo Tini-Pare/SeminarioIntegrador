@@ -311,7 +311,9 @@ export default function MaintenancePlansScreen() {
         {/* Table or Empty State */}
         {sorted.length === 0 ? (
           <Text style={styles.empty}>
-            No hay planes que coincidan con la búsqueda o los filtros.
+            {plans.length === 0
+              ? "Todavía no hay planes de mantenimiento cargados."
+              : "No hay planes que coincidan con la búsqueda o los filtros."}
           </Text>
         ) : isWide ? (
           <View style={styles.table}>
@@ -423,7 +425,7 @@ export default function MaintenancePlansScreen() {
                     <Text style={styles.cardMetaLabel}>TAREAS / EQUIPOS</Text>
 
                     <Text style={styles.cardMetaVal}>
-                      {p.task_count} tareas · {p.equipment_count} eq.
+                      {p.task_count} {p.task_count === 1 ? "tarea" : "tareas"} ·{p.equipment_count} eq.
                     </Text>
                   </View>
                 </View>
@@ -460,8 +462,8 @@ export default function MaintenancePlansScreen() {
           title={showDeactivatePrompt ? "Plan con órdenes de trabajo" : "Eliminar plan"}
           message={
             showDeactivatePrompt
-              ? `El plan "${planToDelete?.pm_nombre_plan}" ya tiene órdenes de trabajo asociadas y no puede ser borrado físicamente para resguardar el historial. ¿Deseás darlo de baja marcándolo como Inactivo?`
-              : `¿Desea eliminar el plan "${planToDelete?.pm_nombre_plan}"? Esta acción borrará también sus tareas previstas y registros de mantenimiento.`
+              ? `El plan "${planToDelete?.pm_nombre_plan}" ya tiene órdenes de trabajo asociadas y no puede ser borrado físicamente para resguardar el historial. ¿Querés darlo de baja marcándolo como Inactivo?`
+              : `¿Querés eliminar el plan "${planToDelete?.pm_nombre_plan}"? Esta acción borrará también sus tareas previstas y registros de mantenimiento.`
           }
           confirmLabel={showDeactivatePrompt ? "Dar de baja" : "Eliminar"}
           busy={deleting}

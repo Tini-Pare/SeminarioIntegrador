@@ -552,7 +552,7 @@ export default function PurchaseDetailScreen() {
           anulError ??
           `Se va a descontar del stock lo que este remito sumó (${anulando ? remitoItemsSummary(anulando, repNames) : ""}).`
         }
-        confirmLabel="ANULAR"
+        confirmLabel="Anular"
         busy={anulBusy}
         onConfirm={handleAnular}
         onCancel={() => setAnulando(null)}

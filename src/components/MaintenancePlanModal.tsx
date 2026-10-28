@@ -431,7 +431,12 @@ export function MaintenancePlanModal({
                   {/* Row 2: Frecuencia (días) + Hora de emisión | Estado del plan */}
                   <View style={[styles.formRow, openField === "hour" && styles.formRowRaised]}>
                     <View style={[styles.col, openField === "hour" && styles.fieldRaised]}>
-                      <View style={styles.shortFieldsRow}>
+                      {/* Raised too: on web every View is its own stacking
+                          context, so the hint text below painted over the
+                          open hour list */}
+                      <View
+                        style={[styles.shortFieldsRow, openField === "hour" && styles.fieldRaised]}
+                      >
                         <View style={styles.shortField}>
                           <FieldLabel
                             text="Frecuencia (días)"
@@ -837,7 +842,7 @@ export function MaintenancePlanModal({
             ? [
                 {
                   label: "Estado",
-                  value: viewingTask.tag_estado === "inactivo" ? "Inactivo" : "Activo",
+                  value: viewingTask.tag_estado === "inactivo" ? "Inactiva" : "Activa",
                 },
               ]
             : undefined

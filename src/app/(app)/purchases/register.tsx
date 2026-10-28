@@ -640,7 +640,9 @@ export default function RegisterPurchaseScreen() {
               ? pedidoId
                 ? "Al guardar se ingresa el stock y el pedido queda como recibido."
                 : "Al guardar se suma la cantidad de cada línea al stock del repuesto."
-              : "Al guardar queda pendiente de recepción. El stock se suma después, cargando remitos desde el detalle de la compra."}
+              : conRemito
+                ? "Al guardar se registran la factura y su remito, y lo facturado entra al stock."
+                : "Al guardar queda pendiente de recepción. El stock se suma después, cargando remitos desde el detalle de la compra."}
         </Text>
 
         <StepIndicator
@@ -798,7 +800,7 @@ export default function RegisterPurchaseScreen() {
 
                     <Text style={styles.linesSub}>
                       {conRemito
-                        ? "Se registra el remito junto con la factura: todo lo facturado entra al stock y la compra queda Recibida."
+                        ? "Se registra el remito junto con la factura: todo lo facturado entra al stock y la compra queda recibida."
                         : "La compra queda pendiente de recepción: los remitos se cargan después desde su detalle."}
                     </Text>
                   </View>

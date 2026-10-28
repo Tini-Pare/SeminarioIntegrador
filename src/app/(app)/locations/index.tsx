@@ -137,7 +137,7 @@ export default function LocationsScreen() {
           </View>
 
           <Pressable style={styles.addButton} onPress={() => setCreating(true)}>
-            <Text style={styles.addButtonText}>+ Nuevo</Text>
+            <Text style={styles.addButtonText}>+ Nueva</Text>
           </Pressable>
         </View>
 

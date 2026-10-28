@@ -114,7 +114,7 @@ export default function TasksScreen() {
         </View>
 
         <Pressable style={styles.addButton} onPress={() => setCreatingTask(true)}>
-          <Text style={styles.addButtonText}>+ Nuevo</Text>
+          <Text style={styles.addButtonText}>+ Nueva</Text>
         </Pressable>
       </View>
 
@@ -143,8 +143,8 @@ export default function TasksScreen() {
             onChange: setEstadoFilter,
             options: [
               { value: "", label: "Todos" },
-              { value: "activo", label: "Activo" },
-              { value: "inactivo", label: "Inactivo" },
+              { value: "activo", label: "Activa" },
+              { value: "inactivo", label: "Inactiva" },
             ],
           },
         ]}
@@ -237,7 +237,7 @@ export default function TasksScreen() {
             ? [
                 {
                   label: "Estado",
-                  value: viewingTask.tag_estado === "inactivo" ? "Inactivo" : "Activo",
+                  value: viewingTask.tag_estado === "inactivo" ? "Inactiva" : "Activa",
                 },
               ]
             : undefined

@@ -274,7 +274,9 @@ export default function EquipmentScreen() {
 
         {sorted.length === 0 ? (
           <Text style={styles.empty}>
-            No hay equipos que coincidan con la búsqueda o los filtros.
+            {equipment.length === 0
+              ? "Todavía no hay equipos cargados."
+              : "No hay equipos que coincidan con la búsqueda o los filtros."}
           </Text>
         ) : isWide ? (
           <View style={styles.table}>
@@ -408,7 +410,7 @@ export default function EquipmentScreen() {
               <Text style={styles.confirmTitle}>Eliminar equipo</Text>
 
               <Text style={styles.confirmMessage}>
-                ¿Desea eliminar el equipo "{equipmentToDelete?.name}" ({equipmentToDelete?.code})?
+                ¿Querés eliminar el equipo "{equipmentToDelete?.name}" ({equipmentToDelete?.code})?
               </Text>
 
               <View style={styles.confirmActions}>

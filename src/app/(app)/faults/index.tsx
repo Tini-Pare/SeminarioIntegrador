@@ -140,7 +140,7 @@ export default function FaultsScreen() {
         </View>
 
         <Pressable style={styles.addButton} onPress={() => setCreatingFault(true)}>
-          <Text style={styles.addButtonText}>+ Nuevo</Text>
+          <Text style={styles.addButtonText}>+ Nueva</Text>
         </Pressable>
       </View>
 
@@ -170,8 +170,8 @@ export default function FaultsScreen() {
             onChange: setEstadoFilter,
             options: [
               { value: "", label: "Todos" },
-              { value: "activo", label: "Activo" },
-              { value: "inactivo", label: "Inactivo" },
+              { value: "activo", label: "Activa" },
+              { value: "inactivo", label: "Inactiva" },
             ],
           },
         ]}
@@ -278,7 +278,7 @@ export default function FaultsScreen() {
                 { label: "Gravedad", value: <GravedadBadge raw={viewingFault.fa_gravedad} /> },
                 {
                   label: "Estado",
-                  value: viewingFault.fa_estado === "inactivo" ? "Inactivo" : "Activo",
+                  value: viewingFault.fa_estado === "inactivo" ? "Inactiva" : "Activa",
                 },
               ]
             : undefined

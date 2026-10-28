@@ -71,7 +71,7 @@ export async function signIn(
   const profile = profileRow as Profile | null;
   if (profile && !profile.active) {
     await supabase.auth.signOut();
-    return { error: "El usuario se encuentra inhabilitado. Comuníquese con el administrador" };
+    return { error: "El usuario se encuentra inhabilitado. Comunicate con el administrador" };
   }
 
   return { error: null };
