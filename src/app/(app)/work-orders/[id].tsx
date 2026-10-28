@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { AddTaskModal } from "../../../components/AddTaskModal";
-import { BackIcon } from "../../../components/icons";
+import { BackIcon, ReassignIcon } from "../../../components/icons";
 import {
   CustomDatePicker,
   fromDbDate,
@@ -708,6 +708,7 @@ export default function WorkOrderDetail() {
                       <RowActions
                         onEdit={() => setReassigningTask(task)}
                         editTooltip="Reasignar técnico"
+                        editIcon={ReassignIcon}
                       />
                     )}
                   </View>

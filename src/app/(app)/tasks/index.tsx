@@ -301,7 +301,8 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 118, flexShrink: 0, alignItems: "flex-start" },
+    // 3 buttons of 36 + 2 gaps of 6.
+    actionsCol: { width: 120, flexShrink: 0, alignItems: "flex-start" },
     row: {
       flexDirection: "row",
       alignItems: "center",

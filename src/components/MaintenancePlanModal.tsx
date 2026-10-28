@@ -41,10 +41,15 @@ type ModalMode = "create" | "edit" | "view";
 // What a new plan starts with; matches pm_hora_emision's column default.
 const DEFAULT_EMISSION_HOUR = 6;
 
+// "06:00" — how an emission hour reads everywhere in the modal.
+function formatHour(h: number): string {
+  return `${String(h).padStart(2, "0")}:00`;
+}
+
 // Whole hours only: the generation job runs once an hour, on the hour (0039).
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => ({
   value: h,
-  label: `${String(h).padStart(2, "0")}:00`,
+  label: formatHour(h),
 }));
 
 // Calculate next due date in DD/MM/YYYY format: entered date + frequency in days
@@ -449,9 +454,11 @@ export function MaintenancePlanModal({
                         </View>
 
                         <View style={styles.shortField}>
-                          <View style={styles.labelRow}>
-                            <Text style={styles.label}>Hora de emisión</Text>
-                          </View>
+                          <FieldLabel
+                            text="Hora de emisión"
+                            required={!isView}
+                            style={styles.label}
+                          />
 
                           <Select
                             value={emissionHour}
@@ -636,7 +643,7 @@ export function MaintenancePlanModal({
                               onDelete={
                                 !isView ? () => handleRemoveTask(t.tag_id_tarea) : undefined
                               }
-                              viewTooltip="Ver detalle"
+                              viewTooltip="Ver tarea"
                               deleteTooltip="Quitar tarea"
                             />
                           </View>
@@ -692,9 +699,13 @@ export function MaintenancePlanModal({
                           {equipments.map((eq, idx) => {
                             const dateVal = equipmentDates[eq.id] ?? "";
                             // No last maintenance = due now: an active plan
-                            // generates its OT as soon as it's saved.
+                            // generates its OT as soon as it's saved. A due
+                            // date carries the hour its OT is emitted at.
+                            const dueDate = dateVal ? addDaysToDateString(dateVal, freqNum) : "—";
                             const dueDateStr = dateVal
-                              ? addDaysToDateString(dateVal, freqNum)
+                              ? dueDate === "—"
+                                ? dueDate
+                                : `${dueDate} · ${formatHour(emissionHour)}`
                               : estado === "activo"
                                 ? "Inmediato"
                                 : "—";
@@ -946,11 +957,6 @@ function makeStyles(c: ThemeColors) {
       zIndex: 100,
       elevation: 100,
     },
-    labelRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-    },
     label: {
       fontSize: 13,
       fontWeight: "600",
@@ -1120,8 +1126,9 @@ function makeStyles(c: ThemeColors) {
     dateCol: {
       width: 160,
     },
+    // Fits "DD/MM/YYYY · HH:00".
     dueCol: {
-      width: 120,
+      width: 150,
     },
     tableRow: {
       flexDirection: "row",

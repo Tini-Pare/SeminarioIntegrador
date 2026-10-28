@@ -27,7 +27,7 @@ import { useTableSort } from "../../../lib/useTableSort";
 // The row's trash icon is disabled while the record is still in use, so the
 // tooltip carries the reason -- it used to live in the edit modal.
 function deleteTooltipFor(count: number) {
-  if (count === 0) return "Eliminar tipo";
+  if (count === 0) return "Eliminar tipo de equipo";
   return `No se puede eliminar: tiene ${count} equipo${count === 1 ? "" : "s"} de este tipo.`;
 }
 
@@ -238,7 +238,7 @@ export default function EquipmentTypesScreen() {
                       onEdit={() => setEditing(t)}
                       onDelete={() => handleDelete(t)}
                       deleteDisabled={t.equipmentCount > 0}
-                      editTooltip="Editar tipo"
+                      editTooltip="Editar tipo de equipo"
                       deleteTooltip={deleteTooltipFor(t.equipmentCount)}
                     />
                   </View>
@@ -345,7 +345,7 @@ function EquipmentTypeTableRow({
           onEdit={onEdit}
           onDelete={onDelete}
           deleteDisabled={type.equipmentCount > 0}
-          editTooltip="Editar tipo"
+          editTooltip="Editar tipo de equipo"
           deleteTooltip={deleteTooltipFor(type.equipmentCount)}
         />
       </View>

@@ -288,7 +288,13 @@ export default function UsersScreen() {
                     onDelete={() => handleDelete(p)}
                     deleteDisabled={p.role === "admin" || isSelf}
                     editTooltip="Editar usuario"
-                    deleteTooltip="Eliminar usuario"
+                    deleteTooltip={
+                      p.role === "admin"
+                        ? "No se puede eliminar a un administrador"
+                        : isSelf
+                          ? "No podés eliminar tu propio usuario"
+                          : "Eliminar usuario"
+                    }
                   />
                 </View>
               </View>
@@ -333,7 +339,13 @@ export default function UsersScreen() {
                     onDelete={() => handleDelete(p)}
                     deleteDisabled={p.role === "admin" || isSelf}
                     editTooltip="Editar usuario"
-                    deleteTooltip="Eliminar usuario"
+                    deleteTooltip={
+                      p.role === "admin"
+                        ? "No se puede eliminar a un administrador"
+                        : isSelf
+                          ? "No podés eliminar tu propio usuario"
+                          : "Eliminar usuario"
+                    }
                   />
                 </View>
               </View>

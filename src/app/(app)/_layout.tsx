@@ -97,8 +97,8 @@ function BrandDot({ colors }: { colors: [string, string] }) {
   );
 }
 
-// The nav row that carries each role's alert count: a técnico's critical
-// tareas, on their queue. The admin's count isn't in the nav — it's the
+// The nav row that carries each role's count: a técnico's open tareas
+// (any priority), on their queue. The admin's count isn't in the nav — it's the
 // bell on Inicio's alerts panel.
 const ALERT_BADGE_KEY: Partial<Record<Profile["role"], string>> = {
   technician: "queue",

@@ -52,8 +52,12 @@ export function AddTaskModal({
         setTechnicians([]);
         setWorkload({});
       });
+    // The system installation tarea only goes in an 'instalacion' OT (0032):
+    // offering it here would just get the insert rejected.
     listGeneralTasks()
-      .then((all) => setGeneralTasks(all.filter((t) => t.tag_estado === "activo")))
+      .then((all) =>
+        setGeneralTasks(all.filter((t) => t.tag_estado === "activo" && !t.tag_codigo_sistema)),
+      )
       .catch(() => setGeneralTasks([]));
   }, [visible]);
 

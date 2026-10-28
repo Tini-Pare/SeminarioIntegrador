@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentType } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
@@ -16,6 +16,7 @@ export function RowActions({
   viewTooltip = "Ver detalle",
   editTooltip = "Editar",
   deleteTooltip = "Eliminar",
+  editIcon: EditIcon = PencilIcon,
 }: {
   onView?: () => void;
   // Each action is optional so a row that only needs one (see an OT, reassign
@@ -26,6 +27,9 @@ export function RowActions({
   viewTooltip?: string;
   editTooltip?: string;
   deleteTooltip?: string;
+  // The middle action isn't always an edit (e.g. "Reasignar técnico"), and
+  // the pencil would misname it.
+  editIcon?: ComponentType<{ size?: number; color?: string }>;
 }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -65,7 +69,7 @@ export function RowActions({
             hitSlop={6}
             accessibilityLabel={editTooltip}
           >
-            <PencilIcon size={16} color={colors.accent} />
+            <EditIcon size={16} color={colors.accent} />
           </Pressable>
         </Tooltip>
       )}

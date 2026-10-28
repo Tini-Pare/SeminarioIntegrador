@@ -17,6 +17,7 @@ import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { getTodayDateString } from "./CustomDatePicker";
 import { TrashIcon } from "./icons";
+import { Tooltip } from "./Tooltip";
 import { Select } from "./Select";
 
 type LineDraft = { key: string; repId: number | null; cantidad: string };
@@ -215,17 +216,26 @@ export function PurchaseOrderModal({
                   </View>
 
                   <View style={styles.colRemove}>
-                    <Pressable
-                      style={[styles.removeBtn, lines.length === 1 && styles.removeBtnDisabled]}
-                      onPress={() => removeLine(l.key)}
-                      disabled={lines.length === 1}
-                      accessibilityLabel="Quitar línea"
+                    <Tooltip
+                      text={
+                        lines.length === 1
+                          ? "El pedido necesita al menos una línea"
+                          : "Quitar línea"
+                      }
+                      align="right"
                     >
-                      <TrashIcon
-                        size={16}
-                        color={lines.length === 1 ? colors.textMuted : colors.destructive}
-                      />
-                    </Pressable>
+                      <Pressable
+                        style={[styles.removeBtn, lines.length === 1 && styles.removeBtnDisabled]}
+                        onPress={() => removeLine(l.key)}
+                        disabled={lines.length === 1}
+                        accessibilityLabel="Quitar línea"
+                      >
+                        <TrashIcon
+                          size={16}
+                          color={lines.length === 1 ? colors.textMuted : colors.destructive}
+                        />
+                      </Pressable>
+                    </Tooltip>
                   </View>
                 </View>
               ))}

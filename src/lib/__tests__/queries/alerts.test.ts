@@ -1,8 +1,4 @@
-import {
-  countAlerts,
-  isCriticalTask,
-  lowStockParts,
-} from "../../queries/alerts";
+import { countAlerts, isCriticalTask, lowStockParts } from "../../queries/alerts";
 import { supabase } from "../../supabase";
 import type { Repuesto } from "../../../types/database";
 
@@ -54,16 +50,21 @@ describe("isCriticalTask", () => {
 });
 
 describe("countAlerts", () => {
-  it("counts critical tasks for a technician", async () => {
+  it("counts every unfinished tarea assigned to the technician, whatever its priority", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "tech-1" } } },
     });
-    const eq = jest.fn().mockResolvedValue({ count: 2, error: null });
-    const is = jest.fn().mockReturnValue({ eq: () => ({ eq }) });
-    const select = jest.fn().mockReturnValue({ eq: () => ({ is }) });
+    const is = jest.fn().mockResolvedValue({ count: 5, error: null });
+    const eq = jest.fn().mockReturnValue({ is });
+    const select = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ select });
 
-    await expect(countAlerts("technician")).resolves.toBe(2);
+    await expect(countAlerts("technician")).resolves.toBe(5);
+
+    expect(supabase.from).toHaveBeenCalledWith("tareas_realizadas_orden");
+    expect(select).toHaveBeenCalledWith("taro_id_tarea_orden", { count: "exact", head: true });
+    expect(eq).toHaveBeenCalledWith("p_id_tecnico", "tech-1");
+    expect(is).toHaveBeenCalledWith("taro_fecha_fin", null);
   });
 
   it("has nothing to count for a plain user", async () => {

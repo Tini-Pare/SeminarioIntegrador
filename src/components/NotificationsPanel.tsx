@@ -99,7 +99,7 @@ export function NotificationsPanel({
                 </View>
 
                 {isUnread && (
-                  <Tooltip text="Marcar como leída">
+                  <Tooltip text="Marcar como leída" placement="left">
                     <Pressable
                       style={styles.markOneButton}
                       onPress={() => onMarkAsRead(item)}

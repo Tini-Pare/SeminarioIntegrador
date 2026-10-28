@@ -38,7 +38,7 @@ function formatDate(iso: string): string {
 
 // onSelect is only passed by the admin's "Solicitudes" screen — that's the
 // only role that can act on a solicitud (generar OT, cerrar, reasignar
-// técnico, etc.), so it's the only one that gets the "Ver detalle" eye button.
+// técnico, etc.), so it's the only one that gets the "Ver solicitud" eye button.
 export function RequestList({
   items,
   onSelect,
@@ -166,7 +166,7 @@ export function RequestList({
   );
 }
 
-// Same eye button as the equipment table's "Ver detalle" action.
+// Same eye button as the equipment table's "Ver equipo" action.
 function ViewButton({
   onPress,
   colors,
@@ -179,14 +179,16 @@ function ViewButton({
   const [hover, setHover] = useState(false);
 
   return (
-    <Tooltip text="Ver detalle" align="right">
+    // alignSelf: the card is a row that stretches its children, which made
+    // the hover area (and the popup's anchor) the card's full height.
+    <Tooltip text="Ver solicitud" align="right" style={{ alignSelf: "center" }}>
       <Pressable
         style={[styles.viewButton, hover && styles.viewButtonHover]}
         onPress={onPress}
         onHoverIn={() => setHover(true)}
         onHoverOut={() => setHover(false)}
         hitSlop={6}
-        accessibilityLabel="Ver detalle"
+        accessibilityLabel="Ver solicitud"
       >
         <EyeIcon size={16} color={colors.accent} />
       </Pressable>

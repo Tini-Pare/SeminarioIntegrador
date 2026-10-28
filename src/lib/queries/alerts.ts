@@ -28,30 +28,26 @@ export function isCriticalTask(task: {
   return task.priority === "high" && task.orderType === "correctivo" && !task.endDate;
 }
 
-// Unfinished tareas of the signed-in técnico on a critical OT. Only the
-// count is needed here (the nav badge); the queue screen reads the full
-// tareas itself and filters them with isCriticalTask.
-export async function countMyCriticalTasks(): Promise<number> {
+// Every unfinished tarea of the signed-in técnico (pending, en curso or
+// suspendida), whatever its priority: the queue's nav badge is the work
+// they have left. Fallas críticas are told apart by the bell (0045) and
+// the queue's banner, which filters with isCriticalTask.
+export async function countMyOpenTasks(): Promise<number> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) return 0;
   const { count, error } = await supabase
     .from("tareas_realizadas_orden")
-    .select("taro_id_tarea_orden, orden_de_trabajo!inner(ot_prioridad, ot_tipo_orden)", {
-      count: "exact",
-      head: true,
-    })
+    .select("taro_id_tarea_orden", { count: "exact", head: true })
     .eq("p_id_tecnico", session.user.id)
-    .is("taro_fecha_fin", null)
-    .eq("orden_de_trabajo.ot_prioridad", "high")
-    .eq("orden_de_trabajo.ot_tipo_orden", "correctivo");
+    .is("taro_fecha_fin", null);
   if (error) throw new Error(error.message);
   return count ?? 0;
 }
 
-// How many alerts the nav badge shows for each role: a técnico's critical tareas.
+// How many items the nav badge shows for each role: a técnico's open tareas.
 export async function countAlerts(role: Profile["role"]): Promise<number> {
-  if (role === "technician") return countMyCriticalTasks();
+  if (role === "technician") return countMyOpenTasks();
   return 0;
 }

@@ -459,14 +459,14 @@ function EquipmentRowActions({
 
   return (
     <View style={styles.actionsWrap}>
-      <Tooltip text="Ver detalle" align={isAdmin ? "center" : "right"}>
+      <Tooltip text="Ver equipo" align={isAdmin ? "center" : "right"}>
         <Pressable
           style={[styles.actionButton, hoverView && styles.actionButtonViewHover]}
           onPress={() => router.push(`/equipment/${e.id}`)}
           onHoverIn={() => setHoverView(true)}
           onHoverOut={() => setHoverView(false)}
           hitSlop={6}
-          accessibilityLabel="Ver detalle"
+          accessibilityLabel="Ver equipo"
         >
           <EyeIcon size={16} color={colors.accent} />
         </Pressable>

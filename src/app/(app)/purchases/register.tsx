@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { BackIcon, TrashIcon } from "../../../components/icons";
+import { Tooltip } from "../../../components/Tooltip";
 import {
   CustomDatePicker,
   getTodayDateString,
@@ -259,20 +260,25 @@ function LineDeleteButton({
   const [hovered, setHovered] = useState(false);
 
   return (
-    <Pressable
-      style={[
-        styles.removeBtn,
-        hovered && !disabled && styles.removeBtnHover,
-        disabled && styles.removeBtnDisabled,
-      ]}
-      onPress={onPress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-      disabled={disabled}
-      accessibilityLabel="Quitar línea"
+    <Tooltip
+      text={disabled ? "La compra necesita al menos una línea" : "Quitar línea"}
+      align="right"
     >
-      <TrashIcon size={16} color={disabled ? colors.textMuted : colors.destructive} />
-    </Pressable>
+      <Pressable
+        style={[
+          styles.removeBtn,
+          hovered && !disabled && styles.removeBtnHover,
+          disabled && styles.removeBtnDisabled,
+        ]}
+        onPress={onPress}
+        onHoverIn={() => setHovered(true)}
+        onHoverOut={() => setHovered(false)}
+        disabled={disabled}
+        accessibilityLabel="Quitar línea"
+      >
+        <TrashIcon size={16} color={disabled ? colors.textMuted : colors.destructive} />
+      </Pressable>
+    </Tooltip>
   );
 }
 

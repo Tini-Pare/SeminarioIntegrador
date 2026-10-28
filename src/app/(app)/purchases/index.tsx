@@ -19,6 +19,7 @@ import {
   toDay,
 } from "../../../components/CustomDatePicker";
 import { EyeIcon, SearchIcon } from "../../../components/icons";
+import { Tooltip } from "../../../components/Tooltip";
 import { Pagination } from "../../../components/Pagination";
 import { PurchaseDetailModal } from "../../../components/PurchaseDetailModal";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
@@ -452,18 +453,20 @@ export default function PurchasesScreen() {
                   </View>
 
                   <View style={styles.actionsCol}>
-                    <Pressable
-                      style={styles.viewBtn}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/purchases/[id]",
-                          params: { id: String(p.co_id_compra) },
-                        })
-                      }
-                      accessibilityLabel="Ver compra"
-                    >
-                      <EyeIcon size={16} color={colors.accent} />
-                    </Pressable>
+                    <Tooltip text="Ver compra" align="right">
+                      <Pressable
+                        style={styles.viewBtn}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/purchases/[id]",
+                            params: { id: String(p.co_id_compra) },
+                          })
+                        }
+                        accessibilityLabel="Ver compra"
+                      >
+                        <EyeIcon size={16} color={colors.accent} />
+                      </Pressable>
+                    </Tooltip>
                   </View>
                 </View>
               );

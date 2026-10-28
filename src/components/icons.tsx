@@ -126,6 +126,30 @@ export function UserIcon({ size = 16, color = "currentColor" }: IconProps) {
   );
 }
 
+// A person with a two-way arrow: handing a tarea over to another técnico.
+// The pencil means "edit the record", which reassigning isn't.
+export function ReassignIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M14 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <Circle cx={8} cy={7} r={4} />
+      <Path d="M16 7h6" />
+      <Path d="M20 5l2 2-2 2" />
+      <Path d="M22 13h-6" />
+      <Path d="M18 11l-2 2 2 2" />
+    </Svg>
+  );
+}
+
 export function UsersIcon({ size = 18, color = "currentColor" }: IconProps) {
   return (
     <Svg
