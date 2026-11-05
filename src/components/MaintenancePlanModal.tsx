@@ -79,9 +79,9 @@ export function MaintenancePlanModal({
   const isView = mode === "view";
   const isEdit = mode === "edit";
   const isCreate = mode === "create";
-  // Each equipo's last maintenance is never typed in: a new plan starts
-  // with none, and only resolving one of its preventive OTs sets it
-  // (0035), so the column is read-only in every mode.
+  // Each equipo's last maintenance is never typed in: a new plan works it
+  // out from the installation date (0046), and from then on resolving its
+  // preventive OTs sets it (0035), so the column is read-only in every mode.
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -225,7 +225,7 @@ export function MaintenancePlanModal({
     listActiveEquipmentByType(newTypeId)
       .then((items) => {
         setEquipments(items);
-        // No last maintenance yet: they're due as soon as the plan exists.
+        // crear_plan_mantenimiento sets them when the plan is saved (0046).
         setEquipmentDates({});
       })
       .catch(() => {
@@ -672,7 +672,7 @@ export function MaintenancePlanModal({
                             {typeId == null
                               ? "Elegí primero un tipo de equipo"
                               : equipments.length === 0
-                                ? "Este tipo de equipo aún no tiene equipos registrados"
+                                ? "Este tipo de equipo no tiene equipos activos"
                                 : `Afecta a ${equipments.length} ${equipments.length === 1 ? "equipo" : "equipos"} del tipo ${typeName}`}
                           </Text>
                         </View>
@@ -683,8 +683,8 @@ export function MaintenancePlanModal({
                           <WarningIcon size={18} color={colors.urgencyMedium.accent} />
 
                           <Text style={styles.warningBannerText}>
-                            Este tipo aún no tiene equipos. Podés crear el plan de todas formas y
-                            los equipos se asociarán al crearse.
+                            Este tipo no tiene equipos activos. Los equipos se asociarán al plan al
+                            crearse o al reactivarse.
                           </Text>
                         </View>
                       ) : null}
@@ -703,9 +703,9 @@ export function MaintenancePlanModal({
 
                           {equipments.map((eq, idx) => {
                             const dateVal = equipmentDates[eq.id] ?? "";
-                            // No last maintenance = due now: an active plan
-                            // generates its OT as soon as it's saved. A due
-                            // date carries the hour its OT is emitted at.
+                            // No last maintenance = its OT is waiting to be
+                            // emitted (0046). A due date carries the hour its
+                            // OT is emitted at.
                             const dueDate = dateVal ? addDaysToDateString(dateVal, freqNum) : "—";
                             const dueDateStr = dateVal
                               ? dueDate === "—"
@@ -738,7 +738,7 @@ export function MaintenancePlanModal({
                                   </Text>
                                 </View>
 
-                                {/* Último mantenimiento: set by its resolved preventive OTs */}
+                                {/* Último mantenimiento: read-only */}
                                 <View style={styles.dateCol}>
                                   <Text style={styles.cellText}>{dateVal || "Sin registro"}</Text>
                                 </View>
@@ -758,8 +758,12 @@ export function MaintenancePlanModal({
                         Próximo vencimiento = último mantenimiento + frecuencia. Ese día, a la hora
                         de emisión, se genera sola la OT preventiva y cada tarea se asigna al
                         técnico con menos tareas abiertas; al resolverse, actualiza el último
-                        mantenimiento del equipo. Un equipo sin registro genera su OT el mismo día
-                        en que el plan queda activo, a partir de la hora de emisión.
+                        mantenimiento del equipo. Al crear el plan, cada equipo parte de su fecha de
+                        instalación; si con esa fecha ya está vencido, queda sin registro y genera
+                        su OT el mismo día en que el plan queda activo, a partir de la hora de
+                        emisión. Los equipos inactivos no figuran ni generan OT; al reactivarse, si
+                        estaban vencidos o no tenían registro, su ciclo vuelve a contar desde ese
+                        día.
                       </Text>
                     </View>
                   </>

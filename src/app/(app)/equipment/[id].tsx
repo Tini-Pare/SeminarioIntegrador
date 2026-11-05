@@ -84,6 +84,8 @@ const HISTORY_EVENT_LABEL: Record<string, string> = {
   Preventivo: "Mantenimiento · Preventivo",
   // Logged by finalizar_tarea (0032) when the installation tarea finishes.
   Instalación: "Equipo · Instalado",
+  // Logged by trg_equipo_reactivado (0046).
+  Reactivación: "Equipo · Reactivado",
 };
 
 function historyEventLabel(h: HistorialEntry): string {
@@ -180,6 +182,7 @@ export default function EquipmentDetail() {
     Cerrada: colors.histResuelta,
     Preventivo: colors.histResuelta,
     Instalación: colors.histResuelta,
+    Reactivación: colors.histResuelta,
   };
 
   const loadEquipmentData = useCallback(async () => {

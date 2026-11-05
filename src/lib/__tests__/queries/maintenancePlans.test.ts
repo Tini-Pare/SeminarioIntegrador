@@ -2,6 +2,7 @@ import {
   createMaintenancePlan,
   deactivateMaintenancePlan,
   deleteMaintenancePlan,
+  getMaintenancePlan,
   listActiveEquipmentByType,
   listMaintenancePlans,
   updateMaintenancePlan,
@@ -57,6 +58,72 @@ describe("listMaintenancePlans", () => {
     (supabase.from as jest.Mock).mockReturnValue({ select: mockSelect });
 
     await expect(listMaintenancePlans()).rejects.toThrow("Database connection failed");
+  });
+});
+
+describe("getMaintenancePlan", () => {
+  it("lists only the plan's active equipos", async () => {
+    const mockEqActive = jest.fn().mockResolvedValue({
+      data: [
+        {
+          eq_id_equipo: 1,
+          me_fecha_ult_mant: "2026-10-01",
+          equipo: {
+            eq_codigo: "AC-101",
+            eq_nombre: "Split Piso 1",
+            lugares: { lu_nombre_sector: "Oficina A" },
+          },
+        },
+      ],
+      error: null,
+    });
+    const mockEqPlan = jest.fn().mockReturnValue({ eq: mockEqActive });
+    const mockSelectEquipos = jest.fn().mockReturnValue({ eq: mockEqPlan });
+
+    (supabase.from as jest.Mock).mockImplementation((table: string) => {
+      if (table === "plan_mantenimiento") {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: jest.fn().mockResolvedValue({
+                data: {
+                  pm_id_plan: 5,
+                  te_id: 2,
+                  pm_nombre_plan: "Plan A",
+                  pm_descripcion_plan: null,
+                  pm_frecuencia: 30,
+                  pm_hora_emision: 6,
+                  pm_estado: "activo",
+                  tipos_de_equipos: { te_nombre: "Aire" },
+                },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "tarea_prevista_plan") {
+        return {
+          select: () => ({ eq: jest.fn().mockResolvedValue({ data: [], error: null }) }),
+        };
+      }
+      return { select: mockSelectEquipos };
+    });
+
+    const result = await getMaintenancePlan(5);
+
+    expect(mockSelectEquipos).toHaveBeenCalledWith(expect.stringContaining("equipo!inner("));
+    expect(mockEqPlan).toHaveBeenCalledWith("pm_id_plan", 5);
+    expect(mockEqActive).toHaveBeenCalledWith("equipo.eq_estado_registro", "activo");
+    expect(result.equipments).toEqual([
+      {
+        equipmentId: 1,
+        equipmentCode: "AC-101",
+        equipmentName: "Split Piso 1",
+        locationName: "Oficina A",
+        lastMaintenanceDate: "2026-10-01",
+      },
+    ]);
   });
 });
 

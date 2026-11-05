@@ -6,8 +6,8 @@ export type MaintenancePlanEquipmentRow = {
   equipmentCode: string;
   equipmentName: string;
   locationName: string;
-  // YYYY-MM-DD; null until the equipo's first preventive OT of the plan is
-  // resolved (0035).
+  // YYYY-MM-DD; null while its first preventive OT of the plan is waiting to
+  // be emitted (0046).
   lastMaintenanceDate: string | null;
 };
 
@@ -74,11 +74,13 @@ export async function getMaintenancePlan(id: number): Promise<MaintenancePlanDet
     .map((row: any) => row.tareas_generales)
     .filter((t): t is TareaGeneral => !!t);
 
-  // Fetch associated equipment maintenance rows
+  // Fetch associated equipment maintenance rows. An inactive equipo keeps its
+  // row for when it's reactivated (0046), but it isn't part of the plan.
   const { data: equipData, error: equipError } = await supabase
     .from("mantenimiento_equipo")
-    .select("eq_id_equipo, me_fecha_ult_mant, equipo(*, lugares(*))")
-    .eq("pm_id_plan", id);
+    .select("eq_id_equipo, me_fecha_ult_mant, equipo!inner(*, lugares(*))")
+    .eq("pm_id_plan", id)
+    .eq("equipo.eq_estado_registro", "activo");
 
   if (equipError) {
     throw new Error(equipError.message);
@@ -139,8 +141,8 @@ export async function listActiveEquipmentByType(typeId: number): Promise<Equipme
 }
 
 // The plan's equipos (every installed active one of its tipo) are added by
-// crear_plan_mantenimiento itself, with no last maintenance yet, and an
-// active plan generates their preventive OTs right away (0035) — so no
+// crear_plan_mantenimiento itself: each starts from its installation date,
+// and the ones already due get their preventive OT instead (0046) — so no
 // dates are sent.
 export async function createMaintenancePlan(input: MaintenancePlanInput): Promise<number> {
   const { data, error } = await supabase.rpc("crear_plan_mantenimiento", {
