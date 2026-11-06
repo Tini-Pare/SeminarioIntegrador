@@ -445,9 +445,12 @@ function makeStyles(c: ThemeColors) {
     row: { flexDirection: "row", alignItems: "center", gap: 10 },
     cellText: { fontSize: 13.5, color: c.textLabel },
     cellStrong: { fontWeight: "600", color: c.text },
-    colRepuesto: { flex: 1, minWidth: 120 },
-    colStock: { width: 110, textAlign: "center" },
-    colUsada: { width: 110 },
+    colRepuesto: { flex: 1, minWidth: 96 },
+    // Without flexShrink a Text cell collapses to its content on phones, where
+    // the row overflows: the width is lost and right-aligned figures stop
+    // lining up. 84 is the narrowest that fits "EXISTENCIAS" on one line.
+    colStock: { width: 84, flexShrink: 0, textAlign: "right", fontVariant: ["tabular-nums"] },
+    colUsada: { width: 72, flexShrink: 0, textAlign: "right" },
     colActions: { width: 80, alignItems: "center" },
     qtyInput: {
       height: 38,
@@ -458,6 +461,8 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       fontSize: 14,
       color: c.text,
+      textAlign: "right",
+      fontVariant: ["tabular-nums"],
     },
     qtyInputError: { borderColor: c.destructive, borderWidth: 1.5 },
     rowError: { marginTop: 6, fontSize: 12, color: c.destructive },

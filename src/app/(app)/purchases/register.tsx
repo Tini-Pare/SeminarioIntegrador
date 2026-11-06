@@ -543,7 +543,7 @@ export default function RegisterPurchaseScreen() {
 
         <Text style={[styles.tableHeadText, styles.colRepFlex]}>Repuesto</Text>
 
-        <Text style={[styles.tableHeadText, styles.colCant]}>Cantidad</Text>
+        <Text style={[styles.tableHeadText, styles.colCant, styles.textRight]}>Cantidad</Text>
 
         <Text style={[styles.tableHeadText, styles.colCosto, styles.textRight]}>Precio unit.</Text>
 
@@ -573,7 +573,7 @@ export default function RegisterPurchaseScreen() {
 
           <View style={styles.colCant}>
             <TextInput
-              style={[styles.cellInput, cantError(l) && styles.cellInputError]}
+              style={[styles.cellInput, styles.textRight, cantError(l) && styles.cellInputError]}
               value={l.cantidad}
               onChangeText={(v) => updateLine(l.key, { cantidad: v })}
               placeholder="0"

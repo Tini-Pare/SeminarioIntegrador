@@ -235,7 +235,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       fontSize: 14.5,
       color: c.text,
-      textAlign: "center",
+      textAlign: "right",
       fontVariant: ["tabular-nums"],
     },
     error: { color: c.destructive, marginTop: 14, fontSize: 13.5 },

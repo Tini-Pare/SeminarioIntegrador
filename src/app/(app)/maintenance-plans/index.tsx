@@ -351,7 +351,7 @@ export default function MaintenancePlansScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1 }}
+                style={[{ flex: 1 }, styles.numHeaderCell]}
               />
 
               <SortHeaderCell
@@ -360,7 +360,7 @@ export default function MaintenancePlansScreen() {
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1 }}
+                style={[{ flex: 1 }, styles.numHeaderCell]}
               />
 
               <SortHeaderCell
@@ -549,13 +549,13 @@ function PlanTableRow({
       </View>
 
       {/* Tareas */}
-      <View style={{ flex: 1 }}>
-        <Text style={styles.cellText}>{p.task_count}</Text>
+      <View style={[{ flex: 1 }, styles.numCol]}>
+        <Text style={[styles.cellText, styles.numText]}>{p.task_count}</Text>
       </View>
 
       {/* Equipos */}
-      <View style={{ flex: 1 }}>
-        <Text style={styles.cellText}>{p.equipment_count}</Text>
+      <View style={[{ flex: 1 }, styles.numCol]}>
+        <Text style={[styles.cellText, styles.numText]}>{p.equipment_count}</Text>
       </View>
 
       {/* Estado */}
@@ -746,6 +746,11 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13,
       color: c.text,
     },
+    // Counts are right-aligned so the digits line up by place value. The extra
+    // right padding keeps them off the left-aligned column that follows.
+    numCol: { paddingRight: 24 },
+    numHeaderCell: { justifyContent: "flex-end", paddingRight: 24 },
+    numText: { textAlign: "right", fontVariant: ["tabular-nums"] },
     statusChip: {
       flexDirection: "row",
       alignItems: "center",

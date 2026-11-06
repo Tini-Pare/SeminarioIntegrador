@@ -242,7 +242,7 @@ export default function SparePartsScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 2.4 }}
+              style={{ flex: 2.2 }}
             />
 
             <SortHeaderCell
@@ -251,7 +251,7 @@ export default function SparePartsScreen() {
               activeField={field}
               dir={dir}
               onSort={toggle}
-              style={{ flex: 0.9 }}
+              style={[{ flex: 1.1 }, styles.qtyHeaderCell]}
             />
 
             <SortHeaderCell
@@ -278,7 +278,7 @@ export default function SparePartsScreen() {
           {pageItems.map((p, i) => (
             <View key={p.rep_id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
               <View style={styles.rowMain}>
-                <View style={{ flex: 2.4, justifyContent: "center", paddingRight: 12 }}>
+                <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
                   <Text style={styles.name} numberOfLines={1}>
                     {p.rep_nombre}
                   </Text>
@@ -289,7 +289,7 @@ export default function SparePartsScreen() {
                   </Text>
                 </View>
 
-                <View style={{ flex: 0.9, justifyContent: "center" }}>
+                <View style={[{ flex: 1.1, justifyContent: "center" }, styles.qtyCol]}>
                   <Text style={styles.qty}>{p.rep_cantidad_actual}</Text>
                 </View>
 
@@ -416,7 +416,18 @@ function makeStyles(c: ThemeColors) {
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     sub: { marginTop: 3, fontSize: 13, color: c.textMuted },
-    qty: { fontSize: 14.5, fontWeight: "700", color: c.text, fontFamily: "monospace" },
+    // Right-aligned so the digits line up by place value. The padding is
+    // tighter than Compras' because this table also renders on phones, where
+    // the column is narrow.
+    qtyCol: { paddingRight: 12 },
+    qtyHeaderCell: { justifyContent: "flex-end", paddingRight: 12 },
+    qty: {
+      fontSize: 14.5,
+      fontWeight: "700",
+      color: c.text,
+      fontFamily: "monospace",
+      textAlign: "right",
+    },
     statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
     statusDot: { width: 7, height: 7, borderRadius: 4 },
     statusText: { fontSize: 12.5, fontWeight: "500" },

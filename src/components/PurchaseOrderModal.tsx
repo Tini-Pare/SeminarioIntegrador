@@ -169,7 +169,7 @@ export function PurchaseOrderModal({
 
                 <Text style={[styles.tableHeadText, styles.colRepFlex]}>REPUESTO</Text>
 
-                <Text style={[styles.tableHeadText, styles.colCant, styles.textCenter]}>
+                <Text style={[styles.tableHeadText, styles.colCant, styles.textRight]}>
                   CANTIDAD
                 </Text>
 
@@ -322,7 +322,6 @@ function makeStyles(c: ThemeColors) {
       color: c.text,
     },
     textRight: { textAlign: "right" },
-    textCenter: { textAlign: "center" },
     linesHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -396,7 +395,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       fontWeight: "600",
       color: c.text,
-      textAlign: "center",
+      textAlign: "right",
       fontVariant: ["tabular-nums"],
     },
     removeBtn: {

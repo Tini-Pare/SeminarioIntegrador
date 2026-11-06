@@ -213,7 +213,7 @@ export default function LocationsScreen() {
                     activeField={field}
                     dir={dir}
                     onSort={toggle}
-                    style={{ flex: 1 }}
+                    style={[{ flex: 1 }, styles.countHeaderCell]}
                   />
 
                   <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
@@ -348,10 +348,11 @@ function LocationTableRow({
           </Text>
         </View>
 
-        <View style={{ flex: 1, justifyContent: "center" }}>
+        <View style={[{ flex: 1, justifyContent: "center" }, styles.countCol]}>
           <View
             style={[
               styles.countBadge,
+              styles.countBadgeEnd,
               location.equipmentCount > 0 ? styles.countBadgeActive : styles.countBadgeZero,
             ]}
           >
@@ -532,6 +533,11 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
     },
+    // Table column: counts are right-aligned, with padding to keep them off
+    // the actions column that follows.
+    countCol: { paddingRight: 24 },
+    countHeaderCell: { justifyContent: "flex-end", paddingRight: 24 },
+    countBadgeEnd: { alignSelf: "flex-end" },
     countBadgeZero: {
       backgroundColor: c.bgNested,
     },

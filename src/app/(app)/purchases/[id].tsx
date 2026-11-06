@@ -226,7 +226,7 @@ export default function PurchaseDetailScreen() {
 
         <Text style={[doc.tableHeadText, doc.colRepFlex]}>Repuesto</Text>
 
-        <Text style={[doc.tableHeadText, doc.colCant]}>Cantidad</Text>
+        <Text style={[doc.tableHeadText, doc.colCant, doc.textRight]}>Cantidad</Text>
 
         <Text style={[doc.tableHeadText, doc.colCosto, doc.textRight]}>Precio unit.</Text>
 
@@ -245,7 +245,7 @@ export default function PurchaseDetailScreen() {
               {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
             </Text>
 
-            <Text style={[styles.cellText, doc.cellNum, doc.colCant]}>{qty}</Text>
+            <Text style={[styles.cellText, doc.cellNum, doc.colCant, doc.textRight]}>{qty}</Text>
 
             <Text style={[styles.cellText, doc.cellNum, doc.colCosto, doc.textRight]}>
               {unit != null ? money(unit) : "—"}
@@ -657,8 +657,8 @@ function makeStyles(c: ThemeColors) {
     },
     cell: { fontSize: 14.5, color: c.textLabel },
     colRep: { flex: 1, minWidth: 0 },
-    colCant: { width: 85, textAlign: "center", fontVariant: ["tabular-nums"] },
-    colRecibido: { width: 85, textAlign: "center", fontVariant: ["tabular-nums"] },
+    colCant: { width: 85, textAlign: "right", fontVariant: ["tabular-nums"] },
+    colRecibido: { width: 85, textAlign: "right", fontVariant: ["tabular-nums"] },
     // Wide enough for "Pendiente en recepción" on a single line.
     colEstado: { width: 165, alignItems: "flex-end", textAlign: "right" },
     lineBadge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },

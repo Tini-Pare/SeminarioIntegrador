@@ -84,8 +84,8 @@ export function AddEquipmentModal({
   }, [visible]);
 
   const installedOptions: RadioOption<Installed>[] = [
-    { value: "si", label: "Sí, ya está funcionando" },
-    { value: "no", label: "No, hay que instalarlo" },
+    { value: "si", label: "Sí" },
+    { value: "no", label: "No" },
   ];
   const priorityOptions: RadioOption<Priority>[] = [
     { value: "low", label: "Baja", badge: colors.urgencyLow },

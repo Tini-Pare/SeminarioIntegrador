@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CheckIcon, RefreshCwIcon, SparePartIcon, WarningIcon } from "./icons";
 import { Tooltip } from "./Tooltip";
@@ -24,6 +25,7 @@ export function NotificationsPanel({
 }: NotificationsPanelProps) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const scrollRef = useRef<ScrollView>(null);
 
   return (
     <View style={styles.card}>
@@ -34,9 +36,7 @@ export function NotificationsPanel({
 
           {unreadCount > 0 && (
             <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>
-                {unreadCount} {unreadCount === 1 ? "nueva" : "nuevas"}
-              </Text>
+              <Text style={styles.unreadBadgeText}>{unreadCount} sin leer</Text>
             </View>
           )}
         </View>
@@ -52,8 +52,14 @@ export function NotificationsPanel({
         )}
       </View>
 
-      {/* Notifications list */}
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+      {/* Notifications list. The scrollbar signals there's more below: Android
+          can keep it visible, iOS can only flash it. */}
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        persistentScrollbar
+        onContentSizeChange={() => scrollRef.current?.flashScrollIndicators()}
+      >
         {notifications.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No hay notificaciones.</Text>
