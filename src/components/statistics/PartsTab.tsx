@@ -38,9 +38,17 @@ function formatStockDays(days: number | null): string {
 
 // HU-072 (what gets consumed, and when each repuesto runs out) and HU-073
 // (what is bought from whom, and at what price).
-export function PartsTab({ data, period, today, isWide }: StatsTabProps) {
+// The selected repuesto lives in the screen so the PDF export (HU-077)
+// prints the same price comparison the admin is looking at.
+export function PartsTab({
+  data,
+  period,
+  today,
+  isWide,
+  selectedPart,
+  onSelectPart,
+}: StatsTabProps & { selectedPart: number | null; onSelectPart: (id: number) => void }) {
   const { colors } = useTheme();
-  const [selectedPart, setSelectedPart] = useState<number | null>(null);
   const [selectOpen, setSelectOpen] = useState(false);
 
   const consumed = useMemo(() => {
@@ -55,8 +63,8 @@ export function PartsTab({ data, period, today, isWide }: StatsTabProps) {
   const bought = useMemo(() => purchasedParts(data.purchases), [data]);
 
   useEffect(() => {
-    if (selectedPart == null && bought.length > 0) setSelectedPart(bought[0].repId);
-  }, [bought, selectedPart]);
+    if (selectedPart == null && bought.length > 0) onSelectPart(bought[0].repId);
+  }, [bought, selectedPart, onSelectPart]);
 
   const prices = useMemo(
     () => (selectedPart != null ? priceComparison(data.purchases, selectedPart) : []),
@@ -247,7 +255,7 @@ export function PartsTab({ data, period, today, isWide }: StatsTabProps) {
             <View style={{ marginBottom: 14, zIndex: selectOpen ? 20 : 1, maxWidth: 420 }}>
               <Select
                 value={selectedPart}
-                onChange={(v) => setSelectedPart(v)}
+                onChange={(v) => onSelectPart(v)}
                 options={bought.map((p) => ({ value: p.repId, label: p.name }))}
                 placeholder="Elegí un repuesto"
                 open={selectOpen}

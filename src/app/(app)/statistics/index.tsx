@@ -23,20 +23,27 @@ import {
 } from "../../../components/statistics/StatisticsFilters";
 import { TechniciansTab } from "../../../components/statistics/TechniciansTab";
 import { BREAKPOINT } from "../../../constants";
+import { getProfile } from "../../../lib/auth";
+import { exportHtmlAsPdf } from "../../../lib/exportPdf";
 import { loadStatisticsData, type StatisticsData } from "../../../lib/queries/statistics";
 import type { OrderTypeFilter, StatsPeriod } from "../../../lib/statistics";
+import {
+  STATISTICS_TAB_LABELS,
+  TAB_USES_TYPE,
+  buildStatisticsHtml,
+  statisticsPdfBaseName,
+  type StatisticsTabKey,
+} from "../../../lib/statisticsPdf";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 
-type TabKey = "orders" | "technicians" | "equipment" | "requests" | "parts";
+type TabKey = StatisticsTabKey;
 
-const TABS: { key: TabKey; label: string; usesType: boolean }[] = [
-  { key: "orders", label: "Órdenes de trabajo", usesType: true },
-  { key: "technicians", label: "Técnicos", usesType: true },
-  { key: "equipment", label: "Equipos", usesType: false },
-  { key: "requests", label: "Solicitudes", usesType: false },
-  { key: "parts", label: "Repuestos y compras", usesType: false },
-];
+const TABS = (Object.keys(STATISTICS_TAB_LABELS) as TabKey[]).map((key) => ({
+  key,
+  label: STATISTICS_TAB_LABELS[key],
+  usesType: TAB_USES_TYPE[key],
+}));
 
 const DEFAULT_PRESET: Exclude<PeriodPreset, "custom"> = "90d";
 
@@ -57,6 +64,10 @@ export default function StatisticsScreen() {
   const [preset, setPreset] = useState<PeriodPreset>(DEFAULT_PRESET);
   const [period, setPeriod] = useState<StatsPeriod>(() => presetPeriod(DEFAULT_PRESET, today));
   const [type, setType] = useState<OrderTypeFilter>("all");
+  const [equipmentId, setEquipmentId] = useState<number | null>(null);
+  const [partId, setPartId] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -89,6 +100,34 @@ export default function StatisticsScreen() {
 
   const activeTab = TABS.find((t) => t.key === tab)!;
 
+  // HU-077: the active tab, with the selected period and type, as a PDF
+  // carrying Mantia's name and logo (see lib/statisticsPdf).
+  async function exportPdf() {
+    if (!data || exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const profile = await getProfile();
+      const html = buildStatisticsHtml({
+        tab,
+        data,
+        period,
+        type,
+        today,
+        ...lookups,
+        selectedEquipmentId: equipmentId,
+        selectedPartId: partId,
+        generatedAt: new Date(),
+        generatedBy: profile?.name ?? null,
+      });
+      await exportHtmlAsPdf(html, statisticsPdfBaseName(tab, period));
+    } catch (e) {
+      setExportError(`No se pudo exportar el PDF: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const tabProps: StatsTabProps | null = data
     ? { data, period, type, today, isWide, ...lookups }
     : null;
@@ -100,10 +139,28 @@ export default function StatisticsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <View style={styles.pageHeader}>
-        <Text style={styles.title}>Estadísticas</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Estadísticas</Text>
 
-        <Text style={styles.subtitle}>Análisis del mantenimiento en un período</Text>
+          <Text style={styles.subtitle}>Análisis del mantenimiento en un período</Text>
+        </View>
+
+        <Pressable
+          style={[styles.exportButton, (!data || exporting) && styles.exportButtonDisabled]}
+          onPress={exportPdf}
+          disabled={!data || exporting}
+          accessibilityRole="button"
+          accessibilityLabel={`Exportar ${activeTab.label} a PDF`}
+        >
+          {exporting && <ActivityIndicator size="small" color="#fff" />}
+
+          <Text style={styles.exportButtonText}>
+            {exporting ? "Generando PDF…" : "Exportar PDF"}
+          </Text>
+        </Pressable>
       </View>
+
+      {exportError && <Text style={styles.error}>{exportError}</Text>}
 
       <ScrollView
         horizontal
@@ -149,11 +206,15 @@ export default function StatisticsScreen() {
 
           {tab === "technicians" && <TechniciansTab {...tabProps} />}
 
-          {tab === "equipment" && <EquipmentTab {...tabProps} />}
+          {tab === "equipment" && (
+            <EquipmentTab {...tabProps} selectedId={equipmentId} onSelect={setEquipmentId} />
+          )}
 
           {tab === "requests" && <RequestsTab {...tabProps} />}
 
-          {tab === "parts" && <PartsTab {...tabProps} />}
+          {tab === "parts" && (
+            <PartsTab {...tabProps} selectedPart={partId} onSelectPart={setPartId} />
+          )}
         </View>
       )}
     </ScrollView>
@@ -164,7 +225,27 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 24, paddingBottom: 48 },
-    pageHeader: { marginBottom: 16 },
+    pageHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      flexWrap: "wrap",
+      gap: 12,
+      marginBottom: 16,
+    },
+    headerText: { flexShrink: 1, minWidth: 0 },
+    exportButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: c.accent,
+      paddingHorizontal: 20,
+      height: 40,
+      borderRadius: 10,
+    },
+    exportButtonDisabled: { opacity: 0.6 },
+    exportButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 14, color: c.textSecondary },
     tabsScroll: { flexGrow: 0, marginBottom: 16 },

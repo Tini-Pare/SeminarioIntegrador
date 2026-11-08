@@ -33,10 +33,19 @@ function formatAge(days: number | null): string {
 
 // HU-071: which equipos break the most, and a ficha with what's needed to
 // decide whether to keep repairing one or replace it.
-export function EquipmentTab({ data, period, today, equipmentById, isWide }: StatsTabProps) {
+// The selected equipo lives in the screen so the PDF export (HU-077) prints
+// the same ficha the admin is looking at.
+export function EquipmentTab({
+  data,
+  period,
+  today,
+  equipmentById,
+  isWide,
+  selectedId,
+  onSelect,
+}: StatsTabProps & { selectedId: number | null; onSelect: (id: number) => void }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selectOpen, setSelectOpen] = useState(false);
 
   const top = useMemo(() => topFailingEquipment(data.orders, period), [data, period]);
@@ -48,8 +57,8 @@ export function EquipmentTab({ data, period, today, equipmentById, isWide }: Sta
 
   // The ficha follows the ranking's leader until the admin picks another.
   useEffect(() => {
-    if (selectedId == null && top.length > 0) setSelectedId(top[0].equipmentId);
-  }, [top, selectedId]);
+    if (selectedId == null && top.length > 0) onSelect(top[0].equipmentId);
+  }, [top, selectedId, onSelect]);
 
   const selected = selectedId != null ? equipmentById.get(selectedId) : undefined;
   const report = useMemo(
@@ -91,7 +100,7 @@ export function EquipmentTab({ data, period, today, equipmentById, isWide }: Sta
                   };
                 })}
                 selectedKey={selectedId}
-                onSelect={(key) => setSelectedId(Number(key))}
+                onSelect={(key) => onSelect(Number(key))}
                 labelWidth={170}
               />
             )}
@@ -135,7 +144,7 @@ export function EquipmentTab({ data, period, today, equipmentById, isWide }: Sta
             <View style={[styles.selectWrap, selectOpen && { zIndex: 20 }]}>
               <Select
                 value={selectedId}
-                onChange={(v) => setSelectedId(v)}
+                onChange={(v) => onSelect(v)}
                 options={equipmentOptions}
                 placeholder="Elegí un equipo"
                 open={selectOpen}

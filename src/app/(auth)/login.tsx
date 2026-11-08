@@ -10,10 +10,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BrandMark } from "../../components/BrandMark";
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signIn } from "../../lib/auth";
-import { useTheme } from "../../lib/ThemeContext";
 import type { ThemeColors } from "../../lib/theme";
+import { useTheme } from "../../lib/ThemeContext";
 
 export default function Login() {
   const [legajo, setLegajo] = useState("");
@@ -103,9 +104,7 @@ export default function Login() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.brandRowNarrow}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>M</Text>
-          </View>
+          <BrandMark size={44} />
           <Text style={styles.brandNameDark}>Mantia</Text>
         </View>
 
@@ -118,9 +117,7 @@ export default function Login() {
     <View style={styles.wideContainer}>
       <View style={styles.brandPanel}>
         <View style={styles.brandRow}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>M</Text>
-          </View>
+          <BrandMark size={96} />
           <Text style={styles.brandName}>Mantia</Text>
         </View>
 
@@ -165,18 +162,9 @@ function makeStyles(c: ThemeColors) {
       padding: 56,
       justifyContent: "space-between",
     },
-    brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    brandRow: { flexDirection: "row", alignItems: "center", gap: 18 },
     brandRowNarrow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 32 },
-    logo: {
-      width: 38,
-      height: 38,
-      borderRadius: 9,
-      backgroundColor: c.accent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    logoText: { color: "#fff", fontWeight: "700", fontSize: 20 },
-    brandName: { color: c.textSidebar, fontWeight: "600", fontSize: 20 },
+    brandName: { color: c.textSidebar, fontWeight: "600", fontSize: 34 },
     brandNameDark: { color: c.text, fontWeight: "600", fontSize: 20 },
     brandCopy: { maxWidth: 400 },
     eyebrow: {
