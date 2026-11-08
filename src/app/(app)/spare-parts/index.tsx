@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -31,6 +31,7 @@ import { usePagination } from "../../../lib/usePagination";
 import { normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Repuesto } from "../../../types/database";
+import { NUMERIC_COL_GAP } from "../../../constants";
 
 const STOCK_RANK: Record<StockStatus, number> = { sin_stock: 0, bajo: 1, ok: 2 };
 
@@ -305,8 +306,14 @@ export default function SparePartsScreen() {
               {isAdmin && (
                 <View style={styles.actionsCol}>
                   <RowActions
+                    onView={() =>
+                      router.push(
+                        `/stock-movements?buscar=${encodeURIComponent(p.rep_nombre)}` as never,
+                      )
+                    }
                     onEdit={() => setEditing(p)}
                     onDelete={() => handleDelete(p)}
+                    viewTooltip="Ver movimientos de stock"
                     editTooltip="Editar repuesto"
                     deleteTooltip="Eliminar repuesto"
                   />
@@ -403,7 +410,7 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 86, flexShrink: 0, alignItems: "flex-start" },
+    actionsCol: { width: 128, flexShrink: 0, alignItems: "flex-start" },
     row: {
       flexDirection: "row",
       alignItems: "center",
@@ -419,8 +426,8 @@ function makeStyles(c: ThemeColors) {
     // Right-aligned so the digits line up by place value. The padding is
     // tighter than Compras' because this table also renders on phones, where
     // the column is narrow.
-    qtyCol: { paddingRight: 12 },
-    qtyHeaderCell: { justifyContent: "flex-end", paddingRight: 12 },
+    qtyCol: { paddingRight: NUMERIC_COL_GAP },
+    qtyHeaderCell: { justifyContent: "flex-end", paddingRight: NUMERIC_COL_GAP },
     qty: {
       fontSize: 14.5,
       fontWeight: "700",

@@ -40,6 +40,7 @@ import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Repuesto } from "../../../types/database";
+import { NUMERIC_COL_GAP } from "../../../constants";
 
 const ESTADO_RANK: Record<ReceiptState, number> = { pendiente: 0, parcial: 1, completa: 2 };
 
@@ -701,8 +702,8 @@ function makeStyles(c: ThemeColors) {
     // Amounts are right-aligned so the digits line up by place value. The
     // extra right padding keeps them off the "Estado" badge that starts
     // left-aligned right after.
-    totalCol: { paddingRight: 24 },
-    totalHeaderCell: { justifyContent: "flex-end", paddingRight: 24 },
+    totalCol: { paddingRight: NUMERIC_COL_GAP },
+    totalHeaderCell: { justifyContent: "flex-end", paddingRight: NUMERIC_COL_GAP },
     total: {
       fontSize: 14.5,
       color: c.text,

@@ -16,7 +16,7 @@ import { RowActions } from "../../../components/RowActions";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { WarningIcon } from "../../../components/icons";
-import { BREAKPOINT } from "../../../constants";
+import { BREAKPOINT, NUMERIC_COL_GAP } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import {
   deactivateMaintenancePlan,
@@ -425,7 +425,8 @@ export default function MaintenancePlansScreen() {
                     <Text style={styles.cardMetaLabel}>TAREAS / EQUIPOS</Text>
 
                     <Text style={styles.cardMetaVal}>
-                      {p.task_count} {p.task_count === 1 ? "tarea" : "tareas"} ·{p.equipment_count} eq.
+                      {p.task_count} {p.task_count === 1 ? "tarea" : "tareas"} ·{p.equipment_count}{" "}
+                      eq.
                     </Text>
                   </View>
                 </View>
@@ -748,8 +749,8 @@ function makeStyles(c: ThemeColors) {
     },
     // Counts are right-aligned so the digits line up by place value. The extra
     // right padding keeps them off the left-aligned column that follows.
-    numCol: { paddingRight: 24 },
-    numHeaderCell: { justifyContent: "flex-end", paddingRight: 24 },
+    numCol: { paddingRight: NUMERIC_COL_GAP },
+    numHeaderCell: { justifyContent: "flex-end", paddingRight: NUMERIC_COL_GAP },
     numText: { textAlign: "right", fontVariant: ["tabular-nums"] },
     statusChip: {
       flexDirection: "row",

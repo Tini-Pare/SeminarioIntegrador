@@ -67,6 +67,16 @@ export type Database = {
         Args: { p_rc_id: number };
         Returns: void;
       };
+      registrar_movimiento_stock: {
+        Args: {
+          p_rep_id: number;
+          p_tipo: "ingreso" | "egreso";
+          p_cantidad: number;
+          p_motivo: string;
+          p_comentario?: string | null;
+        };
+        Returns: number;
+      };
       alta_equipo: {
         Args: {
           p_codigo: string;
@@ -627,6 +637,49 @@ export type Database = {
         };
         Relationships: [];
       };
+      // Ingresos/egresos externos (migration 0048): only written through
+      // registrar_movimiento_stock, never edited or deleted.
+      movimiento_stock: {
+        Row: {
+          ms_id: number;
+          rep_id: number;
+          ms_tipo: "ingreso" | "egreso";
+          ms_cantidad: number;
+          ms_motivo: string;
+          ms_comentario: string | null;
+          ms_p_id_registrador: string | null;
+          ms_creado_en: string;
+        };
+        Insert: {
+          ms_id?: number;
+          rep_id: number;
+          ms_tipo: "ingreso" | "egreso";
+          ms_cantidad: number;
+          ms_motivo: string;
+          ms_comentario?: string | null;
+          ms_p_id_registrador?: string | null;
+          ms_creado_en?: string;
+        };
+        Update: {
+          ms_id?: number;
+          rep_id?: number;
+          ms_tipo?: "ingreso" | "egreso";
+          ms_cantidad?: number;
+          ms_motivo?: string;
+          ms_comentario?: string | null;
+          ms_p_id_registrador?: string | null;
+          ms_creado_en?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "movimiento_stock_rep_id_fkey";
+            columns: ["rep_id"];
+            isOneToOne: false;
+            referencedRelation: "repuestos";
+            referencedColumns: ["rep_id"];
+          },
+        ];
+      };
       tipos_proveedores: {
         Row: { tp_id: number; tp_nombre_rubro: string; tp_descripcion: string | null };
         Insert: { tp_id?: number; tp_nombre_rubro: string; tp_descripcion?: string | null };
@@ -1092,6 +1145,8 @@ export type TareaPrevistaPlan = Database["public"]["Tables"]["tarea_prevista_pla
 export type PlanMantenimientoItem = Database["public"]["Tables"]["v_planes_mantenimiento"]["Row"];
 export type Fallo = Database["public"]["Tables"]["fallo"]["Row"];
 export type Repuesto = Database["public"]["Tables"]["repuestos"]["Row"];
+export type MovimientoStock = Database["public"]["Tables"]["movimiento_stock"]["Row"];
+export type MovimientoStockTipo = MovimientoStock["ms_tipo"];
 export type TipoProveedor = Database["public"]["Tables"]["tipos_proveedores"]["Row"];
 export type Proveedor = Database["public"]["Tables"]["proveedores"]["Row"];
 export type ComprobanteTipo = "factura" | "remito" | "tique";

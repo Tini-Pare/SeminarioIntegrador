@@ -30,6 +30,7 @@ import {
   PurchaseOrderIcon,
   RequestsIcon,
   SparePartIcon,
+  StockMovementIcon,
   SupplierIcon,
   UsersIcon,
   WarningIcon,
@@ -327,6 +328,12 @@ export default function AppLayout() {
         Icon: SparePartIcon,
         items: [
           { key: "spare-parts", label: "Repuestos", href: "/spare-parts", Icon: SparePartIcon },
+          {
+            key: "stock-movements",
+            label: "Movimientos de stock",
+            href: "/stock-movements",
+            Icon: StockMovementIcon,
+          },
           { key: "suppliers", label: "Proveedores", href: "/suppliers", Icon: SupplierIcon },
           { key: "purchases", label: "Compras", href: "/purchases", Icon: PurchaseIcon },
           {

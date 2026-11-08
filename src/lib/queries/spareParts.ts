@@ -42,10 +42,11 @@ export type SparePartInput = {
 // column default (0) and only security-definer RPCs move it — registrar_compra
 // for remito/tique lines, registrar_remito_compra/editar_remito_compra/
 // anular_remito_compra for factura lines received via a remito (migration
-// 0013), and finalizar_tarea for what a técnico consumes off a tarea
-// (migration 0021) — so every unit added or removed traces back to a
-// linea_compra or a repuesto_para_tarea row. Neither create nor update here
-// can set it.
+// 0013), finalizar_tarea for what a técnico consumes off a tarea
+// (migration 0021), and registrar_movimiento_stock for ingresos/egresos
+// outside both flows (migration 0048) — so every unit added or removed
+// traces back to a linea_compra, a repuesto_para_tarea or a
+// movimiento_stock row. Neither create nor update here can set it.
 export async function createSparePart(input: SparePartInput): Promise<Repuesto> {
   const { data, error } = await supabase
     .from("repuestos")
@@ -81,15 +82,15 @@ export async function updateSparePart(id: number, changes: SparePartInput): Prom
 }
 
 // 23503 = Postgres foreign_key_violation — linea_compra / linea_pedido /
-// repuesto_para_tarea reference rep_id with no ON DELETE CASCADE (deleting a
-// spare part shouldn't wipe purchase or order history), so surface a friendly
-// message instead of the raw constraint error.
+// repuesto_para_tarea / movimiento_stock reference rep_id with no ON DELETE
+// CASCADE (deleting a spare part shouldn't wipe purchase or order history),
+// so surface a friendly message instead of the raw constraint error.
 export async function deleteSparePart(id: number): Promise<void> {
   const { error } = await supabase.from("repuestos").delete().eq("rep_id", id);
   if (error) {
     if (error.code === "23503") {
       throw new Error(
-        "No se puede eliminar: el repuesto ya figura en una compra, un pedido o una tarea. Marcalo como inactivo en su lugar.",
+        "No se puede eliminar: el repuesto ya figura en una compra, un pedido, una tarea o un movimiento de stock. Marcalo como inactivo en su lugar.",
       );
     }
     throw new Error(error.message);

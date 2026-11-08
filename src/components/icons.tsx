@@ -528,3 +528,24 @@ export function WorkOrderIcon({ size = 18, color = "currentColor" }: IconProps) 
     </Svg>
   );
 }
+
+// Up and down arrows side by side: stock coming in and going out.
+export function StockMovementIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M7 20V4" />
+      <Path d="M3 8l4-4 4 4" />
+      <Path d="M17 4v16" />
+      <Path d="M13 16l4 4 4-4" />
+    </Svg>
+  );
+}

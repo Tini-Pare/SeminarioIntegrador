@@ -16,7 +16,7 @@ import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
-import { BREAKPOINT } from "../../../constants";
+import { BREAKPOINT, NUMERIC_COL_GAP } from "../../../constants";
 import { useConfirm } from "../../../lib/useConfirm";
 import { deleteLocation, listLocations } from "../../../lib/queries/locations";
 import type { LocationWithCount } from "../../../lib/queries/locations";
@@ -535,8 +535,8 @@ function makeStyles(c: ThemeColors) {
     },
     // Table column: counts are right-aligned, with padding to keep them off
     // the actions column that follows.
-    countCol: { paddingRight: 24 },
-    countHeaderCell: { justifyContent: "flex-end", paddingRight: 24 },
+    countCol: { paddingRight: NUMERIC_COL_GAP },
+    countHeaderCell: { justifyContent: "flex-end", paddingRight: NUMERIC_COL_GAP },
     countBadgeEnd: { alignSelf: "flex-end" },
     countBadgeZero: {
       backgroundColor: c.bgNested,
