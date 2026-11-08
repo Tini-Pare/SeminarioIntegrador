@@ -258,6 +258,26 @@ export function HomeIcon({ size = 18, color = "currentColor" }: IconProps) {
   );
 }
 
+export function ChartIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M3 3v18h18" />
+      <Path d="M8 17v-5" />
+      <Path d="M13 17V8" />
+      <Path d="M18 17v-8" />
+    </Svg>
+  );
+}
+
 export function PencilIcon({ size = 16, color = "currentColor" }: IconProps) {
   return (
     <Svg

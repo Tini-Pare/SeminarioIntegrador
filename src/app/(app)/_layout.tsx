@@ -20,6 +20,7 @@ import { NotificationsPanel } from "../../components/NotificationsPanel";
 import {
   BellIcon,
   CalendarIcon,
+  ChartIcon,
   ChevronDownIcon,
   EquipmentIcon,
   EquipmentTypeIcon,
@@ -281,6 +282,7 @@ export default function AppLayout() {
   if (role === "admin") {
     navEntries = [
       { key: "dashboard", label: "Inicio", href: "/dashboard", Icon: HomeIcon },
+      { key: "statistics", label: "Estadísticas", href: "/statistics", Icon: ChartIcon },
       { key: "users", label: "Usuarios", href: "/users", Icon: UsersIcon },
       {
         key: "equipment-group",

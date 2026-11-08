@@ -36,6 +36,8 @@ src/
     (auth)/login.tsx
     (app)/                    # rutas autenticadas
       _layout.tsx             # sidebar (desktop) / bottom-bar (mobile), menú de cuenta
+      dashboard/              # Inicio (admin): resumen del día y avisos
+      statistics/             # Estadísticas (admin): análisis por período (HU-071..076)
       equipment/              # listado + detalle (fallas/historial)
       equipment-types/        # ABM de tipos de equipo (admin)
       fault-types/            # ABM de fallas genéricas (admin)
@@ -89,6 +91,7 @@ Las pantallas nunca llaman a `supabase.from(...)` directo — siempre pasan por 
 - **`queries/purchases.ts`**: alta de compras (pantalla Compras). `registrarCompra()` llama a la RPC `registrar_compra` — una transacción: inserta `compras` + `linea_compra` y suma cada línea a `repuestos.rep_cantidad_actual`.
 - **`queries/purchaseOrders.ts`**: pedidos de compra del técnico (pantalla Pedidos de compra). Alta (`pedido_compra` + `linea_pedido`), listado propio/todos, y `resolvePurchaseOrder()` (RPC `resolver_pedido_compra`: aprobar / rechazar / recibir).
 - **`queries/profiles.ts`**: `listProfiles`, `updateProfile`.
+- **`queries/statistics.ts`** + **`statistics.ts`**: pantalla Estadísticas. `loadStatisticsData()` trae todo una sola vez (reusa las queries de arriba, sin migraciones ni RPC nuevas) y `statistics.ts` tiene los cálculos puros (testeados) que se recalculan al cambiar el período o el tipo de OT. Las fechas de OT y tareas son `date` (sin hora), así que las duraciones son en días; solo el tiempo de atención de una solicitud (solicitud → creación de la OT) se mide en horas.
 - **`faultPhoto.ts`**: pick/take → `compressToWebp` (resize 1600px, webp, `data:` URI en base64) → `uploadFaultPhoto` (decode + sube a Storage). Ver nota abajo sobre por qué `data:` y no `blob:`.
 
 ## Base de datos
@@ -149,6 +152,18 @@ no se corre.
 | `user`       | Equipos, reportar falla, Mis solicitudes.                                                               |
 | `technician` | Equipos, reportar falla, Cola de trabajo (asignarse/avanzar estado), Repuestos (consulta de stock), Pedidos de compra (alta). |
 | `admin`      | Todo lo anterior + Usuarios (invitar/editar/desactivar/eliminar), Solicitudes (todas), CRUD de equipos, ABM de Ubicaciones, Tipos de equipo, Tareas generales y Fallas genéricas, ABM de Repuestos y Proveedores, Compras (ingreso de stock) y Pedidos de compra (aprobar/rechazar/recibir). |
+
+### Inicio y Estadísticas (admin)
+
+- **Inicio** muestra solo el estado de hoy: equipos por estado, stock mínimo, equipos sin funcionar, OT vencidas (abiertas con la fecha estimada pasada), solicitudes a atender (sin OT todavía) y la carga actual de tareas abiertas por técnico.
+- **Estadísticas** analiza un período (7/30/90 días, este mes, este año o personalizado), en 5 pestañas:
+  - **Órdenes de trabajo** (HU-074): OT cerradas, % cerradas en término y desvío promedio contra la fecha estimada; correctivas vs. preventivas por semana/mes; lista de OT de la más demorada a la menos.
+  - **Técnicos** (HU-076): tareas finalizadas por técnico; ranking de tareas generales por duración (de la más compleja a la más simple); rendimiento de cada técnico comparado con el promedio del área en la misma tarea.
+  - **Equipos** (HU-071): equipos con más fallas; ficha por equipo (roturas, tiempo entre fallas, tiempo de reparación, reincidencias, gasto en repuestos, antigüedad e historial); fallas más frecuentes por gravedad.
+  - **Solicitudes** (HU-075): tiempo de atención, tiempo en darle curso, tasa de rechazo y ubicaciones con más solicitudes.
+  - **Repuestos y compras** (HU-072, HU-073): repuestos más consumidos, compras por proveedor, cobertura de stock (cuántos días alcanza, qué reponer y qué no se usa) y precio de un repuesto en cada proveedor.
+
+  Órdenes de trabajo y Técnicos se filtran además por tipo (todas / correctivas / preventivas). Las OT de instalación no entran en el análisis.
 
 El rol se lee siempre con `getProfile()` → `profiles.role`, nunca de JWT claims. Los permisos están reforzados en RLS, no son solo UI oculta — un `user` que le pegue directo a Supabase para editar equipos recibe error de permisos igual. Un admin no puede auto-degradarse ni desactivarse a sí mismo desde Usuarios (guard explícito).
 

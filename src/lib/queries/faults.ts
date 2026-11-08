@@ -330,6 +330,7 @@ export function mapWorkOrderRow(row: WorkOrderWithDetail): WorkOrder {
     start_date: row.ot_fecha_inicio,
     end_date: row.ot_fecha_fin,
     planned_end_date: row.ot_fecha_estimada_fin,
+    created_at: row.ot_creada_en ?? null,
     observation: row.ot_observacion,
     plan_name: row.plan_mantenimiento?.pm_nombre_plan ?? null,
     fault_type_name: row.fallo_por_orden?.[0]?.fallo?.fa_nombre ?? null,
