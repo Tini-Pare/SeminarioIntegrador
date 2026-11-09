@@ -2,6 +2,8 @@ jest.mock("../supabase", () => ({ supabase: {} }));
 
 import type { StatisticsData } from "../queries/statistics";
 import {
+  STATISTICS_PDF_BLOCKS,
+  availablePdfBlocks,
   buildStatisticsHtml,
   esc,
   statisticsPdfBaseName,
@@ -67,6 +69,8 @@ function input(overrides: Partial<StatisticsPdfInput> = {}): StatisticsPdfInput 
     purchases: [],
     movements: [],
     gravedadByFault: new Map(),
+    plans: [],
+    purchaseOrders: [],
   };
   return {
     tab: "orders",
@@ -132,6 +136,41 @@ describe("buildStatisticsHtml", () => {
       expect(html).toContain("</html>");
     },
   );
+});
+
+describe("choosing which blocks to export", () => {
+  // A panel or a KPI row is one printed block.
+  const countBlocks = (html: string) =>
+    (html.match(/<section class="panel/g) ?? []).length +
+    (html.match(/<div class="kpis/g) ?? []).length;
+
+  it.each(Object.keys(STATISTICS_PDF_BLOCKS) as (keyof typeof STATISTICS_PDF_BLOCKS)[])(
+    "prints exactly one block per catalog entry in the %s tab",
+    (tab) => {
+      for (const block of STATISTICS_PDF_BLOCKS[tab]) {
+        const html = buildStatisticsHtml(input({ tab, blocks: [block.key] }));
+        expect(countBlocks(html)).toBe(1);
+      }
+      expect(countBlocks(buildStatisticsHtml(input({ tab })))).toBe(
+        STATISTICS_PDF_BLOCKS[tab].length,
+      );
+    },
+  );
+
+  it("prints only the picked blocks", () => {
+    const html = buildStatisticsHtml(input({ blocks: ["byPriority", "list"] }));
+    expect(html).toContain("Tiempo de resolución por prioridad");
+    expect(html).toContain("OT del período, de la más demorada a la menos");
+    expect(html).not.toContain("Correctivas vs. preventivas");
+    expect(html).not.toContain('class="kpis');
+  });
+
+  it("doesn't offer the preventive plans' block while only correctivas are shown", () => {
+    const keys = (type: "all" | "correctivo") =>
+      availablePdfBlocks("orders", type).map((b) => b.key);
+    expect(keys("all")).toContain("plans");
+    expect(keys("correctivo")).not.toContain("plans");
+  });
 });
 
 describe("statisticsPdfBaseName", () => {

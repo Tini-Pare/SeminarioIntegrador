@@ -3,6 +3,7 @@ import { Text } from "react-native";
 import {
   formatDays,
   formatSignedDays,
+  suspensionsByReason,
   taskComplexityRanking,
   tasksByTechnician,
   technicianPerformance,
@@ -20,7 +21,7 @@ const COMPLEXITY_LIMIT = 10;
 // HU-076 + "cuánto me rinde mi personal": tareas finished per técnico, how
 // long they take compared with the rest of the área on the same tarea, and
 // which tareas generales are simple or complex (by how long they take).
-export function TechniciansTab({ data, period, type, profileById, isWide }: StatsTabProps) {
+export function TechniciansTab({ data, period, type, today, profileById, isWide }: StatsTabProps) {
   const { colors } = useTheme();
 
   const counts = useMemo(() => tasksByTechnician(data.orders, period, type), [data, period, type]);
@@ -31,6 +32,11 @@ export function TechniciansTab({ data, period, type, profileById, isWide }: Stat
   const complexity = useMemo(
     () => taskComplexityRanking(data.orders, period, type).slice(0, COMPLEXITY_LIMIT),
     [data, period, type],
+  );
+
+  const suspensions = useMemo(
+    () => suspensionsByReason(data.orders, period, type, today),
+    [data, period, type, today],
   );
 
   // A type filter leaves one series: drop the other from bars and legend.
@@ -141,6 +147,27 @@ export function TechniciansTab({ data, period, type, profileById, isWide }: Stat
           </StatPanel>
         </Column>
       </TwoColumns>
+
+      <StatPanel
+        title="Tareas suspendidas por motivo"
+        caption="Tareas frenadas en el período y cuántos días estuvieron paradas en promedio. Solo se guarda la última suspensión de cada tarea: una tarea suspendida dos veces cuenta una vez."
+      >
+        {suspensions.length === 0 ? (
+          <EmptyChart text="No se suspendieron tareas en el período." />
+        ) : (
+          <BarList
+            series={[{ key: "count", label: "Tareas", color: colors.eqWaiting.dot }]}
+            rows={suspensions.map((s) => ({
+              key: s.reason,
+              label: s.reason,
+              sublabel: `Prom. frenada: ${formatDays(s.avgDaysStopped)}`,
+              detail: `${s.count} ${s.count === 1 ? "tarea" : "tareas"}, frenadas ${formatDays(s.avgDaysStopped)} en promedio${s.ongoing ? ` · ${s.ongoing} ${s.ongoing === 1 ? "sigue suspendida" : "siguen suspendidas"}` : ""}`,
+              values: { count: s.count },
+            }))}
+            labelWidth={190}
+          />
+        )}
+      </StatPanel>
     </TabStack>
   );
 }

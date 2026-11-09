@@ -841,6 +841,296 @@ export function priceComparison(purchases: PurchaseWithDetail[], repId: number):
 }
 
 // ---------------------------------------------------------------------------
+// Second round (the stats first left "para más adelante")
+
+const PRIORITY_ORDER: WorkOrder["priority"][] = ["high", "medium", "low"];
+
+export type PriorityResolution = {
+  priority: WorkOrder["priority"];
+  closed: number;
+  medianDays: number | null;
+  withPlannedDate: number;
+  onTimePct: number | null;
+};
+
+// Do urgent OTs really get solved faster? OTs closed in the period, per
+// priority (Alta first), with their median start → close days.
+export function resolutionByPriority(
+  orders: WorkOrder[],
+  period: StatsPeriod,
+  type: OrderTypeFilter,
+): PriorityResolution[] {
+  const closed = orders.filter((o) => matchesType(o, type) && inPeriod(o.end_date, period));
+  return PRIORITY_ORDER.map((priority) => {
+    const own = closed.filter((o) => o.priority === priority);
+    const planned = own.filter((o) => o.planned_end_date);
+    const onTime = planned.filter((o) => o.end_date! <= o.planned_end_date!).length;
+    return {
+      priority,
+      closed: own.length,
+      medianDays: median(own.map((o) => Math.max(0, daysBetween(o.start_date, o.end_date!)))),
+      withPlannedDate: planned.length,
+      onTimePct: planned.length ? (onTime / planned.length) * 100 : null,
+    };
+  });
+}
+
+export type PlanInfo = { pm_id_plan: number; pm_nombre_plan: string; pm_frecuencia: number };
+
+export type PlanCompliance = {
+  planId: number | null;
+  name: string;
+  frequencyDays: number | null;
+  total: number;
+  onTime: number;
+  late: number;
+  // Still open and past its deadline.
+  overdue: number;
+  // Still open, deadline not reached yet.
+  inProgress: number;
+  // onTime / (onTime + late + overdue).
+  compliancePct: number | null;
+};
+
+// Preventive OTs are generated without a fecha estimada (0035/0046). Their
+// deadline is the one the admin set, if any, or else the plan's frequency:
+// it has to be done before the next one of the same plan is due.
+export function preventiveDeadline(
+  order: Pick<WorkOrder, "start_date" | "planned_end_date">,
+  frequencyDays: number | null,
+): string | null {
+  if (order.planned_end_date) return order.planned_end_date;
+  return frequencyDays ? addDays(order.start_date, frequencyDays) : null;
+}
+
+// Cumplimiento de cada plan preventivo: of its OTs started in the period,
+// how many were closed by their deadline. Worst plan first.
+export function planCompliance(
+  orders: WorkOrder[],
+  plans: PlanInfo[],
+  period: StatsPeriod,
+  today: string,
+): PlanCompliance[] {
+  const planById = new Map(plans.map((p) => [p.pm_id_plan, p]));
+  const byPlan = new Map<string, PlanCompliance>();
+
+  for (const o of orders) {
+    if (o.type !== "preventivo" || !inPeriod(o.start_date, period)) continue;
+    const plan = o.plan_id_manequipo != null ? planById.get(o.plan_id_manequipo) : undefined;
+    const key = String(o.plan_id_manequipo ?? o.plan_name ?? "none");
+    const row = byPlan.get(key) ?? {
+      planId: o.plan_id_manequipo ?? null,
+      name: plan?.pm_nombre_plan ?? o.plan_name ?? "Plan eliminado",
+      frequencyDays: plan?.pm_frecuencia ?? null,
+      total: 0,
+      onTime: 0,
+      late: 0,
+      overdue: 0,
+      inProgress: 0,
+      compliancePct: null,
+    };
+    const deadline = preventiveDeadline(o, row.frequencyDays);
+    row.total += 1;
+    if (o.end_date) {
+      // Without any deadline (plan deleted) a closed OT counts as done.
+      if (!deadline || o.end_date <= deadline) row.onTime += 1;
+      else row.late += 1;
+    } else if (deadline && deadline < today) {
+      row.overdue += 1;
+    } else {
+      row.inProgress += 1;
+    }
+    byPlan.set(key, row);
+  }
+
+  return [...byPlan.values()]
+    .map((r) => {
+      const judged = r.onTime + r.late + r.overdue;
+      return { ...r, compliancePct: judged ? (r.onTime / judged) * 100 : null };
+    })
+    .sort(
+      (a, b) =>
+        (a.compliancePct ?? Infinity) - (b.compliancePct ?? Infinity) ||
+        b.total - a.total ||
+        a.name.localeCompare(b.name),
+    );
+}
+
+export type SuspensionReasonStats = {
+  reason: string;
+  count: number;
+  // Still suspended today.
+  ongoing: number;
+  avgDaysStopped: number | null;
+};
+
+// Tareas put on hold in the period, by motivo. Only a tarea's last
+// suspension is stored (0029/0030), so a tarea suspended twice counts once
+// and only its last stop is timed.
+export function suspensionsByReason(
+  orders: WorkOrder[],
+  period: StatsPeriod,
+  type: OrderTypeFilter,
+  today: string,
+): SuspensionReasonStats[] {
+  const byReason = new Map<string, { count: number; ongoing: number; days: number[] }>();
+  for (const o of orders) {
+    if (!matchesType(o, type)) continue;
+    for (const t of o.tasks) {
+      const current = t.suspension;
+      const s = current ?? t.lastSuspension;
+      if (!s || !inPeriod(s.since, period)) continue;
+      const until = current ? today : (t.lastSuspension?.until ?? today);
+      const entry = byReason.get(s.reason) ?? { count: 0, ongoing: 0, days: [] };
+      entry.count += 1;
+      if (current) entry.ongoing += 1;
+      entry.days.push(Math.max(0, daysBetween(s.since, until)));
+      byReason.set(s.reason, entry);
+    }
+  }
+  return [...byReason.entries()]
+    .map(([reason, e]) => ({
+      reason,
+      count: e.count,
+      ongoing: e.ongoing,
+      avgDaysStopped: average(e.days),
+    }))
+    .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+}
+
+type PurchaseOrderRow = {
+  ped_estado: "pendiente" | "aprobado" | "rechazado" | "recibido";
+  ped_fecha_solicitud: string | null;
+  ped_fecha_resolucion: string | null;
+  ped_motivo_rechazo: string | null;
+};
+
+export type PurchaseOrderStats = {
+  total: number;
+  pending: number;
+  // aprobado + recibido: a received pedido was approved first.
+  approved: number;
+  rejected: number;
+  // approved / (approved + rejected).
+  approvalPct: number | null;
+  // Pedido → received, in days. ped_fecha_resolucion is overwritten when
+  // it's received (0013/0026), so the approval date itself is lost: what
+  // can be measured is how long a pedido takes to arrive.
+  receiveDaysMedian: number | null;
+  receivedCount: number;
+  oldestPendingDays: number | null;
+  topRejectReason: string | null;
+};
+
+// A pedido waiting longer than this for an answer is flagged.
+export const PENDING_ALERT_DAYS = 7;
+
+// Pedidos de compra the técnicos made in the period.
+export function purchaseOrderStats(
+  orders: PurchaseOrderRow[],
+  period: StatsPeriod,
+  today: string,
+): PurchaseOrderStats {
+  const own = orders.filter((p) => inPeriod(p.ped_fecha_solicitud, period));
+  const pending = own.filter((p) => p.ped_estado === "pendiente");
+  const approved = own.filter((p) => p.ped_estado === "aprobado" || p.ped_estado === "recibido");
+  const rejected = own.filter((p) => p.ped_estado === "rechazado");
+  const receiveDays = own
+    .filter((p) => p.ped_estado === "recibido" && p.ped_fecha_resolucion)
+    .map((p) => Math.max(0, daysBetween(p.ped_fecha_solicitud!, p.ped_fecha_resolucion!)));
+
+  const reasons = new Map<string, number>();
+  for (const p of rejected) {
+    const reason = p.ped_motivo_rechazo?.trim() || "Sin motivo";
+    reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+  }
+  const topReason = [...reasons.entries()].sort((a, b) => b[1] - a[1])[0];
+  const pendingAges = pending.map((p) => daysBetween(p.ped_fecha_solicitud!, today));
+
+  return {
+    total: own.length,
+    pending: pending.length,
+    approved: approved.length,
+    rejected: rejected.length,
+    approvalPct:
+      approved.length + rejected.length
+        ? (approved.length / (approved.length + rejected.length)) * 100
+        : null,
+    receiveDaysMedian: median(receiveDays),
+    receivedCount: receiveDays.length,
+    oldestPendingDays: pendingAges.length ? Math.max(...pendingAges) : null,
+    topRejectReason: topReason?.[0] ?? null,
+  };
+}
+
+export type EquipmentTypeReliability = {
+  typeId: number;
+  name: string;
+  equipmentCount: number;
+  failures: number;
+  failuresPerEquipment: number;
+  mtbfDays: number | null;
+  mttrDays: number | null;
+};
+
+// MTBF/MTTR per tipo de equipo over the whole history: which kinds of
+// equipo break most often and take longest to fix. Gaps are measured
+// between roturas of the same equipo, then pooled per tipo.
+export function reliabilityByEquipmentType(
+  orders: WorkOrder[],
+  equipment: Pick<Equipo, "id" | "typeId" | "type" | "active">[],
+): EquipmentTypeReliability[] {
+  const failuresByEquipment = new Map<number, WorkOrder[]>();
+  for (const o of orders) {
+    if (o.type !== "correctivo") continue;
+    failuresByEquipment.set(o.equipment_id, [
+      ...(failuresByEquipment.get(o.equipment_id) ?? []),
+      o,
+    ]);
+  }
+
+  const byType = new Map<
+    number,
+    { name: string; equipmentCount: number; failures: number; gaps: number[]; repairs: number[] }
+  >();
+  for (const e of equipment) {
+    const entry = byType.get(e.typeId) ?? {
+      name: e.type,
+      equipmentCount: 0,
+      failures: 0,
+      gaps: [],
+      repairs: [],
+    };
+    if (e.active) entry.equipmentCount += 1;
+    const dates = (failuresByEquipment.get(e.id) ?? []).map(failureDate).sort();
+    entry.failures += dates.length;
+    dates.slice(1).forEach((d, i) => entry.gaps.push(daysBetween(dates[i], d)));
+    for (const o of failuresByEquipment.get(e.id) ?? []) {
+      if (o.end_date) entry.repairs.push(Math.max(0, daysBetween(o.start_date, o.end_date)));
+    }
+    byType.set(e.typeId, entry);
+  }
+
+  return [...byType.entries()]
+    .filter(([, t]) => t.equipmentCount > 0 || t.failures > 0)
+    .map(([typeId, t]) => ({
+      typeId,
+      name: t.name,
+      equipmentCount: t.equipmentCount,
+      failures: t.failures,
+      failuresPerEquipment: t.equipmentCount ? t.failures / t.equipmentCount : t.failures,
+      mtbfDays: average(t.gaps),
+      mttrDays: average(t.repairs),
+    }))
+    .sort(
+      (a, b) =>
+        (a.mtbfDays ?? Infinity) - (b.mtbfDays ?? Infinity) ||
+        b.failures - a.failures ||
+        a.name.localeCompare(b.name),
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Inicio (today's alerts)
 
 // Open OTs whose fecha estimada already passed, most overdue first.

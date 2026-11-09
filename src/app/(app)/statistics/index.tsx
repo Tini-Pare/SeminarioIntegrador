@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { getTodayDbDate } from "../../../components/CustomDatePicker";
 import { EquipmentTab } from "../../../components/statistics/EquipmentTab";
+import { ExportPdfModal } from "../../../components/statistics/ExportPdfModal";
 import { OrdersTab } from "../../../components/statistics/OrdersTab";
 import { PartsTab } from "../../../components/statistics/PartsTab";
 import { RequestsTab } from "../../../components/statistics/RequestsTab";
@@ -30,6 +31,7 @@ import type { OrderTypeFilter, StatsPeriod } from "../../../lib/statistics";
 import {
   STATISTICS_TAB_LABELS,
   TAB_USES_TYPE,
+  availablePdfBlocks,
   buildStatisticsHtml,
   statisticsPdfBaseName,
   type StatisticsTabKey,
@@ -67,6 +69,7 @@ export default function StatisticsScreen() {
   const [equipmentId, setEquipmentId] = useState<number | null>(null);
   const [partId, setPartId] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportPickerOpen, setExportPickerOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -99,10 +102,13 @@ export default function StatisticsScreen() {
   );
 
   const activeTab = TABS.find((t) => t.key === tab)!;
+  // Memoized: the picker resets its checkboxes whenever this list changes.
+  const pdfBlocks = useMemo(() => availablePdfBlocks(tab, type), [tab, type]);
 
   // HU-077: the active tab, with the selected period and type, as a PDF
-  // carrying Mantia's name and logo (see lib/statisticsPdf).
-  async function exportPdf() {
+  // carrying Mantia's name and logo (see lib/statisticsPdf) — only the
+  // blocks the admin ticked in ExportPdfModal.
+  async function exportPdf(blocks: string[]) {
     if (!data || exporting) return;
     setExporting(true);
     setExportError(null);
@@ -119,6 +125,7 @@ export default function StatisticsScreen() {
         selectedPartId: partId,
         generatedAt: new Date(),
         generatedBy: profile?.name ?? null,
+        blocks,
       });
       await exportHtmlAsPdf(html, statisticsPdfBaseName(tab, period));
     } catch (e) {
@@ -147,7 +154,7 @@ export default function StatisticsScreen() {
 
         <Pressable
           style={[styles.exportButton, (!data || exporting) && styles.exportButtonDisabled]}
-          onPress={exportPdf}
+          onPress={() => setExportPickerOpen(true)}
           disabled={!data || exporting}
           accessibilityRole="button"
           accessibilityLabel={`Exportar ${activeTab.label} a PDF`}
@@ -161,6 +168,18 @@ export default function StatisticsScreen() {
       </View>
 
       {exportError && <Text style={styles.error}>{exportError}</Text>}
+
+      <ExportPdfModal
+        visible={exportPickerOpen}
+        tabLabel={activeTab.label}
+        blocks={pdfBlocks}
+        onClose={() => setExportPickerOpen(false)}
+        onConfirm={(blocks) => {
+          // Closed first: on web the browser's print dialog opens next.
+          setExportPickerOpen(false);
+          exportPdf(blocks);
+        }}
+      />
 
       <ScrollView
         horizontal

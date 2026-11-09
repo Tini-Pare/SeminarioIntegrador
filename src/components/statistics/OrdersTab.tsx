@@ -10,9 +10,13 @@ import {
   formatSignedDays,
   orderResolutionRows,
   ordersByBucket,
+  planCompliance,
+  resolutionByPriority,
   type OrderRow,
+  type PlanCompliance,
 } from "../../lib/statistics";
 import { useTheme } from "../../lib/ThemeContext";
+import { BarList } from "../charts/BarList";
 import { ColumnChart } from "../charts/ColumnChart";
 import { KpiRow, KpiTile } from "../charts/KpiTile";
 import { ORDER_TYPE_SERIES } from "../charts/palette";
@@ -22,15 +26,17 @@ import {
   ORDER_STATUS_LABELS,
   ORDER_TYPE_LABELS,
   PRIORITY_LABELS,
+  Column,
   Pill,
   TabStack,
+  TwoColumns,
   type StatsTabProps,
 } from "./shared";
 
 // HU-074: OTs by period, type and resolution time. Instead of one average
 // resolution time (OTs differ too much for it to mean anything, per the
 // cátedra), each OT is measured against its own fecha estimada.
-export function OrdersTab({ data, period, type, today, equipmentById }: StatsTabProps) {
+export function OrdersTab({ data, period, type, today, equipmentById, isWide }: StatsTabProps) {
   const { colors } = useTheme();
 
   const kpis = useMemo(() => computeOrderKpis(data.orders, period, type), [data, period, type]);
@@ -48,6 +54,15 @@ export function OrdersTab({ data, period, type, today, equipmentById }: StatsTab
   const rows = useMemo(
     () => orderResolutionRows(data.orders, period, type, today),
     [data, period, type, today],
+  );
+
+  const byPriority = useMemo(
+    () => resolutionByPriority(data.orders, period, type),
+    [data, period, type],
+  );
+  const plans = useMemo(
+    () => planCompliance(data.orders, data.plans, period, today),
+    [data, period, today],
   );
 
   const priorityColors = {
@@ -109,6 +124,57 @@ export function OrdersTab({ data, period, type, today, equipmentById }: StatsTab
     },
   ];
 
+  const planColumns: StatColumn<PlanCompliance>[] = [
+    { key: "plan", label: "Plan", flex: 2, render: (r) => r.name },
+    {
+      key: "frecuencia",
+      label: "Frecuencia",
+      flex: 1.1,
+      render: (r) => (r.frequencyDays ? `Cada ${r.frequencyDays} días` : "—"),
+    },
+    { key: "total", label: "OT", flex: 0.6, align: "right", render: (r) => String(r.total) },
+    {
+      key: "atiempo",
+      label: "A tiempo",
+      flex: 0.9,
+      align: "right",
+      render: (r) => String(r.onTime),
+    },
+    { key: "tarde", label: "Tarde", flex: 0.7, align: "right", render: (r) => String(r.late) },
+    {
+      key: "vencidas",
+      label: "Vencidas",
+      flex: 0.9,
+      align: "right",
+      render: (r) => (
+        <Text
+          style={{
+            fontSize: 13.5,
+            textAlign: "right",
+            fontWeight: r.overdue > 0 ? "700" : "400",
+            color: r.overdue > 0 ? colors.destructive : colors.textLabel,
+          }}
+        >
+          {r.overdue}
+        </Text>
+      ),
+    },
+    {
+      key: "encurso",
+      label: "En plazo",
+      flex: 0.9,
+      align: "right",
+      render: (r) => String(r.inProgress),
+    },
+    {
+      key: "cumplimiento",
+      label: "Cumplimiento",
+      flex: 1.1,
+      align: "right",
+      render: (r) => formatPct(r.compliancePct),
+    },
+  ];
+
   return (
     <TabStack>
       <KpiRow>
@@ -131,12 +197,60 @@ export function OrdersTab({ data, period, type, today, equipmentById }: StatsTab
         />
       </KpiRow>
 
-      <StatPanel
-        title="Correctivas vs. preventivas"
-        caption={`OT iniciadas por ${granularity === "week" ? "semana" : "mes"}. Compara los dos tipos, así que no usa el filtro de tipo.`}
-      >
-        <ColumnChart buckets={buckets} series={ORDER_TYPE_SERIES} />
-      </StatPanel>
+      <TwoColumns isWide={isWide}>
+        <Column>
+          <StatPanel
+            title="Correctivas vs. preventivas"
+            caption={`OT iniciadas por ${granularity === "week" ? "semana" : "mes"}. Compara los dos tipos, así que no usa el filtro de tipo.`}
+          >
+            <ColumnChart buckets={buckets} series={ORDER_TYPE_SERIES} />
+          </StatPanel>
+        </Column>
+
+        <Column>
+          <StatPanel
+            title="Tiempo de resolución por prioridad"
+            caption="Mediana de días de inicio a cierre de las OT cerradas en el período. ¿Las urgentes se resuelven más rápido?"
+          >
+            {byPriority.every((p) => p.closed === 0) ? (
+              <EmptyChart text="No se cerraron órdenes de trabajo en el período." />
+            ) : (
+              <BarList
+                series={[{ key: "days", label: "Mediana", color: colors.accent }]}
+                rows={byPriority.map((p) => ({
+                  key: p.priority,
+                  label: PRIORITY_LABELS[p.priority],
+                  sublabel: `${p.closed} ${p.closed === 1 ? "cerrada" : "cerradas"}${p.withPlannedDate ? ` · ${formatPct(p.onTimePct)} en término` : ""}`,
+                  values: { days: p.medianDays ?? 0 },
+                  valueText: p.closed ? formatDays(p.medianDays) : "—",
+                  color: priorityColors[p.priority].accent,
+                }))}
+                legend={[]}
+                labelWidth={190}
+              />
+            )}
+          </StatPanel>
+        </Column>
+      </TwoColumns>
+
+      {type !== "correctivo" && (
+        <StatPanel
+          title="Cumplimiento por plan preventivo"
+          caption="OT preventivas iniciadas en el período. El plazo es la fecha estimada si se cargó; si no, la frecuencia del plan (tiene que hacerse antes de que toque la siguiente). Cumplimiento = a tiempo / (a tiempo + tarde + vencidas)."
+        >
+          {plans.length === 0 ? (
+            <EmptyChart text="No hay OT preventivas iniciadas en el período." />
+          ) : (
+            <StatTable
+              columns={planColumns}
+              rows={plans}
+              rowKey={(r) => `${r.planId ?? r.name}`}
+              minWidth={720}
+              resetKey={`${period.from}|${period.to}`}
+            />
+          )}
+        </StatPanel>
+      )}
 
       <StatPanel
         title="OT del período, de la más demorada a la menos"

@@ -157,11 +157,11 @@ no se corre.
 
 - **Inicio** muestra solo el estado de hoy: equipos por estado, stock mínimo, equipos sin funcionar, OT vencidas (abiertas con la fecha estimada pasada), solicitudes a atender (sin OT todavía) y la carga actual de tareas abiertas por técnico.
 - **Estadísticas** analiza un período (7/30/90 días, este mes, este año o personalizado), en 5 pestañas:
-  - **Órdenes de trabajo** (HU-074): OT cerradas, % cerradas en término y desvío promedio contra la fecha estimada; correctivas vs. preventivas por semana/mes; lista de OT de la más demorada a la menos.
-  - **Técnicos** (HU-076): tareas finalizadas por técnico; ranking de tareas generales por duración (de la más compleja a la más simple); rendimiento de cada técnico comparado con el promedio del área en la misma tarea.
-  - **Equipos** (HU-071): equipos con más fallas; ficha por equipo (roturas, tiempo entre fallas, tiempo de reparación, reincidencias, gasto en repuestos, antigüedad e historial); fallas más frecuentes por gravedad.
+  - **Órdenes de trabajo** (HU-074): OT cerradas, % cerradas en término y desvío promedio contra la fecha estimada; correctivas vs. preventivas por semana/mes; tiempo de resolución por prioridad; cumplimiento por plan preventivo (el plazo es la fecha estimada o, si no tiene, la frecuencia del plan); lista de OT de la más demorada a la menos.
+  - **Técnicos** (HU-076): tareas finalizadas por técnico; ranking de tareas generales por duración (de la más compleja a la más simple); rendimiento de cada técnico comparado con el promedio del área en la misma tarea; tareas suspendidas por motivo (solo se guarda la última suspensión de cada tarea).
+  - **Equipos** (HU-071): equipos con más fallas; ficha por equipo (roturas, tiempo entre fallas, tiempo de reparación, reincidencias, gasto en repuestos, antigüedad e historial); fallas más frecuentes por gravedad; confiabilidad por tipo de equipo (MTBF y MTTR sobre todo el historial).
   - **Solicitudes** (HU-075): tiempo de atención, tiempo en darle curso, tasa de rechazo y ubicaciones con más solicitudes.
-  - **Repuestos y compras** (HU-072, HU-073): repuestos más consumidos, compras por proveedor, cobertura de stock (cuántos días alcanza, qué reponer y qué no se usa) y precio de un repuesto en cada proveedor.
+  - **Repuestos y compras** (HU-072, HU-073): repuestos más consumidos, compras por proveedor, cobertura de stock (cuántos días alcanza, qué reponer y qué no se usa) precio de un repuesto en cada proveedor y pedidos de compra de los técnicos (aprobados, tiempo hasta recibirlos, pendientes).
 
   Órdenes de trabajo y Técnicos se filtran además por tipo (todas / correctivas / preventivas). Las OT de instalación no entran en el análisis.
 

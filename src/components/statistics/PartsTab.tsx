@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import {
   IDLE_DAYS,
+  PENDING_ALERT_DAYS,
   REORDER_DAYS,
+  formatDays,
   formatMoney,
   formatNumber,
   formatPct,
   partConsumption,
   priceComparison,
+  purchaseOrderStats,
   purchasedParts,
   purchasesBySupplier,
   stockCoverage,
@@ -18,6 +21,7 @@ import {
 } from "../../lib/statistics";
 import { useTheme } from "../../lib/ThemeContext";
 import { BarList } from "../charts/BarList";
+import { MiniStat, MiniStatGrid } from "../charts/MiniStat";
 import { EmptyChart, StatPanel } from "../charts/StatPanel";
 import { StatTable, type StatColumn } from "../charts/StatTable";
 import { fromDbDate } from "../CustomDatePicker";
@@ -60,6 +64,10 @@ export function PartsTab({
     [data, period, today],
   );
   const suppliers = useMemo(() => purchasesBySupplier(data.purchases, period), [data, period]);
+  const orderStats = useMemo(
+    () => purchaseOrderStats(data.purchaseOrders, period, today),
+    [data, period, today],
+  );
   const bought = useMemo(() => purchasedParts(data.purchases), [data]);
 
   useEffect(() => {
@@ -271,6 +279,46 @@ export function PartsTab({
               resetKey={String(selectedPart)}
             />
           </View>
+        )}
+      </StatPanel>
+
+      <StatPanel
+        title="Pedidos de compra de los técnicos"
+        caption="Pedidos hechos en el período. Aprobados incluye los ya recibidos. La fecha de aprobación se pisa al recibir el pedido, así que lo que se mide es cuánto tarda en llegar."
+      >
+        {orderStats.total === 0 ? (
+          <EmptyChart text="No hubo pedidos de compra en el período." />
+        ) : (
+          <MiniStatGrid>
+            <MiniStat
+              label="Pedidos"
+              value={String(orderStats.total)}
+              hint={`${orderStats.pending} ${orderStats.pending === 1 ? "pendiente" : "pendientes"} de respuesta`}
+            />
+
+            <MiniStat
+              label="Aprobados"
+              value={formatPct(orderStats.approvalPct)}
+              hint={`${orderStats.approved} aprobados · ${orderStats.rejected} rechazados${orderStats.topRejectReason ? ` · motivo principal de rechazo: ${orderStats.topRejectReason}` : ""}`}
+            />
+
+            <MiniStat
+              label="Tiempo hasta recibirlo"
+              value={formatDays(orderStats.receiveDaysMedian)}
+              hint={`Mediana · ${orderStats.receivedCount} ${orderStats.receivedCount === 1 ? "recibido" : "recibidos"}`}
+            />
+
+            <MiniStat
+              label="Pendiente más antiguo"
+              value={formatDays(orderStats.oldestPendingDays)}
+              hint={
+                orderStats.oldestPendingDays == null
+                  ? "No hay pedidos esperando respuesta"
+                  : "Esperando aprobación o rechazo"
+              }
+              alert={(orderStats.oldestPendingDays ?? 0) > PENDING_ALERT_DAYS}
+            />
+          </MiniStatGrid>
         )}
       </StatPanel>
     </TabStack>

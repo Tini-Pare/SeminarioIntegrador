@@ -8,14 +8,19 @@ import {
   faultTypeRanking,
   formatDays,
   formatMoney,
+  formatNumber,
   lastUnitCosts,
+  reliabilityByEquipmentType,
   topFailingEquipment,
+  type EquipmentTypeReliability,
 } from "../../lib/statistics";
 import type { ThemeColors } from "../../lib/theme";
 import { useTheme } from "../../lib/ThemeContext";
 import { BarList } from "../charts/BarList";
 import { NEUTRAL_BAR } from "../charts/palette";
+import { MiniStat, MiniStatGrid } from "../charts/MiniStat";
 import { EmptyChart, StatPanel } from "../charts/StatPanel";
+import { StatTable, type StatColumn } from "../charts/StatTable";
 import { fromDbDate } from "../CustomDatePicker";
 import { Select } from "../Select";
 import { Column, Pill, TabStack, TwoColumns, type StatsTabProps } from "./shared";
@@ -54,6 +59,7 @@ export function EquipmentTab({
     [data, period],
   );
   const unitCosts = useMemo(() => lastUnitCosts(data.purchases), [data]);
+  const byType = useMemo(() => reliabilityByEquipmentType(data.orders, data.equipment), [data]);
 
   // The ficha follows the ranking's leader until the admin picks another.
   useEffect(() => {
@@ -76,6 +82,45 @@ export function EquipmentTab({
     () => data.equipment.map((e) => ({ value: e.id, label: `${e.code} · ${e.name}` })),
     [data],
   );
+
+  const typeColumns: StatColumn<EquipmentTypeReliability>[] = [
+    { key: "tipo", label: "Tipo de equipo", flex: 1.8, render: (r) => r.name },
+    {
+      key: "equipos",
+      label: "Equipos",
+      flex: 0.8,
+      align: "right",
+      render: (r) => String(r.equipmentCount),
+    },
+    {
+      key: "roturas",
+      label: "Roturas",
+      flex: 0.8,
+      align: "right",
+      render: (r) => String(r.failures),
+    },
+    {
+      key: "porequipo",
+      label: "Por equipo",
+      flex: 0.9,
+      align: "right",
+      render: (r) => formatNumber(r.failuresPerEquipment),
+    },
+    {
+      key: "mtbf",
+      label: "Entre fallas",
+      flex: 1.1,
+      align: "right",
+      render: (r) => formatDays(r.mtbfDays),
+    },
+    {
+      key: "mttr",
+      label: "Reparación",
+      flex: 1.1,
+      align: "right",
+      render: (r) => formatDays(r.mttrDays),
+    },
+  ];
 
   return (
     <TabStack>
@@ -156,32 +201,25 @@ export function EquipmentTab({
               <EmptyChart text="Elegí un equipo para ver su ficha." />
             ) : (
               <View>
-                <View style={styles.grid}>
-                  <MiniStat
-                    label="Roturas"
-                    value={String(report.failures.length)}
-                    styles={styles}
-                  />
+                <MiniStatGrid>
+                  <MiniStat label="Roturas" value={String(report.failures.length)} />
 
                   <MiniStat
                     label="Tiempo entre fallas"
                     value={formatDays(report.mtbfDays)}
                     hint={report.mtbfDays == null ? "Hacen falta 2 roturas" : "Promedio (MTBF)"}
-                    styles={styles}
                   />
 
                   <MiniStat
                     label="Tiempo de reparación"
                     value={formatDays(report.mttrDays)}
                     hint="Promedio (MTTR)"
-                    styles={styles}
                   />
 
                   <MiniStat
                     label="Reincidencias"
                     value={String(report.recurrences)}
                     hint={`Misma falla en ≤ ${RECURRENCE_WINDOW_DAYS} días`}
-                    styles={styles}
                     alert={report.recurrences > 0}
                   />
 
@@ -193,7 +231,6 @@ export function EquipmentTab({
                         ? "Hay repuestos sin precio de compra"
                         : "A último precio de compra"
                     }
-                    styles={styles}
                   />
 
                   <MiniStat
@@ -204,9 +241,8 @@ export function EquipmentTab({
                         ? `Instalado el ${fromDbDate(selected.installDate)}`
                         : "Sin fecha de instalación"
                     }
-                    styles={styles}
                   />
-                </View>
+                </MiniStatGrid>
 
                 <Text style={styles.historyTitle}>Historial de roturas</Text>
 
@@ -253,66 +289,24 @@ export function EquipmentTab({
           </StatPanel>
         </Column>
       </TwoColumns>
+
+      <StatPanel
+        title="Confiabilidad por tipo de equipo"
+        caption="Historial completo (no usa el filtro de período). “Entre fallas” (MTBF): días promedio entre dos roturas del mismo equipo. “Reparación” (MTTR): días promedio de inicio a cierre de la OT correctiva. Primero los tipos que se rompen más seguido."
+      >
+        {byType.length === 0 ? (
+          <EmptyChart text="No hay equipos registrados." />
+        ) : (
+          <StatTable columns={typeColumns} rows={byType} rowKey={(r) => r.typeId} minWidth={620} />
+        )}
+      </StatPanel>
     </TabStack>
-  );
-}
-
-function MiniStat({
-  label,
-  value,
-  hint,
-  alert = false,
-  styles,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  alert?: boolean;
-  styles: ReturnType<typeof makeStyles>;
-}) {
-  return (
-    <View style={styles.mini}>
-      <Text style={styles.miniLabel}>{label}</Text>
-
-      <Text style={[styles.miniValue, alert && styles.miniValueAlert]} numberOfLines={1}>
-        {value}
-      </Text>
-
-      {hint && <Text style={styles.miniHint}>{hint}</Text>}
-    </View>
   );
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     selectWrap: { marginBottom: 14, zIndex: 1 },
-    grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-    mini: {
-      flexGrow: 1,
-      flexBasis: 140,
-      backgroundColor: c.bgStatCard,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 10,
-      padding: 12,
-      minWidth: 0,
-    },
-    miniLabel: {
-      fontSize: 11,
-      fontWeight: "600",
-      letterSpacing: 0.4,
-      textTransform: "uppercase",
-      color: c.textMuted,
-    },
-    miniValue: {
-      marginTop: 4,
-      fontSize: 19,
-      fontWeight: "700",
-      color: c.text,
-      fontVariant: ["tabular-nums"],
-    },
-    miniValueAlert: { color: c.destructive },
-    miniHint: { marginTop: 2, fontSize: 11.5, color: c.textSecondary },
     historyTitle: {
       marginTop: 18,
       marginBottom: 4,

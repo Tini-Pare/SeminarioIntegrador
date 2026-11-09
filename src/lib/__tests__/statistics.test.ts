@@ -15,10 +15,16 @@ import {
   ordersByBucket,
   overdueOrders,
   partConsumption,
+  planCompliance,
+  preventiveDeadline,
   priceComparison,
+  purchaseOrderStats,
   purchasesBySupplier,
+  reliabilityByEquipmentType,
   requestsByLocation,
+  resolutionByPriority,
   stockCoverage,
+  suspensionsByReason,
   taskComplexityRanking,
   tasksByTechnician,
   technicianPerformance,
@@ -584,5 +590,193 @@ describe("overdueOrders", () => {
       "2026-03-10",
     );
     expect(result.map((o) => o.id)).toEqual([2, 1]);
+  });
+});
+
+describe("resolutionByPriority", () => {
+  it("gives each priority its median resolution and on-time rate, Alta first", () => {
+    const result = resolutionByPriority(
+      [
+        order({ priority: "high", start_date: "2026-03-01", end_date: "2026-03-02" }),
+        order({
+          priority: "high",
+          start_date: "2026-03-01",
+          end_date: "2026-03-04",
+          planned_end_date: "2026-03-03",
+        }),
+        order({ priority: "high", start_date: "2026-03-01", end_date: "2026-03-06" }),
+        order({ priority: "low", start_date: "2026-03-01", end_date: "2026-03-11" }),
+        order({ priority: "low", start_date: "2026-03-01" }), // still open
+      ],
+      MARCH,
+      "all",
+    );
+    expect(result).toEqual([
+      { priority: "high", closed: 3, medianDays: 3, withPlannedDate: 1, onTimePct: 0 },
+      { priority: "medium", closed: 0, medianDays: null, withPlannedDate: 0, onTimePct: null },
+      { priority: "low", closed: 1, medianDays: 10, withPlannedDate: 0, onTimePct: null },
+    ]);
+  });
+});
+
+describe("planCompliance", () => {
+  const plans = [
+    { pm_id_plan: 1, pm_nombre_plan: "Heladeras mensual", pm_frecuencia: 30 },
+    { pm_id_plan: 2, pm_nombre_plan: "Hornos semanal", pm_frecuencia: 7 },
+  ];
+
+  it("uses the fecha estimada, or else the plan's frequency, as the deadline", () => {
+    expect(
+      preventiveDeadline({ start_date: "2026-03-01", planned_end_date: "2026-03-05" }, 30),
+    ).toBe("2026-03-05");
+    expect(preventiveDeadline({ start_date: "2026-03-01", planned_end_date: null }, 7)).toBe(
+      "2026-03-08",
+    );
+    expect(
+      preventiveDeadline({ start_date: "2026-03-01", planned_end_date: null }, null),
+    ).toBeNull();
+  });
+
+  it("classifies each preventive OT and puts the worst plan first", () => {
+    const pre = (overrides: Partial<WorkOrder>) => order({ type: "preventivo", ...overrides });
+    const result = planCompliance(
+      [
+        // Hornos (every 7 days): one on time, one late, one overdue.
+        pre({ plan_id_manequipo: 2, start_date: "2026-03-01", end_date: "2026-03-05" }),
+        pre({ plan_id_manequipo: 2, start_date: "2026-03-08", end_date: "2026-03-20" }),
+        pre({ plan_id_manequipo: 2, start_date: "2026-03-15" }),
+        // Heladeras (every 30 days): on time, plus one still within its deadline.
+        pre({ plan_id_manequipo: 1, start_date: "2026-03-01", end_date: "2026-03-10" }),
+        pre({ plan_id_manequipo: 1, start_date: "2026-03-20" }),
+        order({ start_date: "2026-03-01" }), // correctivo, ignored
+      ],
+      plans,
+      MARCH,
+      "2026-03-31",
+    );
+    expect(result.map((r) => [r.name, r.onTime, r.late, r.overdue, r.inProgress])).toEqual([
+      ["Hornos semanal", 1, 1, 1, 0],
+      ["Heladeras mensual", 1, 0, 0, 1],
+    ]);
+    expect(result[0].compliancePct).toBeCloseTo(33.33, 1);
+    expect(result[1].compliancePct).toBe(100);
+  });
+});
+
+describe("suspensionsByReason", () => {
+  it("groups the last suspension of each tarea by motivo, timing it", () => {
+    const result = suspensionsByReason(
+      [
+        order({
+          tasks: [
+            task({
+              lastSuspension: {
+                since: "2026-03-02",
+                until: "2026-03-06",
+                reason: "Falta de repuesto",
+                comment: null,
+              },
+            }),
+            task({
+              suspension: { since: "2026-03-08", reason: "Falta de repuesto", comment: null },
+            }),
+            task({
+              lastSuspension: {
+                since: "2026-03-10",
+                until: "2026-03-11",
+                reason: "Otro",
+                comment: "lluvia",
+              },
+            }),
+            task({
+              lastSuspension: {
+                since: "2026-02-01",
+                until: "2026-02-03",
+                reason: "Otro",
+                comment: null,
+              },
+            }), // outside the period
+          ],
+        }),
+      ],
+      MARCH,
+      "all",
+      "2026-03-10",
+    );
+    expect(result).toEqual([
+      { reason: "Falta de repuesto", count: 2, ongoing: 1, avgDaysStopped: 3 }, // 4 and 2 days
+      { reason: "Otro", count: 1, ongoing: 0, avgDaysStopped: 1 },
+    ]);
+  });
+});
+
+describe("purchaseOrderStats", () => {
+  const ped = (
+    estado: "pendiente" | "aprobado" | "rechazado" | "recibido",
+    solicitud: string,
+    resolucion: string | null = null,
+    motivo: string | null = null,
+  ) => ({
+    ped_estado: estado,
+    ped_fecha_solicitud: solicitud,
+    ped_fecha_resolucion: resolucion,
+    ped_motivo_rechazo: motivo,
+  });
+
+  it("counts received pedidos as approved and times their arrival", () => {
+    const result = purchaseOrderStats(
+      [
+        ped("recibido", "2026-03-01", "2026-03-05"),
+        ped("recibido", "2026-03-02", "2026-03-04"),
+        ped("aprobado", "2026-03-03", "2026-03-03"),
+        ped("rechazado", "2026-03-04", "2026-03-04", "Sin presupuesto"),
+        ped("pendiente", "2026-03-20"),
+        ped("pendiente", "2026-02-20"), // outside the period
+      ],
+      MARCH,
+      "2026-03-31",
+    );
+    expect(result).toEqual({
+      total: 5,
+      pending: 1,
+      approved: 3,
+      rejected: 1,
+      approvalPct: 75,
+      receiveDaysMedian: 3, // 4 and 2 days
+      receivedCount: 2,
+      oldestPendingDays: 11,
+      topRejectReason: "Sin presupuesto",
+    });
+  });
+});
+
+describe("reliabilityByEquipmentType", () => {
+  it("pools gaps between roturas of each equipo per tipo, most fragile first", () => {
+    const equipment = [
+      { id: 1, typeId: 10, type: "Heladera", active: true },
+      { id: 2, typeId: 10, type: "Heladera", active: true },
+      { id: 3, typeId: 20, type: "Horno", active: true },
+      { id: 4, typeId: 30, type: "Balanza", active: true },
+    ];
+    const result = reliabilityByEquipmentType(
+      [
+        // Heladera 1 breaks on 01/03 and 11/03; Heladera 2 on 01/03 and 21/03.
+        order({ equipment_id: 1, start_date: "2026-03-01", end_date: "2026-03-02" }),
+        order({ equipment_id: 1, start_date: "2026-03-11", end_date: "2026-03-14" }),
+        order({ equipment_id: 2, start_date: "2026-03-01" }),
+        order({ equipment_id: 2, start_date: "2026-03-21" }),
+        // Horno: one rotura, no gap yet.
+        order({ equipment_id: 3, start_date: "2026-03-05", end_date: "2026-03-05" }),
+        order({ equipment_id: 3, type: "preventivo", start_date: "2026-03-06" }),
+      ],
+      equipment,
+    );
+    expect(
+      result.map((r) => [r.name, r.equipmentCount, r.failures, r.mtbfDays, r.mttrDays]),
+    ).toEqual([
+      ["Heladera", 2, 4, 15, 2], // gaps 10 and 20; repairs 1 and 3
+      ["Horno", 1, 1, null, 0],
+      ["Balanza", 1, 0, null, null],
+    ]);
   });
 });

@@ -17,6 +17,7 @@ import { GRAVEDAD_LABELS } from "./queries/faultTypes";
 import type { StatisticsData } from "./queries/statistics";
 import {
   IDLE_DAYS,
+  PENDING_ALERT_DAYS,
   RECURRENCE_WINDOW_DAYS,
   REORDER_DAYS,
   bucketGranularity,
@@ -34,11 +35,16 @@ import {
   orderResolutionRows,
   ordersByBucket,
   partConsumption,
+  planCompliance,
   priceComparison,
+  purchaseOrderStats,
   purchasedParts,
   purchasesBySupplier,
+  reliabilityByEquipmentType,
   requestsByLocation,
+  resolutionByPriority,
   stockCoverage,
+  suspensionsByReason,
   taskComplexityRanking,
   tasksByTechnician,
   technicianPerformance,
@@ -118,7 +124,61 @@ export type StatisticsPdfInput = {
   selectedPartId: number | null;
   generatedAt: Date;
   generatedBy: string | null;
+  // Keys from STATISTICS_PDF_BLOCKS[tab] to print; omitted = every block.
+  blocks?: string[];
 };
+
+export type StatisticsPdfBlock = { key: string; label: string };
+
+// Every block each tab can print, in the order the PDF prints them — the
+// admin picks among these before exporting. Each section builder below
+// returns its blocks' HTML in this same order.
+export const STATISTICS_PDF_BLOCKS: Record<StatisticsTabKey, StatisticsPdfBlock[]> = {
+  orders: [
+    { key: "kpis", label: "Indicadores: OT cerradas, cerradas en término y desvío promedio" },
+    { key: "byType", label: "Correctivas vs. preventivas" },
+    { key: "byPriority", label: "Tiempo de resolución por prioridad" },
+    { key: "plans", label: "Cumplimiento por plan preventivo" },
+    { key: "list", label: "OT del período, de la más demorada a la menos" },
+  ],
+  technicians: [
+    { key: "performance", label: "Rendimiento por técnico" },
+    { key: "finished", label: "Tareas finalizadas por técnico" },
+    { key: "complexity", label: "Tareas, de la más compleja a la más simple" },
+    { key: "suspensions", label: "Tareas suspendidas por motivo" },
+  ],
+  equipment: [
+    { key: "top", label: "Equipos con más fallas" },
+    { key: "faults", label: "Fallas más frecuentes" },
+    { key: "ficha", label: "Ficha del equipo seleccionado" },
+    { key: "byType", label: "Confiabilidad por tipo de equipo" },
+  ],
+  requests: [
+    {
+      key: "kpis",
+      label: "Indicadores: tiempo de atención, tiempo en darle curso y tasa de rechazo",
+    },
+    { key: "locations", label: "Ubicaciones con más solicitudes" },
+  ],
+  parts: [
+    { key: "consumed", label: "Repuestos más consumidos" },
+    { key: "suppliers", label: "Compras por proveedor" },
+    { key: "coverage", label: "Cobertura de stock" },
+    { key: "prices", label: "Precio por proveedor del repuesto seleccionado" },
+    { key: "purchaseOrders", label: "Pedidos de compra de los técnicos" },
+  ],
+};
+
+// The blocks that make sense for the current filters: the preventive plans'
+// compliance has nothing to show while only correctivas are selected.
+export function availablePdfBlocks(
+  tab: StatisticsTabKey,
+  type: OrderTypeFilter,
+): StatisticsPdfBlock[] {
+  return STATISTICS_PDF_BLOCKS[tab].filter(
+    (b) => !(tab === "orders" && b.key === "plans" && type === "correctivo"),
+  );
+}
 
 // e.g. "Mantia_Estadisticas_Equipos_2026-08-11_a_2026-11-08" (no extension:
 // the web print dialog adds ".pdf" itself, mobile appends it).
@@ -128,7 +188,12 @@ export function statisticsPdfBaseName(tab: StatisticsTabKey, period: StatsPeriod
 
 export function buildStatisticsHtml(input: StatisticsPdfInput): string {
   const { tab, period, type } = input;
-  const body = SECTION_BUILDERS[tab](input);
+  const html = SECTION_BUILDERS[tab](input);
+  const selected = new Set(input.blocks ?? STATISTICS_PDF_BLOCKS[tab].map((b) => b.key));
+  const body = STATISTICS_PDF_BLOCKS[tab]
+    .map((b, i) => (selected.has(b.key) ? html[i] : ""))
+    .filter(Boolean)
+    .join("\n");
   const generated = `Generado el ${formatDateTime(input.generatedAt)}${input.generatedBy ? ` por ${input.generatedBy}` : ""} · Mantia — Sistema de mantenimiento`;
 
   return `<!doctype html>
@@ -165,7 +230,7 @@ ${INLINE_FOOTER ? `<footer class="doc-footer">${esc(generated)}</footer>` : ""}
 // ---------------------------------------------------------------------------
 // One builder per tab, mirroring the blocks of components/statistics/*Tab.
 
-const SECTION_BUILDERS: Record<StatisticsTabKey, (input: StatisticsPdfInput) => string> = {
+const SECTION_BUILDERS: Record<StatisticsTabKey, (input: StatisticsPdfInput) => string[]> = {
   orders: ordersSection,
   technicians: techniciansSection,
   equipment: equipmentSection,
@@ -173,11 +238,13 @@ const SECTION_BUILDERS: Record<StatisticsTabKey, (input: StatisticsPdfInput) => 
   parts: partsSection,
 };
 
-function ordersSection({ data, period, type, today, equipmentById }: StatisticsPdfInput): string {
+function ordersSection({ data, period, type, today, equipmentById }: StatisticsPdfInput): string[] {
   const kpis = computeOrderKpis(data.orders, period, type);
   const granularity = bucketGranularity(period);
   const buckets = ordersByBucket(data.orders, period);
   const rows = orderResolutionRows(data.orders, period, type, today);
+  const byPriority = resolutionByPriority(data.orders, period, type);
+  const plans = planCompliance(data.orders, data.plans, period, today);
 
   const priorityTone = {
     low: light.urgencyLow,
@@ -216,6 +283,53 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
       { keep: true },
     ),
     panel(
+      "Tiempo de resolución por prioridad",
+      "Mediana de días de inicio a cierre de las OT cerradas en el período. ¿Las urgentes se resuelven más rápido?",
+      byPriority.every((p) => p.closed === 0)
+        ? empty("No se cerraron órdenes de trabajo en el período.")
+        : barList(
+            [{ key: "days", label: "Mediana", color: light.accent }],
+            byPriority.map((p) => ({
+              label: PRIORITY_LABELS[p.priority],
+              sublabel: `${p.closed} ${p.closed === 1 ? "cerrada" : "cerradas"}${p.withPlannedDate ? ` · ${formatPct(p.onTimePct)} en término` : ""}`,
+              values: { days: p.medianDays ?? 0 },
+              valueText: p.closed ? formatDays(p.medianDays) : "—",
+              color: priorityTone[p.priority].accent,
+            })),
+          ),
+      { keep: true },
+    ),
+    type === "correctivo"
+      ? ""
+      : panel(
+          "Cumplimiento por plan preventivo",
+          "OT preventivas iniciadas en el período. El plazo es la fecha estimada si se cargó; si no, la frecuencia del plan (tiene que hacerse antes de que toque la siguiente). Cumplimiento = a tiempo / (a tiempo + tarde + vencidas).",
+          plans.length === 0
+            ? empty("No hay OT preventivas iniciadas en el período.")
+            : table(
+                [
+                  { label: "Plan" },
+                  { label: "Frecuencia" },
+                  { label: "OT", right: true },
+                  { label: "A tiempo", right: true },
+                  { label: "Tarde", right: true },
+                  { label: "Vencidas", right: true },
+                  { label: "En plazo", right: true },
+                  { label: "Cumplimiento", right: true },
+                ],
+                plans.map((r) => [
+                  esc(r.name),
+                  esc(r.frequencyDays ? `Cada ${r.frequencyDays} días` : "—"),
+                  String(r.total),
+                  String(r.onTime),
+                  String(r.late),
+                  signed(String(r.overdue), r.overdue, { goodWhenNegative: false }),
+                  String(r.inProgress),
+                  esc(formatPct(r.compliancePct)),
+                ]),
+              ),
+        ),
+    panel(
       "OT del período, de la más demorada a la menos",
       "Iniciadas en el período. Desvío = cierre (o hoy, si sigue abierta) − fecha estimada. * sigue abierta: cuenta hasta hoy.",
       rows.length === 0
@@ -243,13 +357,20 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
             ]),
           ),
     ),
-  ].join("\n");
+  ];
 }
 
-function techniciansSection({ data, period, type, profileById }: StatisticsPdfInput): string {
+function techniciansSection({
+  data,
+  period,
+  type,
+  today,
+  profileById,
+}: StatisticsPdfInput): string[] {
   const counts = tasksByTechnician(data.orders, period, type);
   const performance = technicianPerformance(data.orders, period, type);
   const complexity = taskComplexityRanking(data.orders, period, type).slice(0, COMPLEXITY_LIMIT);
+  const suspensions = suspensionsByReason(data.orders, period, type, today);
   const series = ORDER_TYPE_SERIES.filter((s) => type === "all" || s.key === type);
   const noTasks = empty("Ningún técnico terminó tareas en el período.");
 
@@ -304,10 +425,25 @@ function techniciansSection({ data, period, type, profileById }: StatisticsPdfIn
           ),
       { keep: true },
     ),
-  ].join("\n");
+    panel(
+      "Tareas suspendidas por motivo",
+      "Tareas frenadas en el período y cuántos días estuvieron paradas en promedio. Solo se guarda la última suspensión de cada tarea: una tarea suspendida dos veces cuenta una vez.",
+      suspensions.length === 0
+        ? empty("No se suspendieron tareas en el período.")
+        : barList(
+            [{ key: "count", label: "Tareas", color: light.eqWaiting.dot }],
+            suspensions.map((s) => ({
+              label: s.reason,
+              sublabel: `Frenadas ${formatDays(s.avgDaysStopped)} en promedio${s.ongoing ? ` · ${s.ongoing} ${s.ongoing === 1 ? "sigue suspendida" : "siguen suspendidas"}` : ""}`,
+              values: { count: s.count },
+            })),
+          ),
+      { keep: true },
+    ),
+  ];
 }
 
-function equipmentSection(input: StatisticsPdfInput): string {
+function equipmentSection(input: StatisticsPdfInput): string[] {
   const { data, period, today, equipmentById } = input;
   const top = topFailingEquipment(data.orders, period);
   const faults = faultTypeRanking(data.orders, period, data.gravedadByFault);
@@ -317,6 +453,7 @@ function equipmentSection(input: StatisticsPdfInput): string {
     high: light.urgencyHigh.accent,
   };
   const noFaults = empty("No se reportaron fallas en el período.");
+  const byType = reliabilityByEquipmentType(data.orders, data.equipment);
 
   const selectedId = input.selectedEquipmentId ?? top[0]?.equipmentId ?? null;
   const selected = selectedId != null ? equipmentById.get(selectedId) : undefined;
@@ -436,10 +573,34 @@ ${history}`;
       "Historial completo del equipo (no usa el filtro de período): lo que hace falta para decidir si conviene seguir reparándolo o reemplazarlo.",
       ficha,
     ),
-  ].join("\n");
+    panel(
+      "Confiabilidad por tipo de equipo",
+      "Historial completo (no usa el filtro de período). “Entre fallas” (MTBF): días promedio entre dos roturas del mismo equipo. “Reparación” (MTTR): días promedio de inicio a cierre de la OT correctiva. Primero los tipos que se rompen más seguido.",
+      byType.length === 0
+        ? empty("No hay equipos registrados.")
+        : table(
+            [
+              { label: "Tipo de equipo" },
+              { label: "Equipos", right: true },
+              { label: "Roturas", right: true },
+              { label: "Por equipo", right: true },
+              { label: "Entre fallas", right: true },
+              { label: "Reparación", right: true },
+            ],
+            byType.map((r) => [
+              esc(r.name),
+              String(r.equipmentCount),
+              String(r.failures),
+              esc(formatNumber(r.failuresPerEquipment)),
+              esc(formatDays(r.mtbfDays)),
+              esc(formatDays(r.mttrDays)),
+            ]),
+          ),
+    ),
+  ];
 }
 
-function requestsSection({ data, period, equipmentById }: StatisticsPdfInput): string {
+function requestsSection({ data, period, equipmentById }: StatisticsPdfInput): string[] {
   const kpis = computeRequestKpis(data.requests, data.orders, period);
   const byLocation = requestsByLocation(data.requests, equipmentById, period);
 
@@ -483,10 +644,10 @@ function requestsSection({ data, period, equipmentById }: StatisticsPdfInput): s
           ),
       { keep: true },
     ),
-  ].join("\n");
+  ];
 }
 
-function partsSection(input: StatisticsPdfInput): string {
+function partsSection(input: StatisticsPdfInput): string[] {
   const { data, period, today } = input;
   const consumed = topConsumedParts(
     partConsumption(data.orders, data.movements, period),
@@ -499,6 +660,7 @@ function partsSection(input: StatisticsPdfInput): string {
   const partId = input.selectedPartId ?? bought[0]?.repId ?? null;
   const part = bought.find((p) => p.repId === partId);
   const prices = partId != null ? priceComparison(data.purchases, partId) : [];
+  const orderStats = purchaseOrderStats(data.purchaseOrders, period, today);
 
   const coverageTone: Record<CoverageStatus, { bg: string; fg: string }> = {
     reponer: light.urgencyHigh,
@@ -597,7 +759,40 @@ function partsSection(input: StatisticsPdfInput): string {
           ),
       { keep: true },
     ),
-  ].join("\n");
+    panel(
+      "Pedidos de compra de los técnicos",
+      "Pedidos hechos en el período. Aprobados incluye los ya recibidos. La fecha de aprobación se pisa al recibir el pedido, así que lo que se mide es cuánto tarda en llegar.",
+      orderStats.total === 0
+        ? empty("No hubo pedidos de compra en el período.")
+        : miniGrid([
+            {
+              label: "Pedidos",
+              value: String(orderStats.total),
+              hint: `${orderStats.pending} ${orderStats.pending === 1 ? "pendiente" : "pendientes"} de respuesta`,
+            },
+            {
+              label: "Aprobados",
+              value: formatPct(orderStats.approvalPct),
+              hint: `${orderStats.approved} aprobados · ${orderStats.rejected} rechazados${orderStats.topRejectReason ? ` · motivo principal de rechazo: ${orderStats.topRejectReason}` : ""}`,
+            },
+            {
+              label: "Tiempo hasta recibirlo",
+              value: formatDays(orderStats.receiveDaysMedian),
+              hint: `Mediana · ${orderStats.receivedCount} ${orderStats.receivedCount === 1 ? "recibido" : "recibidos"}`,
+            },
+            {
+              label: "Pendiente más antiguo",
+              value: formatDays(orderStats.oldestPendingDays),
+              hint:
+                orderStats.oldestPendingDays == null
+                  ? "No hay pedidos esperando respuesta"
+                  : "Esperando aprobación o rechazo",
+              alert: (orderStats.oldestPendingDays ?? 0) > PENDING_ALERT_DAYS,
+            },
+          ]),
+      { keep: true },
+    ),
+  ];
 }
 
 // ---------------------------------------------------------------------------
