@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useRef, useState } from "react";
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,23 +11,105 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Defs, G, Mask, Path, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
 import { BrandMark } from "../../components/BrandMark";
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signIn } from "../../lib/auth";
 import type { ThemeColors } from "../../lib/theme";
 import { useTheme } from "../../lib/ThemeContext";
 
+const HEX_LIGHT_PATH = "M31.18 0L62.35 18V54L31.18 72 0 54V18Z";
+const HEX_DARK_PATH = "M0 54L31.18 72V108L0 126-31.18 108V72Z";
+const HEX_STROKE_PATH =
+  "M0 18L31.18 0 62.35 18M0 18V54M62.35 18V54M0 54L31.18 72 62.35 54M31.18 72V108";
+
+function ShellPatternBackground() {
+  return (
+    <View
+      style={stylesStatic.patternLayer}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      {...(Platform.OS === "web" ? ({ "aria-hidden": true } as object) : {})}
+    >
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <Pattern id="shell-pattern" width={62.35} height={108} patternUnits="userSpaceOnUse">
+            <Path d={HEX_LIGHT_PATH} fill="#e6ebd8" fillOpacity={0.7} />
+
+            {/* Dark hex opacity kept at 0.30 so paragraph text maintains >= 4.5:1 contrast. */}
+            <G fill="#c4cdac" fillOpacity={0.3}>
+              <Path d={HEX_DARK_PATH} />
+
+              <Path d={HEX_DARK_PATH} transform="translate(62.35, 0)" />
+
+              <Path d={HEX_DARK_PATH} transform="translate(0, -108)" />
+
+              <Path d={HEX_DARK_PATH} transform="translate(62.35, -108)" />
+            </G>
+
+            <Path
+              d={HEX_STROKE_PATH}
+              transform="translate(1.3, 1.3)"
+              fill="none"
+              stroke="#f1f4e6"
+              strokeWidth={1.4}
+              strokeLinejoin="round"
+            />
+
+            <Path
+              d={HEX_STROKE_PATH}
+              fill="none"
+              stroke="#a9b58d"
+              strokeWidth={1.5}
+              strokeLinejoin="round"
+            />
+          </Pattern>
+
+          <RadialGradient id="shell-fade" cx="85%" cy="85%" r="105%">
+            <Stop offset="0" stopColor="#ffffff" stopOpacity={1} />
+
+            <Stop offset="0.5" stopColor="#ffffff" stopOpacity={0.8} />
+
+            <Stop offset="1" stopColor="#ffffff" stopOpacity={0.3} />
+          </RadialGradient>
+
+          <Mask id="shell-mask">
+            <Rect width="100%" height="100%" fill="url(#shell-fade)" />
+          </Mask>
+        </Defs>
+
+        <Rect width="100%" height="100%" fill="url(#shell-pattern)" mask="url(#shell-mask)" />
+      </Svg>
+    </View>
+  );
+}
+
+const stylesStatic = StyleSheet.create({
+  patternLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+});
+
 export default function Login() {
   const [legajo, setLegajo] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isTablet = width >= BREAKPOINT.tablet;
   const insets = useSafeAreaInsets();
   const passwordRef = useRef<TextInput>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+
+  // Responsive dimensions anchored to the 1280x720 reference viewport:
+  // 150px logo (max 220px), 92px wordmark (max 130px), 44px horizontal and 40px vertical padding.
+  const markSize = Math.min(220, Math.max(110, Math.round((width / 1280) * 150)));
+  const brandFontSize = Math.min(130, Math.max(68, Math.round((width / 1280) * 92)));
+  const panelPadX = Math.min(64, Math.max(36, Math.round((width / 1280) * 44)));
+  const panelPadY = Math.min(56, Math.max(32, Math.round((height / 720) * 40)));
 
   async function handleSubmit() {
     setError(null);
@@ -115,15 +198,32 @@ export default function Login() {
 
   return (
     <View style={styles.wideContainer}>
-      <View style={styles.brandPanel}>
+      <View
+        style={[
+          styles.brandPanel,
+          { paddingHorizontal: panelPadX, paddingVertical: panelPadY },
+        ]}
+      >
+        <ShellPatternBackground />
+
         <View style={styles.brandRow}>
-          <BrandMark size={96} />
-          <Text style={styles.brandName}>Mantia</Text>
+          <BrandMark size={markSize} />
+
+          <Text
+            style={[
+              styles.brandName,
+              { fontSize: brandFontSize, lineHeight: brandFontSize },
+            ]}
+          >
+            Mantia
+          </Text>
         </View>
 
         <View style={styles.brandCopy}>
           <Text style={styles.eyebrow}>CMMS · GESTIÓN DE MANTENIMIENTO</Text>
+
           <Text style={styles.headline}>Todos tus equipos, fallas y órdenes en un solo lugar.</Text>
+
           <Text style={styles.tagline}>
             Reportá una falla en segundos, seguí el mantenimiento preventivo y consultá el historial
             completo de cada equipo.
@@ -133,16 +233,19 @@ export default function Login() {
         <View style={styles.legend}>
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: colors.eqOperational.dot }]} />
+
             <Text style={styles.legendText}>Funcionando</Text>
           </View>
 
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: colors.eqWaiting.dot }]} />
+
             <Text style={styles.legendText}>En espera</Text>
           </View>
 
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: colors.eqRepair.dot }]} />
+
             <Text style={styles.legendText}>En reparación</Text>
           </View>
         </View>
@@ -158,15 +261,29 @@ function makeStyles(c: ThemeColors) {
     wideContainer: { flex: 1, flexDirection: "row" },
     brandPanel: {
       flex: 1.05,
-      backgroundColor: c.bgSidebar,
-      padding: 56,
+      position: "relative",
+      overflow: "hidden",
+      backgroundColor: "#d6dcc4",
       justifyContent: "space-between",
+      gap: 24,
     },
-    brandRow: { flexDirection: "row", alignItems: "center", gap: 18 },
+    brandRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 22,
+      zIndex: 1,
+    },
     brandRowNarrow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 32 },
-    brandName: { color: c.textSidebar, fontWeight: "600", fontSize: 34 },
+    brandName: {
+      color: "#222a22",
+      fontWeight: "600",
+      letterSpacing: -2,
+    },
     brandNameDark: { color: c.text, fontWeight: "600", fontSize: 20 },
-    brandCopy: { maxWidth: 400 },
+    brandCopy: {
+      maxWidth: 440,
+      zIndex: 1,
+    },
     eyebrow: {
       color: c.accent,
       fontSize: 12,
@@ -176,7 +293,7 @@ function makeStyles(c: ThemeColors) {
     },
     headline: { color: c.textSidebar, fontWeight: "600", fontSize: 40, lineHeight: 44 },
     tagline: { color: c.textNavInactive, fontSize: 15.5, lineHeight: 24, marginTop: 20 },
-    legend: { flexDirection: "row", gap: 22 },
+    legend: { flexDirection: "row", gap: 22, zIndex: 1 },
     legendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
     legendDot: { width: 9, height: 9, borderRadius: 5 },
     legendText: { color: c.textNavInactive, fontSize: 13 },
