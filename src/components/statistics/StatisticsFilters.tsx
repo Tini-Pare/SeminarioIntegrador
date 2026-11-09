@@ -1,9 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { addDays, type OrderTypeFilter, type StatsPeriod } from "../../lib/statistics";
 import type { ThemeColors } from "../../lib/theme";
 import { useTheme } from "../../lib/ThemeContext";
-import { CustomDatePicker, fromDbDate, isValidDateString, toDbDate } from "../CustomDatePicker";
+import {
+  CustomDatePicker,
+  fromDbDate,
+  isValidDateString,
+  parseDateString,
+  toDay,
+  toDbDate,
+} from "../CustomDatePicker";
 
 export type PeriodPreset = "7d" | "30d" | "90d" | "month" | "year" | "custom";
 
@@ -60,19 +67,29 @@ export function StatisticsFilters({
 }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
-  const [fromText, setFromText] = useState(fromDbDate(period.from));
-  const [toText, setToText] = useState(fromDbDate(period.to));
+  const [fromText, setFromText] = useState("");
+  const [toText, setToText] = useState("");
   const [openPicker, setOpenPicker] = useState<"from" | "to" | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
-  const maxDate = new Date();
+
+  const maxDate = useMemo(
+    () => parseDateString(fromDbDate(today)) ?? toDay(new Date()),
+    [today],
+  );
+  const parsedFrom = useMemo(() => parseDateString(fromText), [fromText]);
+  const parsedTo = useMemo(() => parseDateString(toText), [toText]);
 
   function pickPreset(p: PeriodPreset) {
     if (p === "custom") {
-      setFromText(fromDbDate(period.from));
-      setToText(fromDbDate(period.to));
+      if (preset !== "custom") {
+        setFromText("");
+        setToText("");
+      }
+      setRangeError(null);
       onPeriodChange("custom", period);
       return;
     }
+    setOpenPicker(null);
     setRangeError(null);
     onPeriodChange(p, presetPeriod(p, today));
   }
@@ -117,6 +134,12 @@ export function StatisticsFilters({
               value={fromText}
               onChange={(v) => {
                 setFromText(v);
+                const nextFrom = parseDateString(v);
+                if (nextFrom && parsedTo && nextFrom.getTime() > parsedTo.getTime()) {
+                  setToText("");
+                  setRangeError(null);
+                  return;
+                }
                 applyCustom(v, toText);
               }}
               open={openPicker === "from"}
@@ -137,6 +160,7 @@ export function StatisticsFilters({
               }}
               open={openPicker === "to"}
               onOpenChange={(o) => setOpenPicker(o ? "to" : null)}
+              minDate={parsedFrom ?? undefined}
               maxDate={maxDate}
               compact
             />
@@ -148,7 +172,7 @@ export function StatisticsFilters({
 
       {showType && (
         <View style={styles.group}>
-          <Text style={styles.groupLabel}>Tipo de OT</Text>
+          <Text style={styles.groupLabel}>Tipo de orden de trabajo</Text>
 
           <View style={styles.chips}>
             {TYPE_OPTIONS.map((o) => (
