@@ -65,7 +65,7 @@ export function TechniciansTab({ data, period, type, today, profileById, isWide 
     },
     {
       key: "area",
-      label: "Vs. el área",
+      label: "Vs. el equipo",
       flex: 1.2,
       align: "right",
       render: (r) => {
@@ -91,7 +91,7 @@ export function TechniciansTab({ data, period, type, today, profileById, isWide 
     <TabStack>
       <StatPanel
         title="Rendimiento por técnico"
-        caption="“Vs. el área”: cuántos días más (+) o menos (−) que el promedio del área tardó en cada tarea, comparando siempre la misma tarea general. Así no se castiga a quien hace los trabajos largos."
+        caption="“Vs. el equipo”: Compara cuánto tardó cada técnico contra el promedio de todos los técnicos haciendo la misma tarea (en verde si tardó menos, en rojo si tardó más)."
       >
         {performance.length === 0 ? (
           <EmptyChart text="Ningún técnico terminó tareas en el período." />

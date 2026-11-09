@@ -377,7 +377,7 @@ function techniciansSection({
   return [
     panel(
       "Rendimiento por técnico",
-      "“Vs. el área”: cuántos días más (+) o menos (−) que el promedio del área tardó en cada tarea, comparando siempre la misma tarea general. Así no se castiga a quien hace los trabajos largos.",
+      "“Vs. el equipo”: Compara cuánto tardó cada técnico contra el promedio de todos los técnicos haciendo la misma tarea (en verde si tardó menos, en rojo si tardó más).",
       performance.length === 0
         ? noTasks
         : table(
@@ -385,7 +385,7 @@ function techniciansSection({
               { label: "Técnico" },
               { label: "Tareas", right: true },
               { label: "Promedio por tarea", right: true },
-              { label: "Vs. el área", right: true },
+              { label: "Vs. el equipo", right: true },
             ],
             performance.map((r) => [
               esc(personName(profileById, r.technicianId)),
