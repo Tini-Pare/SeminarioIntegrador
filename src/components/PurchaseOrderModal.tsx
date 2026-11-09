@@ -19,6 +19,7 @@ import { getTodayDateString } from "./CustomDatePicker";
 import { TrashIcon } from "./icons";
 import { Tooltip } from "./Tooltip";
 import { Select } from "./Select";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 type LineDraft = { key: string; repId: number | null; cantidad: string };
 
@@ -47,7 +48,26 @@ export function PurchaseOrderModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  const todayDate = useMemo(() => getTodayDateString(), [visible]);
+  // Re-read on every open (below) so a modal left mounted past midnight
+  // shows the right date.
+  const [todayDate, setTodayDate] = useState(getTodayDateString);
+
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
+    setObservacion("");
+    setLines([newLine()]);
+    setOpenField(null);
+    setError(null);
+    setTodayDate(getTodayDateString());
+    if (techNameProp) setTechName(techNameProp);
+  }, [techNameProp]);
+
+  useEffect(() => {
+    if (!visible || techNameProp) return;
+    getProfile().then((p) => {
+      if (p?.name) setTechName(p.name);
+    });
+  }, [visible, techNameProp]);
 
   const totalItems = useMemo(() => {
     return lines.reduce((acc, l) => {
@@ -64,21 +84,6 @@ export function PurchaseOrderModal({
       .filter((p) => p.rep_estado === "activo" && !selectedOtherIds.has(p.rep_id))
       .map((p) => ({ value: p.rep_id, label: p.rep_nombre }));
   }
-
-  useEffect(() => {
-    if (!visible) return;
-    setObservacion("");
-    setLines([newLine()]);
-    setOpenField(null);
-    setError(null);
-    if (techNameProp) {
-      setTechName(techNameProp);
-    } else {
-      getProfile().then((p) => {
-        if (p?.name) setTechName(p.name);
-      });
-    }
-  }, [visible, techNameProp]);
 
   function updateLine(key: string, patch: Partial<LineDraft>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));

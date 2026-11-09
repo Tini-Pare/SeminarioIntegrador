@@ -1,9 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-  },
-}));
-
 import {
   createFaultType,
   deleteFaultType,
@@ -12,6 +6,12 @@ import {
   updateFaultType,
 } from "../../queries/faultTypes";
 import { supabase } from "../../supabase";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+  },
+}));
 
 describe("normalizeGravedad", () => {
   it("passes through low/high and defaults everything else to medium", () => {

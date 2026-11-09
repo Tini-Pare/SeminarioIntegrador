@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { ViewInstance } from "react-native";
 import { AddPlanTaskModal } from "./AddPlanTaskModal";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -20,6 +21,7 @@ import {
 } from "./CustomDatePicker";
 import { DetailModal } from "./DetailModal";
 import { FieldLabel } from "./FieldLabel";
+import { ScrollableTable, tableCol } from "./ScrollableTable";
 import { RowActions } from "./RowActions";
 import { WarningIcon } from "./icons";
 import { Select } from "./Select";
@@ -34,6 +36,7 @@ import {
 } from "../lib/queries/maintenancePlans";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 import type { TareaGeneral } from "../types/database";
 
 type ModalMode = "create" | "edit" | "view";
@@ -93,7 +96,7 @@ export function MaintenancePlanModal({
 
   // Secondary modal: Agregar tarea al plan
   const [addPlanTaskOpen, setAddPlanTaskOpen] = useState(false);
-  const addTaskBtnRef = useRef<View>(null);
+  const addTaskBtnRef = useRef<ViewInstance>(null);
 
   // View task detail modal
   const [viewingTask, setViewingTask] = useState<TareaGeneral | null>(null);
@@ -118,21 +121,47 @@ export function MaintenancePlanModal({
     taskIds: [],
   });
 
-  // Load types and plan details
-  useEffect(() => {
-    if (!visible) return;
-
+  // Reset the form each time the modal opens: edit/view shows the spinner
+  // until the plan loads (effect below), create starts from blank defaults.
+  useResetOnOpen(visible, () => {
     setError(null);
     setOpenField(null);
     setAddPlanTaskOpen(false);
     setShowDiscardConfirm(false);
+
+    if (planId) {
+      setLoading(true);
+      return;
+    }
+    setName("");
+    setDescription("");
+    setFrequency("");
+    setTypeId(null);
+    setTypeName("");
+    setEstado("activo");
+    setSelectedTasks([]);
+    setEquipments([]);
+    setEquipmentDates({});
+    setLoading(false);
+    setInitialSnapshot({
+      name: "",
+      description: "",
+      frequency: "",
+      typeId: null,
+      estado: "activo",
+      taskIds: [],
+    });
+  }, [planId]);
+
+  // Load types and plan details
+  useEffect(() => {
+    if (!visible) return;
 
     listEquipmentTypes()
       .then(setTypes)
       .catch(() => {});
 
     if (planId) {
-      setLoading(true);
       getMaintenancePlan(planId)
         .then((detail: MaintenancePlanDetail) => {
           setName(detail.name);
@@ -170,27 +199,6 @@ export function MaintenancePlanModal({
           setError(err instanceof Error ? err.message : String(err));
         })
         .finally(() => setLoading(false));
-    } else {
-      // Create mode default state
-      setName("");
-      setDescription("");
-      setFrequency("");
-      setTypeId(null);
-      setTypeName("");
-      setEstado("activo");
-      setSelectedTasks([]);
-      setEquipments([]);
-      setEquipmentDates({});
-      setLoading(false);
-
-      setInitialSnapshot({
-        name: "",
-        description: "",
-        frequency: "",
-        typeId: null,
-        estado: "activo",
-        taskIds: [],
-      });
     }
   }, [visible, planId]);
 
@@ -556,43 +564,45 @@ export function MaintenancePlanModal({
                     </View>
                   ) : (
                     <View style={styles.table}>
-                      <View style={styles.tableHeader}>
-                        <Text style={[styles.headerCell, { flex: 1.4 }]}>TAREA</Text>
+                      <ScrollableTable minWidth={460}>
+                        <View style={styles.tableHeader}>
+                          <Text style={[styles.headerCell, tableCol(1.4)]}>TAREA</Text>
 
-                        <Text style={[styles.headerCell, { flex: 2.2 }]}>DESCRIPCIÓN</Text>
-
-                        <View style={styles.actionsCol}>
-                          <Text style={styles.headerCell}>ACCIONES</Text>
-                        </View>
-                      </View>
-
-                      {selectedTasks.map((t, idx) => (
-                        <View
-                          key={t.tag_id_tarea}
-                          style={[styles.tableRow, idx % 2 === 1 && styles.rowAlt]}
-                        >
-                          <View style={{ flex: 1.4, paddingRight: 8 }}>
-                            <Text style={styles.cellStrong}>{t.tag_nombre_tarea}</Text>
-                          </View>
-
-                          <View style={{ flex: 2.2, paddingRight: 8 }}>
-                            <Text style={styles.cellDesc} numberOfLines={1}>
-                              {t.tag_descripcion_tarea || "—"}
-                            </Text>
-                          </View>
+                          <Text style={[styles.headerCell, tableCol(2.2)]}>DESCRIPCIÓN</Text>
 
                           <View style={styles.actionsCol}>
-                            <RowActions
-                              onView={() => setViewingTask(t)}
-                              onDelete={
-                                !isView ? () => handleRemoveTask(t.tag_id_tarea) : undefined
-                              }
-                              viewTooltip="Ver tarea"
-                              deleteTooltip="Quitar tarea"
-                            />
+                            <Text style={styles.headerCell}>ACCIONES</Text>
                           </View>
                         </View>
-                      ))}
+
+                        {selectedTasks.map((t, idx) => (
+                          <View
+                            key={t.tag_id_tarea}
+                            style={[styles.tableRow, idx % 2 === 1 && styles.rowAlt]}
+                          >
+                            <View style={tableCol(1.4)}>
+                              <Text style={styles.cellStrong}>{t.tag_nombre_tarea}</Text>
+                            </View>
+
+                            <View style={tableCol(2.2)}>
+                              <Text style={styles.cellDesc} numberOfLines={1}>
+                                {t.tag_descripcion_tarea || "—"}
+                              </Text>
+                            </View>
+
+                            <View style={styles.actionsCol}>
+                              <RowActions
+                                onView={() => setViewingTask(t)}
+                                onDelete={
+                                  !isView ? () => handleRemoveTask(t.tag_id_tarea) : undefined
+                                }
+                                viewTooltip="Ver tarea"
+                                deleteTooltip="Quitar tarea"
+                              />
+                            </View>
+                          </View>
+                        ))}
+                      </ScrollableTable>
                     </View>
                   )}
                 </View>
@@ -630,61 +640,63 @@ export function MaintenancePlanModal({
 
                       {equipments.length > 0 && (
                         <View style={styles.table}>
-                          <View style={styles.tableHeader}>
-                            <Text style={[styles.headerCell, { flex: 1.8 }]}>EQUIPO</Text>
+                          <ScrollableTable minWidth={620}>
+                            <View style={styles.tableHeader}>
+                              <Text style={[styles.headerCell, tableCol(1.8)]}>EQUIPO</Text>
 
-                            <Text style={[styles.headerCell, { flex: 1.3 }]}>UBICACIÓN</Text>
+                              <Text style={[styles.headerCell, tableCol(1.3)]}>UBICACIÓN</Text>
 
-                            <Text style={[styles.headerCell, styles.dateCol]}>ÚLTIMO MANT.</Text>
+                              <Text style={[styles.headerCell, styles.dateCol]}>ÚLTIMO MANT.</Text>
 
-                            <Text style={[styles.headerCell, styles.dueCol]}>PRÓX. MANT.</Text>
-                          </View>
+                              <Text style={[styles.headerCell, styles.dueCol]}>PRÓX. MANT.</Text>
+                            </View>
 
-                          {equipments.map((eq, idx) => {
-                            const dateVal = equipmentDates[eq.id] ?? "";
-                            // No last maintenance = its OT is waiting to be
-                            // emitted (0046).
-                            const dueDateStr = dateVal
-                              ? addDaysToDateString(dateVal, freqNum)
-                              : estado === "activo"
-                                ? "Inmediato"
-                                : "—";
+                            {equipments.map((eq, idx) => {
+                              const dateVal = equipmentDates[eq.id] ?? "";
+                              // No last maintenance = its OT is waiting to be
+                              // emitted (0046).
+                              const dueDateStr = dateVal
+                                ? addDaysToDateString(dateVal, freqNum)
+                                : estado === "activo"
+                                  ? "Inmediato"
+                                  : "—";
 
-                            return (
-                              <View
-                                key={eq.id}
-                                style={[styles.tableRow, idx % 2 === 1 && styles.rowAlt]}
-                              >
-                                {/* Equipo name + code */}
-                                <View style={{ flex: 1.8, paddingRight: 8 }}>
-                                  <Text style={styles.cellStrong} numberOfLines={1}>
-                                    {eq.name}
-                                  </Text>
+                              return (
+                                <View
+                                  key={eq.id}
+                                  style={[styles.tableRow, idx % 2 === 1 && styles.rowAlt]}
+                                >
+                                  {/* Equipo name + code */}
+                                  <View style={tableCol(1.8)}>
+                                    <Text style={styles.cellStrong} numberOfLines={1}>
+                                      {eq.name}
+                                    </Text>
 
-                                  <Text style={styles.equipCodeText} numberOfLines={1}>
-                                    {eq.code}
-                                  </Text>
+                                    <Text style={styles.equipCodeText} numberOfLines={1}>
+                                      {eq.code}
+                                    </Text>
+                                  </View>
+
+                                  {/* Ubicación */}
+                                  <View style={tableCol(1.3)}>
+                                    <Text style={styles.cellText} numberOfLines={1}>
+                                      {eq.location}
+                                    </Text>
+                                  </View>
+
+                                  {/* Último mantenimiento: read-only */}
+                                  <View style={styles.dateCol}>
+                                    <Text style={styles.cellText}>{dateVal || "Sin registro"}</Text>
+                                  </View>
+
+                                  {/* Próximo vencimiento calculated live */}
+                                  <View style={styles.dueCol}>
+                                    <Text style={styles.cellText}>{dueDateStr}</Text>
+                                  </View>
                                 </View>
-
-                                {/* Ubicación */}
-                                <View style={{ flex: 1.3, paddingRight: 8 }}>
-                                  <Text style={styles.cellText} numberOfLines={1}>
-                                    {eq.location}
-                                  </Text>
-                                </View>
-
-                                {/* Último mantenimiento: read-only */}
-                                <View style={styles.dateCol}>
-                                  <Text style={styles.cellText}>{dateVal || "Sin registro"}</Text>
-                                </View>
-
-                                {/* Próximo vencimiento calculated live */}
-                                <View style={styles.dueCol}>
-                                  <Text style={styles.cellText}>{dueDateStr}</Text>
-                                </View>
-                              </View>
-                            );
-                          })}
+                              );
+                            })}
+                          </ScrollableTable>
                         </View>
                       )}
 
@@ -1057,15 +1069,18 @@ function makeStyles(c: ThemeColors) {
     },
     actionsCol: {
       width: 90,
+      flexShrink: 0,
       alignItems: "center",
       justifyContent: "center",
     },
     dateCol: {
       width: 160,
+      flexShrink: 0,
     },
     // Fits "DD/MM/YYYY · HH:00".
     dueCol: {
       width: 150,
+      flexShrink: 0,
     },
     tableRow: {
       flexDirection: "row",

@@ -47,6 +47,7 @@ import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { useConfirm } from "../../../lib/useConfirm";
 import type { Equipo, PastTaskSuspension, Solicitud } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 // ot_tipo_orden of a tarea that didn't come from a solicitud; anything not
 // listed here shows as is.
@@ -127,24 +128,28 @@ function compareTasks(a: MyTask, b: MyTask): number {
 }
 
 export default function QueueScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actingOn, setActingOn] = useState<number | null>(null);
   const [finishingTask, setFinishingTask] = useState<Item | null>(null);
   const [suspendingTask, setSuspendingTask] = useState<Item | null>(null);
-  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
-  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
   // Opened from a "falla crítica" notification: show only prioridad Alta.
-  // An effect, not the initial state, since the queue may already be open.
+  // Both the initial state and a param change while the queue is already
+  // open apply it (state adjusted during render, not in an effect).
   const { prioridad } = useLocalSearchParams<{ prioridad?: string }>();
-  useEffect(() => {
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>(
+    prioridad === "alta" ? "high" : "all",
+  );
+  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
+  const [prevPrioridad, setPrevPrioridad] = useState(prioridad);
+  if (prioridad !== prevPrioridad) {
+    setPrevPrioridad(prioridad);
     if (prioridad === "alta") {
       setPriorityFilter("high");
       setStatusFilter("all");
     }
-  }, [prioridad]);
+  }
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const { confirm, dialog } = useConfirm();
@@ -177,9 +182,7 @@ export default function QueueScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     const channel = supabase

@@ -8,6 +8,7 @@ import type { Profile } from "../types/database";
 import { DropdownBackdrop } from "./DropdownBackdrop";
 import { FormFooter } from "./FormFooter";
 import { Select } from "./Select";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 // SCRUM-26: reasigna el técnico de una tarea puntual dentro de una OT ya
 // generada — cada tarea tiene su propio técnico, no toda la OT — mostrando
@@ -37,12 +38,16 @@ export function ReassignTechnicianModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setTechnicianId(currentTechnicianId);
     setOpen(false);
     setConfirming(false);
     setError(null);
+  }, [currentTechnicianId]);
+
+  useEffect(() => {
+    if (!visible) return;
     Promise.all([listProfiles(), listActiveTaskCountsByTechnician()])
       .then(([profiles, counts]) => {
         setTechnicians(profiles.filter((p) => p.role === "technician" && p.active));
@@ -85,7 +90,9 @@ export function ReassignTechnicianModal({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => !confirming && onClose()}
+      onRequestClose={() => {
+        if (!confirming) onClose();
+      }}
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>

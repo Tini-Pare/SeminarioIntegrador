@@ -1,10 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-    rpc: jest.fn(),
-  },
-}));
-
 import {
   createEquipment,
   deleteEquipment,
@@ -18,6 +11,13 @@ import {
 import { SOLICITUD_SELECT } from "../../queries/faults";
 import { supabase } from "../../supabase";
 import type { Solicitud } from "../../../types/database";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+    rpc: jest.fn(),
+  },
+}));
 
 function fault(overrides: Partial<Solicitud>): Solicitud {
   return {

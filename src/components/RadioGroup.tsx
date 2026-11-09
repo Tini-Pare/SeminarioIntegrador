@@ -109,12 +109,7 @@ export function RadioGroup<T extends string | number>({
                 {isSelected && <View style={styles.cardDot} />}
               </View>
 
-              <Text
-                style={[
-                  styles.cardLabel,
-                  isSelected && styles.cardLabelSelected,
-                ]}
-              >
+              <Text style={[styles.cardLabel, isSelected && styles.cardLabelSelected]}>
                 {opt.label}
               </Text>
             </Pressable>
@@ -150,12 +145,7 @@ export function RadioGroup<T extends string | number>({
               ]}
             >
               {isSelected && (
-                <View
-                  style={[
-                    styles.dot,
-                    badge && { backgroundColor: badge.accent },
-                  ]}
-                />
+                <View style={[styles.dot, badge && { backgroundColor: badge.accent }]} />
               )}
             </View>
 

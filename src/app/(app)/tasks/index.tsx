@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import { DetailModal } from "../../../components/DetailModal";
 import { GeneralTaskModal } from "../../../components/GeneralTaskModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { useConfirm } from "../../../lib/useConfirm";
@@ -22,9 +23,9 @@ import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { TareaGeneral } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 export default function TasksScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tasks, setTasks] = useState<TareaGeneral[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -50,9 +51,7 @@ export default function TasksScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -163,43 +162,45 @@ export default function TasksScreen() {
         </Text>
       ) : (
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <SortHeaderCell
-              label="Tarea"
-              field="nombre"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1 }}
-            />
+          <ScrollableTable minWidth={400}>
+            <View style={styles.tableHeader}>
+              <SortHeaderCell
+                label="Tarea"
+                field="nombre"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1)}
+              />
 
-            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-          </View>
+              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+            </View>
 
-          {tasksPage.pageItems.map((t, i) => (
-            <View key={t.tag_id_tarea} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-              <View style={styles.rowMain}>
-                <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {t.tag_nombre_tarea}
-                  </Text>
+            {tasksPage.pageItems.map((t, i) => (
+              <View key={t.tag_id_tarea} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                <View style={styles.rowMain}>
+                  <View style={tableCol(1)}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {t.tag_nombre_tarea}
+                    </Text>
 
-                  {t.tag_estado === "inactivo" && <Text style={styles.inactive}>Inactiva</Text>}
+                    {t.tag_estado === "inactivo" && <Text style={styles.inactive}>Inactiva</Text>}
+                  </View>
+                </View>
+
+                <View style={styles.actionsCol}>
+                  <RowActions
+                    onView={() => setViewingTask(t)}
+                    onEdit={() => setEditingTask(t)}
+                    onDelete={() => deleteTask(t)}
+                    viewTooltip="Ver tarea"
+                    editTooltip="Editar tarea"
+                    deleteTooltip="Eliminar tarea"
+                  />
                 </View>
               </View>
-
-              <View style={styles.actionsCol}>
-                <RowActions
-                  onView={() => setViewingTask(t)}
-                  onEdit={() => setEditingTask(t)}
-                  onDelete={() => deleteTask(t)}
-                  viewTooltip="Ver tarea"
-                  editTooltip="Editar tarea"
-                  deleteTooltip="Eliminar tarea"
-                />
-              </View>
-            </View>
-          ))}
+            ))}
+          </ScrollableTable>
         </View>
       )}
 
@@ -254,15 +255,16 @@ function makeStyles(c: ThemeColors) {
     container: { backgroundColor: c.bg },
     content: { padding: 20 },
     center: { flex: 1 },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     pageHeader: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    sectionHeadingText: { flexShrink: 1, minWidth: 0 },
+    sectionHeadingText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },

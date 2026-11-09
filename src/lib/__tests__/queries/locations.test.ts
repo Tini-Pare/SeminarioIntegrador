@@ -1,9 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-  },
-}));
-
 import {
   createLocation,
   deleteLocation,
@@ -11,6 +5,12 @@ import {
   updateLocation,
 } from "../../queries/locations";
 import { supabase } from "../../supabase";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+  },
+}));
 
 describe("listLocations", () => {
   it("returns locations ordered by name, each with a client-side equipment count", async () => {

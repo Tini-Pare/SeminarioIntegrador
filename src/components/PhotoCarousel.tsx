@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { NativeSyntheticEvent, NativeScrollEvent } from "react-native";
+import type { NativeSyntheticEvent, NativeScrollEvent, ScrollViewInstance } from "react-native";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
@@ -16,7 +16,7 @@ export function PhotoCarousel({
 }) {
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState(0);
-  const ref = useRef<ScrollView>(null);
+  const ref = useRef<ScrollViewInstance>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 

@@ -1,5 +1,12 @@
 import { Redirect, Slot, router, usePathname } from "expo-router";
-import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -142,7 +149,8 @@ export default function AppLayout() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const indicatorOffset = useRef(new Animated.Value(0)).current;
+  // Lazy state, not a ref, so render never reads `.current`.
+  const [indicatorOffset] = useState(() => new Animated.Value(0));
   // Real on-screen y/height per nav row key, filled in as each row lays
   // out — driving the indicator off these avoids drift from assuming every
   // row is exactly the same height (bold active text measures differently).
@@ -208,15 +216,15 @@ export default function AppLayout() {
   }, [role, refreshAlerts]);
 
   // Load and subscribe to the signed-in user's notifications
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(() => {
     if (!hasBell) return;
-    try {
-      const { notifications: list, unreadCount } = await listNotifications();
-      setNotifications(list);
-      setUnreadNotifCount(unreadCount);
-    } catch {
-      // Graceful fallback
-    }
+    listNotifications()
+      .then(({ notifications: list, unreadCount }) => {
+        setNotifications(list);
+        setUnreadNotifCount(unreadCount);
+      })
+      // Graceful fallback: the bell keeps the last list it had.
+      .catch(() => {});
   }, [hasBell]);
 
   useEffect(() => {
@@ -370,6 +378,14 @@ export default function AppLayout() {
   const activeGroup = navEntries.find(
     (e): e is NavGroup => isGroup(e) && !!activeItem && e.items.includes(activeItem),
   );
+
+  // Navigating into a group (from a link, the dashboard, a back) opens it.
+  const activeGroupKey = activeGroup?.key;
+  const [prevActiveGroupKey, setPrevActiveGroupKey] = useState<string | undefined>(undefined);
+  if (activeGroupKey !== prevActiveGroupKey) {
+    setPrevActiveGroupKey(activeGroupKey);
+    if (activeGroupKey) setOpenGroup(activeGroupKey);
+  }
   // The indicator sits on the active screen's row, or on its group's header
   // while that group is collapsed.
   const indicatorKey = activeItem
@@ -377,13 +393,6 @@ export default function AppLayout() {
       ? activeGroup.key
       : activeItem.key
     : undefined;
-
-  // Navigating into a group (from a link, the dashboard, a back) opens it.
-  const activeGroupKey = activeGroup?.key;
-  useEffect(() => {
-    if (activeGroupKey) setOpenGroup(activeGroupKey);
-  }, [activeGroupKey]);
-
   function absoluteY(key: string): number | null {
     const layout = navLayouts.current[key];
     if (!layout) return null;
@@ -406,7 +415,8 @@ export default function AppLayout() {
         toValue: y,
         duration: 220,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        // The native driver isn't available on web.
+        useNativeDriver: Platform.OS !== "web",
       }).start();
     } else {
       indicatorOffset.setValue(y);
@@ -421,8 +431,11 @@ export default function AppLayout() {
     syncIndicator(false);
   }
 
+  // Re-placed (animated) only when the indicated row changes; the event
+  // reads the latest layouts without making them effect dependencies.
+  const onIndicatorKeyChange = useEffectEvent(() => syncIndicator(true));
   useEffect(() => {
-    syncIndicator(true);
+    onIndicatorKeyChange();
   }, [indicatorKey]);
 
   if (loading) {
@@ -658,12 +671,15 @@ export default function AppLayout() {
           menuOpen && styles.elevated,
         ]}
       >
-        <View style={styles.brandRow}>
-          <View style={styles.brandLeft}>
-            <BrandDot colors={colors.heroBlobColors} />
-            <Text style={[styles.brandNameLight, { color: colors.textSidebar }]}>Mantia</Text>
-          </View>
+        <View style={styles.brandLeft}>
+          <BrandDot colors={colors.heroBlobColors} />
 
+          <Text style={[styles.brandNameLight, { color: colors.textSidebar }]}>Mantia</Text>
+        </View>
+
+        {/* Bell and account sit together on the right, as one group of
+            controls, with the same card look. */}
+        <View style={styles.narrowTopRight}>
           {hasBell && (
             <Pressable
               style={[
@@ -680,32 +696,43 @@ export default function AppLayout() {
               {unreadNotifCount > 0 && <View style={styles.bellRedDot} />}
             </Pressable>
           )}
-        </View>
 
-        <View style={{ position: "relative" }}>
-          <Pressable style={styles.narrowUserRow} onPress={() => setMenuOpen((v) => !v)}>
-            <View style={[styles.narrowAvatar, { backgroundColor: colors.avatarBg }]}>
-              <Text style={[styles.narrowAvatarText, { color: colors.avatarFg }]}>
-                {initials(profile?.name)}
-              </Text>
-            </View>
-            <View style={{ flexShrink: 1, minWidth: 0 }}>
-              <Text
-                style={[styles.narrowUserName, { color: colors.textSidebar }]}
-                numberOfLines={1}
-              >
-                {profile?.name}
-              </Text>
-              <Text style={[styles.narrowUserRole, { color: colors.textNavInactive }]}>
-                {role ? ROLE_LABELS[role] : ""}
-              </Text>
-            </View>
-          </Pressable>
-          {menuOpen && (
-            <View style={styles.menuAnchorDown}>
-              <AccountMenu onSettings={goToSettings} onLogout={handleLogout} />
-            </View>
-          )}
+          <View style={styles.narrowUserWrap}>
+            <Pressable
+              style={[
+                styles.narrowUserRow,
+                { backgroundColor: colors.bgCard, borderColor: colors.border },
+              ]}
+              onPress={() => setMenuOpen((v) => !v)}
+              accessibilityLabel="Menú de la cuenta"
+              accessibilityRole="button"
+            >
+              <View style={[styles.narrowAvatar, { backgroundColor: colors.avatarBg }]}>
+                <Text style={[styles.narrowAvatarText, { color: colors.avatarFg }]}>
+                  {initials(profile?.name)}
+                </Text>
+              </View>
+
+              <View style={styles.narrowUserText}>
+                <Text style={[styles.narrowUserName, { color: colors.text }]} numberOfLines={1}>
+                  {profile?.name}
+                </Text>
+
+                <Text
+                  style={[styles.narrowUserRole, { color: colors.textMuted }]}
+                  numberOfLines={1}
+                >
+                  {role ? ROLE_LABELS[role] : ""}
+                </Text>
+              </View>
+            </Pressable>
+
+            {menuOpen && (
+              <View style={styles.menuAnchorDown}>
+                <AccountMenu onSettings={goToSettings} onLogout={handleLogout} />
+              </View>
+            )}
+          </View>
         </View>
       </View>
 
@@ -764,7 +791,8 @@ export default function AppLayout() {
       )}
 
       {hasBell && notificationsOpen && (
-        <View style={styles.narrowNotificationsOverlay}>
+        // Opens right under the top bar, whose height depends on the notch.
+        <View style={[styles.narrowNotificationsOverlay, { top: insets.top + 62 }]}>
           <NotificationsPanel
             notifications={notifications}
             unreadCount={unreadNotifCount}
@@ -881,7 +909,6 @@ const styles = StyleSheet.create({
   },
   narrowNotificationsOverlay: {
     position: "absolute",
-    top: 56,
     left: 12,
     right: 12,
     alignItems: "center",
@@ -943,16 +970,31 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   brandNameLight: { fontWeight: "600", fontSize: 15 },
+  narrowTopRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+    minWidth: 0,
+    marginLeft: 12,
+  },
+  narrowUserWrap: { position: "relative", flexShrink: 1, minWidth: 0 },
+  // Same height, border and card background as the bell next to it.
   narrowUserRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
-    flexShrink: 1,
+    gap: 8,
+    height: 36,
+    paddingLeft: 4,
+    paddingRight: 10,
+    borderRadius: 10,
+    borderWidth: 1,
     minWidth: 0,
   },
+  narrowUserText: { flexShrink: 1, minWidth: 0, maxWidth: 140 },
   narrowAvatar: {
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: 7,
     alignItems: "center",
     justifyContent: "center",

@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -213,12 +213,13 @@ function DocTypeCard({
   onPress: () => void;
   styles: ReturnType<typeof makeStyles>;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const [scale] = useState(() => new Animated.Value(1));
 
   function animateTo(value: number) {
     Animated.spring(scale, {
       toValue: value,
-      useNativeDriver: true,
+      // The native driver isn't available on web.
+      useNativeDriver: Platform.OS !== "web",
       speed: 24,
       bounciness: 6,
     }).start();

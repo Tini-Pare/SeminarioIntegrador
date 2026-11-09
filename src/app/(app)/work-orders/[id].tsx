@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -23,6 +23,7 @@ import { OrderFlowSteps } from "../../../components/OrderFlowSteps";
 import { PhotoCarousel } from "../../../components/PhotoCarousel";
 import { ReassignTechnicianModal } from "../../../components/ReassignTechnicianModal";
 import { RowActions } from "../../../components/RowActions";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { Select } from "../../../components/Select";
 import { formatOrderNumber } from "../../../lib/orderNumber";
 import { getEquipmentById } from "../../../lib/queries/equipment";
@@ -41,6 +42,8 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import type { Equipo, Fallo, Profile, SolicitudTask, WorkOrder } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
+import { useResetOnOpen } from "../../../lib/useResetOnOpen";
 
 type Priority = WorkOrder["priority"];
 type EditingField = "start" | "planned" | "priority" | "fault" | null;
@@ -95,7 +98,6 @@ export default function WorkOrderDetail() {
   const [order, setOrder] = useState<WorkOrder | null>(null);
   const [equipment, setEquipment] = useState<Equipo | null>(null);
   const [profileById, setProfileById] = useState<Map<string, Profile>>(new Map());
-  const [loading, setLoading] = useState(true);
   const [showCreated, setShowCreated] = useState(created === "1");
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [reassigningTask, setReassigningTask] = useState<SolicitudTask | null>(null);
@@ -113,7 +115,7 @@ export default function WorkOrderDetail() {
   const styles = makeStyles(colors);
   // 0 → 1 once the OT has loaded: the page fades in and slides up a little
   // instead of popping in right after the spinner.
-  const appear = useRef(new Animated.Value(0)).current;
+  const [appear] = useState(() => new Animated.Value(0));
 
   const statusColors: Record<WorkOrder["status"], { bg: string; fg: string }> = {
     assigned: colors.faultAssigned,
@@ -139,9 +141,7 @@ export default function WorkOrderDetail() {
     }
   }, [id, orderId]);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     if (loading) return;
@@ -190,14 +190,19 @@ export default function WorkOrderDetail() {
     };
   }, [id, orderId, load]);
 
-  useEffect(() => {
-    setAddTaskOpen(false);
-    setReassigningTask(null);
-    setEditing(null);
-    setError(null);
-    setDateDraft(order ? fromDbDate(order.start_date) : "");
-    setPlannedDraft(order ? fromDbDate(order.planned_end_date) : "");
-  }, [order]);
+  // A (re)loaded OT closes any open editor and refreshes the date drafts.
+  useResetOnOpen(
+    true,
+    () => {
+      setAddTaskOpen(false);
+      setReassigningTask(null);
+      setEditing(null);
+      setError(null);
+      setDateDraft(order ? fromDbDate(order.start_date) : "");
+      setPlannedDraft(order ? fromDbDate(order.planned_end_date) : "");
+    },
+    [order],
+  );
 
   // fallo_por_orden only reaches the screen as the fallo's name; names are
   // unique (0006), so the current one can be preselected by name.
@@ -209,18 +214,17 @@ export default function WorkOrderDetail() {
     .filter((f) => f.fa_estado === "activo" || f.fa_id_fallo === currentFaultTypeId)
     .map((f) => ({ value: f.fa_id_fallo, label: f.fa_nombre }));
 
+  const startDateRaw = order?.start_date;
   const orderStartDate = useMemo(
-    () =>
-      order?.start_date ? (parseDateString(fromDbDate(order.start_date)) ?? undefined) : undefined,
-    [order?.start_date],
+    () => (startDateRaw ? (parseDateString(fromDbDate(startDateRaw)) ?? undefined) : undefined),
+    [startDateRaw],
   );
 
+  const plannedEndDateRaw = order?.planned_end_date;
   const orderPlannedEndDate = useMemo(
     () =>
-      order?.planned_end_date
-        ? (parseDateString(fromDbDate(order.planned_end_date)) ?? undefined)
-        : undefined,
-    [order?.planned_end_date],
+      plannedEndDateRaw ? (parseDateString(fromDbDate(plannedEndDateRaw)) ?? undefined) : undefined,
+    [plannedEndDateRaw],
   );
 
   function startEditing(field: EditingField) {
@@ -664,102 +668,104 @@ export default function WorkOrderDetail() {
         </View>
 
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 1.6 }]}>TAREA</Text>
-            <Text style={[styles.headerCell, { flex: 1.3 }]}>TÉCNICO</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>ESTADO</Text>
-            <Text style={[styles.headerCell, { flex: 0.9 }]}>INICIO</Text>
-            <Text style={[styles.headerCell, { flex: 0.9 }]}>FIN</Text>
-            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-          </View>
+          <ScrollableTable minWidth={760}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.headerCell, tableCol(1.6)]}>TAREA</Text>
+              <Text style={[styles.headerCell, tableCol(1.3)]}>TÉCNICO</Text>
+              <Text style={[styles.headerCell, tableCol(1)]}>ESTADO</Text>
+              <Text style={[styles.headerCell, tableCol(0.9)]}>INICIO</Text>
+              <Text style={[styles.headerCell, tableCol(0.9)]}>FIN</Text>
+              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+            </View>
 
-          {s.tasks.length === 0 ? (
-            <Text style={styles.empty}>
-              Todavía no se agregó ninguna tarea. Usá “+ Agregar tarea” para cargar la primera con
-              su técnico.
-            </Text>
-          ) : (
-            s.tasks.map((task, i) => (
-              <View key={task.id} style={[styles.rowWrap, i % 2 === 1 && styles.rowAlt]}>
-                <View style={styles.row2}>
-                  <Text
-                    style={[styles.cellText, styles.cellStrong, { flex: 1.6 }]}
-                    numberOfLines={2}
-                  >
-                    {task.taskName}
-                  </Text>
+            {s.tasks.length === 0 ? (
+              <Text style={styles.empty}>
+                Todavía no se agregó ninguna tarea. Usá “+ Agregar tarea” para cargar la primera con
+                su técnico.
+              </Text>
+            ) : (
+              s.tasks.map((task, i) => (
+                <View key={task.id} style={[styles.rowWrap, i % 2 === 1 && styles.rowAlt]}>
+                  <View style={styles.row2}>
+                    <Text
+                      style={[styles.cellText, styles.cellStrong, tableCol(1.6)]}
+                      numberOfLines={2}
+                    >
+                      {task.taskName}
+                    </Text>
 
-                  <Text style={[styles.cellText, { flex: 1.3 }]} numberOfLines={1}>
-                    {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"}
-                  </Text>
+                    <Text style={[styles.cellText, tableCol(1.3)]} numberOfLines={1}>
+                      {profileById.get(task.technicianId)?.name ?? "Técnico desconocido"}
+                    </Text>
 
-                  <Text style={[styles.cellText, { flex: 1 }]}>{taskStatusLabel(task)}</Text>
+                    <Text style={[styles.cellText, tableCol(1)]}>{taskStatusLabel(task)}</Text>
 
-                  <Text style={[styles.cellText, { flex: 0.9 }]}>
-                    {fromDbDate(task.startDate) || "—"}
-                  </Text>
+                    <Text style={[styles.cellText, tableCol(0.9)]}>
+                      {fromDbDate(task.startDate) || "—"}
+                    </Text>
 
-                  <Text style={[styles.cellText, { flex: 0.9 }]}>
-                    {fromDbDate(task.endDate) || "—"}
-                  </Text>
+                    <Text style={[styles.cellText, tableCol(0.9)]}>
+                      {fromDbDate(task.endDate) || "—"}
+                    </Text>
 
-                  <View style={styles.actionsCol}>
-                    {!task.endDate && (
-                      <RowActions
-                        onEdit={() => setReassigningTask(task)}
-                        editTooltip="Reasignar técnico"
-                        editIcon={ReassignIcon}
-                      />
-                    )}
+                    <View style={styles.actionsCol}>
+                      {!task.endDate && (
+                        <RowActions
+                          onEdit={() => setReassigningTask(task)}
+                          editTooltip="Reasignar técnico"
+                          editIcon={ReassignIcon}
+                        />
+                      )}
+                    </View>
                   </View>
-                </View>
 
-                {(task.consumedParts.length > 0 ||
-                  task.diagnosis ||
-                  task.suspension ||
-                  task.lastSuspension) && (
-                  <View style={styles.consumedRow}>
-                    {task.suspension && (
-                      <Text style={styles.consumedText}>
-                        <Text style={styles.consumedLabel}>
-                          Suspendida desde el {fromDbDate(task.suspension.since)} · Motivo:{" "}
+                  {(task.consumedParts.length > 0 ||
+                    task.diagnosis ||
+                    task.suspension ||
+                    task.lastSuspension) && (
+                    <View style={styles.consumedRow}>
+                      {task.suspension && (
+                        <Text style={styles.consumedText}>
+                          <Text style={styles.consumedLabel}>
+                            Suspendida desde el {fromDbDate(task.suspension.since)} · Motivo:{" "}
+                          </Text>
+                          {task.suspension.reason}
+                          {task.suspension.comment ? ` - ${task.suspension.comment}` : ""}
                         </Text>
-                        {task.suspension.reason}
-                        {task.suspension.comment ? ` - ${task.suspension.comment}` : ""}
-                      </Text>
-                    )}
+                      )}
 
-                    {/* While suspended again, the current one above is the
+                      {/* While suspended again, the current one above is the
                         latest; the previous one would only add noise. */}
-                    {!task.suspension && task.lastSuspension && (
-                      <Text style={styles.consumedText}>
-                        <Text style={styles.consumedLabel}>
-                          Última suspensión: del {fromDbDate(task.lastSuspension.since)} al{" "}
-                          {fromDbDate(task.lastSuspension.until)} · Motivo:{" "}
+                      {!task.suspension && task.lastSuspension && (
+                        <Text style={styles.consumedText}>
+                          <Text style={styles.consumedLabel}>
+                            Última suspensión: del {fromDbDate(task.lastSuspension.since)} al{" "}
+                            {fromDbDate(task.lastSuspension.until)} · Motivo:{" "}
+                          </Text>
+                          {task.lastSuspension.reason}
+                          {task.lastSuspension.comment ? ` - ${task.lastSuspension.comment}` : ""}
                         </Text>
-                        {task.lastSuspension.reason}
-                        {task.lastSuspension.comment ? ` - ${task.lastSuspension.comment}` : ""}
-                      </Text>
-                    )}
+                      )}
 
-                    {task.diagnosis && (
-                      <Text style={styles.consumedText}>
-                        <Text style={styles.consumedLabel}>Diagnóstico: </Text>
-                        {task.diagnosis}
-                      </Text>
-                    )}
+                      {task.diagnosis && (
+                        <Text style={styles.consumedText}>
+                          <Text style={styles.consumedLabel}>Diagnóstico: </Text>
+                          {task.diagnosis}
+                        </Text>
+                      )}
 
-                    {task.consumedParts.length > 0 && (
-                      <Text style={styles.consumedText}>
-                        <Text style={styles.consumedLabel}>Repuestos usados: </Text>
-                        {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
-                      </Text>
-                    )}
-                  </View>
-                )}
-              </View>
-            ))
-          )}
+                      {task.consumedParts.length > 0 && (
+                        <Text style={styles.consumedText}>
+                          <Text style={styles.consumedLabel}>Repuestos usados: </Text>
+                          {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+              ))
+            )}
+          </ScrollableTable>
         </View>
 
         <Text style={styles.autoNote}>

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, fireEvent, waitFor } from "@testing-library/react-native";
+import { render, fireEvent } from "@testing-library/react-native";
 import { SolicitudDetailModal } from "../../components/SolicitudDetailModal";
 import { router } from "expo-router";
 import * as profilesQuery from "../queries/profiles";

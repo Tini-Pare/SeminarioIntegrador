@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { resolvePurchaseOrder } from "../lib/queries/purchaseOrders";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import { FormFooter } from "./FormFooter";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 export function RejectPurchaseOrderModal({
   visible,
@@ -22,11 +23,11 @@ export function RejectPurchaseOrderModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setMotivo("");
     setError(null);
-  }, [visible]);
+  });
 
   async function handleReject() {
     if (pedidoId == null) return;

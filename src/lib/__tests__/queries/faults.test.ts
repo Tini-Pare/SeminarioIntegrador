@@ -1,11 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-    auth: { getSession: jest.fn() },
-    rpc: jest.fn(),
-  },
-}));
-
 import {
   addTaskToOrder,
   closeSolicitud,
@@ -30,6 +22,14 @@ import {
   updateOrderStartDate,
 } from "../../queries/faults";
 import { supabase } from "../../supabase";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+    auth: { getSession: jest.fn() },
+    rpc: jest.fn(),
+  },
+}));
 
 const SOLICITUD_SELECT =
   "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";

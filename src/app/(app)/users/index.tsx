@@ -6,16 +6,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { EditUserModal } from "../../../components/EditUserModal";
 import { InvitePersonModal } from "../../../components/InvitePersonModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
-import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import { useConfirm } from "../../../lib/useConfirm";
 import { deleteUser, listProfiles } from "../../../lib/queries/profiles";
@@ -25,6 +24,7 @@ import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Profile } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 const ROLE_RANK: Record<Profile["role"], number> = { admin: 0, technician: 1, user: 2 };
 const ROLE_LABELS: Record<Profile["role"], string> = {
@@ -43,7 +43,6 @@ function initials(name: string) {
 }
 
 export default function UsersScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +52,6 @@ export default function UsersScreen() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const { width } = useWindowDimensions();
-  const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const { confirm, dialog } = useConfirm();
@@ -78,9 +75,7 @@ export default function UsersScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -213,144 +208,93 @@ export default function UsersScreen() {
             ? "Todavía no hay personas cargadas."
             : "No hay personas que coincidan con la búsqueda o los filtros."}
         </Text>
-      ) : isWide ? (
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <SortHeaderCell
-              label="Persona"
-              field="persona"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 2.2 }}
-            />
-            <SortHeaderCell
-              label="Rol"
-              field="rol"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1.1 }}
-            />
-            <SortHeaderCell
-              label="Estado"
-              field="estado"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1 }}
-            />
-            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-          </View>
-
-          {pageItems.map((p, i) => {
-            const rm = roleMeta[p.role];
-            const isSelf = p.id === currentUserId;
-            return (
-              <View key={p.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-                <View style={styles.rowMain}>
-                  <View
-                    style={{
-                      flex: 2.2,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 11,
-                    }}
-                  >
-                    <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
-                      <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
-                    </View>
-
-                    <View style={{ minWidth: 0, flexShrink: 1 }}>
-                      <Text style={styles.name} numberOfLines={1}>
-                        {p.name}
-                      </Text>
-                      <Text style={styles.email} numberOfLines={1}>
-                        {p.legajo ? `Legajo ${p.legajo}` : "—"}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={{ flex: 1.1, justifyContent: "center" }}>
-                    <View style={[styles.badge, { backgroundColor: rm.bg }]}>
-                      <Text style={[styles.badgeText, { color: rm.fg }]}>{rm.label}</Text>
-                    </View>
-                  </View>
-
-                  <View style={{ flex: 1, justifyContent: "center" }}>
-                    <StatusPill active={p.active} />
-                  </View>
-                </View>
-
-                <View style={styles.actionsCol}>
-                  <RowActions
-                    onEdit={() => setEditing(p)}
-                    onDelete={() => handleDelete(p)}
-                    deleteDisabled={p.role === "admin" || isSelf}
-                    editTooltip="Editar usuario"
-                    deleteTooltip={
-                      p.role === "admin"
-                        ? "No se puede eliminar a un administrador"
-                        : isSelf
-                          ? "No podés eliminar tu propio usuario"
-                          : "Eliminar usuario"
-                    }
-                  />
-                </View>
-              </View>
-            );
-          })}
-        </View>
       ) : (
-        <View style={styles.cardList}>
-          {pageItems.map((p) => {
-            const rm = roleMeta[p.role];
-            const isSelf = p.id === currentUserId;
-            return (
-              <View key={p.id} style={styles.personCard}>
-                <View>
-                  <View style={styles.personCardHeader}>
-                    <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
-                      <Text style={[styles.avatarText, { color: rm.fg }]}>{initials(p.name)}</Text>
+        <View style={styles.table}>
+          <ScrollableTable minWidth={600}>
+            <View style={styles.tableHeader}>
+              <SortHeaderCell
+                label="Persona"
+                field="persona"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(2.2)}
+              />
+
+              <SortHeaderCell
+                label="Rol"
+                field="rol"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1.1)}
+              />
+
+              <SortHeaderCell
+                label="Estado"
+                field="estado"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1)}
+              />
+
+              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+            </View>
+
+            {pageItems.map((p, i) => {
+              const rm = roleMeta[p.role];
+              const isSelf = p.id === currentUserId;
+              return (
+                <View key={p.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                  <View style={styles.rowMain}>
+                    <View style={[tableCol(2.2), styles.personCell]}>
+                      <View style={[styles.avatar, { backgroundColor: rm.bg }]}>
+                        <Text style={[styles.avatarText, { color: rm.fg }]}>
+                          {initials(p.name)}
+                        </Text>
+                      </View>
+
+                      <View style={{ minWidth: 0, flexShrink: 1 }}>
+                        <Text style={styles.name} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        <Text style={styles.email} numberOfLines={1}>
+                          {p.legajo ? `Legajo ${p.legajo}` : "—"}
+                        </Text>
+                      </View>
                     </View>
 
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.name} numberOfLines={1}>
-                        {p.name}
-                      </Text>
-                      <Text style={styles.email} numberOfLines={1}>
-                        {p.legajo ? `Legajo ${p.legajo}` : "—"}
-                      </Text>
+                    <View style={[tableCol(1.1), styles.cell]}>
+                      <View style={[styles.badge, { backgroundColor: rm.bg }]}>
+                        <Text style={[styles.badgeText, { color: rm.fg }]}>{rm.label}</Text>
+                      </View>
+                    </View>
+
+                    <View style={[tableCol(1), styles.cell]}>
+                      <StatusPill active={p.active} />
                     </View>
                   </View>
 
-                  <View style={styles.personCardChips}>
-                    <View style={[styles.badge, { backgroundColor: rm.bg }]}>
-                      <Text style={[styles.badgeText, { color: rm.fg }]}>{rm.label}</Text>
-                    </View>
-
-                    <StatusPill active={p.active} />
+                  <View style={styles.actionsCol}>
+                    <RowActions
+                      onEdit={() => setEditing(p)}
+                      onDelete={() => handleDelete(p)}
+                      deleteDisabled={p.role === "admin" || isSelf}
+                      editTooltip="Editar usuario"
+                      deleteTooltip={
+                        p.role === "admin"
+                          ? "No se puede eliminar a un administrador"
+                          : isSelf
+                            ? "No podés eliminar tu propio usuario"
+                            : "Eliminar usuario"
+                      }
+                    />
                   </View>
                 </View>
-
-                <View style={styles.cardActions}>
-                  <RowActions
-                    onEdit={() => setEditing(p)}
-                    onDelete={() => handleDelete(p)}
-                    deleteDisabled={p.role === "admin" || isSelf}
-                    editTooltip="Editar usuario"
-                    deleteTooltip={
-                      p.role === "admin"
-                        ? "No se puede eliminar a un administrador"
-                        : isSelf
-                          ? "No podés eliminar tu propio usuario"
-                          : "Eliminar usuario"
-                    }
-                  />
-                </View>
-              </View>
-            );
-          })}
+              );
+            })}
+          </ScrollableTable>
         </View>
       )}
 
@@ -378,15 +322,16 @@ function makeStyles(c: ThemeColors) {
     container: { backgroundColor: c.bg },
     content: { padding: 20 },
     center: { flex: 1 },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     header: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
@@ -436,30 +381,8 @@ function makeStyles(c: ThemeColors) {
     },
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
-    cardList: { gap: 10 },
-    personCard: {
-      backgroundColor: c.bgCard,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 14,
-      padding: 14,
-    },
-    personCardHeader: { flexDirection: "row", alignItems: "center", gap: 11 },
-    personCardChips: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      alignItems: "center",
-      gap: 8,
-      marginTop: 12,
-    },
-    cardActions: {
-      marginTop: 12,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
-      flexDirection: "row",
-      justifyContent: "flex-end",
-    },
+    cell: { justifyContent: "center" },
+    personCell: { flexDirection: "row", alignItems: "center", gap: 11 },
     statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
     avatar: {
       width: 34,

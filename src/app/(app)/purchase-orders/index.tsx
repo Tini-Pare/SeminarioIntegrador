@@ -1,4 +1,3 @@
-import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,6 +23,7 @@ import { Pagination } from "../../../components/Pagination";
 import { PurchaseOrderDetailModal } from "../../../components/PurchaseOrderDetailModal";
 import { PurchaseOrderModal } from "../../../components/PurchaseOrderModal";
 import { RejectPurchaseOrderModal } from "../../../components/RejectPurchaseOrderModal";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { getProfile } from "../../../lib/auth";
 import {
@@ -35,10 +35,12 @@ import { listSpareParts } from "../../../lib/queries/spareParts";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { useIsPhone } from "../../../lib/useIsPhone";
 import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { PedidoCompra, Repuesto } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 const ESTADO_LABELS: Record<PedidoCompra["ped_estado"], string> = {
   pendiente: "Pendiente",
@@ -209,7 +211,6 @@ const dropdownStyles = StyleSheet.create({
 });
 
 export default function PurchaseOrdersScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [orders, setOrders] = useState<PurchaseOrderWithLines[]>([]);
@@ -230,6 +231,8 @@ export default function PurchaseOrdersScreen() {
   const [rejecting, setRejecting] = useState<number | null>(null);
 
   const { colors } = useTheme();
+  // Phones get the short label so the button fits next to the title.
+  const isPhone = useIsPhone();
   const styles = makeStyles(colors);
 
   const load = useCallback(async () => {
@@ -255,9 +258,7 @@ export default function PurchaseOrdersScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     const channel = supabase
@@ -419,8 +420,9 @@ export default function PurchaseOrdersScreen() {
             style={[styles.addButton, !hasActiveParts && styles.addButtonDisabled]}
             onPress={() => setCreating(true)}
             disabled={!hasActiveParts}
+            accessibilityLabel="Nuevo pedido"
           >
-            <Text style={styles.addButtonText}>+ Nuevo pedido</Text>
+            <Text style={styles.addButtonText}>{isPhone ? "+ Nuevo" : "+ Nuevo pedido"}</Text>
           </Pressable>
         )}
       </View>
@@ -577,104 +579,99 @@ export default function PurchaseOrdersScreen() {
         </Text>
       ) : (
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <SortHeaderCell
-              label="Estado"
-              field="estado"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1.4 }}
-            />
-
-            <SortHeaderCell
-              label="Fecha"
-              field="fecha"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1 }}
-            />
-
-            {isAdmin && (
+          <ScrollableTable minWidth={isAdmin ? 560 : 420}>
+            <View style={styles.tableHeader}>
               <SortHeaderCell
-                label="Técnico"
-                field="tecnico"
+                label="Estado"
+                field="estado"
                 activeField={field}
                 dir={dir}
                 onSort={toggle}
-                style={{ flex: 1.4 }}
+                style={tableCol(1.4)}
               />
-            )}
 
-            <View style={styles.actionsCol}>
-              <Text style={styles.headerCell}>VER</Text>
-            </View>
-          </View>
+              <SortHeaderCell
+                label="Fecha"
+                field="fecha"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1)}
+              />
 
-          {pageItems.map((o, i) => {
-            const st = estadoColors[o.ped_estado];
-            return (
-              <View key={o.ped_id_ped_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-                <View style={styles.rowMain}>
-                  <View
-                    style={{
-                      flex: 1.4,
-                      justifyContent: "center",
-                      alignItems: "flex-start",
-                      paddingRight: 12,
-                    }}
-                  >
-                    <View style={[styles.badge, { backgroundColor: st.bg }]}>
-                      <Text style={[styles.badgeText, { color: st.fg }]} numberOfLines={1}>
-                        {ESTADO_LABELS[o.ped_estado]}
-                      </Text>
-                    </View>
+              {isAdmin && (
+                <SortHeaderCell
+                  label="Técnico"
+                  field="tecnico"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1.4)}
+                />
+              )}
 
-                    <Text style={styles.sub} numberOfLines={2}>
-                      {itemsSummary(o)}
-                    </Text>
-                  </View>
-
-                  <View style={{ flex: 1, justifyContent: "center" }}>
-                    <Text style={styles.dateCell}>{formatDate(o.ped_fecha_solicitud)}</Text>
-                  </View>
-
-                  {isAdmin && (
-                    <View style={{ flex: 1.4, justifyContent: "center" }}>
-                      <Text style={styles.tech} numberOfLines={1}>
-                        {techNames.get(o.p_id_tecnico) ?? "Desconocido"}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.actionsCol}>
-                  {isAdmin && o.ped_estado === "pendiente" ? (
-                    <Tooltip text="Revisar pedido" align="right">
-                      <Pressable
-                        style={[styles.viewBtn, styles.reviewBtn]}
-                        onPress={() => setViewing(o)}
-                        accessibilityLabel="Revisar pedido"
-                      >
-                        <ReviewIcon size={16} color={colors.accent} />
-                      </Pressable>
-                    </Tooltip>
-                  ) : (
-                    <Tooltip text="Ver pedido" align="right">
-                      <Pressable
-                        style={styles.viewBtn}
-                        onPress={() => setViewing(o)}
-                        accessibilityLabel="Ver pedido"
-                      >
-                        <EyeIcon size={16} color={colors.accent} />
-                      </Pressable>
-                    </Tooltip>
-                  )}
-                </View>
+              <View style={styles.actionsCol}>
+                <Text style={styles.headerCell}>VER</Text>
               </View>
-            );
-          })}
+            </View>
+
+            {pageItems.map((o, i) => {
+              const st = estadoColors[o.ped_estado];
+              return (
+                <View key={o.ped_id_ped_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                  <View style={styles.rowMain}>
+                    <View style={[tableCol(1.4), styles.cell, styles.badgeCell]}>
+                      <View style={[styles.badge, { backgroundColor: st.bg }]}>
+                        <Text style={[styles.badgeText, { color: st.fg }]} numberOfLines={1}>
+                          {ESTADO_LABELS[o.ped_estado]}
+                        </Text>
+                      </View>
+
+                      <Text style={styles.sub} numberOfLines={2}>
+                        {itemsSummary(o)}
+                      </Text>
+                    </View>
+
+                    <View style={[tableCol(1), styles.cell]}>
+                      <Text style={styles.dateCell}>{formatDate(o.ped_fecha_solicitud)}</Text>
+                    </View>
+
+                    {isAdmin && (
+                      <View style={[tableCol(1.4), styles.cell]}>
+                        <Text style={styles.tech} numberOfLines={1}>
+                          {techNames.get(o.p_id_tecnico) ?? "Desconocido"}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.actionsCol}>
+                    {isAdmin && o.ped_estado === "pendiente" ? (
+                      <Tooltip text="Revisar pedido" align="right">
+                        <Pressable
+                          style={[styles.viewBtn, styles.reviewBtn]}
+                          onPress={() => setViewing(o)}
+                          accessibilityLabel="Revisar pedido"
+                        >
+                          <ReviewIcon size={16} color={colors.accent} />
+                        </Pressable>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip text="Ver pedido" align="right">
+                        <Pressable
+                          style={styles.viewBtn}
+                          onPress={() => setViewing(o)}
+                          accessibilityLabel="Ver pedido"
+                        >
+                          <EyeIcon size={16} color={colors.accent} />
+                        </Pressable>
+                      </Tooltip>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollableTable>
         </View>
       )}
 
@@ -716,15 +713,16 @@ function makeStyles(c: ThemeColors) {
     container: { backgroundColor: c.bg },
     content: { padding: 20 },
     center: { flex: 1 },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     header: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "700", color: c.text },
     subtitle: { marginTop: 3, fontSize: 14, color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },
@@ -941,6 +939,8 @@ function makeStyles(c: ThemeColors) {
     },
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    cell: { justifyContent: "center" },
+    badgeCell: { alignItems: "flex-start" },
     badge: {
       alignSelf: "flex-start",
       paddingHorizontal: 11,

@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Sigla } from "./Sigla";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 const MOTIVO_OPTIONS: RadioOption<string>[] = [
   { value: "Duplicada", label: "Duplicada" },
@@ -37,14 +38,14 @@ export function CloseWithoutOrderModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setReason(null);
     setComment("");
     setCommentTouched(false);
     setConfirming(false);
     setError(null);
-  }, [visible]);
+  });
 
   const isOtro = reason === "Otro";
   const commentTrimmed = comment.trim();
@@ -79,7 +80,9 @@ export function CloseWithoutOrderModal({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => !confirming && onClose()}
+      onRequestClose={() => {
+        if (!confirming) onClose();
+      }}
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>

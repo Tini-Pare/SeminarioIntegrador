@@ -1,22 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { InfoIcon } from "../../../components/icons";
 import { LocationModal } from "../../../components/LocationModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
-import { BREAKPOINT, NUMERIC_COL_GAP } from "../../../constants";
+import { NUMERIC_COL_GAP } from "../../../constants";
 import { useConfirm } from "../../../lib/useConfirm";
 import { deleteLocation, listLocations } from "../../../lib/queries/locations";
 import type { LocationWithCount } from "../../../lib/queries/locations";
@@ -25,6 +24,7 @@ import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 // The row's trash icon is disabled while the record is still in use, so the
 // tooltip carries the reason -- it used to live in the edit modal.
@@ -34,7 +34,6 @@ function deleteTooltipFor(count: number) {
 }
 
 export default function LocationsScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [locations, setLocations] = useState<LocationWithCount[]>([]);
   const [search, setSearch] = useState("");
@@ -43,8 +42,6 @@ export default function LocationsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<LocationWithCount | null>(null);
   const [creating, setCreating] = useState(false);
-  const { width } = useWindowDimensions();
-  const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const { confirm, dialog } = useConfirm();
@@ -58,9 +55,7 @@ export default function LocationsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -186,93 +181,51 @@ export default function LocationsScreen() {
               <Text style={styles.empty}>
                 No hay ubicaciones que coincidan con la búsqueda o los filtros.
               </Text>
-            ) : isWide ? (
-              <View style={styles.table}>
-                <View style={styles.tableHeader}>
-                  <SortHeaderCell
-                    label="Sector"
-                    field="sector"
-                    activeField={field}
-                    dir={dir}
-                    onSort={toggle}
-                    style={{ flex: 2 }}
-                  />
-
-                  <SortHeaderCell
-                    label="Piso"
-                    field="piso"
-                    activeField={field}
-                    dir={dir}
-                    onSort={toggle}
-                    style={{ flex: 1.2 }}
-                  />
-
-                  <SortHeaderCell
-                    label="Equipos"
-                    field="equipos"
-                    activeField={field}
-                    dir={dir}
-                    onSort={toggle}
-                    style={[{ flex: 1 }, styles.countHeaderCell]}
-                  />
-
-                  <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-                </View>
-
-                {pageItems.map((l, index) => (
-                  <LocationTableRow
-                    key={l.lu_codigo}
-                    location={l}
-                    index={index}
-                    onEdit={() => setEditing(l)}
-                    onDelete={() => handleDelete(l)}
-                    styles={styles}
-                  />
-                ))}
-              </View>
             ) : (
-              <View style={styles.cardList}>
-                {pageItems.map((l) => (
-                  <View key={l.lu_codigo} style={styles.locationCard}>
-                    <View style={styles.cardMain}>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.name} numberOfLines={1}>
-                          {l.lu_nombre_sector}
-                        </Text>
+              <View style={styles.table}>
+                <ScrollableTable minWidth={480}>
+                  <View style={styles.tableHeader}>
+                    <SortHeaderCell
+                      label="Sector"
+                      field="sector"
+                      activeField={field}
+                      dir={dir}
+                      onSort={toggle}
+                      style={tableCol(2)}
+                    />
 
-                        <Text style={styles.floorText} numberOfLines={1}>
-                          {l.lu_piso || "Sin piso especificado"}
-                        </Text>
-                      </View>
+                    <SortHeaderCell
+                      label="Piso"
+                      field="piso"
+                      activeField={field}
+                      dir={dir}
+                      onSort={toggle}
+                      style={tableCol(1.2)}
+                    />
 
-                      <View
-                        style={[
-                          styles.countBadge,
-                          l.equipmentCount > 0 ? styles.countBadgeActive : styles.countBadgeZero,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.countBadgeText,
-                            l.equipmentCount > 0
-                              ? styles.countBadgeTextActive
-                              : styles.countBadgeTextZero,
-                          ]}
-                        >
-                          {l.equipmentCount} equipo{l.equipmentCount === 1 ? "" : "s"}
-                        </Text>
-                      </View>
-                    </View>
+                    <SortHeaderCell
+                      label="Equipos"
+                      field="equipos"
+                      activeField={field}
+                      dir={dir}
+                      onSort={toggle}
+                      style={[tableCol(1), styles.countHeaderCell]}
+                    />
 
-                    <RowActions
+                    <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+                  </View>
+
+                  {pageItems.map((l, index) => (
+                    <LocationTableRow
+                      key={l.lu_codigo}
+                      location={l}
+                      index={index}
                       onEdit={() => setEditing(l)}
                       onDelete={() => handleDelete(l)}
-                      deleteDisabled={l.equipmentCount > 0}
-                      editTooltip="Editar ubicación"
-                      deleteTooltip={deleteTooltipFor(l.equipmentCount)}
+                      styles={styles}
                     />
-                  </View>
-                ))}
+                  ))}
+                </ScrollableTable>
               </View>
             )}
 
@@ -331,24 +284,23 @@ function LocationTableRow({
   return (
     <View
       style={[styles.row, { backgroundColor: rowBg }]}
-      // @ts-expect-error onMouseEnter and onMouseLeave are supported on Web
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <View style={styles.rowMain}>
-        <View style={{ flex: 2, justifyContent: "center" }}>
+        <View style={[tableCol(2), styles.cell]}>
           <Text style={styles.name} numberOfLines={1}>
             {location.lu_nombre_sector}
           </Text>
         </View>
 
-        <View style={{ flex: 1.2, justifyContent: "center" }}>
+        <View style={[tableCol(1.2), styles.cell]}>
           <Text style={styles.floorText} numberOfLines={1}>
             {location.lu_piso || "—"}
           </Text>
         </View>
 
-        <View style={[{ flex: 1, justifyContent: "center" }, styles.countCol]}>
+        <View style={[tableCol(1), styles.cell, styles.countCol]}>
           <View
             style={[
               styles.countBadge,
@@ -392,15 +344,16 @@ function makeStyles(c: ThemeColors) {
       width: "100%",
       alignSelf: "stretch",
     },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     header: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     addButton: {
@@ -412,46 +365,6 @@ function makeStyles(c: ThemeColors) {
       justifyContent: "center",
     },
     addButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-    toolbar: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      flexWrap: "wrap",
-      gap: 12,
-      marginBottom: 16,
-    },
-    searchBox: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      maxWidth: 340,
-      flexGrow: 1,
-      minWidth: 200,
-      height: 40,
-      paddingHorizontal: 12,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      borderRadius: 9,
-      backgroundColor: c.bgCard,
-    },
-    searchInput: {
-      flex: 1,
-      height: "100%",
-      fontSize: 14,
-      color: c.text,
-      padding: 0,
-      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}),
-    },
-    countBadgePill: {
-      height: 40,
-      paddingHorizontal: 14,
-      borderRadius: 9,
-      borderWidth: 1,
-      borderColor: c.borderInput,
-      backgroundColor: c.bgCard,
-      alignItems: "center",
-      justifyContent: "center",
-    },
     countBadgePillText: {
       fontSize: 13,
       fontWeight: "500",
@@ -502,28 +415,10 @@ function makeStyles(c: ThemeColors) {
     rowHover: {
       backgroundColor: c.bgRowHover,
     },
-    rowMain: { flex: 1, flexDirection: "row", alignItems: "center" },
+    rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    cell: { justifyContent: "center" },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     floorText: { fontSize: 13, color: c.textSecondary, marginTop: 2 },
-    cardList: { gap: 10, width: "100%" },
-    locationCard: {
-      backgroundColor: c.bgCard,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 14,
-      padding: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    cardMain: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      minWidth: 0,
-    },
     countBadge: {
       alignSelf: "flex-start",
       minWidth: 26,

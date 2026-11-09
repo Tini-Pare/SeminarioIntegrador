@@ -1,5 +1,5 @@
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -18,6 +18,7 @@ import {
   toDay,
 } from "../../../components/CustomDatePicker";
 import { Pagination } from "../../../components/Pagination";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { listProfiles } from "../../../lib/queries/profiles";
@@ -25,6 +26,7 @@ import { listStockMovements, type StockMovement } from "../../../lib/queries/sto
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { useIsPhone } from "../../../lib/useIsPhone";
 import { usePagination } from "../../../lib/usePagination";
 import { useTableSort } from "../../../lib/useTableSort";
 import { NUMERIC_COL_GAP } from "../../../constants";
@@ -40,7 +42,7 @@ const COL_FLEX = {
   registrador: 1.3,
 };
 function col(key: keyof typeof COL_FLEX) {
-  return { flex: COL_FLEX[key], minWidth: 0, paddingRight: 12 } as const;
+  return tableCol(COL_FLEX[key]);
 }
 
 // Signed, so sorting by "Cantidad" lines up every egreso below every ingreso.
@@ -66,11 +68,16 @@ export default function StockMovementsScreen() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  useEffect(() => {
+  // A new ?buscar= while the screen is already open replaces the search.
+  const [prevBuscar, setPrevBuscar] = useState(params.buscar);
+  if (params.buscar !== prevBuscar) {
+    setPrevBuscar(params.buscar);
     if (params.buscar !== undefined) setSearch(params.buscar);
-  }, [params.buscar]);
+  }
 
   const { colors } = useTheme();
+  // Phones get the short label so the button fits next to the title.
+  const isPhone = useIsPhone();
   const styles = makeStyles(colors);
 
   const load = useCallback(async () => {
@@ -175,8 +182,9 @@ export default function StockMovementsScreen() {
           <Pressable
             style={styles.addButton}
             onPress={() => router.push("/stock-movements/register")}
+            accessibilityLabel="Nuevo movimiento"
           >
-            <Text style={styles.addButtonText}>+ Nuevo movimiento</Text>
+            <Text style={styles.addButtonText}>{isPhone ? "+ Nuevo" : "+ Nuevo movimiento"}</Text>
           </Pressable>
         </View>
 
@@ -263,117 +271,122 @@ export default function StockMovementsScreen() {
           </Text>
         ) : (
           <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <SortHeaderCell
-                label="Fecha"
-                field="fecha"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("fecha")}
-              />
+            <ScrollableTable minWidth={860}>
+              <View style={styles.tableHeader}>
+                <SortHeaderCell
+                  label="Fecha"
+                  field="fecha"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("fecha")}
+                />
 
-              <SortHeaderCell
-                label="Repuesto"
-                field="repuesto"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("repuesto")}
-              />
+                <SortHeaderCell
+                  label="Repuesto"
+                  field="repuesto"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("repuesto")}
+                />
 
-              <SortHeaderCell
-                label="Tipo"
-                field="tipo"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("tipo")}
-              />
+                <SortHeaderCell
+                  label="Tipo"
+                  field="tipo"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("tipo")}
+                />
 
-              <SortHeaderCell
-                label="Cantidad"
-                field="cantidad"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={[col("cantidad"), styles.qtyHeaderCell]}
-              />
+                <SortHeaderCell
+                  label="Cantidad"
+                  field="cantidad"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={[col("cantidad"), styles.qtyHeaderCell]}
+                />
 
-              <SortHeaderCell
-                label="Motivo"
-                field="motivo"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("motivo")}
-              />
+                <SortHeaderCell
+                  label="Motivo"
+                  field="motivo"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("motivo")}
+                />
 
-              <SortHeaderCell
-                label="Registrado por"
-                field="registrador"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("registrador")}
-              />
-            </View>
+                <SortHeaderCell
+                  label="Registrado por"
+                  field="registrador"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("registrador")}
+                />
+              </View>
 
-            {pageItems.map((m, i) => {
-              const isIngreso = m.ms_tipo === "ingreso";
-              const tipoColors = isIngreso ? colors.eqOperational : colors.eqRepair;
-              const created = new Date(m.ms_creado_en);
-              return (
-                <View key={m.ms_id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-                  <View style={col("fecha")}>
-                    <Text style={styles.dateCell}>{created.toLocaleDateString("es-AR")}</Text>
+              {pageItems.map((m, i) => {
+                const isIngreso = m.ms_tipo === "ingreso";
+                const tipoColors = isIngreso ? colors.eqOperational : colors.eqRepair;
+                const created = new Date(m.ms_creado_en);
+                return (
+                  <View key={m.ms_id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                    <View style={col("fecha")}>
+                      <Text style={styles.dateCell}>{created.toLocaleDateString("es-AR")}</Text>
 
-                    <Text style={styles.sub}>
-                      {created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
-                    </Text>
-                  </View>
+                      <Text style={styles.sub}>
+                        {created.toLocaleTimeString("es-AR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </Text>
+                    </View>
 
-                  <View style={col("repuesto")}>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {m.repuesto?.rep_nombre ?? `Repuesto ${m.rep_id}`}
-                    </Text>
-                  </View>
+                    <View style={col("repuesto")}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {m.repuesto?.rep_nombre ?? `Repuesto ${m.rep_id}`}
+                      </Text>
+                    </View>
 
-                  <View style={col("tipo")}>
-                    <View style={[styles.tipoBadge, { backgroundColor: tipoColors.bg }]}>
-                      <Text style={[styles.tipoBadgeText, { color: tipoColors.fg }]}>
-                        {isIngreso ? "Ingreso" : "Egreso"}
+                    <View style={col("tipo")}>
+                      <View style={[styles.tipoBadge, { backgroundColor: tipoColors.bg }]}>
+                        <Text style={[styles.tipoBadgeText, { color: tipoColors.fg }]}>
+                          {isIngreso ? "Ingreso" : "Egreso"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[col("cantidad"), styles.qtyCol]}>
+                      <Text style={[styles.qty, { color: tipoColors.fg }]}>
+                        {isIngreso ? "+" : "−"}
+                        {m.ms_cantidad}
+                      </Text>
+                    </View>
+
+                    <View style={col("motivo")}>
+                      <Text style={styles.reason} numberOfLines={1}>
+                        {m.ms_motivo}
+                      </Text>
+
+                      {m.ms_comentario && (
+                        <Text style={styles.sub} numberOfLines={2}>
+                          {m.ms_comentario}
+                        </Text>
+                      )}
+                    </View>
+
+                    <View style={col("registrador")}>
+                      <Text style={styles.reason} numberOfLines={1}>
+                        {registrador(m)}
                       </Text>
                     </View>
                   </View>
-
-                  <View style={[col("cantidad"), styles.qtyCol]}>
-                    <Text style={[styles.qty, { color: tipoColors.fg }]}>
-                      {isIngreso ? "+" : "−"}
-                      {m.ms_cantidad}
-                    </Text>
-                  </View>
-
-                  <View style={col("motivo")}>
-                    <Text style={styles.reason} numberOfLines={1}>
-                      {m.ms_motivo}
-                    </Text>
-
-                    {m.ms_comentario && (
-                      <Text style={styles.sub} numberOfLines={2}>
-                        {m.ms_comentario}
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={col("registrador")}>
-                    <Text style={styles.reason} numberOfLines={1}>
-                      {registrador(m)}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
+                );
+              })}
+            </ScrollableTable>
           </View>
         )}
 
@@ -389,15 +402,16 @@ function makeStyles(c: ThemeColors) {
     container: { backgroundColor: c.bg },
     content: { padding: 20 },
     center: { flex: 1 },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     header: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },

@@ -9,6 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import type { TextInputInstance, ViewInstance } from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 
@@ -53,8 +54,8 @@ export function TaskCombobox({
   };
 
   const [flipVertical, setFlipVertical] = useState(false);
-  const inputRef = useRef<TextInput>(null);
-  const controlRef = useRef<View>(null);
+  const inputRef = useRef<TextInputInstance>(null);
+  const controlRef = useRef<ViewInstance>(null);
 
   const { colors } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
@@ -153,7 +154,7 @@ export function TaskCombobox({
                   <Text style={styles.manualOptionPrefix}>➕ Usar tarea manual:</Text>
 
                   <Text style={styles.manualOptionName} numberOfLines={1}>
-                    "{value.trim()}"
+                    &quot;{value.trim()}&quot;
                   </Text>
                 </Pressable>
               )}

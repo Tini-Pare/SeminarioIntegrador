@@ -153,7 +153,7 @@ export default function DashboardScreen() {
                   width: Math.max(heroSize.width, heroSize.height * HERO_BG_ASPECT_RATIO),
                   height: heroSize.height,
                 }
-              : StyleSheet.absoluteFillObject,
+              : StyleSheet.absoluteFill,
           ]}
           resizeMode="cover"
         />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, View } from "react-native";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
@@ -6,6 +6,7 @@ import type { Solicitud } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { OrderFlowSteps } from "./OrderFlowSteps";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 type Priority = Exclude<Solicitud["priority"], null>;
 
@@ -68,12 +69,12 @@ export function GenerateOrderModal({
     },
   ];
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setPriority(null);
     setConfirming(false);
     setError(null);
-  }, [visible]);
+  });
 
   async function handleConfirm() {
     if (!priority) {
@@ -98,7 +99,9 @@ export function GenerateOrderModal({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => !confirming && onClose()}
+      onRequestClose={() => {
+        if (!confirming) onClose();
+      }}
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>

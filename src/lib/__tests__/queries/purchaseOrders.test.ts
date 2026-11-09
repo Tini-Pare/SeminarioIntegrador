@@ -1,3 +1,10 @@
+import {
+  createPurchaseOrder,
+  listPurchaseOrders,
+  resolvePurchaseOrder,
+} from "../../queries/purchaseOrders";
+import { supabase } from "../../supabase";
+
 jest.mock("../../supabase", () => ({
   supabase: {
     from: jest.fn(),
@@ -5,13 +12,6 @@ jest.mock("../../supabase", () => ({
     auth: { getSession: jest.fn() },
   },
 }));
-
-import {
-  createPurchaseOrder,
-  listPurchaseOrders,
-  resolvePurchaseOrder,
-} from "../../queries/purchaseOrders";
-import { supabase } from "../../supabase";
 
 const session = { data: { session: { user: { id: "tech-1" } } } };
 

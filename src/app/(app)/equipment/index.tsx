@@ -7,18 +7,17 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { Pagination } from "../../../components/Pagination";
 import { AddEquipmentModal } from "../../../components/AddEquipmentModal";
 import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { Tooltip } from "../../../components/Tooltip";
-import { EyeIcon, LocationIcon, PencilIcon, TrashIcon } from "../../../components/icons";
-import { BREAKPOINT } from "../../../constants";
+import { EyeIcon, PencilIcon, TrashIcon } from "../../../components/icons";
 import { getProfile } from "../../../lib/auth";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { deleteEquipment, listEquipment } from "../../../lib/queries/equipment";
@@ -58,8 +57,6 @@ export default function EquipmentScreen() {
   const [locationFilter, setLocationFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
-  const { width } = useWindowDimensions();
-  const isWide = width >= BREAKPOINT.tablet;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -278,105 +275,63 @@ export default function EquipmentScreen() {
               ? "Todavía no hay equipos cargados."
               : "No hay equipos que coincidan con la búsqueda o los filtros."}
           </Text>
-        ) : isWide ? (
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <SortHeaderCell
-                label="Equipo"
-                field="equipo"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1.6 }}
-              />
-
-              <SortHeaderCell
-                label="Ubicación"
-                field="ubicacion"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1.2 }}
-              />
-
-              <SortHeaderCell
-                label="Estado"
-                field="estado"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1 }}
-              />
-
-              <SortHeaderCell
-                label="Tipo"
-                field="tipo"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1 }}
-              />
-
-              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-            </View>
-
-            {pageItems.map((e, index) => (
-              <EquipmentTableRow
-                key={e.id}
-                equipment={e}
-                index={index}
-                isAdmin={isAdmin}
-                locationColor={locationColors.get(e.location) ?? "#6a7b62"}
-                onEdit={() => setEditing(e)}
-                onDelete={() => handleDelete(e)}
-                colors={colors}
-                styles={styles}
-              />
-            ))}
-          </View>
         ) : (
-          <View style={styles.cardList}>
-            {pageItems.map((e) => (
-              <View key={e.id} style={styles.card}>
-                <View>
-                  <View style={styles.cardTopRow}>
-                    <Text style={styles.code}>{e.code}</Text>
+          <View style={styles.table}>
+            <ScrollableTable minWidth={720}>
+              <View style={styles.tableHeader}>
+                <SortHeaderCell
+                  label="Equipo"
+                  field="equipo"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1.6)}
+                />
 
-                    <StatusBadge status={e.status} />
-                  </View>
+                <SortHeaderCell
+                  label="Ubicación"
+                  field="ubicacion"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1.2)}
+                />
 
-                  <Text style={styles.cardName}>{e.name}</Text>
+                <SortHeaderCell
+                  label="Estado"
+                  field="estado"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1)}
+                />
 
-                  {!e.active && <Text style={styles.code}>Inactivo</Text>}
+                <SortHeaderCell
+                  label="Tipo"
+                  field="tipo"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1)}
+                />
 
-                  <Text style={styles.typeText}>{e.type}</Text>
-
-                  <View style={styles.cardLocationRow}>
-                    <View
-                      style={[
-                        styles.locationDot,
-                        { backgroundColor: locationColors.get(e.location) ?? "#6a7b62" },
-                      ]}
-                    />
-
-                    <LocationIcon size={14} color={colors.textMuted} />
-
-                    <Text style={styles.locationText}>{e.location}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardActions}>
-                  <EquipmentRowActions
-                    equipment={e}
-                    isAdmin={isAdmin}
-                    onEdit={() => setEditing(e)}
-                    onDelete={() => handleDelete(e)}
-                    colors={colors}
-                    styles={styles}
-                  />
-                </View>
+                <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
               </View>
-            ))}
+
+              {pageItems.map((e, index) => (
+                <EquipmentTableRow
+                  key={e.id}
+                  equipment={e}
+                  index={index}
+                  isAdmin={isAdmin}
+                  locationColor={locationColors.get(e.location) ?? "#6a7b62"}
+                  onEdit={() => setEditing(e)}
+                  onDelete={() => handleDelete(e)}
+                  colors={colors}
+                  styles={styles}
+                />
+              ))}
+            </ScrollableTable>
           </View>
         )}
 
@@ -410,7 +365,8 @@ export default function EquipmentScreen() {
               <Text style={styles.confirmTitle}>Eliminar equipo</Text>
 
               <Text style={styles.confirmMessage}>
-                ¿Querés eliminar el equipo "{equipmentToDelete?.name}" ({equipmentToDelete?.code})?
+                ¿Querés eliminar el equipo &quot;{equipmentToDelete?.name}&quot; (
+                {equipmentToDelete?.code})?
               </Text>
 
               <View style={styles.confirmActions}>
@@ -538,12 +494,11 @@ function EquipmentTableRow({
   return (
     <View
       style={[styles.row, { backgroundColor: rowBg }]}
-      // @ts-expect-error onMouseEnter and onMouseLeave are supported on Web
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <View style={styles.rowMain}>
-        <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
+        <View style={[tableCol(1.6), styles.cell]}>
           <Text style={styles.name} numberOfLines={1}>
             {e.name}
           </Text>
@@ -554,7 +509,7 @@ function EquipmentTableRow({
           </Text>
         </View>
 
-        <View style={styles.locationCell}>
+        <View style={[tableCol(1.2), styles.locationCell]}>
           <View style={[styles.locationDot, { backgroundColor: locationColor }]} />
 
           <Text style={styles.locationText} numberOfLines={1}>
@@ -562,11 +517,11 @@ function EquipmentTableRow({
           </Text>
         </View>
 
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "flex-start" }}>
+        <View style={[tableCol(1), styles.cell, styles.badgeCell]}>
           <StatusBadge status={e.status} />
         </View>
 
-        <View style={{ flex: 1, justifyContent: "center" }}>
+        <View style={[tableCol(1), styles.cell]}>
           <Text style={styles.typeText} numberOfLines={1}>
             {e.type || "—"}
           </Text>
@@ -593,24 +548,19 @@ function makeStyles(c: ThemeColors) {
     content: { padding: 20 },
     center: { flex: 1 },
     error: { padding: 16, color: c.destructive },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     pageHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
       marginBottom: 12,
       gap: 12,
-      flexWrap: "wrap",
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
-    headerActions: {
-      flexDirection: "row",
-      gap: 10,
-      flexWrap: "wrap",
-      flexShrink: 1,
-      maxWidth: "100%",
-    },
+    headerActions: { flexDirection: "row", gap: 10, flexShrink: 0 },
     primaryButton: {
       backgroundColor: c.accent,
       paddingHorizontal: 20,
@@ -696,42 +646,14 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgRowHover,
     },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    cell: { justifyContent: "center" },
+    badgeCell: { alignItems: "flex-start" },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     code: { fontSize: 13, color: c.textSecondary, marginTop: 2 },
-    locationCell: {
-      flex: 1.2,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
-      paddingRight: 12,
-    },
+    locationCell: { flexDirection: "row", alignItems: "center", gap: 7 },
     locationDot: { width: 7, height: 7, borderRadius: 4 },
     locationText: { fontSize: 14, color: c.textSecondary, flexShrink: 1 },
     typeText: { fontSize: 14, color: c.textSecondary },
-    cardList: { gap: 12, width: "100%" },
-    card: {
-      backgroundColor: c.bgCard,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 14,
-      padding: 18,
-    },
-    cardTopRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 10,
-    },
-    cardName: { fontSize: 18, fontWeight: "600", color: c.text },
-    cardLocationRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 13 },
-    cardActions: {
-      marginTop: 14,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
-      flexDirection: "row",
-      justifyContent: "flex-end",
-    },
     overlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.45)",

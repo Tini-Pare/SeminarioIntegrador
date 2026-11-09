@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { SupplierModal } from "../../../components/SupplierModal";
 import { TableFilterBar } from "../../../components/TableFilterBar";
@@ -27,16 +28,16 @@ import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { TipoProveedor } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 // One width per column, applied to the header cell and to every row cell
 // alike — same flex AND same padding, so rows line up under their headers.
 const COL_FLEX = { proveedor: 2, cuit: 1.2, rubro: 1.4 };
 function col(key: keyof typeof COL_FLEX) {
-  return { flex: COL_FLEX[key], minWidth: 0, paddingRight: 12 } as const;
+  return tableCol(COL_FLEX[key]);
 }
 
 export default function SuppliersScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplierWithRubro[]>([]);
   const [tipos, setTipos] = useState<TipoProveedor[]>([]);
@@ -63,9 +64,7 @@ export default function SuppliersScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -168,75 +167,77 @@ export default function SuppliersScreen() {
         </Text>
       ) : (
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <SortHeaderCell
-              label="Proveedor"
-              field="nombre"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={col("proveedor")}
-            />
+          <ScrollableTable minWidth={600}>
+            <View style={styles.tableHeader}>
+              <SortHeaderCell
+                label="Proveedor"
+                field="nombre"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={col("proveedor")}
+              />
 
-            <SortHeaderCell
-              label="CUIT"
-              field="cuit"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={col("cuit")}
-            />
+              <SortHeaderCell
+                label="CUIT"
+                field="cuit"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={col("cuit")}
+              />
 
-            <SortHeaderCell
-              label="Rubro"
-              field="rubro"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={col("rubro")}
-            />
+              <SortHeaderCell
+                label="Rubro"
+                field="rubro"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={col("rubro")}
+              />
 
-            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-          </View>
-
-          {pageItems.map((s, i) => (
-            <View key={s.prov_id_proveedor} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-              <View style={styles.rowMain}>
-                <View style={col("proveedor")}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {s.prov_nombre}
-                  </Text>
-
-                  {(s.prov_telefono || s.prov_correo) && (
-                    <Text style={styles.sub} numberOfLines={1}>
-                      {[s.prov_telefono, s.prov_correo].filter(Boolean).join(" · ")}
-                    </Text>
-                  )}
-                </View>
-
-                <View style={col("cuit")}>
-                  <Text style={styles.cuit} numberOfLines={1}>
-                    {s.prov_cuit || "—"}
-                  </Text>
-                </View>
-
-                <View style={col("rubro")}>
-                  <Text style={styles.rubro} numberOfLines={1}>
-                    {s.rubro ?? "—"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.actionsCol}>
-                <RowActions
-                  onEdit={() => setEditing(s)}
-                  onDelete={() => handleDelete(s)}
-                  editTooltip="Editar proveedor"
-                  deleteTooltip="Eliminar proveedor"
-                />
-              </View>
+              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
             </View>
-          ))}
+
+            {pageItems.map((s, i) => (
+              <View key={s.prov_id_proveedor} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                <View style={styles.rowMain}>
+                  <View style={col("proveedor")}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {s.prov_nombre}
+                    </Text>
+
+                    {(s.prov_telefono || s.prov_correo) && (
+                      <Text style={styles.sub} numberOfLines={1}>
+                        {[s.prov_telefono, s.prov_correo].filter(Boolean).join(" · ")}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={col("cuit")}>
+                    <Text style={styles.cuit} numberOfLines={1}>
+                      {s.prov_cuit || "—"}
+                    </Text>
+                  </View>
+
+                  <View style={col("rubro")}>
+                    <Text style={styles.rubro} numberOfLines={1}>
+                      {s.rubro ?? "—"}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.actionsCol}>
+                  <RowActions
+                    onEdit={() => setEditing(s)}
+                    onDelete={() => handleDelete(s)}
+                    editTooltip="Editar proveedor"
+                    deleteTooltip="Eliminar proveedor"
+                  />
+                </View>
+              </View>
+            ))}
+          </ScrollableTable>
         </View>
       )}
 
@@ -271,15 +272,16 @@ function makeStyles(c: ThemeColors) {
     container: { backgroundColor: c.bg },
     content: { padding: 20 },
     center: { flex: 1 },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     header: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },

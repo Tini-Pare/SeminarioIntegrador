@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   createSupplier,
@@ -12,6 +12,7 @@ import { useTheme } from "../lib/ThemeContext";
 import type { TipoProveedor } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { Select } from "./Select";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 // Digits plus the usual separators (spaces, +, -, parentheses): area codes and
 // formats vary, so length isn't checked — only that there are no letters and at
@@ -58,8 +59,8 @@ export function SupplierModal({
     [tipos],
   );
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setName(supplier?.prov_nombre ?? "");
     setPhone(supplier?.prov_telefono ?? "");
     setEmail(supplier?.prov_correo ?? "");
@@ -67,7 +68,7 @@ export function SupplierModal({
     setTpId(supplier?.tp_id ?? null);
     setRubroOpen(false);
     setError(null);
-  }, [visible, supplier]);
+  }, [supplier]);
 
   async function handleSave() {
     const trimmedName = name.trim();

@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { CheckIcon, RefreshCwIcon, SparePartIcon, WarningIcon } from "./icons";
 import { Tooltip } from "./Tooltip";
 import type { AppNotification } from "../lib/queries/notifications";
@@ -25,7 +26,7 @@ export function NotificationsPanel({
 }: NotificationsPanelProps) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   return (
     <View style={styles.card}>

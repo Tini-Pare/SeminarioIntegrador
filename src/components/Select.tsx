@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -9,8 +9,10 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import type { TextInputInstance, ViewInstance } from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 export type SelectOption<T extends number | string = number> = { value: T; label: string };
 
@@ -62,8 +64,8 @@ export function Select<T extends number | string = number>({
 
   const [query, setQuery] = useState("");
   const [flipVertical, setFlipVertical] = useState(false);
-  const searchRef = useRef<TextInput>(null);
-  const controlRef = useRef<View>(null);
+  const searchRef = useRef<TextInputInstance>(null);
+  const controlRef = useRef<ViewInstance>(null);
 
   const { colors } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
@@ -71,9 +73,13 @@ export function Select<T extends number | string = number>({
 
   const selected = options.find((o) => o.value === value) ?? null;
 
-  useEffect(() => {
+  // Each open starts with an empty search.
+  useResetOnOpen(open, () => setQuery(""));
+
+  // Measure before paint so the dropdown opens already flipped when it
+  // wouldn't fit below (React's measure-then-setState pattern).
+  useLayoutEffect(() => {
     if (open) {
-      setQuery("");
       const t = setTimeout(() => searchRef.current?.focus(), 50);
 
       if (

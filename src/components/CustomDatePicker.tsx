@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -8,9 +8,11 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import type { ViewInstance } from "react-native";
 import { CalendarIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 const MONTH_NAMES = [
   "Enero",
@@ -235,29 +237,35 @@ export function CustomDatePicker({
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [flipVertical, setFlipVertical] = useState(false);
-  const inputRef = useRef<View>(null);
+  const inputRef = useRef<ViewInstance>(null);
   const { colors } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
   const styles = makeStyles(colors, flipVertical, compact, alignDropdown);
 
-  useEffect(() => {
-    if (isOpen) {
-      const parsed = parseDateString(value);
-      if (parsed) {
-        setCurrentMonth(parsed.getMonth());
-        setCurrentYear(parsed.getFullYear());
-      } else {
-        const today = toDay(new Date());
-        let initialDate = today;
-        if (minDate && initialDate < toDay(minDate)) {
-          initialDate = toDay(minDate);
-        } else if (maxDate && initialDate > toDay(maxDate)) {
-          initialDate = toDay(maxDate);
-        }
-        setCurrentMonth(initialDate.getMonth());
-        setCurrentYear(initialDate.getFullYear());
+  // Each open shows the selected date's month, or today's (clamped to the
+  // allowed range) when there's none.
+  useResetOnOpen(isOpen, () => {
+    const parsed = parseDateString(value);
+    if (parsed) {
+      setCurrentMonth(parsed.getMonth());
+      setCurrentYear(parsed.getFullYear());
+    } else {
+      const today = toDay(new Date());
+      let initialDate = today;
+      if (minDate && initialDate < toDay(minDate)) {
+        initialDate = toDay(minDate);
+      } else if (maxDate && initialDate > toDay(maxDate)) {
+        initialDate = toDay(maxDate);
       }
+      setCurrentMonth(initialDate.getMonth());
+      setCurrentYear(initialDate.getFullYear());
+    }
+  }, [value, minDate?.getTime(), maxDate?.getTime()]);
 
+  // Measure before paint so the calendar opens already flipped when it
+  // wouldn't fit below (React's measure-then-setState pattern).
+  useLayoutEffect(() => {
+    if (isOpen) {
       if (
         Platform.OS === "web" &&
         typeof (inputRef.current as any)?.getBoundingClientRect === "function"
@@ -278,7 +286,7 @@ export function CustomDatePicker({
         });
       }
     }
-  }, [isOpen, value, windowHeight, compact, minDate, maxDate]);
+  }, [isOpen, windowHeight, compact]);
 
   const handleTextChange = (text: string) => {
     const result = formatAndValidateDateInput(text, value, minDate, maxDate);

@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signIn } from "../../lib/auth";
@@ -23,7 +24,7 @@ export default function Login() {
   const { width } = useWindowDimensions();
   const isTablet = width >= BREAKPOINT.tablet;
   const insets = useSafeAreaInsets();
-  const passwordRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 

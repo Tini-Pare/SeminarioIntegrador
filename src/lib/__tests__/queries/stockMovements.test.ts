@@ -1,12 +1,12 @@
+import { listStockMovements, registrarMovimientoStock } from "../../queries/stockMovements";
+import { supabase } from "../../supabase";
+
 jest.mock("../../supabase", () => ({
   supabase: {
     from: jest.fn(),
     rpc: jest.fn(),
   },
 }));
-
-import { listStockMovements, registrarMovimientoStock } from "../../queries/stockMovements";
-import { supabase } from "../../supabase";
 
 describe("listStockMovements", () => {
   it("lists newest first and unwraps the repuesto's name", async () => {

@@ -1,9 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-  },
-}));
-
 import {
   createGeneralTask,
   deleteGeneralTask,
@@ -12,6 +6,12 @@ import {
   updateGeneralTask,
 } from "../../queries/generalTasks";
 import { supabase } from "../../supabase";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+  },
+}));
 
 describe("listGeneralTasks", () => {
   it("returns tasks ordered by name, leaving system tareas out", async () => {

@@ -21,6 +21,7 @@ import { closeSolicitud, generateOrder } from "../lib/queries/faults";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 import type { Equipo, Profile, Solicitud, SolicitudTask } from "../types/database";
 
 type Item = Solicitud & {
@@ -106,11 +107,19 @@ export function SolicitudDetailModal({
     high: colors.urgencyHigh,
   };
 
+  // A different solicitud (or none) starts with every sub-dialog closed.
+  useResetOnOpen(
+    true,
+    () => {
+      setGenerateOpen(false);
+      setCloseWithoutOtOpen(false);
+      setLightboxUrl(null);
+      setError(null);
+    },
+    [solicitud],
+  );
+
   useEffect(() => {
-    setGenerateOpen(false);
-    setCloseWithoutOtOpen(false);
-    setLightboxUrl(null);
-    setError(null);
     if (solicitud) {
       listProfiles()
         .then((profiles) => setProfileById(new Map(profiles.map((p) => [p.id, p]))))
@@ -174,7 +183,14 @@ export function SolicitudDetailModal({
 
   return (
     <>
-      <Modal visible transparent animationType="fade" onRequestClose={() => !busy && onClose()}>
+      <Modal
+        visible
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!busy) onClose();
+        }}
+      >
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             <ScrollView

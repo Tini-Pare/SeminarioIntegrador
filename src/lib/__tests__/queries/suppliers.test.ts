@@ -1,9 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-  },
-}));
-
 import {
   createSupplier,
   deleteSupplier,
@@ -12,6 +6,12 @@ import {
   updateSupplier,
 } from "../../queries/suppliers";
 import { supabase } from "../../supabase";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+  },
+}));
 
 beforeEach(() => jest.clearAllMocks());
 

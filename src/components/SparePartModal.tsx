@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { createSparePart, updateSparePart, type SparePartInput } from "../lib/queries/spareParts";
 import type { ThemeColors } from "../lib/theme";
@@ -6,6 +6,7 @@ import { useTheme } from "../lib/ThemeContext";
 import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 const ESTADO_OPTIONS: RadioOption<Repuesto["rep_estado"]>[] = [
   { value: "activo", label: "Activo" },
@@ -44,14 +45,14 @@ export function SparePartModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setName(sparePart?.rep_nombre ?? "");
     setStockMin(sparePart ? String(sparePart.rep_stock_minimo) : "");
     setStockMax(sparePart?.rep_stock_maximo != null ? String(sparePart.rep_stock_maximo) : "");
     setEstado(sparePart?.rep_estado ?? "activo");
     setError(null);
-  }, [visible, sparePart]);
+  }, [sparePart]);
 
   async function handleSave() {
     const trimmedName = name.trim();

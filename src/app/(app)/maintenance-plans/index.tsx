@@ -1,22 +1,15 @@
 import { Stack, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { MaintenancePlanModal } from "../../../components/MaintenancePlanModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { WarningIcon } from "../../../components/icons";
-import { BREAKPOINT, NUMERIC_COL_GAP } from "../../../constants";
+import { NUMERIC_COL_GAP } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
 import {
   deactivateMaintenancePlan,
@@ -27,6 +20,7 @@ import { listEquipmentTypes } from "../../../lib/queries/equipmentTypes";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { useIsPhone } from "../../../lib/useIsPhone";
 import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
@@ -55,9 +49,9 @@ export default function MaintenancePlansScreen() {
   const [showDeactivatePrompt, setShowDeactivatePrompt] = useState(false);
 
   const [profile, setProfile] = useState<Profile | null>(null);
-  const { width } = useWindowDimensions();
-  const isWide = width >= BREAKPOINT.tablet;
   const { colors } = useTheme();
+  // Phones get the short label so the button fits next to the title.
+  const isPhone = useIsPhone();
   const styles = makeStyles(colors);
 
   const isAdmin = profile?.role === "admin";
@@ -253,8 +247,12 @@ export default function MaintenancePlansScreen() {
 
           {isAdmin && (
             <View style={styles.headerActions}>
-              <Pressable style={styles.primaryButton} onPress={handleOpenCreate}>
-                <Text style={styles.primaryButtonText}>+ Nuevo plan</Text>
+              <Pressable
+                style={styles.primaryButton}
+                onPress={handleOpenCreate}
+                accessibilityLabel="Nuevo plan"
+              >
+                <Text style={styles.primaryButtonText}>{isPhone ? "+ Nuevo" : "+ Nuevo plan"}</Text>
               </Pressable>
             </View>
           )}
@@ -315,134 +313,81 @@ export default function MaintenancePlansScreen() {
               ? "Todavía no hay planes de mantenimiento cargados."
               : "No hay planes que coincidan con la búsqueda o los filtros."}
           </Text>
-        ) : isWide ? (
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <SortHeaderCell
-                label="PLAN"
-                field="plan"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 2.2 }}
-              />
-
-              <SortHeaderCell
-                label="TIPO DE EQUIPO"
-                field="tipo"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1.6 }}
-              />
-
-              <SortHeaderCell
-                label="FRECUENCIA"
-                field="frecuencia"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1.2 }}
-              />
-
-              <SortHeaderCell
-                label="TAREAS"
-                field="tareas"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={[{ flex: 1 }, styles.numHeaderCell]}
-              />
-
-              <SortHeaderCell
-                label="EQUIPOS"
-                field="equipos"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={[{ flex: 1 }, styles.numHeaderCell]}
-              />
-
-              <SortHeaderCell
-                label="ESTADO"
-                field="estado"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1.1 }}
-              />
-
-              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-            </View>
-
-            {pageItems.map((p, idx) => (
-              <PlanTableRow
-                key={p.pm_id_plan}
-                plan={p}
-                index={idx}
-                isAdmin={isAdmin}
-                onView={() => handleOpenView(p)}
-                onEdit={() => handleOpenEdit(p)}
-                onDelete={() => handleDeleteClick(p)}
-                colors={colors}
-                styles={styles}
-              />
-            ))}
-          </View>
         ) : (
-          /* Mobile Card List */
-          <View style={styles.cardList}>
-            {pageItems.map((p) => (
-              <View key={p.pm_id_plan} style={styles.card}>
-                <View style={styles.cardTopRow}>
-                  <Text style={styles.cardTitle}>{p.pm_nombre_plan}</Text>
+          <View style={styles.table}>
+            <ScrollableTable minWidth={900}>
+              <View style={styles.tableHeader}>
+                <SortHeaderCell
+                  label="PLAN"
+                  field="plan"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(2.2)}
+                />
 
-                  <ActiveBadge active={p.pm_estado === "activo"} styles={styles} colors={colors} />
-                </View>
+                <SortHeaderCell
+                  label="TIPO DE EQUIPO"
+                  field="tipo"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1.6)}
+                />
 
-                {p.pm_descripcion_plan ? (
-                  <Text style={styles.cardDesc} numberOfLines={2}>
-                    {p.pm_descripcion_plan}
-                  </Text>
-                ) : null}
+                <SortHeaderCell
+                  label="FRECUENCIA"
+                  field="frecuencia"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1.2)}
+                />
 
-                <View style={styles.cardMetaGrid}>
-                  <View style={styles.cardMetaItem}>
-                    <Text style={styles.cardMetaLabel}>TIPO</Text>
+                <SortHeaderCell
+                  label="TAREAS"
+                  field="tareas"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={[tableCol(1), styles.numHeaderCell]}
+                />
 
-                    <Text style={styles.cardMetaVal}>{p.te_nombre}</Text>
-                  </View>
+                <SortHeaderCell
+                  label="EQUIPOS"
+                  field="equipos"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={[tableCol(1), styles.numHeaderCell]}
+                />
 
-                  <View style={styles.cardMetaItem}>
-                    <Text style={styles.cardMetaLabel}>FRECUENCIA</Text>
+                <SortHeaderCell
+                  label="ESTADO"
+                  field="estado"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1.1)}
+                />
 
-                    <Text style={styles.cardMetaVal}>
-                      Cada {p.pm_frecuencia} {p.pm_frecuencia === 1 ? "día" : "días"}
-                    </Text>
-                  </View>
-
-                  <View style={styles.cardMetaItem}>
-                    <Text style={styles.cardMetaLabel}>TAREAS / EQUIPOS</Text>
-
-                    <Text style={styles.cardMetaVal}>
-                      {p.task_count} {p.task_count === 1 ? "tarea" : "tareas"} ·{p.equipment_count}{" "}
-                      eq.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardActions}>
-                  <RowActions
-                    onView={() => handleOpenView(p)}
-                    onEdit={isAdmin ? () => handleOpenEdit(p) : undefined}
-                    onDelete={isAdmin ? () => handleDeleteClick(p) : undefined}
-                    viewTooltip="Ver plan"
-                    editTooltip="Editar plan"
-                    deleteTooltip="Eliminar o dar de baja"
-                  />
-                </View>
+                <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
               </View>
-            ))}
+
+              {pageItems.map((p, idx) => (
+                <PlanTableRow
+                  key={p.pm_id_plan}
+                  plan={p}
+                  index={idx}
+                  isAdmin={isAdmin}
+                  onView={() => handleOpenView(p)}
+                  onEdit={() => handleOpenEdit(p)}
+                  onDelete={() => handleDeleteClick(p)}
+                  colors={colors}
+                  styles={styles}
+                />
+              ))}
+            </ScrollableTable>
           </View>
         )}
 
@@ -523,7 +468,7 @@ function PlanTableRow({
   return (
     <View style={[styles.tableRow, index % 2 === 1 ? styles.rowAlt : styles.rowNormal]}>
       {/* Plan Column */}
-      <View style={{ flex: 2.2 }}>
+      <View style={tableCol(2.2)}>
         <Text style={styles.planNameText} numberOfLines={1}>
           {p.pm_nombre_plan}
         </Text>
@@ -536,31 +481,31 @@ function PlanTableRow({
       </View>
 
       {/* Tipo */}
-      <View style={{ flex: 1.6 }}>
+      <View style={tableCol(1.6)}>
         <Text style={styles.typeText} numberOfLines={1}>
           {p.te_nombre}
         </Text>
       </View>
 
       {/* Frecuencia */}
-      <View style={{ flex: 1.2 }}>
+      <View style={tableCol(1.2)}>
         <Text style={styles.cellText}>
           Cada {p.pm_frecuencia} {p.pm_frecuencia === 1 ? "día" : "días"}
         </Text>
       </View>
 
       {/* Tareas */}
-      <View style={[{ flex: 1 }, styles.numCol]}>
+      <View style={[tableCol(1), styles.numCol]}>
         <Text style={[styles.cellText, styles.numText]}>{p.task_count}</Text>
       </View>
 
       {/* Equipos */}
-      <View style={[{ flex: 1 }, styles.numCol]}>
+      <View style={[tableCol(1), styles.numCol]}>
         <Text style={[styles.cellText, styles.numText]}>{p.equipment_count}</Text>
       </View>
 
       {/* Estado */}
-      <View style={{ flex: 1.1 }}>
+      <View style={tableCol(1.1)}>
         <ActiveBadge active={p.pm_estado === "activo"} styles={styles} colors={colors} />
       </View>
 
@@ -613,14 +558,15 @@ function makeStyles(c: ThemeColors) {
       textAlign: "center",
       maxWidth: 400,
     },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     pageHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "center",
+      alignItems: "flex-start",
+      gap: 12,
     },
-    headerText: {
-      gap: 3,
-    },
+    headerText: { flex: 1, minWidth: 0, gap: 3 },
     title: {
       fontSize: 22,
       fontWeight: "600",
@@ -630,10 +576,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13.5,
       color: c.textSecondary,
     },
-    headerActions: {
-      flexDirection: "row",
-      gap: 12,
-    },
+    headerActions: { flexDirection: "row", gap: 12, flexShrink: 0 },
     primaryButton: {
       backgroundColor: c.accent,
       paddingHorizontal: 16,
@@ -766,60 +709,6 @@ function makeStyles(c: ThemeColors) {
     statusText: {
       fontSize: 12.5,
       fontWeight: "600",
-    },
-    cardList: {
-      gap: 12,
-    },
-    card: {
-      backgroundColor: c.bgCard,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: c.border,
-      padding: 16,
-      gap: 10,
-    },
-    cardTopRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    cardTitle: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: c.text,
-      flex: 1,
-      marginRight: 10,
-    },
-    cardDesc: {
-      fontSize: 12.5,
-      color: c.textMuted,
-    },
-    cardMetaGrid: {
-      gap: 6,
-      backgroundColor: c.bgNested,
-      padding: 10,
-      borderRadius: 8,
-    },
-    cardMetaItem: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    cardMetaLabel: {
-      fontSize: 11,
-      fontWeight: "700",
-      color: c.textMuted,
-      letterSpacing: 0.5,
-    },
-    cardMetaVal: {
-      fontSize: 12.5,
-      fontWeight: "500",
-      color: c.text,
-    },
-    cardActions: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      marginTop: 4,
     },
   });
 }

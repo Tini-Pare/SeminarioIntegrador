@@ -23,6 +23,7 @@ import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import type { Solicitud, Equipo } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 type Item = Solicitud & {
   equipment: Pick<Equipo, "code" | "name">;
@@ -33,7 +34,6 @@ type Item = Solicitud & {
 type EquipmentOption = Pick<Equipo, "id" | "code" | "name">;
 
 export default function RequestsScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
@@ -82,9 +82,7 @@ export default function RequestsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     const channel = supabase
@@ -249,15 +247,16 @@ function makeStyles(c: ThemeColors) {
     container: { backgroundColor: c.bg },
     content: { padding: 20 },
     center: { flex: 1 },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     header: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 20,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     reportButton: {

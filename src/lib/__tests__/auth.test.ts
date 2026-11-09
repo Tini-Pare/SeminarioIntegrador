@@ -1,3 +1,6 @@
+import { getProfile, signIn, signOut } from "../auth";
+import { supabase } from "../supabase";
+
 jest.mock("../supabase", () => ({
   supabase: {
     auth: {
@@ -9,9 +12,6 @@ jest.mock("../supabase", () => ({
     from: jest.fn(),
   },
 }));
-
-import { getProfile, signIn, signOut } from "../auth";
-import { supabase } from "../supabase";
 
 beforeEach(() => {
   jest.clearAllMocks();
