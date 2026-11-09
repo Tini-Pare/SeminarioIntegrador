@@ -4,6 +4,7 @@ import {
   REQUEST_STATUS_SERIES,
 } from "../components/charts/palette";
 import type { ChartSeries } from "../components/charts/palette";
+import { Platform } from "react-native";
 import { fromDbDate } from "../components/CustomDatePicker";
 import {
   ORDER_STATUS_LABELS,
@@ -128,14 +129,14 @@ export function statisticsPdfBaseName(tab: StatisticsTabKey, period: StatsPeriod
 export function buildStatisticsHtml(input: StatisticsPdfInput): string {
   const { tab, period, type } = input;
   const body = SECTION_BUILDERS[tab](input);
-  const generated = `${formatDateTime(input.generatedAt)}${input.generatedBy ? ` por ${esc(input.generatedBy)}` : ""}`;
+  const generated = `Generado el ${formatDateTime(input.generatedAt)}${input.generatedBy ? ` por ${input.generatedBy}` : ""} · Mantia — Sistema de mantenimiento`;
 
   return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <title>${esc(statisticsPdfBaseName(tab, period))}</title>
-<style>${CSS}</style>
+<style>${CSS}${pageMarginCss(generated)}</style>
 </head>
 <body>
 <header class="doc-header">
@@ -156,7 +157,7 @@ export function buildStatisticsHtml(input: StatisticsPdfInput): string {
 <main>
 ${body}
 </main>
-<footer class="doc-footer">Generado el ${generated} · Mantia — Sistema de mantenimiento</footer>
+${INLINE_FOOTER ? `<footer class="doc-footer">${esc(generated)}</footer>` : ""}
 </body>
 </html>`;
 }
@@ -748,14 +749,48 @@ function formatDateTime(d: Date): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} a las ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Chrome's print dialog (web, "Encabezados y pies de página") stamps the
+// date, the file name, the URL and "1/2" into the page margins. It skips
+// that for any margin edge where the document defines its own margin box,
+// so the bottom edge gets the "Generado el …" line, repeated on every page
+// in the document's own type, and the top edge an empty box. Android's
+// WebView (also Chromium) renders it the same way. iOS WebKit has no
+// margin boxes and adds no header of its own, so there the line is printed
+// once, at the end of the document, as before.
+const INLINE_FOOTER = Platform.OS === "ios";
+
+function pageMarginCss(footerText: string): string {
+  return `
+@page {
+  @top-center { content: ""; }
+  @bottom-center {
+    content: "${cssString(footerText)}";
+    font-family: ${FONT_STACK}; font-size: 9px; color: ${c.textMuted};
+    vertical-align: top; padding-top: 4mm;
+  }
+}
+`;
+}
+
+// Escapes text for a double-quoted CSS string inside a <style> element.
+function cssString(s: string): string {
+  return s
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/</g, "\\3C ")
+    .replace(/[\r\n]+/g, " ");
+}
+
 const c = light;
+
+const FONT_STACK = `-apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
 
 const CSS = `
 @page { size: A4; margin: 14mm 12mm; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 html, body { margin: 0; padding: 0; background: #ffffff; }
 body {
-  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: ${FONT_STACK};
   font-size: 11px; line-height: 1.4; color: ${c.text};
 }
 .doc-header {
