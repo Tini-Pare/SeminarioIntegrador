@@ -136,7 +136,11 @@ export function Select<T extends number | string = number>({
             {filtered.length === 0 ? (
               <Text style={styles.noResults}>Sin resultados</Text>
             ) : (
-              <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
+              <ScrollView
+                style={searchable ? styles.optionsListSearchable : styles.optionsList}
+                keyboardShouldPersistTaps="always"
+                nestedScrollEnabled
+              >
                 {filtered.map((opt) => (
                   <Pressable
                     key={opt.value}
@@ -226,6 +230,8 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
     },
     search: {
       height: 40,
+      minHeight: 40,
+      flexShrink: 0,
       paddingHorizontal: 12,
       margin: 6,
       borderWidth: 1,
@@ -235,6 +241,14 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       fontSize: 13.5,
       color: c.text,
       ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
+    },
+    optionsList: {
+      maxHeight: 228,
+      flexGrow: 0,
+    },
+    optionsListSearchable: {
+      maxHeight: 176,
+      flexGrow: 0,
     },
     noResults: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 13, color: c.textMuted },
     option: { paddingHorizontal: 14, paddingVertical: 10 },

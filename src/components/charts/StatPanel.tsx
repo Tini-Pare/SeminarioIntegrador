@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import type { ThemeColors } from "../../lib/theme";
 import { useTheme } from "../../lib/ThemeContext";
 
@@ -9,18 +9,20 @@ export function StatPanel({
   title,
   caption,
   right,
+  style,
   children,
 }: {
   title: string;
   caption?: string;
   right?: ReactNode;
+  style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, style]}>
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.title}>{title}</Text>

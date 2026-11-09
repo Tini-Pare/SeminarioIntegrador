@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import {
   IDLE_DAYS,
@@ -69,10 +69,6 @@ export function PartsTab({
     [data, period, today],
   );
   const bought = useMemo(() => purchasedParts(data.purchases), [data]);
-
-  useEffect(() => {
-    if (selectedPart == null && bought.length > 0) onSelectPart(bought[0].repId);
-  }, [bought, selectedPart, onSelectPart]);
 
   const prices = useMemo(
     () => (selectedPart != null ? priceComparison(data.purchases, selectedPart) : []),
@@ -255,6 +251,7 @@ export function PartsTab({
       <StatPanel
         title="Precio por proveedor"
         caption="Historial completo de compras del repuesto (no usa el filtro de período), del precio actual más barato al más caro. Variación = primera → última compra a ese proveedor."
+        style={selectOpen ? { zIndex: 20 } : undefined}
       >
         {bought.length === 0 ? (
           <EmptyChart text="Todavía no hay compras con precio registrado." />
@@ -265,19 +262,23 @@ export function PartsTab({
                 value={selectedPart}
                 onChange={(v) => onSelectPart(v)}
                 options={bought.map((p) => ({ value: p.repId, label: p.name }))}
-                placeholder="Elegí un repuesto"
+                placeholder="Seleccionar repuesto"
                 open={selectOpen}
                 onOpenChange={setSelectOpen}
               />
             </View>
 
-            <StatTable
-              columns={priceColumns}
-              rows={prices}
-              rowKey={(r) => r.supplierId}
-              minWidth={680}
-              resetKey={String(selectedPart)}
-            />
+            {selectedPart == null ? (
+              <EmptyChart text="Seleccioná un repuesto para ver su precio por proveedor." />
+            ) : (
+              <StatTable
+                columns={priceColumns}
+                rows={prices}
+                rowKey={(r) => r.supplierId}
+                minWidth={680}
+                resetKey={String(selectedPart)}
+              />
+            )}
           </View>
         )}
       </StatPanel>
