@@ -119,12 +119,16 @@ no se corre.
   + ingreso de stock, atómico) y `resolver_pedido_compra`. Realtime en
   `repuestos` y `pedido_compra`.
 - **0049** unidad de medida de los repuestos: `repuestos.rep_unidad` (`unidad` \|
-  `litro` \| `kilogramo` \| `metro`, por defecto `unidad`). Las cantidades siguen
-  siendo enteras; la unidad se muestra al lado de cada cantidad ("Stock 12 L").
-  La primera vez que se corre asigna la unidad a los repuestos existentes según el
-  nombre (aceite → litro, gas refrigerante/R-410A → kilogramo, cable/caño → metro;
-  filtros, válvulas, etc. quedan en unidad). Revisar el resultado con el `SELECT`
-  del final del archivo y corregir lo que haga falta desde Repuestos → Editar.
+  `litro` \| `kilogramo` \| `metro` \| `metro_cuadrado` \| `caja` \| `rollo` \|
+  `par`). Es en qué se cuenta el stock, no una medida del repuesto: un "Cristal
+  templado 10mm" se cuenta en paños (unidad). Las cantidades siguen siendo
+  enteras; la unidad se muestra al lado de cada cantidad ("Stock 12 L", "3
+  cajas"). Al crear un repuesto la unidad es obligatoria. La primera vez que se
+  corre asigna la unidad a los repuestos existentes según el nombre (aceite →
+  litro, gas refrigerante/R-410A → kilogramo, cable/caño → metro, cinta → rollo,
+  guantes → par; filtros, válvulas, etc. quedan en unidad). Revisar el resultado
+  con el `SELECT` del final del archivo y corregir lo que haga falta desde
+  Repuestos → Editar.
 
 | Tabla                                   | Qué guarda                                                                                                    |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
