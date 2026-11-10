@@ -37,11 +37,13 @@ begin
 
     -- Names naming a piece stay 'unidad' even when they mention a liquid,
     -- gas or length material: "Filtro de aceite", "Detector de gas
-    -- refrigerante", "Conector para manguera", "Cinta aislante" (a roll).
+    -- refrigerante", "Compresor R410A", "Codo para caño 3/8", "Conector
+    -- para manguera", "Cinta aislante" (a roll), "Spray lubricante" (a can).
+    -- (s|es)? also catches plurals: "Filtros", "Uniones".
     create temporary table rep_piece on commit drop as
       select rep_id from repuestos
       where translate(lower(rep_nombre), 'áéíóúüñ', 'aeiouun')
-        ~ '\m(filtro|sensor|detector|valvula|bomba|manometro|junta|reten|sello|tapa|kit|termostato|presostato|ventilador|motor|correa|conector|terminal|bornera|precinto|cinta|abrazadera|soporte)\M';
+        ~ '\m(filtro|sensor|detector|valvula|bomba|compresor|manometro|junta|reten|sello|tapa|kit|termostato|presostato|ventilador|motor|correa|conector|terminal|bornera|ficha|precinto|cinta|abrazadera|soporte|codo|union|tuerca|acople|cupla|niple|adaptador|spray|aerosol)(s|es)?\M';
 
     -- kilogramo: refrigerant gases (by name or R-code) and grease.
     update repuestos set rep_unidad = 'kilogramo'
@@ -49,18 +51,23 @@ begin
         and translate(lower(rep_nombre), 'áéíóúüñ', 'aeiouun')
           ~ '\m(refrigerante|grasa|r-?(22|32|134a?|404a?|407c?|410a?|600a?))\M';
 
-    -- litro: liquids. Runs after kg so "Líquido refrigerante" ends in litros.
+    -- litro: liquids. Only rows still at 'unidad', plus "líquido …", which
+    -- moves "Líquido refrigerante" from kg to litros; "Grasa lubricante"
+    -- stays in kg.
     update repuestos set rep_unidad = 'litro'
       where rep_id not in (select rep_id from rep_piece)
+        and (rep_unidad = 'unidad'
+             or translate(lower(rep_nombre), 'áéíóúüñ', 'aeiouun') ~ '\mliquidos?\M')
         and translate(lower(rep_nombre), 'áéíóúüñ', 'aeiouun')
-          ~ '\m(aceite|liquido|desengrasante|limpiador|alcohol|solvente|thinner|anticongelante|glicol|lubricante|pintura)\M';
+          ~ '\m(aceite|liquido|desengrasante|limpiador|alcohol|solvente|thinner|anticongelante|glicol|lubricante|pintura)s?\M';
 
-    -- metro: sold by length.
+    -- metro: sold by length, plurals included ("Caños de cobre"), plus
+    -- copper and capillary tube (but not "Tubo fluorescente").
     update repuestos set rep_unidad = 'metro'
       where rep_unidad = 'unidad'
         and rep_id not in (select rep_id from rep_piece)
         and translate(lower(rep_nombre), 'áéíóúüñ', 'aeiouun')
-          ~ '\m(cable|cano|caneria|tuberia|manguera|aislante|burlete)\M';
+          ~ '\m((cable|cano|caneria|tuberia|manguera|aislante|burlete)s?|capilar(es)?|tubos? (de )?cobre)\M';
   end if;
 end $$;
 
