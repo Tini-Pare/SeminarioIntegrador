@@ -14,6 +14,7 @@ import { listSpareParts } from "../lib/queries/spareParts";
 import { normalizeSearch, startsWithSearch } from "../lib/search";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { formatUnitQty, unitShort } from "../lib/units";
 import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { SearchIcon } from "./icons";
@@ -122,8 +123,11 @@ export function FinishTaskModal({
     if (!row.qty.trim() || !Number.isInteger(qty) || qty <= 0) {
       return "Ingresá una cantidad válida.";
     }
-    const stock = partById.get(row.repId)?.rep_cantidad_actual ?? 0;
-    if (qty > stock) return `No hay stock suficiente (disponible: ${stock}).`;
+    const part = partById.get(row.repId);
+    const stock = part?.rep_cantidad_actual ?? 0;
+    if (qty > stock) {
+      return `No hay stock suficiente (disponible: ${formatUnitQty(stock, part?.rep_unidad)}).`;
+    }
     return null;
   }
 
@@ -248,7 +252,9 @@ export function FinishTaskModal({
                             </Text>
 
                             <Text style={styles.resultStock}>
-                              {outOfStock ? "Sin stock" : `Existencias: ${p.rep_cantidad_actual}`}
+                              {outOfStock
+                                ? "Sin stock"
+                                : `Existencias: ${formatUnitQty(p.rep_cantidad_actual, p.rep_unidad)}`}
                             </Text>
                           </Pressable>
                         );
@@ -287,10 +293,10 @@ export function FinishTaskModal({
                           </Text>
 
                           <Text style={[styles.cellText, styles.colStock]}>
-                            {part?.rep_cantidad_actual ?? "—"}
+                            {part ? formatUnitQty(part.rep_cantidad_actual, part.rep_unidad) : "—"}
                           </Text>
 
-                          <View style={styles.colUsada}>
+                          <View style={[styles.colUsada, styles.qtyField]}>
                             <TextInput
                               style={[styles.qtyInput, rowErr && styles.qtyInputError]}
                               value={row.qty}
@@ -308,6 +314,8 @@ export function FinishTaskModal({
                               autoFocus={focusRepId === row.repId}
                               accessibilityLabel={`Cantidad usada de ${part?.rep_nombre ?? "repuesto"}`}
                             />
+
+                            <Text style={styles.qtyUnit}>{unitShort(part?.rep_unidad)}</Text>
                           </View>
 
                           <View style={styles.colActions}>
@@ -460,9 +468,13 @@ function makeStyles(c: ThemeColors) {
     // the row overflows: the width is lost and right-aligned figures stop
     // lining up. 84 is the narrowest that fits "EXISTENCIAS" on one line.
     colStock: { width: 84, flexShrink: 0, textAlign: "right", fontVariant: ["tabular-nums"] },
-    colUsada: { width: 72, flexShrink: 0, textAlign: "right" },
+    // Input plus its unit suffix ("L", "kg"), so 22 wider than the input alone.
+    colUsada: { width: 94, flexShrink: 0, textAlign: "right" },
+    qtyField: { flexDirection: "row", alignItems: "center", gap: 6 },
     colActions: { width: 80, flexShrink: 0, alignItems: "center" },
     qtyInput: {
+      flex: 1,
+      minWidth: 0,
       height: 38,
       paddingHorizontal: 10,
       borderWidth: 1,
@@ -475,6 +487,7 @@ function makeStyles(c: ThemeColors) {
       fontVariant: ["tabular-nums"],
     },
     qtyInputError: { borderColor: c.destructive, borderWidth: 1.5 },
+    qtyUnit: { width: 16, fontSize: 12.5, color: c.textMuted },
     rowError: { marginTop: 6, fontSize: 12, color: c.destructive },
     diagnosisLabel: {
       fontSize: 13.5,

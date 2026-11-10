@@ -1,5 +1,6 @@
 import { formatOrderNumber } from "../orderNumber";
 import { supabase } from "../supabase";
+import type { UnidadRepuesto } from "../units";
 
 // Every notification is a row of notificacion (0040), written by triggers
 // for its recipient (one row per admin, or the técnico a falla crítica is
@@ -50,6 +51,8 @@ export type RawStockNotification = {
   // Stock and mínimo when it happened, not now.
   quantity: number;
   minimum: number;
+  // The repuesto's unit (rep_unidad); null if the embed came back empty.
+  unit: UnidadRepuesto | null;
   createdAt: string;
 };
 
@@ -62,6 +65,7 @@ export type StockNotification = {
   eventType: "stock_bajo" | "sin_stock";
   quantity: number;
   minimum: number;
+  unit: UnidadRepuesto | null;
   createdAt: string;
   isRead: boolean;
   title: string;
@@ -240,6 +244,7 @@ export function buildStockNotifications(rows: RawStockNotification[]): StockNoti
     eventType: e.type,
     quantity: e.quantity,
     minimum: e.minimum,
+    unit: e.unit,
     createdAt: e.createdAt,
     isRead: e.isRead,
     title: e.type === "sin_stock" ? "Repuesto sin stock" : "Stock mínimo alcanzado",
@@ -297,7 +302,7 @@ export async function listNotifications(): Promise<{
       no_leida,
       no_creada_en,
       rep_id,
-      repuestos(rep_nombre),
+      repuestos(rep_nombre, rep_unidad),
       orden_de_trabajo(
         ot_id_orden,
         eq_id_equipo,
@@ -361,6 +366,7 @@ export async function listNotifications(): Promise<{
         type: row.no_tipo,
         quantity: row.no_cantidad ?? 0,
         minimum: row.no_minimo ?? 0,
+        unit: row.repuestos?.rep_unidad ?? null,
         createdAt: row.no_creada_en,
       });
     }

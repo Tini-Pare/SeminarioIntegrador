@@ -11,6 +11,7 @@ const valid: StockMovementFormInput = {
   motivo: "Pérdida",
   comentario: "",
   stockActual: 10,
+  unidad: "litro",
 };
 
 describe("validateStockMovement", () => {
@@ -49,7 +50,7 @@ describe("validateStockMovement", () => {
   it("rejects an egreso bigger than the stock on hand", () => {
     expect(validateStockMovement({ ...valid, cantidad: "11" })).toEqual({
       valid: false,
-      error: "No hay stock suficiente: hay 10 y se quieren sacar 11.",
+      error: "No hay stock suficiente: hay 10 L y se quieren sacar 11 L.",
     });
   });
 

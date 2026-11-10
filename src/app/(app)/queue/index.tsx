@@ -46,6 +46,7 @@ import { TableFilterBar } from "../../../components/TableFilterBar";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { useConfirm } from "../../../lib/useConfirm";
+import { formatUnitQty } from "../../../lib/units";
 import type { Equipo, PastTaskSuspension, Solicitud } from "../../../types/database";
 import { useInitialLoad } from "../../../lib/useInitialLoad";
 
@@ -652,7 +653,9 @@ export default function QueueScreen() {
                     {item.consumedParts.length > 0 && (
                       <Text style={styles.consumedText}>
                         Repuestos usados:{" "}
-                        {item.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                        {item.consumedParts
+                          .map((p) => `${p.nombre} ×${formatUnitQty(p.cantidad, p.unidad)}`)
+                          .join(" · ")}
                       </Text>
                     )}
 

@@ -13,6 +13,8 @@
 // rest of the schema (planes de mantenimiento, catalogo de fallas, etc., see
 // supabase/migrations/0003_reemplazo_gestion_mantenimiento.sql) has no UI yet
 // and nothing here queries it.
+import type { UnidadRepuesto } from "../lib/units";
+
 export type Database = {
   public: {
     Views: Record<string, never>;
@@ -618,6 +620,8 @@ export type Database = {
           rep_stock_minimo: number;
           rep_stock_maximo: number | null;
           rep_estado: "activo" | "inactivo";
+          // Migration 0049; see src/lib/units.ts.
+          rep_unidad: UnidadRepuesto;
         };
         Insert: {
           rep_id?: number;
@@ -626,6 +630,7 @@ export type Database = {
           rep_stock_minimo?: number;
           rep_stock_maximo?: number | null;
           rep_estado?: "activo" | "inactivo";
+          rep_unidad?: UnidadRepuesto;
         };
         Update: {
           rep_id?: number;
@@ -634,6 +639,7 @@ export type Database = {
           rep_stock_minimo?: number;
           rep_stock_maximo?: number | null;
           rep_estado?: "activo" | "inactivo";
+          rep_unidad?: UnidadRepuesto;
         };
         Relationships: [];
       };
@@ -1194,7 +1200,13 @@ export type SolicitudTask = {
   endDate: string | null; // taro_fecha_fin — null until the técnico finishes it
   // What the técnico registered as used on this tarea (finalizar_tarea,
   // migration 0021) — empty until finished, and stays empty if none was used.
-  consumedParts: { repId: number; nombre: string; cantidad: number }[];
+  // unidad: the repuesto's rep_unidad, null if the embed came back empty.
+  consumedParts: {
+    repId: number;
+    nombre: string;
+    cantidad: number;
+    unidad: Repuesto["rep_unidad"] | null;
+  }[];
   // The técnico's diagnóstico/observación written when finishing the tarea
   // (finalizar_tarea, migration 0023) — null if none was written.
   diagnosis: string | null;

@@ -3,6 +3,7 @@ import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { createSparePart, updateSparePart, type SparePartInput } from "../lib/queries/spareParts";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { UNIDADES, UNIT_INFO, unitShort } from "../lib/units";
 import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
@@ -12,6 +13,13 @@ const ESTADO_OPTIONS: RadioOption<Repuesto["rep_estado"]>[] = [
   { value: "activo", label: "Activo" },
   { value: "inactivo", label: "Inactivo" },
 ];
+
+// "Litro (L)": the name says what it is, the symbol is how it shows next
+// to every quantity.
+const UNIDAD_OPTIONS: RadioOption<Repuesto["rep_unidad"]>[] = UNIDADES.map((u) => ({
+  value: u,
+  label: `${UNIT_INFO[u].name} (${UNIT_INFO[u].short})`,
+}));
 
 // Empty string -> null; anything else -> a non-negative integer (or null when
 // it doesn't parse, so the caller's validation catches it).
@@ -40,6 +48,7 @@ export function SparePartModal({
   const [stockMin, setStockMin] = useState("");
   const [stockMax, setStockMax] = useState("");
   const [estado, setEstado] = useState<Repuesto["rep_estado"]>("activo");
+  const [unidad, setUnidad] = useState<Repuesto["rep_unidad"]>("unidad");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
@@ -51,6 +60,7 @@ export function SparePartModal({
     setStockMin(sparePart ? String(sparePart.rep_stock_minimo) : "");
     setStockMax(sparePart?.rep_stock_maximo != null ? String(sparePart.rep_stock_maximo) : "");
     setEstado(sparePart?.rep_estado ?? "activo");
+    setUnidad(sparePart?.rep_unidad ?? "unidad");
     setError(null);
   }, [sparePart]);
 
@@ -88,7 +98,13 @@ export function SparePartModal({
       return;
     }
 
-    const payload: SparePartInput = { name: trimmedName, stockMin: min, stockMax: max, estado };
+    const payload: SparePartInput = {
+      name: trimmedName,
+      stockMin: min,
+      stockMax: max,
+      estado,
+      unidad,
+    };
 
     setSaving(true);
     setError(null);
@@ -130,9 +146,18 @@ export function SparePartModal({
             maxLength={100}
           />
 
+          <Text style={styles.label}>Unidad de medida</Text>
+
+          <RadioGroup
+            name="spare-part-unidad"
+            value={unidad}
+            onChange={setUnidad}
+            options={UNIDAD_OPTIONS}
+          />
+
           <View style={styles.row}>
             <View style={styles.rowItem}>
-              <Text style={styles.label}>Stock mínimo</Text>
+              <Text style={styles.label}>Stock mínimo ({unitShort(unidad)})</Text>
               <TextInput
                 style={styles.input}
                 value={stockMin}
@@ -144,7 +169,7 @@ export function SparePartModal({
             </View>
 
             <View style={styles.rowItem}>
-              <Text style={styles.label}>Stock máximo</Text>
+              <Text style={styles.label}>Stock máximo ({unitShort(unidad)})</Text>
               <TextInput
                 style={styles.input}
                 value={stockMax}

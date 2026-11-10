@@ -63,6 +63,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
             repId: 1,
             nombre: "Burlete de goma EPDM para puerta vidriada",
             cantidad: 2,
+            unidad: "metro" as const,
           },
         ],
         diagnosis: null,
@@ -131,7 +132,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
     expect(getByText("En curso")).toBeTruthy();
     expect(getByText("REPUESTOS")).toBeTruthy();
     expect(getByText(/Burlete de goma EPDM para puerta vidriada/)).toBeTruthy();
-    expect(getByText(/×2/)).toBeTruthy();
+    expect(getByText(/×2 m/)).toBeTruthy();
 
     // Task 2
     expect(getByText("Cambio de filtro")).toBeTruthy();

@@ -8,6 +8,7 @@ import { Tooltip } from "../../../components/Tooltip";
 import {
   anularRemitoCompra,
   getPurchaseById,
+  type PurchaseLineRepuesto,
   type PurchaseWithDetail,
   type RemitoWithLines,
 } from "../../../lib/queries/purchases";
@@ -25,6 +26,7 @@ import {
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { formatUnitQty } from "../../../lib/units";
 import type { ComprobanteTipo } from "../../../types/database";
 import { useInitialLoad } from "../../../lib/useInitialLoad";
 
@@ -45,10 +47,12 @@ function money(n: number | null | undefined): string {
   return `$${Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
 }
 
-function remitoItemsSummary(r: RemitoWithLines, names: Map<number, string>): string {
-  const parts = r.lineas.map(
-    (l) => `${names.get(l.rep_id) ?? `Repuesto ${l.rep_id}`} ×${l.rcl_cantidad}`,
-  );
+function remitoItemsSummary(r: RemitoWithLines, reps: Map<number, PurchaseLineRepuesto>): string {
+  const parts = r.lineas.map((l) => {
+    const rep = reps.get(l.rep_id);
+    const name = rep?.rep_nombre ?? `Repuesto ${l.rep_id}`;
+    return `${name} ×${formatUnitQty(l.rcl_cantidad, rep?.rep_unidad)}`;
+  });
   return parts.join(" · ") || "—";
 }
 
@@ -117,11 +121,12 @@ export default function PurchaseDetailScreen() {
     };
   }, [id, coId, load]);
 
-  const repNames = useMemo(() => {
-    const map = new Map<number, string>();
-    purchase?.linea_compra.forEach((l) =>
-      map.set(l.rep_id, l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`),
-    );
+  // Name + unit of each purchased repuesto, for the remito summaries.
+  const repsById = useMemo(() => {
+    const map = new Map<number, PurchaseLineRepuesto>();
+    purchase?.linea_compra.forEach((l) => {
+      if (l.repuesto) map.set(l.rep_id, l.repuesto);
+    });
     return map;
   }, [purchase]);
 
@@ -243,7 +248,9 @@ export default function PurchaseDetailScreen() {
               {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
             </Text>
 
-            <Text style={[styles.cellText, doc.cellNum, doc.colCant, doc.textRight]}>{qty}</Text>
+            <Text style={[styles.cellText, doc.cellNum, doc.colCant, doc.textRight]}>
+              {formatUnitQty(qty, l.repuesto?.rep_unidad)}
+            </Text>
 
             <Text style={[styles.cellText, doc.cellNum, doc.colCosto, doc.textRight]}>
               {unit != null ? money(unit) : "—"}
@@ -428,9 +435,13 @@ export default function PurchaseDetailScreen() {
                       {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
                     </Text>
 
-                    <Text style={[styles.cell, styles.colCant]}>{qty}</Text>
+                    <Text style={[styles.cell, styles.colCant]}>
+                      {formatUnitQty(qty, l.repuesto?.rep_unidad)}
+                    </Text>
 
-                    <Text style={[styles.cell, styles.colRecibido]}>{recibido}</Text>
+                    <Text style={[styles.cell, styles.colRecibido]}>
+                      {formatUnitQty(recibido, l.repuesto?.rep_unidad)}
+                    </Text>
 
                     <View style={styles.colEstado}>
                       <View style={[styles.lineBadge, { backgroundColor: lineColors.bg }]}>
@@ -482,7 +493,7 @@ export default function PurchaseDetailScreen() {
                       <View style={styles.remitoInfo}>
                         <Text style={styles.remitoDate}>{formatDate(r.rc_fecha)}</Text>
                         <Text style={styles.remitoItems} numberOfLines={2}>
-                          {remitoItemsSummary(r, repNames)}
+                          {remitoItemsSummary(r, repsById)}
                         </Text>
                       </View>
 
@@ -548,7 +559,7 @@ export default function PurchaseDetailScreen() {
         title="Anular remito"
         message={
           anulError ??
-          `Se va a descontar del stock lo que este remito sumó (${anulando ? remitoItemsSummary(anulando, repNames) : ""}).`
+          `Se va a descontar del stock lo que este remito sumó (${anulando ? remitoItemsSummary(anulando, repsById) : ""}).`
         }
         confirmLabel="Anular"
         busy={anulBusy}

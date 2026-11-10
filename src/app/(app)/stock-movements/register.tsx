@@ -18,6 +18,7 @@ import { listSpareParts } from "../../../lib/queries/spareParts";
 import { registrarMovimientoStock } from "../../../lib/queries/stockMovements";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { formatUnitQty, unitShort } from "../../../lib/units";
 import type { MovimientoStockTipo, Repuesto } from "../../../types/database";
 
 // Same flow as SuspendTaskModal: pick a reason, "Otro" requires writing it.
@@ -45,6 +46,8 @@ export type StockMovementFormInput = {
   comentario: string;
   // The chosen repuesto's stock on hand (null until one is picked).
   stockActual: number | null;
+  // Its rep_unidad, for the stock message ("hay 10 L").
+  unidad: Repuesto["rep_unidad"] | null;
 };
 
 export type StockMovementValidationResult =
@@ -86,7 +89,7 @@ export function validateStockMovement(form: StockMovementFormInput): StockMoveme
   if (form.tipo === "egreso" && form.stockActual !== null && cantidad > form.stockActual) {
     return {
       valid: false,
-      error: `No hay stock suficiente: hay ${form.stockActual} y se quieren sacar ${cantidad}.`,
+      error: `No hay stock suficiente: hay ${formatUnitQty(form.stockActual, form.unidad)} y se quieren sacar ${formatUnitQty(cantidad, form.unidad)}.`,
     };
   }
 
@@ -165,6 +168,7 @@ export default function StockMovementScreen() {
   ];
 
   const stockActual = selectedPart?.rep_cantidad_actual ?? null;
+  const unidad = selectedPart?.rep_unidad ?? null;
   const qty = isValidQuantity(cantidad) ? Number(cantidad) : null;
   // Preview of the stock once saved; only shown when it can be computed.
   const stockDespues =
@@ -194,6 +198,7 @@ export default function StockMovementScreen() {
       motivo,
       comentario,
       stockActual,
+      unidad,
     });
     if (!validation.valid) {
       setError(validation.error);
@@ -297,7 +302,9 @@ export default function StockMovementScreen() {
                   <Text
                     style={stockActual === null ? styles.readonlyPlaceholder : styles.readonlyText}
                   >
-                    {stockActual === null ? "Se completa al elegir el repuesto" : stockActual}
+                    {stockActual === null
+                      ? "Se completa al elegir el repuesto"
+                      : formatUnitQty(stockActual, unidad)}
                   </Text>
                 </View>
               </View>
@@ -305,7 +312,9 @@ export default function StockMovementScreen() {
 
             <View style={styles.provRow}>
               <View style={styles.docItem}>
-                <Text style={styles.smallLabel}>Cantidad *</Text>
+                <Text style={styles.smallLabel}>
+                  {selectedPart ? `Cantidad (${unitShort(unidad)}) *` : "Cantidad *"}
+                </Text>
 
                 <TextInput
                   style={[styles.input, styles.textRight, cantError && styles.inputError]}
@@ -343,7 +352,7 @@ export default function StockMovementScreen() {
                       ? "—"
                       : stockDespues < 0
                         ? "No alcanza el stock"
-                        : stockDespues}
+                        : formatUnitQty(stockDespues, unidad)}
                   </Text>
                 </View>
               </View>

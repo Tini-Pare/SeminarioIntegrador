@@ -36,6 +36,7 @@ export type SparePartInput = {
   stockMin: number;
   stockMax: number | null;
   estado: Repuesto["rep_estado"];
+  unidad: Repuesto["rep_unidad"];
 };
 
 // rep_cantidad_actual is deliberately left out: a new spare part starts at the
@@ -55,6 +56,7 @@ export async function createSparePart(input: SparePartInput): Promise<Repuesto> 
       rep_stock_minimo: input.stockMin,
       rep_stock_maximo: input.stockMax,
       rep_estado: input.estado,
+      rep_unidad: input.unidad,
     })
     .select("*")
     .single();
@@ -73,6 +75,7 @@ export async function updateSparePart(id: number, changes: SparePartInput): Prom
       rep_stock_minimo: changes.stockMin,
       rep_stock_maximo: changes.stockMax,
       rep_estado: changes.estado,
+      rep_unidad: changes.unidad,
     })
     .eq("rep_id", id);
   if (error) {

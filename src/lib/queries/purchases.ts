@@ -6,9 +6,13 @@ import type {
   LineaCompra,
   RemitoCompra,
   RemitoCompraLinea,
+  Repuesto,
 } from "../../types/database";
 
-export type PurchaseLine = LineaCompra & { repuesto: { rep_nombre: string } | null };
+// rep_unidad is embedded so every quantity of the line can show its unit.
+export type PurchaseLineRepuesto = Pick<Repuesto, "rep_nombre" | "rep_unidad">;
+
+export type PurchaseLine = LineaCompra & { repuesto: PurchaseLineRepuesto | null };
 
 export type RemitoWithLines = RemitoCompra & { lineas: RemitoCompraLinea[] };
 
@@ -21,12 +25,12 @@ export type PurchaseWithDetail = Compra & {
 };
 
 const PURCHASE_SELECT =
-  "*, proveedores(prov_nombre, prov_cuit), linea_compra(*, repuestos(rep_nombre)), " +
+  "*, proveedores(prov_nombre, prov_cuit), linea_compra(*, repuestos(rep_nombre, rep_unidad))," +
   "remito_compra(*, remito_compra_linea(*))";
 
 type PurchaseRow = Compra & {
   proveedores: { prov_nombre: string; prov_cuit: string | null } | null;
-  linea_compra: (LineaCompra & { repuestos: { rep_nombre: string } | null })[];
+  linea_compra: (LineaCompra & { repuestos: PurchaseLineRepuesto | null })[];
   remito_compra: (RemitoCompra & { remito_compra_linea: RemitoCompraLinea[] })[];
 };
 

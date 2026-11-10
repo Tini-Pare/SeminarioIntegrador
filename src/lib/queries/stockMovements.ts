@@ -1,20 +1,22 @@
 import { supabase } from "../supabase";
-import type { MovimientoStock, MovimientoStockTipo } from "../../types/database";
+import type { MovimientoStock, MovimientoStockTipo, Repuesto } from "../../types/database";
 
 // Ingresos/egresos externos: stock moved by hand, outside compras and
 // tareas (migration 0048). Rows are never edited or deleted — a wrong one
 // is corrected with an opposite movement — so there's only list + register.
 
-export type StockMovement = MovimientoStock & { repuesto: { rep_nombre: string } | null };
+type MovementPart = Pick<Repuesto, "rep_nombre" | "rep_unidad">;
 
-type StockMovementRow = MovimientoStock & { repuestos: { rep_nombre: string } | null };
+export type StockMovement = MovimientoStock & { repuesto: MovementPart | null };
+
+type StockMovementRow = MovimientoStock & { repuestos: MovementPart | null };
 
 // Newest first. ms_id breaks ties between movements saved in the same
 // instant, same as compras orders by co_id_compra after the date.
 export async function listStockMovements(): Promise<StockMovement[]> {
   const { data, error } = await supabase
     .from("movimiento_stock")
-    .select("*, repuestos(rep_nombre)")
+    .select("*, repuestos(rep_nombre, rep_unidad)")
     .order("ms_creado_en", { ascending: false })
     .order("ms_id", { ascending: false });
   if (error) throw new Error(error.message);

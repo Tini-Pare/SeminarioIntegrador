@@ -31,6 +31,7 @@ import { stockStatus } from "../../../lib/queries/spareParts";
 import { daysBetween, overdueOrders } from "../../../lib/statistics";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { formatUnitQty } from "../../../lib/units";
 import { useIsPhone } from "../../../lib/useIsPhone";
 import type { Equipo, Profile, Repuesto, Solicitud, WorkOrder } from "../../../types/database";
 
@@ -259,7 +260,8 @@ export default function DashboardScreen() {
                     </Text>
 
                     <Text style={styles.attentionMeta} numberOfLines={1}>
-                      Stock {p.rep_cantidad_actual} · Mín. {p.rep_stock_minimo}
+                      Stock {formatUnitQty(p.rep_cantidad_actual, p.rep_unidad)} · Mín.{" "}
+                      {formatUnitQty(p.rep_stock_minimo, p.rep_unidad)}
                     </Text>
                   </View>
 

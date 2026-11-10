@@ -31,6 +31,7 @@ import { useConfirm } from "../../../lib/useConfirm";
 import { usePagination } from "../../../lib/usePagination";
 import { normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
+import { formatUnitQty } from "../../../lib/units";
 import type { Repuesto } from "../../../types/database";
 import { NUMERIC_COL_GAP } from "../../../constants";
 import { useInitialLoad } from "../../../lib/useInitialLoad";
@@ -286,13 +287,17 @@ export default function SparePartsScreen() {
                     </Text>
 
                     <Text style={styles.sub}>
-                      Mín. {p.rep_stock_minimo}
-                      {p.rep_stock_maximo != null ? ` · Máx. ${p.rep_stock_maximo}` : ""}
+                      Mín. {formatUnitQty(p.rep_stock_minimo, p.rep_unidad)}
+                      {p.rep_stock_maximo != null
+                        ? ` · Máx. ${formatUnitQty(p.rep_stock_maximo, p.rep_unidad)}`
+                        : ""}
                     </Text>
                   </View>
 
                   <View style={[tableCol(1.1), styles.cell, styles.qtyCol]}>
-                    <Text style={styles.qty}>{p.rep_cantidad_actual}</Text>
+                    <Text style={styles.qty}>
+                      {formatUnitQty(p.rep_cantidad_actual, p.rep_unidad)}
+                    </Text>
                   </View>
 
                   <View style={[tableCol(1.2), styles.cell, styles.badgeCell]}>

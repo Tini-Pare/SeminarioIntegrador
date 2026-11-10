@@ -32,10 +32,10 @@ jest.mock("../../supabase", () => ({
 }));
 
 const SOLICITUD_SELECT =
-  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
+  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad)))), solicitud_foto(*)";
 
 const WORK_ORDER_SELECT =
-  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)), plan_mantenimiento(pm_nombre_plan)";
+  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)), plan_mantenimiento(pm_nombre_plan)";
 
 beforeEach(() => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
@@ -935,7 +935,11 @@ describe("listMyTasks", () => {
           taro_fecha_fin: null,
           tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
           repuesto_para_tarea: [
-            { rep_id: 4, repta_canti_usada: 2, repuestos: { rep_nombre: "Filtro de aire" } },
+            {
+              rep_id: 4,
+              repta_canti_usada: 2,
+              repuestos: { rep_nombre: "Aceite 15W40", rep_unidad: "litro" },
+            },
           ],
           orden_de_trabajo: {
             ot_estado: "assigned",
@@ -960,6 +964,11 @@ describe("listMyTasks", () => {
     const result = await listMyTasks();
 
     expect(supabase.from).toHaveBeenCalledWith("tareas_realizadas_orden");
+    expect(select).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad))",
+      ),
+    );
     expect(eqFn).toHaveBeenCalledWith("p_id_tecnico", "tec1");
     expect(result).toEqual([
       {
@@ -977,7 +986,7 @@ describe("listMyTasks", () => {
         photoUrl: null,
         photoUrls: [],
         faultTypeName: "Pérdida de gas",
-        consumedParts: [{ repId: 4, nombre: "Filtro de aire", cantidad: 2 }],
+        consumedParts: [{ repId: 4, nombre: "Aceite 15W40", cantidad: 2, unidad: "litro" }],
         suspension: null,
         lastSuspension: null,
         orderType: "correctivo",

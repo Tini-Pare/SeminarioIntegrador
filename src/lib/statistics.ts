@@ -639,17 +639,32 @@ export function partConsumption(
   return totals;
 }
 
-export type ConsumedPartTotal = { repId: number; name: string; qty: number };
+// `unidad` is null for a repuesto missing from the list (deleted); the
+// display falls back to "u" (see formatUnitQty).
+export type ConsumedPartTotal = {
+  repId: number;
+  name: string;
+  qty: number;
+  unidad: Repuesto["rep_unidad"] | null;
+};
 
 export function topConsumedParts(
   consumption: Map<number, number>,
-  parts: Pick<Repuesto, "rep_id" | "rep_nombre">[],
+  parts: Pick<Repuesto, "rep_id" | "rep_nombre" | "rep_unidad">[],
   limit = 10,
 ): ConsumedPartTotal[] {
-  const names = new Map(parts.map((p) => [p.rep_id, p.rep_nombre]));
+  const byId = new Map(parts.map((p) => [p.rep_id, p]));
   return [...consumption.entries()]
     .filter(([, qty]) => qty > 0)
-    .map(([repId, qty]) => ({ repId, name: names.get(repId) ?? `Repuesto ${repId}`, qty }))
+    .map(([repId, qty]) => {
+      const part = byId.get(repId);
+      return {
+        repId,
+        name: part?.rep_nombre ?? `Repuesto ${repId}`,
+        qty,
+        unidad: part?.rep_unidad ?? null,
+      };
+    })
     .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name))
     .slice(0, limit);
 }
@@ -659,6 +674,8 @@ export type CoverageStatus = "reponer" | "cubierto" | "sin_uso";
 export type CoverageRow = {
   repId: number;
   name: string;
+  // Unit stock, minimum and consumption are counted in.
+  unidad: Repuesto["rep_unidad"];
   stock: number;
   minimum: number;
   consumed: number;
@@ -711,6 +728,7 @@ export function stockCoverage(
       return {
         repId: p.rep_id,
         name: p.rep_nombre,
+        unidad: p.rep_unidad,
         stock: p.rep_cantidad_actual,
         minimum: p.rep_stock_minimo,
         consumed,

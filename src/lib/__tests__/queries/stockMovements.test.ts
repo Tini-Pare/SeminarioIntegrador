@@ -9,9 +9,16 @@ jest.mock("../../supabase", () => ({
 }));
 
 describe("listStockMovements", () => {
-  it("lists newest first and unwraps the repuesto's name", async () => {
+  it("lists newest first and unwraps the repuesto's name and unit", async () => {
     const secondOrder = jest.fn().mockResolvedValue({
-      data: [{ ms_id: 2, rep_id: 3, ms_tipo: "egreso", repuestos: { rep_nombre: "Filtro" } }],
+      data: [
+        {
+          ms_id: 2,
+          rep_id: 3,
+          ms_tipo: "egreso",
+          repuestos: { rep_nombre: "Aceite", rep_unidad: "litro" },
+        },
+      ],
       error: null,
     });
     const order = jest.fn().mockReturnValue({ order: secondOrder });
@@ -21,11 +28,16 @@ describe("listStockMovements", () => {
     const result = await listStockMovements();
 
     expect(supabase.from).toHaveBeenCalledWith("movimiento_stock");
-    expect(select).toHaveBeenCalledWith("*, repuestos(rep_nombre)");
+    expect(select).toHaveBeenCalledWith("*, repuestos(rep_nombre, rep_unidad)");
     expect(order).toHaveBeenCalledWith("ms_creado_en", { ascending: false });
     expect(secondOrder).toHaveBeenCalledWith("ms_id", { ascending: false });
     expect(result).toEqual([
-      { ms_id: 2, rep_id: 3, ms_tipo: "egreso", repuesto: { rep_nombre: "Filtro" } },
+      {
+        ms_id: 2,
+        rep_id: 3,
+        ms_tipo: "egreso",
+        repuesto: { rep_nombre: "Aceite", rep_unidad: "litro" },
+      },
     ]);
   });
 

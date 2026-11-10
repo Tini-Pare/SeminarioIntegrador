@@ -29,6 +29,7 @@ import { makePurchaseDocumentStyles } from "../../../lib/purchaseDocumentStyles"
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { FACTURA_LETRAS } from "../../../lib/comprobante";
+import { unitShort } from "../../../lib/units";
 import type { ComprobanteTipo, FacturaLetra, Repuesto } from "../../../types/database";
 
 export type LineDraft = { key: string; repId: number | null; cantidad: string; costo: string };
@@ -365,6 +366,10 @@ export default function RegisterPurchaseScreen() {
         .map((p) => ({ value: p.rep_id, label: p.rep_nombre })),
     [spareParts],
   );
+  const unitByRepId = useMemo(
+    () => new Map(spareParts.map((p) => [p.rep_id, p.rep_unidad])),
+    [spareParts],
+  );
   const supplierOptions = useMemo(
     () => suppliers.map((s) => ({ value: s.prov_id_proveedor, label: s.prov_nombre })),
     [suppliers],
@@ -572,15 +577,24 @@ export default function RegisterPurchaseScreen() {
             />
           </View>
 
-          <View style={styles.colCant}>
+          <View style={[styles.colCant, styles.qtyWrap]}>
             <TextInput
-              style={[styles.cellInput, styles.textRight, cantError(l) && styles.cellInputError]}
+              style={[
+                styles.cellInput,
+                styles.qtyInput,
+                styles.textRight,
+                cantError(l) && styles.cellInputError,
+              ]}
               value={l.cantidad}
               onChangeText={(v) => updateLine(l.key, { cantidad: v })}
               placeholder="0"
               placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
             />
+
+            {l.repId !== null && (
+              <Text style={styles.qtyUnit}>{unitShort(unitByRepId.get(l.repId))}</Text>
+            )}
           </View>
 
           <View style={styles.colCosto}>
@@ -1048,6 +1062,12 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
     },
     addLineText: { fontSize: 13, fontWeight: "700", color: c.textLabel },
+    // Wider than the shared document column so the quantity input fits its
+    // unit suffix; overrides makePurchaseDocumentStyles' colCant here only.
+    colCant: { width: 92, flexShrink: 0 },
+    qtyWrap: { flexDirection: "row", alignItems: "center", gap: 4 },
+    qtyInput: { flex: 1, minWidth: 0, paddingHorizontal: 8 },
+    qtyUnit: { fontSize: 13, color: c.textMuted },
     cellInput: {
       height: 40,
       paddingHorizontal: 12,

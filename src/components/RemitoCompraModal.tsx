@@ -15,12 +15,15 @@ import {
 import { lineRemaining, receivedQuantities } from "../lib/purchaseReceipt";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { formatUnitQty, unitShort } from "../lib/units";
+import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 type RowDraft = {
   repId: number;
   repNombre: string;
+  unidad: Repuesto["rep_unidad"] | null;
   max: number;
   cantidad: string;
 };
@@ -77,6 +80,7 @@ export function RemitoCompraModal({
           return {
             repId: l.rep_id,
             repNombre: l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`,
+            unidad: l.repuesto?.rep_unidad ?? null,
             max,
             cantidad: editingQty.has(l.rep_id) ? String(editingQty.get(l.rep_id)) : "",
           };
@@ -160,7 +164,7 @@ export function RemitoCompraModal({
                       {r.repNombre}
                     </Text>
 
-                    <Text style={styles.rowMax}>Pendiente: {r.max}</Text>
+                    <Text style={styles.rowMax}>Pendiente: {formatUnitQty(r.max, r.unidad)}</Text>
                   </View>
 
                   <TextInput
@@ -171,6 +175,8 @@ export function RemitoCompraModal({
                     placeholderTextColor={colors.textMuted}
                     keyboardType="numeric"
                   />
+
+                  <Text style={styles.rowUnit}>{unitShort(r.unidad)}</Text>
                 </View>
               ))}
             </ScrollView>
@@ -242,6 +248,8 @@ function makeStyles(c: ThemeColors) {
       textAlign: "right",
       fontVariant: ["tabular-nums"],
     },
+    // Unit suffix right after the input, pulled closer than the row's 12px gap.
+    rowUnit: { width: 20, marginLeft: -6, fontSize: 13.5, color: c.textMuted },
     error: { color: c.destructive, marginTop: 14, fontSize: 13.5 },
   });
 }

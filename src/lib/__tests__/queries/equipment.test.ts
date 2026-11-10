@@ -76,7 +76,11 @@ describe("listFaultHistoryByEquipment", () => {
                   taro_diagnostico: "Válvula dañada",
                   tareas_generales: { tag_nombre_tarea: "Cambiar válvula" },
                   repuesto_para_tarea: [
-                    { rep_id: 3, repta_canti_usada: 1, repuestos: { rep_nombre: "Válvula" } },
+                    {
+                      rep_id: 3,
+                      repta_canti_usada: 1,
+                      repuestos: { rep_nombre: "Válvula", rep_unidad: "unidad" },
+                    },
                   ],
                 },
               ],
@@ -121,7 +125,7 @@ describe("listFaultHistoryByEquipment", () => {
           taskName: "Cambiar válvula",
           technicianId: "t1",
           diagnosis: "Válvula dañada",
-          consumedParts: [{ repId: 3, nombre: "Válvula", cantidad: 1 }],
+          consumedParts: [{ repId: 3, nombre: "Válvula", cantidad: 1, unidad: "unidad" }],
         },
       ],
     });

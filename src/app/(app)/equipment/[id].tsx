@@ -30,6 +30,7 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
+import { formatUnitQty } from "../../../lib/units";
 import type { Equipo, Solicitud, SolicitudTask, HistorialEntry } from "../../../types/database";
 import { useInitialLoad } from "../../../lib/useInitialLoad";
 
@@ -902,7 +903,9 @@ function FaultHistoryCard({
                     <SparePartIcon size={13} color={colors.textMuted} />
 
                     <Text style={styles.workDetail}>
-                      {t.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                      {t.consumedParts
+                        .map((p) => `${p.nombre} ×${formatUnitQty(p.cantidad, p.unidad)}`)
+                        .join(" · ")}
                     </Text>
                   </View>
                 )}

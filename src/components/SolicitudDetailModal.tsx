@@ -21,6 +21,7 @@ import { closeSolicitud, generateOrder } from "../lib/queries/faults";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { formatUnitQty } from "../lib/units";
 import { useResetOnOpen } from "../lib/useResetOnOpen";
 import type { Equipo, Profile, Solicitud, SolicitudTask } from "../types/database";
 
@@ -423,7 +424,9 @@ export function SolicitudDetailModal({
                                   <View key={`${part.repId || pIdx}`} style={styles.partTag}>
                                     <Text style={styles.partTagName}>
                                       {part.nombre}
-                                      <Text style={styles.partTagQty}>{` ×${part.cantidad}`}</Text>
+                                      <Text
+                                        style={styles.partTagQty}
+                                      >{` ×${formatUnitQty(part.cantidad, part.unidad)}`}</Text>
                                     </Text>
                                   </View>
                                 ))}

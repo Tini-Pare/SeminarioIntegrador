@@ -10,7 +10,7 @@ import {
   type StatisticsPdfInput,
 } from "../statisticsPdf";
 import { LOGO_MARK_DATA_URI } from "../statisticsPdfLogo";
-import type { Equipo, WorkOrder } from "../../types/database";
+import type { Equipo, Repuesto, WorkOrder } from "../../types/database";
 
 function equipo(overrides: Partial<Equipo>): Equipo {
   return {
@@ -121,6 +121,44 @@ describe("buildStatisticsHtml", () => {
   it("prints the ficha of the equipo the admin picked", () => {
     const html = buildStatisticsHtml(input({ tab: "equipment", selectedEquipmentId: 2 }));
     expect(html).toContain("EQ-002 · Horno");
+  });
+
+  it("shows each repuesto's unit next to its quantities on the parts tab", () => {
+    const base = input();
+    const aceite: Repuesto = {
+      rep_id: 1,
+      rep_nombre: "Aceite",
+      rep_cantidad_actual: 12,
+      rep_stock_minimo: 5,
+      rep_stock_maximo: null,
+      rep_estado: "activo",
+      rep_unidad: "litro",
+    };
+    const html = buildStatisticsHtml({
+      ...base,
+      tab: "parts",
+      data: {
+        ...base.data,
+        parts: [aceite],
+        movements: [
+          {
+            ms_id: 1,
+            rep_id: 1,
+            ms_tipo: "egreso",
+            ms_cantidad: 3,
+            ms_motivo: "Rotura",
+            ms_comentario: null,
+            ms_p_id_registrador: null,
+            ms_creado_en: "2026-03-15T12:00:00Z",
+            repuesto: { rep_nombre: "Aceite", rep_unidad: "litro" },
+          },
+        ],
+      },
+    });
+    expect(html).toContain("3 L");
+    expect(html).toContain("12 / 5 L");
+    expect(html).toContain("Cantidad usada en tareas terminadas");
+    expect(html).not.toContain("Unidades");
   });
 
   it.each(["orders", "technicians", "equipment", "requests", "parts"] as const)(
