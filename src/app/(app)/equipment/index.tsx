@@ -24,6 +24,7 @@ import { deleteEquipment, listEquipment } from "../../../lib/queries/equipment";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { useIsPhone } from "../../../lib/useIsPhone";
 import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
@@ -483,6 +484,7 @@ function EquipmentTableRow({
   styles: ReturnType<typeof makeStyles>;
 }) {
   const [hovered, setHovered] = useState(false);
+  const isPhone = useIsPhone();
   const isZebra = index % 2 === 1;
 
   const rowBg = hovered
@@ -499,7 +501,9 @@ function EquipmentTableRow({
     >
       <View style={styles.rowMain}>
         <View style={[tableCol(1.6), styles.cell]}>
-          <Text style={styles.name} numberOfLines={1}>
+          {/* Up to two lines on a phone, where the column is narrow; the
+              eye button opens the full ficha. */}
+          <Text style={styles.name} numberOfLines={isPhone ? 2 : 1}>
             {e.name}
           </Text>
 
