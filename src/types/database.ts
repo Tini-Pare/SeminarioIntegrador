@@ -1263,6 +1263,10 @@ export type WorkOrder = {
   start_date: string;
   end_date: string | null;
   planned_end_date: string | null;
+  // ot_creada_en (0039): when the OT was created, with time of day — what
+  // Estadísticas measures a solicitud's tiempo de atención against.
+  // Optional so hand-built WorkOrders (tests, fixtures) don't need it.
+  created_at?: string | null;
   observation: string | null;
   // The plan de mantenimiento that generated it (preventivo only, 0035).
   plan_name: string | null;

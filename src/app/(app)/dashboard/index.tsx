@@ -10,19 +10,28 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { BarList } from "../../../components/charts/BarList";
+import { fromDbDate, getTodayDbDate } from "../../../components/CustomDatePicker";
 import { RequestList } from "../../../components/RequestList";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { StatusBarChart } from "../../../components/StatusBarChart";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
+import { formatOrderNumber } from "../../../lib/orderNumber";
 import { listLowStockParts } from "../../../lib/queries/alerts";
 import { listEquipment } from "../../../lib/queries/equipment";
-import { listAllRequests, summarizeTechnicians } from "../../../lib/queries/faults";
+import {
+  listActiveTaskCountsByTechnician,
+  listAllRequests,
+  listWorkOrders,
+  summarizeTechnicians,
+} from "../../../lib/queries/faults";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { stockStatus } from "../../../lib/queries/spareParts";
+import { daysBetween, overdueOrders } from "../../../lib/statistics";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Equipo, Profile, Repuesto, Solicitud } from "../../../types/database";
+import type { Equipo, Profile, Repuesto, Solicitud, WorkOrder } from "../../../types/database";
 
 type RequestItem = Solicitud & {
   equipment: Pick<Equipo, "code" | "name">;
@@ -38,12 +47,17 @@ const HERO_BG_ASPECT_RATIO = 1516 / 464;
 // Rows shown per alert list before "y N más".
 const ALERTS_PREVIEW = 5;
 
+// Inicio is today's summary only: what's broken, late or waiting right now.
+// Analysis over a period lives in Estadísticas.
 export default function DashboardScreen() {
   const [role, setRole] = useState<Profile["role"] | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState<Equipo[]>([]);
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [stockAlerts, setStockAlerts] = useState<Repuesto[]>([]);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [technicians, setTechnicians] = useState<Profile[]>([]);
+  const [openTaskCounts, setOpenTaskCounts] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [heroSize, setHeroSize] = useState({ width: 0, height: 0 });
   const { width } = useWindowDimensions();
@@ -58,13 +72,18 @@ export default function DashboardScreen() {
       setRole(profile?.role ?? null);
       if (profile?.role !== "admin") return;
 
-      const [faults, equip, profiles, lowStock] = await Promise.all([
+      const [faults, equip, profiles, lowStock, workOrders, taskCounts] = await Promise.all([
         listAllRequests(),
         listEquipment(),
         listProfiles(),
         listLowStockParts(),
+        listWorkOrders(),
+        listActiveTaskCountsByTechnician(),
       ]);
       setStockAlerts(lowStock);
+      setOrders(workOrders);
+      setOpenTaskCounts(taskCounts);
+      setTechnicians(profiles.filter((p) => p.role === "technician" && p.active));
       const equipmentById = new Map(equip.map((e) => [e.id, e]));
       const profileById = new Map(profiles.map((p) => [p.id, p]));
       setEquipment(equip);
@@ -110,10 +129,28 @@ export default function DashboardScreen() {
     return `${weekday} ${now.getDate()} · ${time}`;
   }, []);
 
-  const recentRequests = useMemo(
+  // Solicitudes nobody has turned into an OT (or rejected) yet, oldest
+  // first: the ones that have waited longest go on top.
+  const pendingRequests = useMemo(
     () =>
-      [...requests].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 4),
+      requests
+        .filter((r) => r.status === "new")
+        .sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)),
     [requests],
+  );
+
+  const today = getTodayDbDate();
+  const overdue = useMemo(() => overdueOrders(orders, today), [orders, today]);
+  const equipmentById = useMemo(() => new Map(equipment.map((e) => [e.id, e])), [equipment]);
+
+  // Every active técnico, the ones with the most open tareas first — a
+  // técnico with none shows too, so the admin sees who's free.
+  const technicianLoad = useMemo(
+    () =>
+      technicians
+        .map((t) => ({ id: t.id, name: t.name, open: openTaskCounts[t.id] ?? 0 }))
+        .sort((a, b) => b.open - a.open || a.name.localeCompare(b.name)),
+    [technicians, openTaskCounts],
   );
 
   if (role === undefined || (role === "admin" && loading)) {
@@ -235,7 +272,8 @@ export default function DashboardScreen() {
         <View style={styles.column}>
           <View style={styles.panel}>
             <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Requieren atención</Text>
+              <Text style={styles.panelTitle}>Equipos sin funcionar hoy</Text>
+
               <Pressable onPress={() => router.push("/equipment")}>
                 <Text style={styles.panelLink}>Ver equipos</Text>
               </Pressable>
@@ -264,18 +302,104 @@ export default function DashboardScreen() {
               ))
             )}
           </View>
+
+          <View style={styles.panel}>
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelTitle}>OT vencidas</Text>
+
+              <Pressable onPress={() => router.push("/work-orders")}>
+                <Text style={styles.panelLink}>Ver órdenes</Text>
+              </Pressable>
+            </View>
+
+            {overdue.length === 0 ? (
+              <Text style={styles.panelEmpty}>
+                No hay órdenes abiertas con la fecha estimada vencida.
+              </Text>
+            ) : (
+              <>
+                {overdue.slice(0, ALERTS_PREVIEW).map((o) => {
+                  const e = equipmentById.get(o.equipment_id);
+                  const lateDays = daysBetween(o.planned_end_date!, today);
+                  return (
+                    <Pressable
+                      key={o.id}
+                      style={styles.attentionRow}
+                      onPress={() => router.push(`/work-orders/${o.id}` as never)}
+                    >
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.attentionName} numberOfLines={1}>
+                          {formatOrderNumber(o.id)} · {e?.name ?? "Equipo desconocido"}
+                        </Text>
+
+                        <Text style={styles.attentionMeta} numberOfLines={1}>
+                          Estimada para el {fromDbDate(o.planned_end_date)}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.alertBadge, { backgroundColor: colors.urgencyHigh.bg }]}>
+                        <Text style={[styles.alertBadgeText, { color: colors.urgencyHigh.fg }]}>
+                          {lateDays} {lateDays === 1 ? "día" : "días"} de atraso
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+
+                {overdue.length > ALERTS_PREVIEW && (
+                  <Text style={styles.alertsMore}>y {overdue.length - ALERTS_PREVIEW} más</Text>
+                )}
+              </>
+            )}
+          </View>
         </View>
 
         <View style={styles.column}>
           <View style={styles.panel}>
             <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Solicitudes recientes</Text>
+              <Text style={styles.panelTitle}>
+                Solicitudes a atender
+                {pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ""}
+              </Text>
+
               <Pressable onPress={() => router.push("/requests")}>
                 <Text style={styles.panelLink}>Ver todas</Text>
               </Pressable>
             </View>
 
-            <RequestList items={recentRequests} />
+            {pendingRequests.length === 0 ? (
+              <Text style={styles.panelEmpty}>No hay solicitudes esperando una OT.</Text>
+            ) : (
+              <>
+                <RequestList items={pendingRequests.slice(0, ALERTS_PREVIEW)} />
+
+                {pendingRequests.length > ALERTS_PREVIEW && (
+                  <Text style={styles.alertsMore}>
+                    y {pendingRequests.length - ALERTS_PREVIEW} más
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+
+          <View style={styles.panel}>
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelTitle}>Carga actual por técnico</Text>
+            </View>
+
+            {technicianLoad.length === 0 ? (
+              <Text style={styles.panelEmpty}>No hay técnicos activos.</Text>
+            ) : (
+              <BarList
+                series={[{ key: "open", label: "Tareas abiertas", color: colors.accent }]}
+                rows={technicianLoad.map((t) => ({
+                  key: t.id,
+                  label: t.name,
+                  values: { open: t.open },
+                  detail: `${t.open} ${t.open === 1 ? "tarea abierta" : "tareas abiertas"} (pendientes, en curso o suspendidas)`,
+                }))}
+              />
+            )}
           </View>
         </View>
       </View>

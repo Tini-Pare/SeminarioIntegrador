@@ -21,12 +21,13 @@ import {
   type LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { AccountMenu } from "../../components/AccountMenu";
+import { BrandMark } from "../../components/BrandMark";
 import { NotificationsPanel } from "../../components/NotificationsPanel";
 import {
   BellIcon,
   CalendarIcon,
+  ChartIcon,
   ChevronDownIcon,
   EquipmentIcon,
   EquipmentTypeIcon,
@@ -88,21 +89,6 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 
 function isActiveHref(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
-}
-
-function BrandDot({ colors }: { colors: [string, string] }) {
-  const [from, to] = colors;
-  return (
-    <Svg width={10} height={10} viewBox="0 0 10 10">
-      <Defs>
-        <LinearGradient id="brandDotGradient" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor={to} />
-          <Stop offset="1" stopColor={from} />
-        </LinearGradient>
-      </Defs>
-      <Circle cx={5} cy={5} r={5} fill="url(#brandDotGradient)" />
-    </Svg>
-  );
 }
 
 // The nav row that carries each role's count: a técnico's open tareas
@@ -289,6 +275,7 @@ export default function AppLayout() {
   if (role === "admin") {
     navEntries = [
       { key: "dashboard", label: "Inicio", href: "/dashboard", Icon: HomeIcon },
+      { key: "statistics", label: "Estadísticas", href: "/statistics", Icon: ChartIcon },
       { key: "users", label: "Usuarios", href: "/users", Icon: UsersIcon },
       {
         key: "equipment-group",
@@ -513,7 +500,7 @@ export default function AppLayout() {
         >
           <View style={styles.brandRow}>
             <View style={styles.brandLeft}>
-              <BrandDot colors={colors.heroBlobColors} />
+              <BrandMark size={30} />
               <Text style={[styles.brandName, { color: colors.textSidebar }]}>Mantia</Text>
             </View>
 
@@ -672,7 +659,7 @@ export default function AppLayout() {
         ]}
       >
         <View style={styles.brandLeft}>
-          <BrandDot colors={colors.heroBlobColors} />
+          <BrandMark size={26} />
 
           <Text style={[styles.brandNameLight, { color: colors.textSidebar }]}>Mantia</Text>
         </View>
