@@ -35,10 +35,10 @@ function ShellPatternBackground() {
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
           <Pattern id="shell-pattern" width={62.35} height={108} patternUnits="userSpaceOnUse">
-            <Path d={HEX_LIGHT_PATH} fill="#e6ebd8" fillOpacity={0.7} />
+            <Path d={HEX_LIGHT_PATH} fill="#e8ebde" fillOpacity={0.7} />
 
             {/* Dark hex opacity kept at 0.30 so paragraph text maintains >= 4.5:1 contrast. */}
-            <G fill="#c4cdac" fillOpacity={0.3}>
+            <G fill="#c5c9b4" fillOpacity={0.3}>
               <Path d={HEX_DARK_PATH} />
 
               <Path d={HEX_DARK_PATH} transform="translate(62.35, 0)" />
@@ -52,7 +52,7 @@ function ShellPatternBackground() {
               d={HEX_STROKE_PATH}
               transform="translate(1.3, 1.3)"
               fill="none"
-              stroke="#f1f4e6"
+              stroke="#eef1e4"
               strokeWidth={1.4}
               strokeLinejoin="round"
             />
@@ -60,7 +60,7 @@ function ShellPatternBackground() {
             <Path
               d={HEX_STROKE_PATH}
               fill="none"
-              stroke="#a9b58d"
+              stroke="#a6ae8e"
               strokeWidth={1.5}
               strokeLinejoin="round"
             />
@@ -263,7 +263,7 @@ function makeStyles(c: ThemeColors) {
       flex: 1.05,
       position: "relative",
       overflow: "hidden",
-      backgroundColor: "#d6dcc4",
+      backgroundColor: c.bgSidebar,
       justifyContent: "space-between",
       gap: 24,
     },
@@ -299,14 +299,14 @@ function makeStyles(c: ThemeColors) {
     legendText: { color: c.textNavInactive, fontSize: 13 },
     formPanel: {
       flex: 1,
-      backgroundColor: c.bgLoginPanel,
+      backgroundColor: c.bg,
       alignItems: "center",
       justifyContent: "center",
       padding: 40,
     },
     formPanelNarrow: { width: "100%", alignItems: "center", marginTop: 48 },
     formInner: { width: "100%", maxWidth: 400 },
-    narrowContainer: { flex: 1, backgroundColor: c.bgLoginPanel },
+    narrowContainer: { flex: 1, backgroundColor: c.bg },
     narrowContent: { flexGrow: 1, padding: 24 },
     title: { fontSize: 26, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 8, color: c.textSecondary, fontSize: 14.5 },
@@ -316,9 +316,9 @@ function makeStyles(c: ThemeColors) {
       height: 44,
       paddingHorizontal: 14,
       borderWidth: 1,
-      borderColor: c.borderInput,
+      borderColor: "#d6d1bf",
       borderRadius: 10,
-      backgroundColor: c.bgInput,
+      backgroundColor: c.bgCard,
       fontSize: 14.5,
       color: c.text,
     },
