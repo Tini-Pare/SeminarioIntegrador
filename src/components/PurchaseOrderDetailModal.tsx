@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { resolvePurchaseOrder, type PurchaseOrderWithLines } from "../lib/queries/purchaseOrders";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { formatUnitQty } from "../lib/units";
 import type { PedidoCompra } from "../types/database";
 
 const ESTADO_LABELS: Record<PedidoCompra["ped_estado"], string> = {
@@ -95,7 +96,10 @@ export function PurchaseOrderDetailModal({
                 <Text style={[styles.cell, { flex: 3 }]} numberOfLines={2}>
                   {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
                 </Text>
-                <Text style={[styles.cell, styles.num]}>{l.lp_cantidad ?? 0}</Text>
+
+                <Text style={[styles.cell, styles.num]}>
+                  {formatUnitQty(l.lp_cantidad ?? 0, l.repuesto?.rep_unidad)}
+                </Text>
               </View>
             ))}
 

@@ -118,6 +118,13 @@ no se corre.
   campos de resolución del pedido, y las RPC `registrar_compra` (compra + líneas
   + ingreso de stock, atómico) y `resolver_pedido_compra`. Realtime en
   `repuestos` y `pedido_compra`.
+- **0049** unidad de medida de los repuestos: `repuestos.rep_unidad` (`unidad` \|
+  `litro` \| `kilogramo` \| `metro`, por defecto `unidad`). Las cantidades siguen
+  siendo enteras; la unidad se muestra al lado de cada cantidad ("Stock 12 L").
+  La primera vez que se corre asigna la unidad a los repuestos existentes según el
+  nombre (aceite → litro, gas refrigerante/R-410A → kilogramo, cable/caño → metro;
+  filtros, válvulas, etc. quedan en unidad). Revisar el resultado con el `SELECT`
+  del final del archivo y corregir lo que haga falta desde Repuestos → Editar.
 
 | Tabla                                   | Qué guarda                                                                                                    |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -129,7 +136,7 @@ no se corre.
 | `solicitudes`                           | Reporte inicial de falla: equipo, quién reporta, descripción, urgencia, foto, estado.                        |
 | `orden_de_trabajo`                      | Se crea cuando un técnico toma una solicitud. Responsable, tipo, fechas, estado, prioridad.                  |
 | `historial`                             | Log de eventos por equipo — se completa solo en cada paso de una falla (reportar/asignar/iniciar/resolver).  |
-| `repuestos`                             | Inventario de repuestos. `rep_cantidad_actual` (solo lo mueve `registrar_compra`), `rep_stock_minimo`/`maximo`, `rep_estado` (`activo`\|`inactivo`). ABM Repuestos. |
+| `repuestos`                             | Inventario de repuestos. `rep_cantidad_actual` (solo lo mueve `registrar_compra`), `rep_stock_minimo`/`maximo`, `rep_estado` (`activo`\|`inactivo`), `rep_unidad` (unidad de medida, 0049). ABM Repuestos. |
 | `proveedores`, `tipos_proveedores`      | Proveedores de repuestos y su rubro (texto libre → `tipos_proveedores`). ABM Proveedores.                     |
 | `compras`, `linea_compra`               | Ingreso de stock: cada compra suma sus líneas a `repuestos.rep_cantidad_actual` (RPC `registrar_compra`, transaccional). |
 | `pedido_compra`, `linea_pedido`         | Pedido de repuestos del técnico. Estado `pendiente`\|`aprobado`\|`rechazado`\|`recibido` (RPC `resolver_pedido_compra`). |

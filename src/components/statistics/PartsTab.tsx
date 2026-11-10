@@ -20,6 +20,7 @@ import {
   type SupplierPrice,
 } from "../../lib/statistics";
 import { useTheme } from "../../lib/ThemeContext";
+import { formatUnitQty } from "../../lib/units";
 import { BarList } from "../charts/BarList";
 import { MiniStat, MiniStatGrid } from "../charts/MiniStat";
 import { EmptyChart, StatPanel } from "../charts/StatPanel";
@@ -88,14 +89,15 @@ export function PartsTab({
       label: "Stock / mín.",
       flex: 1,
       align: "right",
-      render: (r) => `${formatNumber(r.stock)} / ${formatNumber(r.minimum)}`,
+      render: (r) =>
+        formatUnitQty(`${formatNumber(r.stock)} / ${formatNumber(r.minimum)}`, r.unidad),
     },
     {
       key: "consumo",
       label: "Consumo",
       flex: 0.9,
       align: "right",
-      render: (r) => formatNumber(r.consumed),
+      render: (r) => formatUnitQty(formatNumber(r.consumed), r.unidad),
     },
     {
       key: "dias",
@@ -188,18 +190,20 @@ export function PartsTab({
         <Column>
           <StatPanel
             title="Repuestos más consumidos"
-            caption="Unidades usadas en tareas terminadas más egresos externos del período."
+            caption="Cantidad usada en tareas terminadas más egresos externos del período."
           >
             {consumed.length === 0 ? (
               <EmptyChart text="No se consumieron repuestos en el período." />
             ) : (
               <BarList
-                series={[{ key: "qty", label: "Unidades", color: colors.accent }]}
+                // Repuestos are counted in different units, so each bar
+                // carries its own instead of the series label.
+                series={[{ key: "qty", label: "Cantidad", color: colors.accent }]}
                 rows={consumed.map((p) => ({
                   key: p.repId,
                   label: p.name,
                   values: { qty: p.qty },
-                  valueText: formatNumber(p.qty),
+                  valueText: formatUnitQty(formatNumber(p.qty), p.unidad),
                 }))}
                 labelWidth={170}
               />

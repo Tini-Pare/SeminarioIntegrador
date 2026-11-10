@@ -1,8 +1,17 @@
+jest.mock("../../supabase", () => ({
+  supabase: {
+    auth: { getSession: jest.fn() },
+    from: jest.fn(),
+  },
+}));
+
+import { supabase } from "../../supabase";
 import {
   buildCriticalFaultNotifications,
   buildStockNotifications,
   formatNotificationTime,
   groupPreventiveOrders,
+  listNotifications,
   mergeNotifications,
   notificationRowIds,
   type RawCriticalFault,
@@ -37,6 +46,7 @@ function makeStockRow(overrides: Partial<RawStockNotification>): RawStockNotific
     type: "stock_bajo",
     quantity: 3,
     minimum: 4,
+    unit: "litro",
     createdAt: "2026-10-26T12:00:00Z",
     ...overrides,
   };
@@ -233,6 +243,9 @@ describe("buildStockNotifications", () => {
       id: "stock-1",
       notificationIds: [1],
       partName: "Filtro de aire",
+      quantity: 3,
+      minimum: 4,
+      unit: "litro",
       title: "Stock mínimo alcanzado",
       isRead: false,
     });
@@ -271,5 +284,46 @@ describe("notificationRowIds", () => {
     const [stock] = buildStockNotifications([makeStockRow({ notificationId: 7 })]);
 
     expect(notificationRowIds([group, stock])).toEqual([1029, 1028, 7]);
+  });
+});
+
+describe("listNotifications", () => {
+  it("fetches the repuesto's unit along with its name for stock rows", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "admin1" } } },
+    });
+    const limit = jest.fn().mockResolvedValue({
+      data: [
+        {
+          no_id: 3,
+          no_tipo: "stock_bajo",
+          no_cantidad: 2,
+          no_minimo: 5,
+          no_leida: false,
+          no_creada_en: "2026-10-26T12:00:00Z",
+          rep_id: 8,
+          repuestos: { rep_nombre: "Aceite 15W40", rep_unidad: "litro" },
+          orden_de_trabajo: null,
+        },
+      ],
+      error: null,
+    });
+    const order = jest.fn().mockReturnValue({ limit });
+    const eq = jest.fn().mockReturnValue({ order });
+    const select = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const { notifications } = await listNotifications();
+
+    expect(select.mock.calls[0][0]).toContain("repuestos(rep_nombre, rep_unidad)");
+    expect(notifications).toEqual([
+      expect.objectContaining({
+        kind: "stock_minimo",
+        partName: "Aceite 15W40",
+        quantity: 2,
+        minimum: 5,
+        unit: "litro",
+      }),
+    ]);
   });
 });

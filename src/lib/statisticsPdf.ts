@@ -56,6 +56,7 @@ import {
 } from "./statistics";
 import { LOGO_MARK_DATA_URI } from "./statisticsPdfLogo";
 import { light } from "./theme";
+import { formatUnitQty } from "./units";
 import type { Equipo, Profile } from "../types/database";
 
 // HU-077: the active Estadísticas tab, with the period (and OT type) the
@@ -671,15 +672,17 @@ function partsSection(input: StatisticsPdfInput): string[] {
   return [
     panel(
       "Repuestos más consumidos",
-      "Unidades usadas en tareas terminadas más egresos externos del período.",
+      "Cantidad usada en tareas terminadas más egresos externos del período.",
       consumed.length === 0
         ? empty("No se consumieron repuestos en el período.")
         : barList(
-            [{ key: "qty", label: "Unidades", color: light.accent }],
+            // Repuestos are counted in different units, so each bar carries
+            // its own instead of the series label.
+            [{ key: "qty", label: "Cantidad", color: light.accent }],
             consumed.map((p) => ({
               label: p.name,
               values: { qty: p.qty },
-              valueText: formatNumber(p.qty),
+              valueText: formatUnitQty(formatNumber(p.qty), p.unidad),
             })),
           ),
       { keep: true },
@@ -716,8 +719,8 @@ function partsSection(input: StatisticsPdfInput): string[] {
             ],
             coverage.map((r) => [
               esc(r.name),
-              esc(`${formatNumber(r.stock)} / ${formatNumber(r.minimum)}`),
-              esc(formatNumber(r.consumed)),
+              esc(formatUnitQty(`${formatNumber(r.stock)} / ${formatNumber(r.minimum)}`, r.unidad)),
+              esc(formatUnitQty(formatNumber(r.consumed), r.unidad)),
               esc(formatStockDays(r.daysLeft)),
               r.lastUse ? fromDbDate(r.lastUse) : "Nunca",
               pill(COVERAGE_LABELS[r.status], coverageTone[r.status]),

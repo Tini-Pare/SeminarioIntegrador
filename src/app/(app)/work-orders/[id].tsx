@@ -40,6 +40,7 @@ import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { formatUnitQty } from "../../../lib/units";
 import type { Equipo, Fallo, Profile, SolicitudTask, WorkOrder } from "../../../types/database";
 
 type Priority = WorkOrder["priority"];
@@ -752,7 +753,9 @@ export default function WorkOrderDetail() {
                     {task.consumedParts.length > 0 && (
                       <Text style={styles.consumedText}>
                         <Text style={styles.consumedLabel}>Repuestos usados: </Text>
-                        {task.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                        {task.consumedParts
+                          .map((p) => `${p.nombre} ×${formatUnitQty(p.cantidad, p.unidad)}`)
+                          .join(" · ")}
                       </Text>
                     )}
                   </View>

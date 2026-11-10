@@ -1200,7 +1200,13 @@ export type SolicitudTask = {
   endDate: string | null; // taro_fecha_fin — null until the técnico finishes it
   // What the técnico registered as used on this tarea (finalizar_tarea,
   // migration 0021) — empty until finished, and stays empty if none was used.
-  consumedParts: { repId: number; nombre: string; cantidad: number }[];
+  // unidad: the repuesto's rep_unidad, null if the embed came back empty.
+  consumedParts: {
+    repId: number;
+    nombre: string;
+    cantidad: number;
+    unidad: Repuesto["rep_unidad"] | null;
+  }[];
   // The técnico's diagnóstico/observación written when finishing the tarea
   // (finalizar_tarea, migration 0023) — null if none was written.
   diagnosis: string | null;

@@ -28,6 +28,7 @@ import {
   taskComplexityRanking,
   tasksByTechnician,
   technicianPerformance,
+  topConsumedParts,
   topFailingEquipment,
   UNDIAGNOSED_FAULT,
 } from "../statistics";
@@ -140,7 +141,7 @@ function purchase(
       lc_nro_linea: i + 1,
       lc_cantidad: l.qty,
       lc_costo_unitario: l.cost,
-      repuesto: { rep_nombre: `Repuesto ${l.repId}` },
+      repuesto: { rep_nombre: `Repuesto ${l.repId}`, rep_unidad: "unidad" },
     })),
     remitos: [],
   };
@@ -345,7 +346,10 @@ describe("equipment stats", () => {
         photo_urls: [],
       },
       tasks: [
-        task({ endDate: "2026-01-04", consumedParts: [{ repId: 1, nombre: "Gas", cantidad: 2 }] }),
+        task({
+          endDate: "2026-01-04",
+          consumedParts: [{ repId: 1, nombre: "Gas", cantidad: 2, unidad: "unidad" }],
+        }),
       ],
     }),
     order({
@@ -370,7 +374,7 @@ describe("equipment stats", () => {
       tasks: [
         task({
           endDate: "2026-03-02",
-          consumedParts: [{ repId: 9, nombre: "Nunca comprado", cantidad: 1 }],
+          consumedParts: [{ repId: 9, nombre: "Nunca comprado", cantidad: 1, unidad: "unidad" }],
         }),
       ],
     }),
@@ -482,11 +486,11 @@ describe("parts and purchases", () => {
       tasks: [
         task({
           endDate: "2026-03-10",
-          consumedParts: [{ repId: 1, nombre: "Filtro", cantidad: 6 }],
+          consumedParts: [{ repId: 1, nombre: "Filtro", cantidad: 6, unidad: "unidad" }],
         }),
         task({
           endDate: "2025-10-01",
-          consumedParts: [{ repId: 3, nombre: "Correa", cantidad: 1 }],
+          consumedParts: [{ repId: 3, nombre: "Correa", cantidad: 1, unidad: "unidad" }],
         }),
       ],
     }),
@@ -537,6 +541,28 @@ describe("parts and purchases", () => {
       ["Correa", "sin_uso"],
     ]);
     expect(Math.round(rows[0].daysLeft!)).toBe(21);
+  });
+
+  it("carries each repuesto's unit on the consumed ranking and the coverage rows", () => {
+    const parts = [
+      part({ rep_id: 1, rep_nombre: "Aceite", rep_unidad: "litro" }),
+      part({ rep_id: 3, rep_nombre: "Correa" }),
+    ];
+    const totals = new Map([
+      [1, 9],
+      [3, 1],
+      [7, 2],
+    ]);
+    expect(topConsumedParts(totals, parts)).toEqual([
+      { repId: 1, name: "Aceite", qty: 9, unidad: "litro" },
+      { repId: 7, name: "Repuesto 7", qty: 2, unidad: null },
+      { repId: 3, name: "Correa", qty: 1, unidad: "unidad" },
+    ]);
+    const rows = stockCoverage(parts, orders, movements, MARCH, "2026-03-31");
+    expect(rows.map((r) => [r.name, r.unidad])).toEqual([
+      ["Aceite", "litro"],
+      ["Correa", "unidad"],
+    ]);
   });
 
   const purchases = [

@@ -4,6 +4,7 @@ import { CheckIcon, RefreshCwIcon, SparePartIcon, WarningIcon } from "./icons";
 import { Tooltip } from "./Tooltip";
 import type { AppNotification } from "../lib/queries/notifications";
 import type { ThemeColors } from "../lib/theme";
+import { formatUnitQty } from "../lib/units";
 import { useTheme } from "../lib/ThemeContext";
 
 type NotificationsPanelProps = {
@@ -133,16 +134,17 @@ function NotificationBody({
   styles: ReturnType<typeof makeStyles>;
 }) {
   if (item.kind === "stock_minimo") {
-    const units = `${item.quantity} ${item.quantity === 1 ? "unidad" : "unidades"}`;
+    const quantity = formatUnitQty(item.quantity, item.unit);
+    const minimum = formatUnitQty(item.minimum, item.unit);
     return item.eventType === "sin_stock" ? (
       <Text style={styles.itemBody}>
-        <Text style={styles.boldText}>«{item.partName}»</Text> se quedó sin stock (mínimo{" "}
-        {item.minimum}).
+        <Text style={styles.boldText}>«{item.partName}»</Text> se quedó sin stock (mínimo {minimum}
+        ).
       </Text>
     ) : (
       <Text style={styles.itemBody}>
         <Text style={styles.boldText}>«{item.partName}»</Text> quedó en{" "}
-        <Text style={styles.boldText}>{units}</Text> (mínimo {item.minimum}).
+        <Text style={styles.boldText}>{quantity}</Text> (mínimo {minimum}).
       </Text>
     );
   }

@@ -25,6 +25,7 @@ import { listStockMovements, type StockMovement } from "../../../lib/queries/sto
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { formatUnitQty } from "../../../lib/units";
 import { usePagination } from "../../../lib/usePagination";
 import { useTableSort } from "../../../lib/useTableSort";
 import { NUMERIC_COL_GAP } from "../../../constants";
@@ -350,7 +351,7 @@ export default function StockMovementsScreen() {
                   <View style={[col("cantidad"), styles.qtyCol]}>
                     <Text style={[styles.qty, { color: tipoColors.fg }]}>
                       {isIngreso ? "+" : "−"}
-                      {m.ms_cantidad}
+                      {formatUnitQty(m.ms_cantidad, m.repuesto?.rep_unidad)}
                     </Text>
                   </View>
 

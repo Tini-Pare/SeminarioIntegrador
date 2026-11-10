@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import type {
   Database,
   PastTaskSuspension,
+  Repuesto,
   Solicitud,
   SolicitudTask,
   TaskSuspension,
@@ -24,7 +25,9 @@ type TareaRow = Database["public"]["Tables"]["tareas_realizadas_orden"]["Row"];
 // its own técnico. Rows with pe_cuit_cuil (external provider) instead of
 // p_id_tecnico are filtered out below — no UI yet to manage those.
 type RepuestoParaTareaRow = { rep_id: number; repta_canti_usada: number };
-type ConsumedPartRow = RepuestoParaTareaRow & { repuestos: { rep_nombre: string } | null };
+type ConsumedPartRow = RepuestoParaTareaRow & {
+  repuestos: Pick<Repuesto, "rep_nombre" | "rep_unidad"> | null;
+};
 
 // A tarea's 0029 columns hold its last suspension; since 0030 resuming
 // only sets taro_fecha_fin_suspension instead of clearing them. So it's
@@ -64,6 +67,8 @@ function mapConsumedParts(rows: ConsumedPartRow[] | undefined) {
     repId: r.rep_id,
     nombre: r.repuestos?.rep_nombre ?? `Repuesto ${r.rep_id}`,
     cantidad: r.repta_canti_usada,
+    // Shown next to the quantity ("Aceite ×2 L"); null if the repuesto is gone.
+    unidad: r.repuestos?.rep_unidad ?? null,
   }));
 }
 
@@ -87,7 +92,7 @@ export type SolicitudWithOrden = SolicitudRow & {
 // tarea added to it (with the técnico's id and the tarea's name), and
 // every photo attached to the solicitud.
 export const SOLICITUD_SELECT =
-  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
+  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad)))), solicitud_foto(*)";
 
 function resolvePhotoUrls(
   fotos: SolicitudFotoRow[] | undefined,
@@ -315,7 +320,7 @@ type WorkOrderWithDetail = OrdenWithTasks & {
 // the solicitud it came from — if any (null on an OT generated without
 // one, e.g. preventivo) — and, on a preventivo, the plan that generated it.
 export const WORK_ORDER_SELECT =
-  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)), plan_mantenimiento(pm_nombre_plan)";
+  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)), plan_mantenimiento(pm_nombre_plan)";
 
 export function mapWorkOrderRow(row: WorkOrderWithDetail): WorkOrder {
   const sol = row.solicitudes;
@@ -693,7 +698,7 @@ export type MyTask = {
   photoUrl: string | null;
   photoUrls: string[];
   faultTypeName: string | null;
-  consumedParts: { repId: number; nombre: string; cantidad: number }[];
+  consumedParts: SolicitudTask["consumedParts"];
   diagnosis: string | null;
   suspension: TaskSuspension | null;
   lastSuspension: PastTaskSuspension | null;
@@ -725,7 +730,7 @@ export async function listMyTasks(): Promise<MyTask[]> {
   const { data, error } = await supabase
     .from("tareas_realizadas_orden")
     .select(
-      "*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)), orden_de_trabajo(*, fallo_por_orden(fallo(*)), solicitudes(sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)))",
+      "*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad)), orden_de_trabajo(*, fallo_por_orden(fallo(*)), solicitudes(sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)))",
     )
     .eq("p_id_tecnico", userId);
   if (error) throw new Error(error.message);

@@ -13,6 +13,7 @@ import { getProfile } from "../lib/auth";
 import { createPurchaseOrder } from "../lib/queries/purchaseOrders";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { unitShort } from "../lib/units";
 import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { getTodayDateString } from "./CustomDatePicker";
@@ -201,7 +202,7 @@ export function PurchaseOrderModal({
                     />
                   </View>
 
-                  <View style={styles.colCant}>
+                  <View style={[styles.colCant, styles.qtyWrap]}>
                     <TextInput
                       style={styles.qtyInput}
                       value={l.cantidad}
@@ -213,6 +214,12 @@ export function PurchaseOrderModal({
                       placeholderTextColor={colors.textMuted}
                       keyboardType="numeric"
                     />
+
+                    {l.repId !== null && (
+                      <Text style={styles.qtyUnit}>
+                        {unitShort(spareParts.find((p) => p.rep_id === l.repId)?.rep_unidad)}
+                      </Text>
+                    )}
                   </View>
 
                   <View style={styles.colRemove}>
@@ -378,14 +385,19 @@ function makeStyles(c: ThemeColors) {
       fontVariant: ["tabular-nums"],
     },
     colRepFlex: { flex: 1 },
-    colCant: { width: 76 },
+    colCant: { width: 92 },
     colRemove: {
       width: 32,
       alignItems: "center",
       justifyContent: "center",
     },
     cellNum: { color: c.text },
+    // Quantity input + the picked repuesto's unit suffix, side by side.
+    qtyWrap: { flexDirection: "row", alignItems: "center", gap: 4 },
+    qtyUnit: { fontSize: 13, color: c.textMuted },
     qtyInput: {
+      flex: 1,
+      minWidth: 0,
       height: 44,
       paddingHorizontal: 8,
       borderWidth: 1,
