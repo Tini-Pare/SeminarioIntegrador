@@ -72,10 +72,7 @@ export function StatisticsFilters({
   const [openPicker, setOpenPicker] = useState<"from" | "to" | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
 
-  const maxDate = useMemo(
-    () => parseDateString(fromDbDate(today)) ?? toDay(new Date()),
-    [today],
-  );
+  const maxDate = useMemo(() => parseDateString(fromDbDate(today)) ?? toDay(new Date()), [today]);
   const parsedFrom = useMemo(() => parseDateString(fromText), [fromText]);
   const parsedTo = useMemo(() => parseDateString(toText), [toText]);
 
@@ -163,6 +160,9 @@ export function StatisticsFilters({
               minDate={parsedFrom ?? undefined}
               maxDate={maxDate}
               compact
+              // Opens leftwards: anchored left, its calendar would run off
+              // the right edge of a phone.
+              alignDropdown="right"
             />
           </View>
 
@@ -240,7 +240,8 @@ function makeStyles(c: ThemeColors) {
     chipText: { fontSize: 13, fontWeight: "500", color: c.textLabel },
     chipTextActive: { color: "#fff", fontWeight: "600" },
     customRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 10 },
-    dateField: { gap: 6, width: 150 },
+    // Shrinks below 150 so Desde and Hasta stay side by side on a narrow phone.
+    dateField: { gap: 6, width: 150, flexShrink: 1, minWidth: 0 },
     dateLabel: { fontSize: 12, fontWeight: "500", color: c.textSecondary },
     error: { fontSize: 12.5, color: c.destructive, paddingBottom: 8 },
   });

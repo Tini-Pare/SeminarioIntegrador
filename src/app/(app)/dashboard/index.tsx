@@ -31,6 +31,7 @@ import { stockStatus } from "../../../lib/queries/spareParts";
 import { daysBetween, overdueOrders } from "../../../lib/statistics";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { useIsPhone } from "../../../lib/useIsPhone";
 import type { Equipo, Profile, Repuesto, Solicitud, WorkOrder } from "../../../types/database";
 
 type RequestItem = Solicitud & {
@@ -62,6 +63,10 @@ export default function DashboardScreen() {
   const [heroSize, setHeroSize] = useState({ width: 0, height: 0 });
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.tablet;
+  const isPhone = useIsPhone();
+  // On a phone the badge beside a name leaves it ~150px, so long names get
+  // a second line instead of being cut off.
+  const nameLines = isPhone ? 2 : 1;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -172,7 +177,10 @@ export default function DashboardScreen() {
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, isPhone && styles.contentPhone]}
+    >
       <View style={styles.pageHeader}>
         <Text style={styles.title}>Inicio</Text>
         <Text style={styles.subtitle}>Resumen del estado de mantenimiento</Text>
@@ -180,7 +188,10 @@ export default function DashboardScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <View style={styles.hero} onLayout={(e) => setHeroSize(e.nativeEvent.layout)}>
+      <View
+        style={[styles.hero, isPhone && styles.heroPhone]}
+        onLayout={(e) => setHeroSize(e.nativeEvent.layout)}
+      >
         <Image
           source={require("../../../../assets/images/dashboard-hero-bg.png")}
           style={[
@@ -224,7 +235,7 @@ export default function DashboardScreen() {
       {/* SCRUM-43: stock alerts. */}
       {stockAlerts.length > 0 && (
         <View style={[styles.panel, styles.alertsPanel]}>
-          <View style={[styles.panelHeader, styles.alertsHeader]}>
+          <View style={styles.panelHeader}>
             <Text style={styles.panelTitle}>Stock mínimo de repuestos</Text>
 
             <Pressable onPress={() => router.push("/spare-parts")}>
@@ -243,7 +254,7 @@ export default function DashboardScreen() {
                   onPress={() => router.push("/spare-parts")}
                 >
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.attentionName} numberOfLines={1}>
+                    <Text style={styles.attentionName} numberOfLines={nameLines}>
                       {p.rep_nombre}
                     </Text>
 
@@ -268,8 +279,11 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      <View style={isWide ? styles.columns : undefined}>
-        <View style={styles.column}>
+      {/* Stacked (phone/tablet) columns must not use flex: 1: in a vertical
+          ScrollView that means flexBasis 0, so a column ends up shorter
+          than its panels and the next one draws on top of them. */}
+      <View style={isWide ? styles.columns : styles.stack}>
+        <View style={isWide ? styles.column : styles.stack}>
           <View style={styles.panel}>
             <View style={styles.panelHeader}>
               <Text style={styles.panelTitle}>Equipos sin funcionar hoy</Text>
@@ -289,7 +303,7 @@ export default function DashboardScreen() {
                   onPress={() => router.push(`/equipment/${e.id}`)}
                 >
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.attentionName} numberOfLines={1}>
+                    <Text style={styles.attentionName} numberOfLines={nameLines}>
                       {e.name}
                     </Text>
                     <Text style={styles.attentionMeta} numberOfLines={1}>
@@ -328,7 +342,7 @@ export default function DashboardScreen() {
                       onPress={() => router.push(`/work-orders/${o.id}` as never)}
                     >
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.attentionName} numberOfLines={1}>
+                        <Text style={styles.attentionName} numberOfLines={nameLines}>
                           {formatOrderNumber(o.id)} · {e?.name ?? "Equipo desconocido"}
                         </Text>
 
@@ -354,7 +368,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <View style={styles.column}>
+        <View style={isWide ? styles.column : styles.stack}>
           <View style={styles.panel}>
             <View style={styles.panelHeader}>
               <Text style={styles.panelTitle}>
@@ -411,6 +425,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 24, paddingBottom: 48 },
+    contentPhone: { padding: 20, paddingBottom: 48 },
     center: { flex: 1 },
     error: { color: c.destructive, marginBottom: 12 },
     pageHeader: { marginBottom: 20 },
@@ -425,6 +440,8 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 20,
       overflow: "hidden",
     },
+    // Leaves room for both hero buttons on one line on a phone.
+    heroPhone: { padding: 18 },
     heroBgImage: {
       position: "absolute",
       top: 0,
@@ -467,6 +484,7 @@ function makeStyles(c: ThemeColors) {
     ghostButtonText: { color: c.text, fontWeight: "600", fontSize: 14 },
     columns: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
     column: { flex: 1, gap: 16, minWidth: 0 },
+    stack: { gap: 16 },
     panel: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -478,9 +496,11 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+      gap: 12,
       marginBottom: 12,
     },
-    panelTitle: { fontSize: 15.5, fontWeight: "600", color: c.text },
+    // Shrinks so the "Ver …" link stays inside a narrow (phone) panel.
+    panelTitle: { flexShrink: 1, minWidth: 0, fontSize: 15.5, fontWeight: "600", color: c.text },
     panelLink: { fontSize: 13.5, fontWeight: "500", color: c.accent },
     panelEmpty: { fontSize: 13.5, color: c.textMuted, paddingVertical: 8 },
     attentionRow: {
@@ -510,7 +530,6 @@ function makeStyles(c: ThemeColors) {
       textTransform: "uppercase",
     },
     alertsMore: { fontSize: 12.5, color: c.textMuted, paddingTop: 8 },
-    alertsHeader: { justifyContent: "flex-start", gap: 12 },
     bellWrap: { position: "relative", padding: 2 },
     bellBadge: {
       position: "absolute",

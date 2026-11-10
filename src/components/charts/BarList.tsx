@@ -1,7 +1,16 @@
 import { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import type { ThemeColors } from "../../lib/theme";
 import { useTheme } from "../../lib/ThemeContext";
+import { useIsPhone } from "../../lib/useIsPhone";
 import type { ChartSeries } from "./palette";
 
 export type BarRow = {
@@ -46,6 +55,22 @@ export function BarList({
   const totalOf = (r: BarRow) => series.reduce((s, ser) => s + (r.values[ser.key] ?? 0), 0);
   const max = Math.max(1, ...rows.map(totalOf));
   const legendItems = legend ?? (series.length > 1 ? series : []);
+  const isPhone = useIsPhone();
+
+  const labelBlock = (r: BarRow, style: StyleProp<ViewStyle>) => (
+    <View style={style}>
+      {/* A phone label has its own full-width line, so it can take two. */}
+      <Text style={styles.label} numberOfLines={isPhone ? 2 : 1}>
+        {r.label}
+      </Text>
+
+      {r.sublabel && (
+        <Text style={styles.sublabel} numberOfLines={1}>
+          {r.sublabel}
+        </Text>
+      )}
+    </View>
+  );
 
   return (
     <View>
@@ -78,18 +103,12 @@ export function BarList({
               accessibilityRole={onSelect ? "button" : undefined}
               accessibilityLabel={`${r.label}: ${r.valueText ?? total}${detail ? `. ${detail}` : ""}`}
             >
-              <View style={styles.rowMain}>
-                <View style={{ width: labelWidth, flexShrink: 1, minWidth: 0 }}>
-                  <Text style={styles.label} numberOfLines={1}>
-                    {r.label}
-                  </Text>
+              {/* On a phone a fixed-width label leaves the bar a few pixels
+                  wide, so the label goes on its own line above a full-width bar. */}
+              {isPhone && labelBlock(r, styles.labelStacked)}
 
-                  {r.sublabel && (
-                    <Text style={styles.sublabel} numberOfLines={1}>
-                      {r.sublabel}
-                    </Text>
-                  )}
-                </View>
+              <View style={styles.rowMain}>
+                {!isPhone && labelBlock(r, { width: labelWidth, flexShrink: 1, minWidth: 0 })}
 
                 <View style={styles.track}>
                   {visible.map((s, i) => (
@@ -142,6 +161,7 @@ function makeStyles(c: ThemeColors) {
     row: { paddingVertical: 6, paddingHorizontal: 6, marginHorizontal: -6, borderRadius: 8 },
     rowSelected: { backgroundColor: c.bgNested },
     rowMain: { flexDirection: "row", alignItems: "center", gap: 12 },
+    labelStacked: { marginBottom: 4 },
     label: { fontSize: 13, color: c.textLabel, fontWeight: "500" },
     sublabel: { fontSize: 11.5, color: c.textMuted, marginTop: 1, fontFamily: "monospace" },
     track: {

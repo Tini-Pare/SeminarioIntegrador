@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ThemeColors } from "../../lib/theme";
 import { useTheme } from "../../lib/ThemeContext";
 import { usePagination } from "../../lib/usePagination";
 import { Pagination } from "../Pagination";
+import { ScrollableTable, tableCol } from "../ScrollableTable";
 
 export type StatColumn<T> = {
   key: string;
@@ -43,19 +44,18 @@ export function StatTable<T>({
 
   return (
     <View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ flexGrow: 1 }}
-      >
-        <View style={[styles.table, { minWidth }]}>
+      {/* The border stays on the outer card so it doesn't scroll away with
+          the content; ScrollableTable gives the columns an explicit width,
+          which keeps them lined up on iOS/Android. */}
+      <View style={styles.table}>
+        <ScrollableTable minWidth={minWidth}>
           <View style={styles.header}>
             {columns.map((col) => (
               <Text
                 key={col.key}
                 style={[
                   styles.headerCell,
-                  { flex: col.flex },
+                  tableCol(col.flex),
                   col.align === "right" && styles.right,
                 ]}
                 numberOfLines={1}
@@ -74,7 +74,7 @@ export function StatTable<T>({
                   key={col.key}
                   style={[
                     styles.cell,
-                    { flex: col.flex },
+                    tableCol(col.flex),
                     col.align === "right" && styles.cellRight,
                   ]}
                 >
@@ -106,8 +106,8 @@ export function StatTable<T>({
               </View>
             );
           })}
-        </View>
-      </ScrollView>
+        </ScrollableTable>
+      </View>
 
       <Pagination page={page.page} pageCount={page.pageCount} onPage={page.setPage} />
     </View>
@@ -117,7 +117,6 @@ export function StatTable<T>({
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     table: {
-      flexGrow: 1,
       borderWidth: 1,
       borderColor: c.border,
       borderRadius: 12,
@@ -137,7 +136,6 @@ function makeStyles(c: ThemeColors) {
       textTransform: "uppercase",
       color: "#fff",
       fontFamily: "monospace",
-      paddingRight: 10,
     },
     row: {
       flexDirection: "row",
@@ -150,7 +148,7 @@ function makeStyles(c: ThemeColors) {
     },
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowSelected: { backgroundColor: c.bgRowHover },
-    cell: { paddingRight: 10, minWidth: 0, justifyContent: "center" },
+    cell: { justifyContent: "center" },
     cellRight: { alignItems: "flex-end" },
     cellText: { fontSize: 13.5, color: c.textLabel, fontVariant: ["tabular-nums"] },
     right: { textAlign: "right" },

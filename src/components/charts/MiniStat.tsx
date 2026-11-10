@@ -44,7 +44,8 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     mini: {
       flexGrow: 1,
-      flexBasis: 140,
+      // Two per row fit in a 280px phone panel (2 × 136 + 8 gap).
+      flexBasis: 136,
       backgroundColor: c.bgStatCard,
       borderWidth: 1,
       borderColor: c.border,

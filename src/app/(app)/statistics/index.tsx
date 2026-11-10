@@ -38,6 +38,7 @@ import {
 } from "../../../lib/statisticsPdf";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { useIsPhone } from "../../../lib/useIsPhone";
 
 type TabKey = StatisticsTabKey;
 
@@ -46,6 +47,16 @@ const TABS = (Object.keys(STATISTICS_TAB_LABELS) as TabKey[]).map((key) => ({
   label: STATISTICS_TAB_LABELS[key],
   usesType: TAB_USES_TYPE[key],
 }));
+
+// Phone labels: the full ones add up to ~620px, so on a phone the last tabs
+// would sit off-screen with nothing hinting they exist.
+const TAB_PHONE_LABELS: Record<TabKey, string> = {
+  orders: "Órdenes",
+  technicians: "Técnicos",
+  equipment: "Equipos",
+  requests: "Solicitudes",
+  parts: "Repuestos",
+};
 
 const DEFAULT_PRESET: Exclude<PeriodPreset, "custom"> = "90d";
 
@@ -57,6 +68,7 @@ export default function StatisticsScreen() {
   const styles = makeStyles(colors);
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.desktop;
+  const isPhone = useIsPhone();
 
   const today = getTodayDbDate();
   const [data, setData] = useState<StatisticsData | null>(null);
@@ -139,10 +151,24 @@ export default function StatisticsScreen() {
     ? { data, period, type, today, isWide, ...lookups }
     : null;
 
+  const tabButtons = TABS.map((t) => (
+    <Pressable
+      key={t.key}
+      style={[styles.tab, tab === t.key && styles.tabActive]}
+      onPress={() => setTab(t.key)}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: tab === t.key }}
+    >
+      <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>
+        {isPhone ? TAB_PHONE_LABELS[t.key] : t.label}
+      </Text>
+    </Pressable>
+  ));
+
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, isPhone && styles.contentPhone]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <View style={styles.pageHeader}>
@@ -162,7 +188,7 @@ export default function StatisticsScreen() {
           {exporting && <ActivityIndicator size="small" color="#fff" />}
 
           <Text style={styles.exportButtonText}>
-            {exporting ? "Generando PDF…" : "Exportar PDF"}
+            {exporting ? (isPhone ? "Generando…" : "Generando PDF…") : "Exportar PDF"}
           </Text>
         </Pressable>
       </View>
@@ -181,24 +207,19 @@ export default function StatisticsScreen() {
         }}
       />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabsScroll}
-        contentContainerStyle={styles.tabs}
-      >
-        {TABS.map((t) => (
-          <Pressable
-            key={t.key}
-            style={[styles.tab, tab === t.key && styles.tabActive]}
-            onPress={() => setTab(t.key)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === t.key }}
-          >
-            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      {isPhone ? (
+        // On a phone the short labels wrap into rows, so every tab is visible.
+        <View style={[styles.tabs, styles.tabsWrap]}>{tabButtons}</View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tabsScroll}
+          contentContainerStyle={styles.tabs}
+        >
+          {tabButtons}
+        </ScrollView>
+      )}
 
       <View style={styles.filters}>
         <StatisticsFilters
@@ -244,15 +265,17 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 24, paddingBottom: 48 },
+    contentPhone: { padding: 20, paddingBottom: 48 },
     pageHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
-      flexWrap: "wrap",
       gap: 12,
       marginBottom: 16,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    // No wrap: a wrapped button would drop onto its own line on the left
+    // (see Proveedores); on a phone the text shrinks instead.
+    headerText: { flex: 1, minWidth: 0 },
     exportButton: {
       flexDirection: "row",
       alignItems: "center",
@@ -275,6 +298,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 12,
       backgroundColor: c.bgToggle,
     },
+    tabsWrap: { flexWrap: "wrap", marginBottom: 16 },
     tab: { paddingHorizontal: 14, height: 34, borderRadius: 9, justifyContent: "center" },
     tabActive: { backgroundColor: c.bgToggleActive },
     tabText: { fontSize: 13.5, fontWeight: "500", color: c.textSecondary },

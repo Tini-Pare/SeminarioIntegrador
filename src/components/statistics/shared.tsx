@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { StatisticsData } from "../../lib/queries/statistics";
 import type { OrderTypeFilter, StatsPeriod } from "../../lib/statistics";
@@ -38,11 +38,22 @@ export function personName(profileById: Map<string, Profile>, id: string): strin
 
 // Two blocks side by side on a wide screen, stacked on a phone.
 export function TwoColumns({ isWide, children }: { isWide: boolean; children: ReactNode }) {
-  return <View style={isWide ? styles.columns : styles.stack}>{children}</View>;
+  return (
+    <ColumnsWideContext.Provider value={isWide}>
+      <View style={isWide ? styles.columns : styles.stack}>{children}</View>
+    </ColumnsWideContext.Provider>
+  );
 }
 
+// Whether the enclosing TwoColumns lays its columns side by side.
+const ColumnsWideContext = createContext(false);
+
 export function Column({ children }: { children: ReactNode }) {
-  return <View style={styles.column}>{children}</View>;
+  // flex: 1 only splits the width of a row. In a vertical stack inside a
+  // ScrollView it means flexBasis 0, so the column ends up shorter than its
+  // panels and the next column draws on top of them.
+  const isWide = useContext(ColumnsWideContext);
+  return <View style={isWide ? styles.column : styles.stack}>{children}</View>;
 }
 
 export function TabStack({ children }: { children: ReactNode }) {

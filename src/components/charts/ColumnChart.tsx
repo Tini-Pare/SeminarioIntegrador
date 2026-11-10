@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ThemeColors } from "../../lib/theme";
 import { useTheme } from "../../lib/ThemeContext";
+import { useIsPhone } from "../../lib/useIsPhone";
 import { Legend } from "./BarList";
 import type { ChartSeries } from "./palette";
 
@@ -14,6 +15,7 @@ export type ColumnBucket = {
 };
 
 const MAX_X_LABELS = 8;
+const MAX_X_LABELS_PHONE = 4;
 
 // Stacked columns over time (one per week/month). The readout line above
 // the plot shows the hovered/pressed column's numbers, or the period's
@@ -34,7 +36,14 @@ export function ColumnChart({
 
   const totalOf = (b: ColumnBucket) => series.reduce((s, ser) => s + (b.values[ser.key] ?? 0), 0);
   const max = Math.max(1, ...buckets.map(totalOf));
-  const labelEvery = Math.ceil(buckets.length / MAX_X_LABELS);
+  const isPhone = useIsPhone();
+  const labelEvery = Math.ceil(buckets.length / (isPhone ? MAX_X_LABELS_PHONE : MAX_X_LABELS));
+  const labelGroups = buckets
+    .filter((_, i) => i % labelEvery === 0)
+    .map((bucket, g) => ({
+      bucket,
+      span: Math.min(labelEvery, buckets.length - g * labelEvery),
+    }));
   const active = buckets.find((b) => b.key === activeKey) ?? null;
   // Same gap under the plot and its x labels, so each label sits under its column.
   const gap = buckets.length > 20 ? 2 : 6;
@@ -102,13 +111,30 @@ export function ColumnChart({
             })}
           </View>
 
-          <View style={[styles.xLabels, { gap }]}>
-            {buckets.map((b, i) => (
-              <Text key={b.key} style={styles.xLabel} numberOfLines={1}>
-                {i % labelEvery === 0 ? b.label : ""}
-              </Text>
-            ))}
-          </View>
+          {isPhone ? (
+            // A phone column is ~16px wide, too narrow for "ene 26": each
+            // label spans its whole group of columns, starting under the
+            // first one.
+            <View style={[styles.xLabels, { gap }]}>
+              {labelGroups.map(({ bucket, span }) => (
+                <Text
+                  key={bucket.key}
+                  style={[styles.xLabel, { flex: span, textAlign: "left" }]}
+                  numberOfLines={1}
+                >
+                  {bucket.label}
+                </Text>
+              ))}
+            </View>
+          ) : (
+            <View style={[styles.xLabels, { gap }]}>
+              {buckets.map((b, i) => (
+                <Text key={b.key} style={styles.xLabel} numberOfLines={1}>
+                  {i % labelEvery === 0 ? b.label : ""}
+                </Text>
+              ))}
+            </View>
+          )}
         </View>
       </View>
     </View>
