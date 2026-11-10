@@ -111,6 +111,7 @@ function part(overrides: Partial<Repuesto>): Repuesto {
     rep_stock_minimo: 2,
     rep_stock_maximo: null,
     rep_estado: "activo",
+    rep_unidad: "unidad",
     ...overrides,
   };
 }

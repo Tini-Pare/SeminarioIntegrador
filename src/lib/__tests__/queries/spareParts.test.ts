@@ -66,6 +66,7 @@ describe("createSparePart", () => {
       stockMin: 2,
       stockMax: 10,
       estado: "activo",
+      unidad: "litro",
     });
 
     expect(insert).toHaveBeenCalledWith({
@@ -73,6 +74,7 @@ describe("createSparePart", () => {
       rep_stock_minimo: 2,
       rep_stock_maximo: 10,
       rep_estado: "activo",
+      rep_unidad: "litro",
     });
     expect(insert.mock.calls[0][0]).not.toHaveProperty("rep_cantidad_actual");
   });
@@ -95,6 +97,7 @@ describe("createSparePart", () => {
         stockMin: 0,
         stockMax: null,
         estado: "activo",
+        unidad: "unidad",
       }),
     ).rejects.toThrow("Ya existe un repuesto con ese nombre");
   });
@@ -117,6 +120,7 @@ describe("createSparePart", () => {
         stockMin: 0,
         stockMax: null,
         estado: "activo",
+        unidad: "unidad",
       }),
     ).rejects.toThrow("repuestos_pkey");
   });
@@ -128,13 +132,20 @@ describe("updateSparePart", () => {
     const update = jest.fn().mockReturnValue({ eq });
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
-    await updateSparePart(5, { name: " Correa ", stockMin: 1, stockMax: null, estado: "inactivo" });
+    await updateSparePart(5, {
+      name: " Correa ",
+      stockMin: 1,
+      stockMax: null,
+      estado: "inactivo",
+      unidad: "metro",
+    });
 
     expect(update).toHaveBeenCalledWith({
       rep_nombre: "Correa",
       rep_stock_minimo: 1,
       rep_stock_maximo: null,
       rep_estado: "inactivo",
+      rep_unidad: "metro",
     });
     expect(eq).toHaveBeenCalledWith("rep_id", 5);
   });

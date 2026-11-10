@@ -13,6 +13,8 @@
 // rest of the schema (planes de mantenimiento, catalogo de fallas, etc., see
 // supabase/migrations/0003_reemplazo_gestion_mantenimiento.sql) has no UI yet
 // and nothing here queries it.
+import type { UnidadRepuesto } from "../lib/units";
+
 export type Database = {
   public: {
     Views: Record<string, never>;
@@ -618,6 +620,8 @@ export type Database = {
           rep_stock_minimo: number;
           rep_stock_maximo: number | null;
           rep_estado: "activo" | "inactivo";
+          // Migration 0049; see src/lib/units.ts.
+          rep_unidad: UnidadRepuesto;
         };
         Insert: {
           rep_id?: number;
@@ -626,6 +630,7 @@ export type Database = {
           rep_stock_minimo?: number;
           rep_stock_maximo?: number | null;
           rep_estado?: "activo" | "inactivo";
+          rep_unidad?: UnidadRepuesto;
         };
         Update: {
           rep_id?: number;
@@ -634,6 +639,7 @@ export type Database = {
           rep_stock_minimo?: number;
           rep_stock_maximo?: number | null;
           rep_estado?: "activo" | "inactivo";
+          rep_unidad?: UnidadRepuesto;
         };
         Relationships: [];
       };
