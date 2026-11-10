@@ -14,10 +14,10 @@ const ESTADO_OPTIONS: RadioOption<Repuesto["rep_estado"]>[] = [
 ];
 
 // "Litro (L)": the name says what it is, the symbol is how it shows next
-// to every quantity.
+// to every quantity. Word units ("Caja") show as themselves, so no symbol.
 const UNIDAD_OPTIONS: RadioOption<Repuesto["rep_unidad"]>[] = UNIDADES.map((u) => ({
   value: u,
-  label: `${UNIT_INFO[u].name} (${UNIT_INFO[u].short})`,
+  label: UNIT_INFO[u].plural ? UNIT_INFO[u].name : `${UNIT_INFO[u].name} (${UNIT_INFO[u].short})`,
 }));
 
 // Empty string -> null; anything else -> a non-negative integer (or null when
@@ -47,11 +47,15 @@ export function SparePartModal({
   const [stockMin, setStockMin] = useState("");
   const [stockMax, setStockMax] = useState("");
   const [estado, setEstado] = useState<Repuesto["rep_estado"]>("activo");
-  const [unidad, setUnidad] = useState<Repuesto["rep_unidad"]>("unidad");
+  // A new repuesto starts with no unit on purpose: a preselected "unidad" let
+  // an aceite be saved in u by just not looking.
+  const [unidad, setUnidad] = useState<Repuesto["rep_unidad"] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  // " (L)" once a unit is picked; nothing while it's still unset.
+  const unitSuffix = unidad ? ` (${unitShort(unidad)})` : "";
 
   useEffect(() => {
     if (!visible) return;
@@ -59,7 +63,7 @@ export function SparePartModal({
     setStockMin(sparePart ? String(sparePart.rep_stock_minimo) : "");
     setStockMax(sparePart?.rep_stock_maximo != null ? String(sparePart.rep_stock_maximo) : "");
     setEstado(sparePart?.rep_estado ?? "activo");
-    setUnidad(sparePart?.rep_unidad ?? "unidad");
+    setUnidad(sparePart?.rep_unidad ?? null);
     setError(null);
   }, [visible, sparePart]);
 
@@ -94,6 +98,10 @@ export function SparePartModal({
     }
     if (max !== null && max < min) {
       setError("El stock máximo no puede ser menor que el mínimo.");
+      return;
+    }
+    if (!unidad) {
+      setError("Elegí la unidad de medida del repuesto.");
       return;
     }
 
@@ -156,7 +164,7 @@ export function SparePartModal({
 
           <View style={styles.row}>
             <View style={styles.rowItem}>
-              <Text style={styles.label}>Stock mínimo ({unitShort(unidad)})</Text>
+              <Text style={styles.label}>Stock mínimo{unitSuffix}</Text>
               <TextInput
                 style={styles.input}
                 value={stockMin}
@@ -168,7 +176,7 @@ export function SparePartModal({
             </View>
 
             <View style={styles.rowItem}>
-              <Text style={styles.label}>Stock máximo ({unitShort(unidad)})</Text>
+              <Text style={styles.label}>Stock máximo{unitSuffix}</Text>
               <TextInput
                 style={styles.input}
                 value={stockMax}

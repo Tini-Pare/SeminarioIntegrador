@@ -33,19 +33,50 @@ beforeEach(() => {
 });
 
 describe("SparePartModal unit", () => {
-  it("offers the four units and defaults a new repuesto to unidad", async () => {
-    const { getByText, getByPlaceholderText } = await renderModal();
+  it("offers the eight units", async () => {
+    const { getByText } = await renderModal();
 
-    for (const label of ["Unidad (u)", "Litro (L)", "Kilogramo (kg)", "Metro (m)"]) {
+    for (const label of [
+      "Unidad (u)",
+      "Litro (L)",
+      "Kilogramo (kg)",
+      "Metro (m)",
+      "Metro cuadrado (m²)",
+      "Caja",
+      "Rollo",
+      "Par",
+    ]) {
       expect(getByText(label)).toBeTruthy();
     }
+  });
+
+  it("won't create a repuesto until a unit is picked", async () => {
+    const { getByText, getByPlaceholderText, queryByText } = await renderModal();
+
+    // Nothing preselected: the stock labels carry no unit yet.
+    expect(getByText("Stock mínimo")).toBeTruthy();
 
     await fireEvent.changeText(getByPlaceholderText("Ej: Filtro de aire 20x25x1"), "Correa A42");
     await fireEvent.changeText(getByPlaceholderText("Ej: 5"), "2");
     await fireEvent.press(getByText("Confirmar"));
 
+    expect(getByText("Elegí la unidad de medida del repuesto.")).toBeTruthy();
+    expect(createSparePart).not.toHaveBeenCalled();
+
+    await fireEvent.press(getByText("Unidad (u)"));
+    await fireEvent.press(getByText("Confirmar"));
+
     await waitFor(() => expect(createSparePart).toHaveBeenCalled());
     expect((createSparePart as jest.Mock).mock.calls[0][0]).toMatchObject({ unidad: "unidad" });
+    expect(queryByText("Elegí la unidad de medida del repuesto.")).toBeNull();
+  });
+
+  it("shows a word unit in plural next to the stock labels", async () => {
+    const { getByText } = await renderModal();
+
+    await fireEvent.press(getByText("Caja"));
+
+    expect(getByText("Stock mínimo (cajas)")).toBeTruthy();
   });
 
   it("saves the unit picked for a new repuesto", async () => {

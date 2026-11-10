@@ -5,15 +5,23 @@
 -- movement, compra, pedido, remito and tarea line) were bare numbers.
 -- This adds the unit they are counted in, from a closed list:
 --
---   unidad    (u)   pieces: filtros, correas, rodamientos, capacitores
---   litro     (L)   liquids: aceite, desengrasante, líquido refrigerante
---   kilogramo (kg)  weighed: gas refrigerante (R-22, R-410A…), grasa
---   metro     (m)   cut to length: cable, caño de cobre, manguera
+--   unidad         (u)   pieces: filtros, correas, rulemanes, cristales
+--   litro          (L)   liquids: aceite, desengrasante, líquido refrigerante
+--   kilogramo      (kg)  weighed: gas refrigerante (R-22, R-410A…), grasa
+--   metro          (m)   cut to length: cable, caño de cobre, manguera
+--   metro_cuadrado (m²)  by area: vidrio, chapa, membrana bought per m²
+--   caja                 bought by the box: tornillos, fusibles
+--   rollo                cinta, film
+--   par                  guantes, escobillas
+--
+-- The unit is what the stock is counted in, not a size: "Cristal templado
+-- 10mm (Paño estándar)" is counted in paños (unidad); 10 mm is its thickness.
 --
 -- Quantities stay integers (int columns untouched): the unit is a label
 -- the app shows next to every quantity, e.g. "Stock 12 L · Mín. 5 L".
--- New repuestos default to 'unidad'; the admin picks the unit when
--- creating or editing one.
+-- The column defaults to 'unidad' for safety, but the app makes the admin
+-- pick the unit explicitly when creating a repuesto, and lets it be changed
+-- when editing one.
 --
 -- Existing repuestos get a unit guessed from their name, only the first
 -- time this runs (when the column is created), so re-running it never
@@ -33,7 +41,7 @@ begin
     select 1 from information_schema.columns
     where table_schema = 'public' and table_name = 'repuestos' and column_name = 'rep_unidad'
   ) then
-    alter table repuestos add column rep_unidad varchar(10) not null default 'unidad';
+    alter table repuestos add column rep_unidad varchar(20) not null default 'unidad';
 
     -- Names naming a piece stay 'unidad' even when they mention a liquid,
     -- gas or length material: "Filtro de aceite", "Detector de gas
@@ -68,12 +76,33 @@ begin
         and rep_id not in (select rep_id from rep_piece)
         and translate(lower(rep_nombre), 'áéíóúüñ', 'aeiouun')
           ~ '\m((cable|cano|caneria|tuberia|manguera|aislante|burlete)s?|capilar(es)?|tubos? (de )?cobre)\M';
+
+    -- rollo: tape and film ("Cinta aislante", in the piece list above, so
+    -- it was left at 'unidad' until here).
+    update repuestos set rep_unidad = 'rollo'
+      where rep_unidad = 'unidad'
+        and translate(lower(rep_nombre), 'áéíóúüñ', 'aeiouun') ~ '\m(cinta|film|rollo)s?\M';
+
+    -- par: gloves.
+    update repuestos set rep_unidad = 'par'
+      where rep_unidad = 'unidad'
+        and translate(lower(rep_nombre), 'áéíóúüñ', 'aeiouun') ~ '\mguantes?\M';
+
+    -- metro_cuadrado and caja are never guessed: whether a vidrio or a
+    -- tornillo is counted per piece or per m²/caja depends on how it's
+    -- bought, which the name doesn't say. Set them from the app.
   end if;
 end $$;
 
+-- Widening a varchar keeps every value as is; here only so a database that
+-- ran an earlier draft of this file (varchar(10)) fits 'metro_cuadrado'.
+alter table repuestos alter column rep_unidad type varchar(20);
+
 alter table repuestos drop constraint if exists repuestos_unidad_chk;
 alter table repuestos add constraint repuestos_unidad_chk
-  check (rep_unidad in ('unidad', 'litro', 'kilogramo', 'metro'));
+  check (rep_unidad in (
+    'unidad', 'litro', 'kilogramo', 'metro', 'metro_cuadrado', 'caja', 'rollo', 'par'
+  ));
 
 -- Review the guessed units (run on its own after the migration):
 -- select rep_unidad, rep_nombre from repuestos order by rep_unidad, rep_nombre;
