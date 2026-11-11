@@ -122,6 +122,29 @@ export function TechniciansTab({ data, period, type, today, profileById, isWide 
               />
             )}
           </StatPanel>
+
+          {/* Lives under the short per-técnico list so it fills the space next
+              to the taller complexity ranking instead of leaving a gap. */}
+          <StatPanel
+            title="Tareas suspendidas por motivo"
+            caption="Tareas frenadas en el período y cuántos días estuvieron paradas en promedio. Solo se guarda la última suspensión de cada tarea: una tarea suspendida dos veces cuenta una vez."
+          >
+            {suspensions.length === 0 ? (
+              <EmptyChart text="No se suspendieron tareas en el período." />
+            ) : (
+              <BarList
+                series={[{ key: "count", label: "Tareas", color: colors.eqWaiting.dot }]}
+                rows={suspensions.map((s) => ({
+                  key: s.reason,
+                  label: s.reason,
+                  sublabel: `Prom. frenada: ${formatDays(s.avgDaysStopped)}`,
+                  detail: `${s.count} ${s.count === 1 ? "tarea" : "tareas"}, frenadas ${formatDays(s.avgDaysStopped)} en promedio${s.ongoing ? ` · ${s.ongoing} ${s.ongoing === 1 ? "sigue suspendida" : "siguen suspendidas"}` : ""}`,
+                  values: { count: s.count },
+                }))}
+                labelWidth={150}
+              />
+            )}
+          </StatPanel>
         </Column>
 
         <Column>
@@ -147,27 +170,6 @@ export function TechniciansTab({ data, period, type, today, profileById, isWide 
           </StatPanel>
         </Column>
       </TwoColumns>
-
-      <StatPanel
-        title="Tareas suspendidas por motivo"
-        caption="Tareas frenadas en el período y cuántos días estuvieron paradas en promedio. Solo se guarda la última suspensión de cada tarea: una tarea suspendida dos veces cuenta una vez."
-      >
-        {suspensions.length === 0 ? (
-          <EmptyChart text="No se suspendieron tareas en el período." />
-        ) : (
-          <BarList
-            series={[{ key: "count", label: "Tareas", color: colors.eqWaiting.dot }]}
-            rows={suspensions.map((s) => ({
-              key: s.reason,
-              label: s.reason,
-              sublabel: `Prom. frenada: ${formatDays(s.avgDaysStopped)}`,
-              detail: `${s.count} ${s.count === 1 ? "tarea" : "tareas"}, frenadas ${formatDays(s.avgDaysStopped)} en promedio${s.ongoing ? ` · ${s.ongoing} ${s.ongoing === 1 ? "sigue suspendida" : "siguen suspendidas"}` : ""}`,
-              values: { count: s.count },
-            }))}
-            labelWidth={190}
-          />
-        )}
-      </StatPanel>
     </TabStack>
   );
 }
