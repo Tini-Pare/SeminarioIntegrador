@@ -1,9 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-  },
-}));
-
 import {
   createSparePart,
   deleteSparePart,
@@ -12,6 +6,12 @@ import {
   updateSparePart,
 } from "../../queries/spareParts";
 import { supabase } from "../../supabase";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+  },
+}));
 
 describe("stockStatus", () => {
   it("sin_stock when nothing on hand", () => {

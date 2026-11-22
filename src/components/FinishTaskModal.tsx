@@ -18,7 +18,9 @@ import { formatUnitQty, unitShort } from "../lib/units";
 import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { SearchIcon } from "./icons";
+import { ScrollableTable } from "./ScrollableTable";
 import { RowActions } from "./RowActions";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 type UsedRow = { repId: number; qty: string };
 
@@ -59,8 +61,8 @@ export function FinishTaskModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setRows([]);
     setSearchOpen(false);
     setSearch("");
@@ -69,6 +71,10 @@ export function FinishTaskModal({
     setDiagnosis("");
     setConfirming(false);
     setError(null);
+  });
+
+  useEffect(() => {
+    if (!visible) return;
     listSpareParts()
       .then((all) =>
         setSpareParts(
@@ -156,7 +162,9 @@ export function FinishTaskModal({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => !confirming && onClose()}
+      onRequestClose={() => {
+        if (!confirming) onClose();
+      }}
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
@@ -258,70 +266,72 @@ export function FinishTaskModal({
             )}
 
             <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.headerCell, styles.colRepuesto]}>REPUESTO</Text>
-                <Text style={[styles.headerCell, styles.colStock]}>EXISTENCIAS ACTUALES</Text>
-                <Text style={[styles.headerCell, styles.colUsada]}>CANTIDAD USADA</Text>
-                <Text style={[styles.headerCell, styles.colActions]}>ACCIONES</Text>
-              </View>
+              <ScrollableTable minWidth={420}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.headerCell, styles.colRepuesto]}>REPUESTO</Text>
+                  <Text style={[styles.headerCell, styles.colStock]}>EXISTENCIAS ACTUALES</Text>
+                  <Text style={[styles.headerCell, styles.colUsada]}>CANTIDAD USADA</Text>
+                  <Text style={[styles.headerCell, styles.colActions]}>ACCIONES</Text>
+                </View>
 
-              {rows.length === 0 ? (
-                <Text style={styles.empty}>
-                  No se agregó ningún repuesto. Usá “+ Repuesto” si la tarea consumió alguno.
-                </Text>
-              ) : (
-                rows.map((row, i) => {
-                  const part = partById.get(row.repId);
-                  const rowErr = rowErrors[row.repId];
-                  return (
-                    <View key={row.repId} style={[styles.rowWrap, i % 2 === 1 && styles.rowAlt]}>
-                      <View style={styles.row}>
-                        <Text
-                          style={[styles.cellText, styles.cellStrong, styles.colRepuesto]}
-                          numberOfLines={2}
-                        >
-                          {part?.rep_nombre ?? `Repuesto ${row.repId}`}
-                        </Text>
+                {rows.length === 0 ? (
+                  <Text style={styles.empty}>
+                    No se agregó ningún repuesto. Usá “+ Repuesto” si la tarea consumió alguno.
+                  </Text>
+                ) : (
+                  rows.map((row, i) => {
+                    const part = partById.get(row.repId);
+                    const rowErr = rowErrors[row.repId];
+                    return (
+                      <View key={row.repId} style={[styles.rowWrap, i % 2 === 1 && styles.rowAlt]}>
+                        <View style={styles.row}>
+                          <Text
+                            style={[styles.cellText, styles.cellStrong, styles.colRepuesto]}
+                            numberOfLines={2}
+                          >
+                            {part?.rep_nombre ?? `Repuesto ${row.repId}`}
+                          </Text>
 
-                        <Text style={[styles.cellText, styles.colStock]}>
-                          {part ? formatUnitQty(part.rep_cantidad_actual, part.rep_unidad) : "—"}
-                        </Text>
+                          <Text style={[styles.cellText, styles.colStock]}>
+                            {part ? formatUnitQty(part.rep_cantidad_actual, part.rep_unidad) : "—"}
+                          </Text>
 
-                        <View style={[styles.colUsada, styles.qtyField]}>
-                          <TextInput
-                            style={[styles.qtyInput, rowErr && styles.qtyInputError]}
-                            value={row.qty}
-                            onChangeText={(t) => {
-                              const qty = t.replace(/[^0-9]/g, "");
-                              setRows((prev) =>
-                                prev.map((r) => (r.repId === row.repId ? { ...r, qty } : r)),
-                              );
-                              clearRowError(row.repId);
-                            }}
-                            placeholder="0"
-                            placeholderTextColor={colors.textMuted}
-                            keyboardType="number-pad"
-                            maxLength={5}
-                            autoFocus={focusRepId === row.repId}
-                            accessibilityLabel={`Cantidad usada de ${part?.rep_nombre ?? "repuesto"}`}
-                          />
+                          <View style={[styles.colUsada, styles.qtyField]}>
+                            <TextInput
+                              style={[styles.qtyInput, rowErr && styles.qtyInputError]}
+                              value={row.qty}
+                              onChangeText={(t) => {
+                                const qty = t.replace(/[^0-9]/g, "");
+                                setRows((prev) =>
+                                  prev.map((r) => (r.repId === row.repId ? { ...r, qty } : r)),
+                                );
+                                clearRowError(row.repId);
+                              }}
+                              placeholder="0"
+                              placeholderTextColor={colors.textMuted}
+                              keyboardType="number-pad"
+                              maxLength={5}
+                              autoFocus={focusRepId === row.repId}
+                              accessibilityLabel={`Cantidad usada de ${part?.rep_nombre ?? "repuesto"}`}
+                            />
 
-                          <Text style={styles.qtyUnit}>{unitShort(part?.rep_unidad)}</Text>
+                            <Text style={styles.qtyUnit}>{unitShort(part?.rep_unidad)}</Text>
+                          </View>
+
+                          <View style={styles.colActions}>
+                            <RowActions
+                              onDelete={() => removeRow(row.repId)}
+                              deleteTooltip="Quitar repuesto"
+                            />
+                          </View>
                         </View>
 
-                        <View style={styles.colActions}>
-                          <RowActions
-                            onDelete={() => removeRow(row.repId)}
-                            deleteTooltip="Quitar repuesto"
-                          />
-                        </View>
+                        {rowErr && <Text style={styles.rowError}>{rowErr}</Text>}
                       </View>
-
-                      {rowErr && <Text style={styles.rowError}>{rowErr}</Text>}
-                    </View>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </ScrollableTable>
             </View>
 
             {error && <Text style={styles.error}>{error}</Text>}
@@ -461,7 +471,7 @@ function makeStyles(c: ThemeColors) {
     // Input plus its unit suffix ("L", "kg"), so 22 wider than the input alone.
     colUsada: { width: 94, flexShrink: 0, textAlign: "right" },
     qtyField: { flexDirection: "row", alignItems: "center", gap: 6 },
-    colActions: { width: 80, alignItems: "center" },
+    colActions: { width: 80, flexShrink: 0, alignItems: "center" },
     qtyInput: {
       flex: 1,
       minWidth: 0,

@@ -1,11 +1,11 @@
+import { listProfiles, updateProfile } from "../../queries/profiles";
+import { supabase } from "../../supabase";
+
 jest.mock("../../supabase", () => ({
   supabase: {
     from: jest.fn(),
   },
 }));
-
-import { listProfiles, updateProfile } from "../../queries/profiles";
-import { supabase } from "../../supabase";
 
 describe("listProfiles", () => {
   it("returns all profiles ordered by name", async () => {

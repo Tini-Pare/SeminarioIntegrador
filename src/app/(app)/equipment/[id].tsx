@@ -32,6 +32,7 @@ import { useTheme } from "../../../lib/ThemeContext";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { formatUnitQty } from "../../../lib/units";
 import type { Equipo, Solicitud, SolicitudTask, HistorialEntry } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 const PRIORITY_LABEL: Record<Exclude<Solicitud["priority"], null>, string> = {
   low: "Baja",
@@ -142,7 +143,6 @@ export default function EquipmentDetail() {
   const [faults, setFaults] = useState<Solicitud[]>([]);
   const [history, setHistory] = useState<HistorialEntry[]>([]);
   const [authorNames, setAuthorNames] = useState<Map<string, string>>(new Map());
-  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("faults");
   // Same "" = no filter convention as the other list screens' TableFilterBar.
   const [faultSearch, setFaultSearch] = useState("");
@@ -202,9 +202,7 @@ export default function EquipmentDetail() {
     );
   }, [id, equipoId]);
 
-  useEffect(() => {
-    loadEquipmentData().finally(() => setLoading(false));
-  }, [loadEquipmentData]);
+  const loading = useInitialLoad(loadEquipmentData);
 
   useEffect(() => {
     if (!id || Number.isNaN(equipoId)) return;

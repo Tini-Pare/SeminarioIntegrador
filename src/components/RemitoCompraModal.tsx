@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   CustomDatePicker,
@@ -18,6 +18,7 @@ import { useTheme } from "../lib/ThemeContext";
 import { formatUnitQty, unitShort } from "../lib/units";
 import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 type RowDraft = {
   repId: number;
@@ -54,8 +55,11 @@ export function RemitoCompraModal({
   const today = useMemo(() => new Date(), []);
   const isEditing = editing != null;
 
-  useEffect(() => {
-    if (!visible || !purchase) return;
+  // Rebuild the form each time the modal opens (or its compra/remito changes).
+  useResetOnOpen(visible && purchase != null, resetForm, [purchase, editing]);
+
+  function resetForm() {
+    if (!purchase) return;
     setError(null);
     setFecha(editing?.rc_fecha ?? getTodayDateString());
 
@@ -83,7 +87,7 @@ export function RemitoCompraModal({
         })
         .filter((r) => r.max > 0),
     );
-  }, [visible, purchase, editing]);
+  }
 
   function updateCantidad(repId: number, raw: string) {
     setRows((prev) =>

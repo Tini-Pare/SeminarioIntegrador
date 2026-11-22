@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, G, Mask, Path, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
 import { BrandMark } from "../../components/BrandMark";
@@ -87,7 +88,7 @@ function ShellPatternBackground() {
 
 const stylesStatic = StyleSheet.create({
   patternLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 0,
   },
 });
@@ -100,7 +101,7 @@ export default function Login() {
   const { width, height } = useWindowDimensions();
   const isTablet = width >= BREAKPOINT.tablet;
   const insets = useSafeAreaInsets();
-  const passwordRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 

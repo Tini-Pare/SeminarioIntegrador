@@ -7,6 +7,7 @@ import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 const ROLE_OPTIONS: RadioOption<Profile["role"]>[] = [
   { value: "user", label: "Usuario" },
@@ -38,15 +39,18 @@ export function InvitePersonModal({
     (confirmPassword.length > 0 && password !== confirmPassword) ||
     error === "Las contraseñas no coinciden.";
 
+  // Clear the form when the modal closes, so a cancelled invite doesn't
+  // leave a password filled in for the next one.
+  useResetOnOpen(!visible, () => {
+    setLegajo("");
+    setName("");
+    setPassword("");
+    setConfirmPassword("");
+    setError(null);
+  });
+
   useEffect(() => {
-    if (!visible) {
-      setLegajo("");
-      setName("");
-      setPassword("");
-      setConfirmPassword("");
-      setError(null);
-      return;
-    }
+    if (!visible) return;
     listProfiles()
       .then(setExistingProfiles)
       .catch(() => {});

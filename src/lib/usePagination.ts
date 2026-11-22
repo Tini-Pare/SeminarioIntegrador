@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 export const PAGE_SIZE = 10;
 
@@ -11,9 +11,10 @@ export function usePagination<T>(items: T[], resetKey = "", pageSize = PAGE_SIZE
 
   // Adjust page during render when the filters change (React-supported
   // pattern for derived state) so the slice is always in sync.
-  const prevKey = useRef(resetKey);
-  if (prevKey.current !== resetKey) {
-    prevKey.current = resetKey;
+  // The previous key lives in state, not a ref: render may not touch refs.
+  const [prevKey, setPrevKey] = useState(resetKey);
+  if (prevKey !== resetKey) {
+    setPrevKey(resetKey);
     setPage(1);
   }
 

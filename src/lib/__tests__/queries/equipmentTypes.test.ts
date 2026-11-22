@@ -1,9 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-  },
-}));
-
 import {
   createEquipmentType,
   deleteEquipmentType,
@@ -11,6 +5,12 @@ import {
   updateEquipmentType,
 } from "../../queries/equipmentTypes";
 import { supabase } from "../../supabase";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+  },
+}));
 
 describe("listEquipmentTypes", () => {
   it("returns tipos ordered by name, each with a client-side equipment count", async () => {

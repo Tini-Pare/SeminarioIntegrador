@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   createFaultType,
@@ -13,6 +13,7 @@ import { useTheme } from "../lib/ThemeContext";
 import type { Fallo } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 // Registration state, same shape as repuestos: an item with history can't be
 // deleted, it's marked inactive instead.
@@ -49,14 +50,14 @@ export function FaultTypeModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setName(fault?.fa_nombre ?? "");
     setDesperfecto(fault?.fa_desperfecto ?? "");
     setGravedad(normalizeGravedad(fault?.fa_gravedad));
     setEstado(fault?.fa_estado ?? "activo");
     setError(null);
-  }, [visible, fault]);
+  }, [fault]);
 
   async function handleSave() {
     const trimmedName = name.trim();

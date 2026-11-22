@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -6,15 +6,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { EquipmentTypeModal } from "../../../components/EquipmentTypeModal";
 import { InfoIcon } from "../../../components/icons";
 import { RowActions } from "../../../components/RowActions";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
-import { BREAKPOINT, NUMERIC_COL_GAP } from "../../../constants";
+import { NUMERIC_COL_GAP } from "../../../constants";
 import { useConfirm } from "../../../lib/useConfirm";
 import { deleteEquipmentType, listEquipmentTypes } from "../../../lib/queries/equipmentTypes";
 import type { EquipmentTypeWithCount } from "../../../lib/queries/equipmentTypes";
@@ -23,6 +23,7 @@ import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
 import { normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 // The row's trash icon is disabled while the record is still in use, so the
 // tooltip carries the reason -- it used to live in the edit modal.
@@ -32,7 +33,6 @@ function deleteTooltipFor(count: number) {
 }
 
 export default function EquipmentTypesScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [types, setTypes] = useState<EquipmentTypeWithCount[]>([]);
   const [search, setSearch] = useState("");
@@ -40,8 +40,6 @@ export default function EquipmentTypesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<EquipmentTypeWithCount | null>(null);
   const [creating, setCreating] = useState(false);
-  const { width } = useWindowDimensions();
-  const isWide = width >= BREAKPOINT.mobile;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const { confirm, dialog } = useConfirm();
@@ -55,9 +53,7 @@ export default function EquipmentTypesScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -160,40 +156,42 @@ export default function EquipmentTypesScreen() {
               <Text style={styles.empty}>
                 No hay tipos de equipo que coincidan con la búsqueda o los filtros.
               </Text>
-            ) : isWide ? (
+            ) : (
               <View style={styles.table}>
-                <View style={styles.tableHeader}>
-                  <SortHeaderCell
-                    label="Tipo"
-                    field="tipo"
-                    activeField={field}
-                    dir={dir}
-                    onSort={toggle}
-                    style={{ flex: 2 }}
-                  />
+                <ScrollableTable minWidth={420}>
+                  <View style={styles.tableHeader}>
+                    <SortHeaderCell
+                      label="Tipo"
+                      field="tipo"
+                      activeField={field}
+                      dir={dir}
+                      onSort={toggle}
+                      style={tableCol(2)}
+                    />
 
-                  <SortHeaderCell
-                    label="Equipos"
-                    field="equipos"
-                    activeField={field}
-                    dir={dir}
-                    onSort={toggle}
-                    style={[{ flex: 1 }, styles.countHeaderCell]}
-                  />
+                    <SortHeaderCell
+                      label="Equipos"
+                      field="equipos"
+                      activeField={field}
+                      dir={dir}
+                      onSort={toggle}
+                      style={[tableCol(1), styles.countHeaderCell]}
+                    />
 
-                  <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-                </View>
+                    <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+                  </View>
 
-                {pageItems.map((t, index) => (
-                  <EquipmentTypeTableRow
-                    key={t.te_id}
-                    type={t}
-                    index={index}
-                    onEdit={() => setEditing(t)}
-                    onDelete={() => handleDelete(t)}
-                    styles={styles}
-                  />
-                ))}
+                  {pageItems.map((t, index) => (
+                    <EquipmentTypeTableRow
+                      key={t.te_id}
+                      type={t}
+                      index={index}
+                      onEdit={() => setEditing(t)}
+                      onDelete={() => handleDelete(t)}
+                      styles={styles}
+                    />
+                  ))}
+                </ScrollableTable>
 
                 {pageCount > 1 && (
                   <TablePagination
@@ -202,57 +200,6 @@ export default function EquipmentTypesScreen() {
                     onPage={setPage}
                     styles={styles}
                   />
-                )}
-              </View>
-            ) : (
-              <View style={styles.cardList}>
-                {pageItems.map((t) => (
-                  <View key={t.te_id} style={styles.typeCard}>
-                    <View style={styles.cardMain}>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.name} numberOfLines={1}>
-                          {t.te_nombre}
-                        </Text>
-                      </View>
-
-                      <View
-                        style={[
-                          styles.countBadge,
-                          t.equipmentCount > 0 ? styles.countBadgeActive : styles.countBadgeZero,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.countBadgeText,
-                            t.equipmentCount > 0
-                              ? styles.countBadgeTextActive
-                              : styles.countBadgeTextZero,
-                          ]}
-                        >
-                          {t.equipmentCount} equipo{t.equipmentCount === 1 ? "" : "s"}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <RowActions
-                      onEdit={() => setEditing(t)}
-                      onDelete={() => handleDelete(t)}
-                      deleteDisabled={t.equipmentCount > 0}
-                      editTooltip="Editar tipo de equipo"
-                      deleteTooltip={deleteTooltipFor(t.equipmentCount)}
-                    />
-                  </View>
-                ))}
-
-                {pageCount > 1 && (
-                  <View style={styles.mobilePaginationWrap}>
-                    <TablePagination
-                      page={page}
-                      pageCount={pageCount}
-                      onPage={setPage}
-                      styles={styles}
-                    />
-                  </View>
                 )}
               </View>
             )}
@@ -310,18 +257,17 @@ function EquipmentTypeTableRow({
   return (
     <View
       style={[styles.row, { backgroundColor: rowBg }]}
-      // @ts-expect-error onMouseEnter and onMouseLeave are supported on Web
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <View style={styles.rowMain}>
-        <View style={{ flex: 2, justifyContent: "center" }}>
+        <View style={[tableCol(2), styles.cell]}>
           <Text style={styles.name} numberOfLines={1}>
             {type.te_nombre}
           </Text>
         </View>
 
-        <View style={[{ flex: 1, justifyContent: "center" }, styles.countCol]}>
+        <View style={[tableCol(1), styles.cell, styles.countCol]}>
           <View
             style={[
               styles.countBadge,
@@ -464,15 +410,16 @@ function makeStyles(c: ThemeColors) {
       width: "100%",
       alignSelf: "stretch",
     },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     header: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     addButton: {
@@ -534,27 +481,9 @@ function makeStyles(c: ThemeColors) {
     rowHover: {
       backgroundColor: c.bgRowHover,
     },
-    rowMain: { flex: 1, flexDirection: "row", alignItems: "center" },
+    rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    cell: { justifyContent: "center" },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
-    cardList: { gap: 10, width: "100%" },
-    typeCard: {
-      backgroundColor: c.bgCard,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 14,
-      padding: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    cardMain: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      minWidth: 0,
-    },
     countBadge: {
       alignSelf: "flex-start",
       minWidth: 26,
@@ -596,14 +525,6 @@ function makeStyles(c: ThemeColors) {
       borderTopWidth: 1,
       borderTopColor: c.borderRow,
       backgroundColor: c.bgCard,
-    },
-    mobilePaginationWrap: {
-      marginTop: 6,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-      overflow: "hidden",
     },
     pageNavBtn: {
       paddingHorizontal: 14,

@@ -14,6 +14,7 @@ import { EquipmentIcon, RefreshCwIcon, WarningIcon } from "../../../components/i
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
 import { Sigla } from "../../../components/Sigla";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { formatOrderNumber } from "../../../lib/orderNumber";
@@ -30,6 +31,7 @@ import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Equipo, WorkOrder } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 type Item = WorkOrder & {
   equipment: Pick<Equipo, "code" | "name">;
@@ -68,7 +70,6 @@ function getOriginLabel(item: Item): string {
 // Every orden_de_trabajo, whether it came from a solicitud, maintenance plan, or installation.
 export default function WorkOrdersScreen() {
   const params = useLocalSearchParams<{ tipo?: string }>();
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -78,11 +79,12 @@ export default function WorkOrdersScreen() {
   const [priorityFilter, setPriorityFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState(params.tipo ?? "");
 
-  useEffect(() => {
-    if (params.tipo !== undefined) {
-      setTypeFilter(params.tipo);
-    }
-  }, [params.tipo]);
+  // A new ?tipo= while the screen is already open replaces the filter.
+  const [prevTipo, setPrevTipo] = useState(params.tipo);
+  if (params.tipo !== prevTipo) {
+    setPrevTipo(params.tipo);
+    if (params.tipo !== undefined) setTypeFilter(params.tipo);
+  }
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -117,9 +119,7 @@ export default function WorkOrdersScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     const channel = supabase
@@ -260,175 +260,177 @@ export default function WorkOrdersScreen() {
         <Text style={styles.empty}>{emptyMessage}</Text>
       ) : (
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <SortHeaderCell
-              label="N° OT"
-              field="numero"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 0.85 }}
-            />
+          <ScrollableTable minWidth={900}>
+            <View style={styles.tableHeader}>
+              <SortHeaderCell
+                label="N° OT"
+                field="numero"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(0.85)}
+              />
 
-            <SortHeaderCell
-              label="Equipo"
-              field="equipo"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1.8 }}
-            />
+              <SortHeaderCell
+                label="Equipo"
+                field="equipo"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1.8)}
+              />
 
-            <SortHeaderCell
-              label="Origen"
-              field="origen"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1.8 }}
-            />
+              <SortHeaderCell
+                label="Origen"
+                field="origen"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1.8)}
+              />
 
-            <SortHeaderCell
-              label="Estado"
-              field="estado"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1 }}
-            />
+              <SortHeaderCell
+                label="Estado"
+                field="estado"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1)}
+              />
 
-            <SortHeaderCell
-              label="Prioridad"
-              field="prioridad"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 0.95 }}
-            />
+              <SortHeaderCell
+                label="Prioridad"
+                field="prioridad"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(0.95)}
+              />
 
-            <SortHeaderCell
-              label="Inicio"
-              field="inicio"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 0.85 }}
-            />
+              <SortHeaderCell
+                label="Inicio"
+                field="inicio"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(0.85)}
+              />
 
-            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-          </View>
+              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+            </View>
 
-          {ordersPage.pageItems.map((item, i) => {
-            const status = item.status;
-            const st = statusColors[status];
-            const prio = priorityColors[item.priority];
-            const origin: WorkOrderOrigin = getWorkOrderOrigin(item);
+            {ordersPage.pageItems.map((item, i) => {
+              const status = item.status;
+              const st = statusColors[status];
+              const prio = priorityColors[item.priority];
+              const origin: WorkOrderOrigin = getWorkOrderOrigin(item);
 
-            let subtitleText = "—";
-            if (origin === "solicitud") {
-              subtitleText = item.solicitud?.description || "Sin descripción";
-            } else if (origin === "plan") {
-              subtitleText = item.plan_name || "Plan de mantenimiento";
-            } else if (item.observation) {
-              subtitleText = item.observation;
-            }
+              let subtitleText = "—";
+              if (origin === "solicitud") {
+                subtitleText = item.solicitud?.description || "Sin descripción";
+              } else if (origin === "plan") {
+                subtitleText = item.plan_name || "Plan de mantenimiento";
+              } else if (item.observation) {
+                subtitleText = item.observation;
+              }
 
-            return (
-              <View key={item.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-                <View style={styles.rowMain}>
-                  <View style={{ flex: 0.85, justifyContent: "center" }}>
-                    <Text style={styles.orderNumber}>{formatOrderNumber(item.id)}</Text>
-                  </View>
+              return (
+                <View key={item.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                  <View style={styles.rowMain}>
+                    <View style={[tableCol(0.85), styles.cell]}>
+                      <Text style={styles.orderNumber}>{formatOrderNumber(item.id)}</Text>
+                    </View>
 
-                  <View style={{ flex: 1.8, justifyContent: "center", paddingRight: 12 }}>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {item.equipment.name}
-                    </Text>
+                    <View style={[tableCol(1.8), styles.cell]}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {item.equipment.name}
+                      </Text>
 
-                    <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
-                  </View>
+                      <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
+                    </View>
 
-                  <View style={{ flex: 1.8, justifyContent: "center", paddingRight: 12 }}>
-                    {origin === "solicitud" ? (
-                      <View style={[styles.originChip, styles.originChipSolicitud]}>
-                        <WarningIcon size={12} color="#8a2a22" />
+                    <View style={[tableCol(1.8), styles.cell]}>
+                      {origin === "solicitud" ? (
+                        <View style={[styles.originChip, styles.originChipSolicitud]}>
+                          <WarningIcon size={12} color="#8a2a22" />
 
-                        <Text style={styles.originChipTextSolicitud}>Solicitud</Text>
-                      </View>
-                    ) : origin === "plan" ? (
-                      <View style={[styles.originChip, styles.originChipPlan]}>
-                        <RefreshCwIcon size={12} color="#2d4a7a" />
+                          <Text style={styles.originChipTextSolicitud}>Solicitud</Text>
+                        </View>
+                      ) : origin === "plan" ? (
+                        <View style={[styles.originChip, styles.originChipPlan]}>
+                          <RefreshCwIcon size={12} color="#2d4a7a" />
 
-                        <Text style={styles.originChipTextPlan}>Plan preventivo</Text>
-                      </View>
-                    ) : origin === "instalacion" ? (
-                      <View style={[styles.originChip, styles.originChipInstalacion]}>
-                        <EquipmentIcon size={12} color="#8a5d12" />
+                          <Text style={styles.originChipTextPlan}>Plan preventivo</Text>
+                        </View>
+                      ) : origin === "instalacion" ? (
+                        <View style={[styles.originChip, styles.originChipInstalacion]}>
+                          <EquipmentIcon size={12} color="#8a5d12" />
 
-                        <Text style={styles.originChipTextInstalacion}>Instalación</Text>
-                      </View>
-                    ) : (
-                      <View style={[styles.originChip, styles.originChipNone]}>
-                        <Text style={styles.originChipTextNone}>Sin origen</Text>
-                      </View>
-                    )}
+                          <Text style={styles.originChipTextInstalacion}>Instalación</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.originChip, styles.originChipNone]}>
+                          <Text style={styles.originChipTextNone}>Sin origen</Text>
+                        </View>
+                      )}
 
-                    <Text
-                      style={styles.originSubtitle}
-                      numberOfLines={1}
-                      {...(Platform.OS === "web" ? ({ title: subtitleText } as any) : {})}
-                    >
-                      {subtitleText}
-                    </Text>
-                  </View>
-
-                  <View style={{ flex: 1, justifyContent: "center" }}>
-                    <View style={[styles.badge, { backgroundColor: st.bg }]}>
-                      <Text style={[styles.badgeText, { color: st.fg }]}>
-                        {item.tasks.length === 0 && status === "assigned"
-                          ? "Sin tareas"
-                          : STATUS_LABELS[status]}
+                      <Text
+                        style={styles.originSubtitle}
+                        numberOfLines={1}
+                        {...(Platform.OS === "web" ? ({ title: subtitleText } as any) : {})}
+                      >
+                        {subtitleText}
                       </Text>
                     </View>
-                  </View>
 
-                  <View style={{ flex: 0.95, justifyContent: "center" }}>
-                    <View
-                      style={[styles.badge, { backgroundColor: prio.bg }]}
-                      {...(Platform.OS === "web"
-                        ? ({ className: "notranslate", translate: "no" } as any)
-                        : {})}
-                    >
-                      <Text
-                        style={[styles.badgeText, { color: prio.fg }]}
+                    <View style={[tableCol(1), styles.cell]}>
+                      <View style={[styles.badge, { backgroundColor: st.bg }]}>
+                        <Text style={[styles.badgeText, { color: st.fg }]}>
+                          {item.tasks.length === 0 && status === "assigned"
+                            ? "Sin tareas"
+                            : STATUS_LABELS[status]}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[tableCol(0.95), styles.cell]}>
+                      <View
+                        style={[styles.badge, { backgroundColor: prio.bg }]}
                         {...(Platform.OS === "web"
                           ? ({ className: "notranslate", translate: "no" } as any)
                           : {})}
                       >
-                        {PRIORITY_LABELS[item.priority]}
-                      </Text>
+                        <Text
+                          style={[styles.badgeText, { color: prio.fg }]}
+                          {...(Platform.OS === "web"
+                            ? ({ className: "notranslate", translate: "no" } as any)
+                            : {})}
+                        >
+                          {PRIORITY_LABELS[item.priority]}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[tableCol(0.85), styles.cell]}>
+                      <Text style={styles.cellText}>{fromDbDate(item.start_date) || "—"}</Text>
                     </View>
                   </View>
 
-                  <View style={{ flex: 0.85, justifyContent: "center" }}>
-                    <Text style={styles.cellText}>{fromDbDate(item.start_date) || "—"}</Text>
+                  <View style={styles.actionsCol}>
+                    <RowActions
+                      onView={() =>
+                        router.push({
+                          pathname: "/work-orders/[id]",
+                          params: { id: String(item.id) },
+                        })
+                      }
+                      viewTooltip="Ver orden de trabajo"
+                    />
                   </View>
                 </View>
-
-                <View style={styles.actionsCol}>
-                  <RowActions
-                    onView={() =>
-                      router.push({
-                        pathname: "/work-orders/[id]",
-                        params: { id: String(item.id) },
-                      })
-                    }
-                    viewTooltip="Ver orden de trabajo"
-                  />
-                </View>
-              </View>
-            );
-          })}
+              );
+            })}
+          </ScrollableTable>
         </View>
       )}
 
@@ -496,6 +498,7 @@ function makeStyles(c: ThemeColors) {
     },
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    cell: { justifyContent: "center" },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     orderNumber: { fontFamily: "monospace", fontSize: 13.5, fontWeight: "700", color: c.text },
     equipmentCode: { fontFamily: "monospace", fontSize: 12, color: c.textMuted, marginTop: 2 },

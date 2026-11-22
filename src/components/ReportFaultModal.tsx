@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Modal,
   View,
@@ -23,6 +23,7 @@ import { FormFooter } from "./FormFooter";
 import { TrashIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 type EquipmentOption = Pick<Equipo, "id" | "code" | "name">;
 
@@ -53,8 +54,8 @@ export function ReportFaultModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setSelectedId(equipment?.id);
     setSearch("");
     setDescription("");
@@ -62,7 +63,7 @@ export function ReportFaultModal({
     setError(null);
     setProcessingPhoto(false);
     setSubmitting(false);
-  }, [visible, equipment?.id]);
+  }, [equipment?.id]);
 
   const effectiveEquipmentId = equipment?.id ?? selectedId;
   const selectedOption = equipmentOptions?.find((e) => e.id === selectedId);

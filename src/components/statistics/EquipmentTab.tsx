@@ -16,6 +16,7 @@ import {
 } from "../../lib/statistics";
 import type { ThemeColors } from "../../lib/theme";
 import { useTheme } from "../../lib/ThemeContext";
+import { useIsPhone } from "../../lib/useIsPhone";
 import { BarList } from "../charts/BarList";
 import { NEUTRAL_BAR } from "../charts/palette";
 import { MiniStat, MiniStatGrid } from "../charts/MiniStat";
@@ -51,6 +52,8 @@ export function EquipmentTab({
 }: StatsTabProps & { selectedId: number | null; onSelect: (id: number) => void }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  // The date and "Reincidencia" pill leave a phone ~80px for the fault name.
+  const isPhone = useIsPhone();
   const [selectOpen, setSelectOpen] = useState(false);
 
   const top = useMemo(() => topFailingEquipment(data.orders, period), [data, period]);
@@ -255,7 +258,7 @@ export function EquipmentTab({
                         <Text style={styles.historyDate}>{fromDbDate(f.date)}</Text>
 
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={styles.historyFault} numberOfLines={1}>
+                          <Text style={styles.historyFault} numberOfLines={isPhone ? 2 : 1}>
                             {f.faultType ?? "Sin tipo de falla"}
                           </Text>
 

@@ -6,6 +6,7 @@ import { useTheme } from "../lib/ThemeContext";
 import type { TareaGeneral } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { TaskCombobox } from "./TaskCombobox";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 // Adds one tarea prevista to a plan, same format as AddTaskModal (adding a
 // tarea to an OT) minus the técnico: a plan's tareas get one only when its
@@ -35,11 +36,15 @@ export function AddPlanTaskModal({
 
   const subtitle = [planName.trim(), typeName.trim()].filter(Boolean).join(" · ");
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setTaskName("");
     setOpen(false);
     setError(null);
+  });
+
+  useEffect(() => {
+    if (!visible) return;
     // System tareas (the installation one) can't go in a plan (0032).
     listGeneralTasks()
       .then((all) =>

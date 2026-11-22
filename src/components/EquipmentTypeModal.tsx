@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { createEquipmentType, updateEquipmentType } from "../lib/queries/equipmentTypes";
 import type { EquipmentTypeWithCount } from "../lib/queries/equipmentTypes";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import { FormFooter } from "./FormFooter";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 export function EquipmentTypeModal({
   visible,
@@ -24,11 +25,11 @@ export function EquipmentTypeModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setName(equipmentType?.te_nombre ?? "");
     setError(null);
-  }, [visible, equipmentType]);
+  }, [equipmentType]);
 
   async function handleSave() {
     if (!name.trim()) {

@@ -11,6 +11,14 @@ import { Select } from "./Select";
 import type { Equipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import {
+  CustomDatePicker,
+  fromDbDate,
+  isDateWithinMax,
+  isValidDateString,
+  toDbDate,
+} from "./CustomDatePicker";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 // Registration state, separate from the automatic operational status: an
 // equipment with history can't be deleted, it's marked inactive instead.
@@ -20,13 +28,6 @@ const ESTADO_OPTIONS: RadioOption<"activo" | "inactivo">[] = [
   { value: "activo", label: "Activo" },
   { value: "inactivo", label: "Inactivo" },
 ];
-import {
-  CustomDatePicker,
-  fromDbDate,
-  isDateWithinMax,
-  isValidDateString,
-  toDbDate,
-} from "./CustomDatePicker";
 
 type OpenField = "type" | "location" | "install" | null;
 
@@ -81,8 +82,8 @@ export function EditEquipmentModal({
           ? "Pendiente de instalación"
           : "En reparación";
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setCode(equipment.code);
     setName(equipment.name);
     setModel(equipment.model ?? "");
@@ -92,7 +93,10 @@ export function EditEquipmentModal({
     setOpenField(null);
     setError(null);
     setShowMissing(false);
+  }, [equipment]);
 
+  useEffect(() => {
+    if (!visible) return;
     listEquipmentTypes()
       .then((rows) => setTypes(rows.map((t) => ({ value: t.te_id, label: t.te_nombre }))))
       .catch(() => {});

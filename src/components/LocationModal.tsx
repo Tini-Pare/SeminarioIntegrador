@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { createLocation, updateLocation } from "../lib/queries/locations";
 import type { LocationWithCount } from "../lib/queries/locations";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import { FormFooter } from "./FormFooter";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 export function LocationModal({
   visible,
@@ -25,12 +26,12 @@ export function LocationModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setName(location?.lu_nombre_sector ?? "");
     setFloor(location?.lu_piso ?? "");
     setError(null);
-  }, [visible, location]);
+  }, [location]);
 
   async function handleSave() {
     if (!name.trim()) {

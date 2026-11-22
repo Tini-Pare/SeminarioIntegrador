@@ -28,6 +28,7 @@ import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { formatUnitQty } from "../../../lib/units";
 import type { ComprobanteTipo } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 // Badge of the plain (non-factura) layout, same as the one register.tsx
 // shows while loading it. Remito is legacy: new compras can't pick it.
@@ -69,7 +70,6 @@ export default function PurchaseDetailScreen() {
 
   const [purchase, setPurchase] = useState<PurchaseWithDetail | null>(null);
   const [registradorNames, setRegistradorNames] = useState<Map<string, string>>(new Map());
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [loadingRemito, setLoadingRemito] = useState(false);
@@ -94,9 +94,7 @@ export default function PurchaseDetailScreen() {
     }
   }, [id, coId]);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     if (!id || Number.isNaN(coId)) return;

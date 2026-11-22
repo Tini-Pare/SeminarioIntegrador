@@ -1,10 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-    rpc: jest.fn(),
-  },
-}));
-
 import {
   anularRemitoCompra,
   editarRemitoCompra,
@@ -13,6 +6,13 @@ import {
   registrarRemitoCompra,
 } from "../../queries/purchases";
 import { supabase } from "../../supabase";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+    rpc: jest.fn(),
+  },
+}));
 
 describe("listPurchases", () => {
   it("renames each line's embedded `repuestos` to `repuesto`", async () => {

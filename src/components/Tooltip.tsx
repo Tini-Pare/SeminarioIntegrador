@@ -49,7 +49,6 @@ export function Tooltip({
         visible && styles.containerRaised,
         style,
       ]}
-      // @ts-expect-error onMouseEnter and onMouseLeave are supported on Web.
       // A nested Pressable here (with onHoverIn/onHoverOut) missed hover
       // events because its bounds exactly overlap the child button's own
       // Pressable, so only the innermost one reliably fired.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import { DetailModal } from "../../../components/DetailModal";
 import { FaultTypeModal } from "../../../components/FaultTypeModal";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { useConfirm } from "../../../lib/useConfirm";
@@ -27,11 +28,11 @@ import { usePagination } from "../../../lib/usePagination";
 import { normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Fallo } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 const GRAVEDAD_RANK: Record<"low" | "medium" | "high", number> = { low: 0, medium: 1, high: 2 };
 
 export default function FaultsScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [faults, setFaults] = useState<Fallo[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -63,9 +64,7 @@ export default function FaultsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -115,7 +114,7 @@ export default function FaultsScreen() {
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
-  function GravedadBadge({ raw }: { raw: string | null }) {
+  function renderGravedadBadge(raw: string | null) {
     const g = normalizeGravedad(raw);
     const c = gravedadColor[g];
     return (
@@ -190,56 +189,58 @@ export default function FaultsScreen() {
         </Text>
       ) : (
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <SortHeaderCell
-              label="Falla"
-              field="nombre"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 2.2 }}
-            />
+          <ScrollableTable minWidth={480}>
+            <View style={styles.tableHeader}>
+              <SortHeaderCell
+                label="Falla"
+                field="nombre"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(2.2)}
+              />
 
-            <SortHeaderCell
-              label="Gravedad"
-              field="gravedad"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1 }}
-            />
+              <SortHeaderCell
+                label="Gravedad"
+                field="gravedad"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1)}
+              />
 
-            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-          </View>
-
-          {faultsPage.pageItems.map((f, i) => (
-            <View key={f.fa_id_fallo} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-              <View style={styles.rowMain}>
-                <View style={{ flex: 2.2, justifyContent: "center", paddingRight: 12 }}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {f.fa_nombre}
-                  </Text>
-
-                  {f.fa_estado === "inactivo" && <Text style={styles.inactive}>Inactiva</Text>}
-                </View>
-
-                <View style={{ flex: 1, justifyContent: "center" }}>
-                  <GravedadBadge raw={f.fa_gravedad} />
-                </View>
-              </View>
-
-              <View style={styles.actionsCol}>
-                <RowActions
-                  onView={() => setViewingFault(f)}
-                  onEdit={() => setEditingFault(f)}
-                  onDelete={() => deleteFault(f)}
-                  viewTooltip="Ver falla"
-                  editTooltip="Editar falla"
-                  deleteTooltip="Eliminar falla"
-                />
-              </View>
+              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
             </View>
-          ))}
+
+            {faultsPage.pageItems.map((f, i) => (
+              <View key={f.fa_id_fallo} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                <View style={styles.rowMain}>
+                  <View style={[tableCol(2.2), styles.cell]}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {f.fa_nombre}
+                    </Text>
+
+                    {f.fa_estado === "inactivo" && <Text style={styles.inactive}>Inactiva</Text>}
+                  </View>
+
+                  <View style={[tableCol(1), styles.cell]}>
+                    {renderGravedadBadge(f.fa_gravedad)}
+                  </View>
+                </View>
+
+                <View style={styles.actionsCol}>
+                  <RowActions
+                    onView={() => setViewingFault(f)}
+                    onEdit={() => setEditingFault(f)}
+                    onDelete={() => deleteFault(f)}
+                    viewTooltip="Ver falla"
+                    editTooltip="Editar falla"
+                    deleteTooltip="Eliminar falla"
+                  />
+                </View>
+              </View>
+            ))}
+          </ScrollableTable>
         </View>
       )}
 
@@ -275,7 +276,7 @@ export default function FaultsScreen() {
         fields={
           viewingFault
             ? [
-                { label: "Gravedad", value: <GravedadBadge raw={viewingFault.fa_gravedad} /> },
+                { label: "Gravedad", value: renderGravedadBadge(viewingFault.fa_gravedad) },
                 {
                   label: "Estado",
                   value: viewingFault.fa_estado === "inactivo" ? "Inactiva" : "Activa",
@@ -295,15 +296,16 @@ function makeStyles(c: ThemeColors) {
     container: { backgroundColor: c.bg },
     content: { padding: 20 },
     center: { flex: 1 },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     pageHeader: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    sectionHeadingText: { flexShrink: 1, minWidth: 0 },
+    sectionHeadingText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },
@@ -354,6 +356,7 @@ function makeStyles(c: ThemeColors) {
     },
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    cell: { justifyContent: "center" },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     inactive: { fontSize: 13, color: c.textMuted, marginTop: 2 },
     badge: {

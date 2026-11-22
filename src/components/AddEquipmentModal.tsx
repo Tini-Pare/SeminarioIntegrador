@@ -12,6 +12,7 @@ import { Select } from "./Select";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 import { CustomDatePicker, isDateWithinMax, isValidDateString, toDbDate } from "./CustomDatePicker";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 type OpenField = "type" | "location" | "install" | "technician" | null;
 type Installed = "si" | "no";
@@ -49,8 +50,8 @@ export function AddEquipmentModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setCode("");
     setName("");
     setModel("");
@@ -63,7 +64,10 @@ export function AddEquipmentModal({
     setOpenField(null);
     setError(null);
     setShowMissing(false);
+  });
 
+  useEffect(() => {
+    if (!visible) return;
     listEquipmentTypes()
       .then((rows) => setTypes(rows.map((t) => ({ value: t.te_id, label: t.te_nombre }))))
       .catch(() => {});

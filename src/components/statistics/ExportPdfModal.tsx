@@ -129,7 +129,8 @@ function makeStyles(c: ThemeColors) {
       marginTop: 18,
       marginBottom: 10,
     },
-    label: { fontSize: 12.5, fontWeight: "600", color: c.textLabel },
+    // Shrinks so "Seleccionar todos" stays inside the sheet on a narrow phone.
+    label: { flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: "600", color: c.textLabel },
     link: { fontSize: 13, fontWeight: "500", color: c.accent },
     list: { flexGrow: 0 },
     option: {
