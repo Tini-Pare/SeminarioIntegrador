@@ -95,6 +95,20 @@ const TYPE_FILTER_LABELS: Record<OrderTypeFilter, string> = {
   preventivo: "Preventivas",
 };
 
+// What an export covers, worded once for both the PDF header and the
+// ExportPdfModal shown before it, so the two always say the same: the
+// period, and the OT type only on the tabs that filter by it.
+export function exportScope(
+  tab: StatisticsTabKey,
+  period: StatsPeriod,
+  type: OrderTypeFilter,
+): { period: string; type: string | null } {
+  return {
+    period: `${fromDbDate(period.from)} al ${fromDbDate(period.to)}`,
+    type: TAB_USES_TYPE[tab] ? TYPE_FILTER_LABELS[type] : null,
+  };
+}
+
 const FILE_SLUGS: Record<StatisticsTabKey, string> = {
   orders: "Ordenes-de-trabajo",
   technicians: "Tecnicos",
@@ -189,6 +203,7 @@ export function statisticsPdfBaseName(tab: StatisticsTabKey, period: StatsPeriod
 
 export function buildStatisticsHtml(input: StatisticsPdfInput): string {
   const { tab, period, type } = input;
+  const scope = exportScope(tab, period, type);
   const html = SECTION_BUILDERS[tab](input);
   const selected = new Set(input.blocks ?? STATISTICS_PDF_BLOCKS[tab].map((b) => b.key));
   const body = STATISTICS_PDF_BLOCKS[tab]
@@ -216,8 +231,8 @@ export function buildStatisticsHtml(input: StatisticsPdfInput): string {
   <div class="doc-meta">
     <div class="doc-kicker">Estadísticas</div>
     <div class="doc-title">${esc(STATISTICS_TAB_LABELS[tab])}</div>
-    <div>Período: <strong>${fromDbDate(period.from)} al ${fromDbDate(period.to)}</strong></div>
-    ${TAB_USES_TYPE[tab] ? `<div>Tipo de OT: <strong>${TYPE_FILTER_LABELS[type]}</strong></div>` : ""}
+    <div>Período: <strong>${scope.period}</strong></div>
+    ${scope.type ? `<div>Tipo de OT: <strong>${scope.type}</strong></div>` : ""}
   </div>
 </header>
 <main>

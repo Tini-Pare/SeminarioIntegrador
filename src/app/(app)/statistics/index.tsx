@@ -33,6 +33,7 @@ import {
   TAB_USES_TYPE,
   availablePdfBlocks,
   buildStatisticsHtml,
+  exportScope,
   statisticsPdfBaseName,
   type StatisticsTabKey,
 } from "../../../lib/statisticsPdf";
@@ -116,6 +117,7 @@ export default function StatisticsScreen() {
   const activeTab = TABS.find((t) => t.key === tab)!;
   // Memoized: the picker resets its checkboxes whenever this list changes.
   const pdfBlocks = useMemo(() => availablePdfBlocks(tab, type), [tab, type]);
+  const pdfScope = exportScope(tab, period, type);
 
   // HU-077: the active tab, with the selected period and type, as a PDF
   // carrying Mantia's name and logo (see lib/statisticsPdf) — only the
@@ -198,6 +200,8 @@ export default function StatisticsScreen() {
       <ExportPdfModal
         visible={exportPickerOpen}
         tabLabel={activeTab.label}
+        periodLabel={pdfScope.period}
+        typeLabel={pdfScope.type}
         blocks={pdfBlocks}
         onClose={() => setExportPickerOpen(false)}
         onConfirm={(blocks) => {
