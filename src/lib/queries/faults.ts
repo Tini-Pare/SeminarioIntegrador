@@ -9,6 +9,7 @@ import type {
   TaskSuspension,
   WorkOrder,
 } from "../../types/database";
+import type { ClosedOrderDuration } from "../statistics";
 
 type SolicitudRow = Database["public"]["Tables"]["solicitudes"]["Row"];
 type OrdenRow = Database["public"]["Tables"]["orden_de_trabajo"]["Row"];
@@ -441,18 +442,30 @@ export async function closeSolicitud(
   );
 }
 
+export type GenerateOrderInput = {
+  priority: Exclude<Solicitud["priority"], null>;
+  // yyyy-mm-dd; stored in ot_fecha_estimada_fin.
+  requiredCloseDate: string;
+};
+
 // SCRUM-24: el admin evalúa la solicitud y genera la OT. Se crea vacía —
-// solo con los datos de la solicitud y la prioridad, que el admin elige
-// siempre (sin valor por defecto). Las tareas (cada una con su técnico) y la
-// falla genérica se cargan después desde la pantalla de la OT
-// (work-orders/[id]), no desde Solicitudes. A 0-tarea OT is valid in the
-// DB: sync_orden_estado (0017) leaves it 'assigned' until a tarea starts.
-// Returns the new OT's id, so the caller can open its screen.
+// solo con los datos de la solicitud, la prioridad y la fecha requerida de
+// cierre, que el admin elige siempre (sin valor por defecto). Las tareas
+// (cada una con su técnico) y la falla genérica se cargan después desde la
+// pantalla de la OT (work-orders/[id]), no desde Solicitudes. A 0-tarea OT
+// is valid in the DB: sync_orden_estado (0017) leaves it 'assigned' until a
+// tarea starts. Returns the new OT's id, so the caller can open its screen.
 export async function generateOrder(
   solicitudId: number,
-  input: { priority: Exclude<Solicitud["priority"], null> },
+  input: GenerateOrderInput,
 ): Promise<number> {
   if (!input?.priority) throw new Error("Elegí una prioridad.");
+  if (!input.requiredCloseDate) throw new Error("Elegí la fecha requerida de cierre.");
+  // A new OT starts today (ot_fecha_inicio defaults to current_date), so a
+  // deadline before today would also break orden_fecha_estimada_chk.
+  if (input.requiredCloseDate < getTodayDbDate()) {
+    throw new Error("La fecha requerida de cierre no puede ser anterior a hoy.");
+  }
 
   const { data: sol, error: solError } = await supabase
     .from("solicitudes")
@@ -471,6 +484,7 @@ export async function generateOrder(
       sol_id_solicitud: solicitudId,
       eq_id_equipo: sol.eq_id_equipo,
       ot_prioridad: input.priority,
+      ot_fecha_estimada_fin: input.requiredCloseDate,
     })
     .select("ot_id_orden")
     .single();
@@ -489,6 +503,24 @@ export async function generateOrder(
     `Orden de trabajo generada: ${sol.sol_descripcion}`,
   );
   return orden.ot_id_orden;
+}
+
+// Priority and dates of every closed correctiva: the history behind the
+// close-time reference GenerateOrderModal shows next to the fecha requerida
+// de cierre (statistics.ts closeTimeReference). Three columns only, so it
+// stays light even with a long history.
+export async function listClosedCorrectiveDurations(): Promise<ClosedOrderDuration[]> {
+  const { data, error } = await supabase
+    .from("orden_de_trabajo")
+    .select("ot_prioridad, ot_fecha_inicio, ot_fecha_fin")
+    .eq("ot_tipo_orden", "correctivo")
+    .not("ot_fecha_fin", "is", null);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    priority: r.ot_prioridad,
+    start: r.ot_fecha_inicio,
+    end: r.ot_fecha_fin as string,
+  }));
 }
 
 const PRIORITY_HIST_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {

@@ -17,7 +17,7 @@ import { OrderFlowSteps } from "./OrderFlowSteps";
 import { CalendarIcon, UserIcon } from "./icons";
 import { Sigla, withSiglas } from "./Sigla";
 import { formatOrderNumber } from "../lib/orderNumber";
-import { closeSolicitud, generateOrder } from "../lib/queries/faults";
+import { closeSolicitud, generateOrder, type GenerateOrderInput } from "../lib/queries/faults";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
@@ -166,7 +166,7 @@ export function SolicitudDetailModal({
     }
   }
 
-  async function handleGenerate(input: { priority: "low" | "medium" | "high" }) {
+  async function handleGenerate(input: GenerateOrderInput) {
     const orderId = await generateOrder(s.id, input);
     setGenerateOpen(false);
     closeEverything();

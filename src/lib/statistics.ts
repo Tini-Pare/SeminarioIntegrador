@@ -64,6 +64,33 @@ export function median(values: number[]): number | null {
   return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+// A closed correctiva's priority and dates, the data behind the close-time
+// reference shown when generating a new OT (see listClosedCorrectiveDurations).
+export type ClosedOrderDuration = {
+  priority: WorkOrder["priority"];
+  start: string;
+  end: string;
+};
+
+// Backs the fecha requerida de cierre with data instead of a guess: how many
+// days past correctivas of the same priority took from start to close. The
+// median, so one OT stuck for months doesn't skew it.
+export function closeTimeReference(
+  rows: ClosedOrderDuration[],
+  priority: WorkOrder["priority"],
+): { medianDays: number | null; closed: number } {
+  const days = rows
+    .filter((r) => r.priority === priority)
+    .map((r) => Math.max(0, daysBetween(r.start, r.end)));
+  return { medianDays: median(days), closed: days.length };
+}
+
+// The date suggested from that reference: today plus the median, rounded up
+// to whole days (a 2.5-day median needs 3 days to fit).
+export function referenceCloseDate(today: string, medianDays: number | null): string | null {
+  return medianDays === null ? null : addDays(today, Math.ceil(medianDays));
+}
+
 function isAnalyzed(order: Pick<WorkOrder, "type">): order is WorkOrder & { type: AnalyzedType } {
   return order.type === "correctivo" || order.type === "preventivo";
 }
