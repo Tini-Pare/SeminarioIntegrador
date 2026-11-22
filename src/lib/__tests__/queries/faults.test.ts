@@ -22,6 +22,7 @@ import {
   updateOrderStartDate,
 } from "../../queries/faults";
 import { supabase } from "../../supabase";
+import { getTodayDbDate } from "../../../components/CustomDatePicker";
 
 jest.mock("../../supabase", () => ({
   supabase: {
@@ -645,6 +646,9 @@ describe("generateOrder", () => {
       sol_id_solicitud: 1,
       eq_id_equipo: 5,
       ot_prioridad: "high",
+      // Sent explicitly: the column default is the DB's UTC date, which is
+      // already tomorrow on an Argentine evening.
+      ot_fecha_inicio: getTodayDbDate(),
       ot_fecha_estimada_fin: "2099-12-31",
     });
     expect(m.insertTareas).not.toHaveBeenCalled();

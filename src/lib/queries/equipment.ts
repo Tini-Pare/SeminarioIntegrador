@@ -53,12 +53,19 @@ type EquipmentInput = {
 
 // An equipo is registered either already installed (with its date) or
 // pending installation, which also generates its installation OT for the
-// chosen técnico. Either way alta_equipo (0033) also handles the plans de
-// mantenimiento of its tipo, all in one transaction.
+// chosen técnico, with its fecha requerida de cierre like any other OT.
+// Either way alta_equipo (0033, signature from 0050) also handles the plans
+// de mantenimiento of its tipo, all in one transaction.
 export type NewEquipmentInput = Omit<EquipmentInput, "installDate" | "active"> &
   (
     | { pending: false; installDate: string }
-    | { pending: true; technicianId: string; priority: "low" | "medium" | "high" }
+    | {
+        pending: true;
+        technicianId: string;
+        priority: "low" | "medium" | "high";
+        // yyyy-mm-dd, the installation OT's deadline.
+        requiredCloseDate: string;
+      }
   );
 
 // 23505 = Postgres unique_violation — eq_codigo has a UNIQUE constraint
@@ -75,7 +82,11 @@ export async function createEquipment(
     p_modelo: input.model,
     p_pendiente: input.pending,
     ...(input.pending
-      ? { p_tecnico: input.technicianId, p_prioridad: input.priority }
+      ? {
+          p_tecnico: input.technicianId,
+          p_prioridad: input.priority,
+          p_fecha_requerida: input.requiredCloseDate,
+        }
       : { p_fecha_instalacion: input.installDate }),
   });
   if (error) {

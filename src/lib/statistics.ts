@@ -937,9 +937,10 @@ export type PlanCompliance = {
   compliancePct: number | null;
 };
 
-// Preventive OTs are generated without a fecha estimada (0035/0046). Their
-// deadline is the one the admin set, if any, or else the plan's frequency:
-// it has to be done before the next one of the same plan is due.
+// A preventive OT's deadline is its fecha requerida de cierre, which it's
+// created with since 0050 (start + the plan's frequency: it has to be done
+// before the next one of the same plan is due). The frequency fallback only
+// covers an OT that still has no date, e.g. one created before 0050 ran.
 export function preventiveDeadline(
   order: Pick<WorkOrder, "start_date" | "planned_end_date">,
   frequencyDays: number | null,

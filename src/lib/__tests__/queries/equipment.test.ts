@@ -379,6 +379,7 @@ describe("createEquipment", () => {
       pending: true,
       technicianId: "tec1",
       priority: "high",
+      requiredCloseDate: "2099-12-31",
     });
 
     expect(supabase.rpc).toHaveBeenCalledWith("alta_equipo", {
@@ -390,6 +391,7 @@ describe("createEquipment", () => {
       p_pendiente: true,
       p_tecnico: "tec1",
       p_prioridad: "high",
+      p_fecha_requerida: "2099-12-31",
     });
     expect(result).toEqual({ equipmentId: 6, orderId: 31 });
   });
@@ -401,7 +403,13 @@ describe("createEquipment", () => {
     });
 
     await expect(
-      createEquipment({ ...base, pending: true, technicianId: "", priority: "low" }),
+      createEquipment({
+        ...base,
+        pending: true,
+        technicianId: "",
+        priority: "low",
+        requiredCloseDate: "2099-12-31",
+      }),
     ).rejects.toThrow("Elegí el técnico que va a instalar el equipo");
   });
 

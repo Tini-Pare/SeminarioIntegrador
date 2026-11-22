@@ -129,6 +129,13 @@ no se corre.
   guantes → par; filtros, válvulas, etc. quedan en unidad). Revisar el resultado
   con el `SELECT` del final del archivo y corregir lo que haga falta desde
   Repuestos → Editar.
+- **0050** fecha requerida de cierre de las OT (`ot_fecha_estimada_fin`, antes
+  "fecha estimada"): es el plazo que fija el administrador y toda OT nueva nace
+  con una. Las preventivas que generan los planes la toman como inicio +
+  frecuencia del plan, y la OT de instalación la recibe del alta de equipo
+  (`alta_equipo` suma el parámetro `p_fecha_requerida`). Completa las
+  preventivas viejas sin fecha con la misma regla. **Correrla antes de
+  publicar la app**: el alta de equipo nueva ya manda ese parámetro.
 
 | Tabla                                   | Qué guarda                                                                                                    |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
