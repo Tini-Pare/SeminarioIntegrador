@@ -90,6 +90,8 @@ export type Database = {
           p_fecha_instalacion?: string | null;
           p_tecnico?: string | null;
           p_prioridad?: "low" | "medium" | "high" | null;
+          // Installation OT's fecha requerida de cierre (0050), pending only.
+          p_fecha_requerida?: string | null;
         };
         Returns: { eq_id: number; ot_id: number | null };
       };

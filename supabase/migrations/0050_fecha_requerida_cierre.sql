@@ -22,10 +22,10 @@
 --    same start + frequency. OTs whose plan was deleted have no frequency
 --    and stay without one.
 --
--- Both functions now also set ot_fecha_inicio explicitly to Argentina's
--- date: the column default is current_date, the server's UTC date, which is
--- already tomorrow on an Argentine evening and would put the start after a
--- deadline set for today (orden_fecha_estimada_chk).
+-- Both functions set ot_fecha_inicio to v_hoy (Argentina's date), the same
+-- date the deadline checks use. It matches the column default anyway, since
+-- the database time zone is Argentina's (0042); written out so start and
+-- deadline visibly come from the same day.
 --
 -- Idempotent: functions create or replace (alta_equipo's old signature is
 -- dropped first, so PostgREST never sees two overloads), the backfill only

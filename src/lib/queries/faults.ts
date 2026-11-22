@@ -484,10 +484,8 @@ export async function generateOrder(
       sol_id_solicitud: solicitudId,
       eq_id_equipo: sol.eq_id_equipo,
       ot_prioridad: input.priority,
-      // Explicit, not the column default: current_date is the DB's UTC date,
-      // already tomorrow on an Argentine evening, and a "tomorrow" start
-      // would make today's deadline break orden_fecha_estimada_chk.
-      ot_fecha_inicio: getTodayDbDate(),
+      // ot_fecha_inicio is left to its default, current_date, which is
+      // Argentina's date (the DB time zone since 0042), not the device clock.
       ot_fecha_estimada_fin: input.requiredCloseDate,
     })
     .select("ot_id_orden")
