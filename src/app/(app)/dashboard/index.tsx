@@ -330,7 +330,7 @@ export default function DashboardScreen() {
 
             {overdue.length === 0 ? (
               <Text style={styles.panelEmpty}>
-                No hay órdenes abiertas con la fecha estimada vencida.
+                No hay órdenes abiertas con la fecha requerida de cierre vencida.
               </Text>
             ) : (
               <>
@@ -349,7 +349,7 @@ export default function DashboardScreen() {
                         </Text>
 
                         <Text style={styles.attentionMeta} numberOfLines={1}>
-                          Estimada para el {fromDbDate(o.planned_end_date)}
+                          Cierre requerido el {fromDbDate(o.planned_end_date)}
                         </Text>
                       </View>
 

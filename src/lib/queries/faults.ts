@@ -632,9 +632,7 @@ export async function updateOrderStartDate(orderId: number, newDate: string): Pr
     .single();
   if (updateError) {
     if (updateError.code === "23514" && updateError.message.includes("orden_fecha_estimada_chk")) {
-      throw new Error(
-        "La fecha de inicio no puede ser posterior a la fecha estimada de resolución.",
-      );
+      throw new Error("La fecha de inicio no puede ser posterior a la fecha requerida de cierre.");
     }
     throw new Error(updateError.message);
   }
@@ -646,14 +644,12 @@ export async function updateOrderStartDate(orderId: number, newDate: string): Pr
   );
 }
 
-// The target date for closing the OT, set and rescheduled by the admin.
-// Separate from ot_fecha_fin (the real close date, written by
+// The fecha requerida de cierre: the deadline the admin sets for closing
+// the OT (column ot_fecha_estimada_fin, named before it was renamed in the
+// UI). Separate from ot_fecha_fin (the real close date, written by
 // sync_orden_estado) so planning never fights the automatic calculation.
-// Passing null clears the estimate.
-export async function updateOrderPlannedEndDate(
-  orderId: number,
-  newDate: string | null,
-): Promise<void> {
+// It can be rescheduled but never cleared: every OT has a deadline.
+export async function updateOrderPlannedEndDate(orderId: number, newDate: string): Promise<void> {
   const { data: orden, error: updateError } = await supabase
     .from("orden_de_trabajo")
     .update({ ot_fecha_estimada_fin: newDate })
@@ -666,7 +662,9 @@ export async function updateOrderPlannedEndDate(
     // still hit the constraint, and the raw "violates check constraint
     // ..." message is meaningless to a user.
     if (updateError.code === "23514" && updateError.message.includes("orden_fecha_estimada_chk")) {
-      throw new Error("La fecha estimada no puede ser anterior a la fecha de inicio de la orden.");
+      throw new Error(
+        "La fecha requerida de cierre no puede ser anterior a la fecha de inicio de la orden.",
+      );
     }
     throw new Error(updateError.message);
   }
@@ -674,9 +672,7 @@ export async function updateOrderPlannedEndDate(
   await logHistorial(
     orden.eq_id_equipo,
     "Replanificada",
-    newDate
-      ? `Fecha estimada de resolución fijada para el ${newDate}.`
-      : "Se quitó la fecha estimada de resolución de la orden.",
+    `Fecha requerida de cierre fijada para el ${newDate}.`,
   );
 }
 

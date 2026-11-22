@@ -260,13 +260,13 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
         label: "Cerradas en término",
         value: formatPct(kpis.onTimePct),
         hint: kpis.withPlannedDate
-          ? `Sobre ${kpis.withPlannedDate} con fecha estimada`
-          : "Ninguna cerrada tenía fecha estimada",
+          ? `Sobre ${kpis.withPlannedDate} con fecha requerida de cierre`
+          : "Ninguna cerrada tenía fecha requerida de cierre",
       },
       {
         label: "Desvío promedio",
         value: formatSignedDays(kpis.avgDeviationDays),
-        hint: "Cierre − fecha estimada (+ = tarde)",
+        hint: "Cierre − fecha requerida (+ = tarde)",
       },
     ]),
     panel(
@@ -304,7 +304,7 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
       ? ""
       : panel(
           "Cumplimiento por plan preventivo",
-          "OT preventivas iniciadas en el período. El plazo es la fecha estimada si se cargó; si no, la frecuencia del plan (tiene que hacerse antes de que toque la siguiente). Cumplimiento = a tiempo / (a tiempo + tarde + vencidas).",
+          "OT preventivas iniciadas en el período. El plazo es la fecha requerida de cierre de cada OT: nace con la fecha de inicio más la frecuencia del plan (tiene que hacerse antes de que toque la siguiente). Cumplimiento = a tiempo / (a tiempo + tarde + vencidas).",
           plans.length === 0
             ? empty("No hay OT preventivas iniciadas en el período.")
             : table(
@@ -332,7 +332,7 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
         ),
     panel(
       "OT del período, de la más demorada a la menos",
-      "Iniciadas en el período. Desvío = cierre (o hoy, si sigue abierta) − fecha estimada. * sigue abierta: cuenta hasta hoy.",
+      "Iniciadas en el período. Desvío = cierre (o hoy, si sigue abierta) − fecha requerida de cierre. * sigue abierta: cuenta hasta hoy.",
       rows.length === 0
         ? empty("No hay órdenes de trabajo iniciadas en el período.")
         : table(

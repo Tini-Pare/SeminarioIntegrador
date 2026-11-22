@@ -185,15 +185,15 @@ export function OrdersTab({ data, period, type, today, equipmentById, isWide }: 
           value={formatPct(kpis.onTimePct)}
           hint={
             kpis.withPlannedDate
-              ? `Sobre ${kpis.withPlannedDate} con fecha estimada`
-              : "Ninguna cerrada tenía fecha estimada"
+              ? `Sobre ${kpis.withPlannedDate} con fecha requerida de cierre`
+              : "Ninguna cerrada tenía fecha requerida de cierre"
           }
         />
 
         <KpiTile
           label="Desvío promedio"
           value={formatSignedDays(kpis.avgDeviationDays)}
-          hint="Cierre − fecha estimada (+ = tarde)"
+          hint="Cierre − fecha requerida (+ = tarde)"
         />
       </KpiRow>
 
@@ -236,7 +236,7 @@ export function OrdersTab({ data, period, type, today, equipmentById, isWide }: 
       {type !== "correctivo" && (
         <StatPanel
           title="Cumplimiento por plan preventivo"
-          caption="OT preventivas iniciadas en el período. El plazo es la fecha estimada si se cargó; si no, la frecuencia del plan (tiene que hacerse antes de que toque la siguiente). Cumplimiento = a tiempo / (a tiempo + tarde + vencidas)."
+          caption="OT preventivas iniciadas en el período. El plazo es la fecha requerida de cierre de cada OT: nace con la fecha de inicio más la frecuencia del plan (tiene que hacerse antes de que toque la siguiente). Cumplimiento = a tiempo / (a tiempo + tarde + vencidas)."
         >
           {plans.length === 0 ? (
             <EmptyChart text="No hay OT preventivas iniciadas en el período." />
@@ -254,7 +254,7 @@ export function OrdersTab({ data, period, type, today, equipmentById, isWide }: 
 
       <StatPanel
         title="OT del período, de la más demorada a la menos"
-        caption="Iniciadas en el período. Desvío = cierre (o hoy, si sigue abierta) − fecha estimada. * sigue abierta: cuenta hasta hoy."
+        caption="Iniciadas en el período. Desvío = cierre (o hoy, si sigue abierta) − fecha requerida de cierre. * sigue abierta: cuenta hasta hoy."
       >
         {rows.length === 0 ? (
           <EmptyChart text="No hay órdenes de trabajo iniciadas en el período." />

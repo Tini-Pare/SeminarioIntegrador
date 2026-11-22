@@ -869,7 +869,7 @@ describe("updateOrderStartDate", () => {
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
     await expect(updateOrderStartDate(1, "2026-03-01")).rejects.toThrow(
-      "La fecha de inicio no puede ser posterior a la fecha estimada de resolución.",
+      "La fecha de inicio no puede ser posterior a la fecha requerida de cierre.",
     );
   });
 });
@@ -893,7 +893,11 @@ describe("updateOrderPlannedEndDate", () => {
     expect(update).toHaveBeenCalledWith({ ot_fecha_estimada_fin: "2026-02-01" });
     expect(eq).toHaveBeenCalledWith("ot_id_orden", 7);
     expect(insertHistorial).toHaveBeenCalledWith(
-      expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
+      expect.objectContaining({
+        eq_id_equipo: 5,
+        hi_tipo: "Replanificada",
+        hi_nota: "Fecha requerida de cierre fijada para el 2026-02-01.",
+      }),
     );
   });
 
@@ -914,7 +918,7 @@ describe("updateOrderPlannedEndDate", () => {
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
     await expect(updateOrderPlannedEndDate(1, "2026-01-01")).rejects.toThrow(
-      "La fecha estimada no puede ser anterior a la fecha de inicio de la orden.",
+      "La fecha requerida de cierre no puede ser anterior a la fecha de inicio de la orden.",
     );
   });
 });
