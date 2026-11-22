@@ -9,13 +9,17 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import type { TextInputInstance, ViewInstance } from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { overlayPosition } from "../lib/webStyles";
 
 export type TaskOption = { value: number; label: string };
 
 // Combobox for tasks: allows selecting an existing generic task from the catalog
 // or typing a custom task name by hand directly into the text input.
+// allowManual={false} keeps it to the catalog: no "Usar tarea manual" row,
+// typing only filters the list.
 export function TaskCombobox({
   value,
   onChangeText,
@@ -26,6 +30,7 @@ export function TaskCombobox({
   open: openProp,
   onOpenChange,
   hasError = false,
+  allowManual = true,
 }: {
   value: string;
   onChangeText: (text: string) => void;
@@ -36,6 +41,7 @@ export function TaskCombobox({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hasError?: boolean;
+  allowManual?: boolean;
 }) {
   const [openState, setOpenState] = useState(false);
   const controlled = openProp !== undefined;
@@ -49,8 +55,8 @@ export function TaskCombobox({
   };
 
   const [flipVertical, setFlipVertical] = useState(false);
-  const inputRef = useRef<TextInput>(null);
-  const controlRef = useRef<View>(null);
+  const inputRef = useRef<TextInputInstance>(null);
+  const controlRef = useRef<ViewInstance>(null);
 
   const { colors } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
@@ -83,7 +89,7 @@ export function TaskCombobox({
   const q = value.trim().toLowerCase();
   const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
   const exactMatch = options.some((o) => o.label.trim().toLowerCase() === q);
-  const showManualOption = q.length > 0 && !exactMatch;
+  const showManualOption = allowManual && q.length > 0 && !exactMatch;
 
   function handleSelect(opt: TaskOption) {
     onChangeText(opt.label);
@@ -113,7 +119,10 @@ export function TaskCombobox({
             onChangeText(txt);
             if (!open) setOpen(true);
           }}
-          onFocus={() => !disabled && setOpen(true)}
+          // Opens on a press, not on focus: a modal focuses its first input
+          // when it opens, and the list would cover the rest of the form.
+          onPressIn={() => !disabled && setOpen(true)}
+          {...(Platform.OS === "web" ? ({ onClick: () => !disabled && setOpen(true) } as any) : {})}
           placeholder={placeholder}
           placeholderTextColor={colors.textMuted}
           editable={!disabled}
@@ -146,13 +155,17 @@ export function TaskCombobox({
                   <Text style={styles.manualOptionPrefix}>➕ Usar tarea manual:</Text>
 
                   <Text style={styles.manualOptionName} numberOfLines={1}>
-                    "{value.trim()}"
+                    &quot;{value.trim()}&quot;
                   </Text>
                 </Pressable>
               )}
 
               {filtered.length === 0 && !showManualOption ? (
-                <Text style={styles.noResults}>Sin sugerencias (se guardará lo escrito)</Text>
+                <Text style={styles.noResults}>
+                  {allowManual
+                    ? "Sin sugerencias (se guardará lo escrito)"
+                    : "Ninguna tarea del catálogo coincide."}
+                </Text>
               ) : (
                 filtered.map((opt) => {
                   const isSelected = opt.label.trim().toLowerCase() === q;
@@ -229,7 +242,7 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
     },
     chevron: { fontSize: 10, color: c.textMuted },
     backdrop: {
-      position: Platform.OS === "web" ? "fixed" : "absolute",
+      position: overlayPosition,
       top: Platform.OS === "web" ? 0 : -1000,
       left: Platform.OS === "web" ? 0 : -1000,
       right: Platform.OS === "web" ? 0 : -1000,

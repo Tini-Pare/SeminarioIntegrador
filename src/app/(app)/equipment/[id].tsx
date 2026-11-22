@@ -21,6 +21,7 @@ import {
   isActiveFault,
   listFaultHistoryByEquipment,
   listHistoryByEquipment,
+  SYSTEM_AUTHOR_ID,
   summarizeFaultHistory,
 } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
@@ -29,7 +30,9 @@ import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
+import { formatUnitQty } from "../../../lib/units";
 import type { Equipo, Solicitud, SolicitudTask, HistorialEntry } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 const PRIORITY_LABEL: Record<Exclude<Solicitud["priority"], null>, string> = {
   low: "Baja",
@@ -81,6 +84,10 @@ const HISTORY_EVENT_LABEL: Record<string, string> = {
   Reanudada: "Tarea · Reanudada",
   "Tarea finalizada": "Tarea · Finalizada",
   Preventivo: "Mantenimiento · Preventivo",
+  // Logged by finalizar_tarea (0032) when the installation tarea finishes.
+  Instalación: "Equipo · Instalado",
+  // Logged by trg_equipo_reactivado (0046).
+  Reactivación: "Equipo · Reactivado",
 };
 
 function historyEventLabel(h: HistorialEntry): string {
@@ -136,7 +143,6 @@ export default function EquipmentDetail() {
   const [faults, setFaults] = useState<Solicitud[]>([]);
   const [history, setHistory] = useState<HistorialEntry[]>([]);
   const [authorNames, setAuthorNames] = useState<Map<string, string>>(new Map());
-  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("faults");
   // Same "" = no filter convention as the other list screens' TableFilterBar.
   const [faultSearch, setFaultSearch] = useState("");
@@ -157,6 +163,7 @@ export default function EquipmentDetail() {
     operational: { label: "Funcionando", ...colors.eqOperational },
     waiting: { label: "En espera", ...colors.eqWaiting },
     repair: { label: "En reparación", ...colors.eqRepair },
+    pending_install: { label: "Pendiente de instalación", ...colors.eqPendingInstall },
   };
 
   // Maps history type strings to theme palette (same colors as fault-status badges
@@ -175,6 +182,8 @@ export default function EquipmentDetail() {
     Resuelta: colors.histResuelta,
     Cerrada: colors.histResuelta,
     Preventivo: colors.histResuelta,
+    Instalación: colors.histResuelta,
+    Reactivación: colors.histResuelta,
   };
 
   const loadEquipmentData = useCallback(async () => {
@@ -188,12 +197,12 @@ export default function EquipmentDetail() {
     setEquipment(e);
     setFaults(f);
     setHistory(h);
-    setAuthorNames(new Map(profiles.map((p) => [p.id, p.name])));
+    setAuthorNames(
+      new Map([[SYSTEM_AUTHOR_ID, "Sistema"], ...profiles.map((p) => [p.id, p.name] as const)]),
+    );
   }, [id, equipoId]);
 
-  useEffect(() => {
-    loadEquipmentData().finally(() => setLoading(false));
-  }, [loadEquipmentData]);
+  const loading = useInitialLoad(loadEquipmentData);
 
   useEffect(() => {
     if (!id || Number.isNaN(equipoId)) return;
@@ -894,7 +903,9 @@ function FaultHistoryCard({
                     <SparePartIcon size={13} color={colors.textMuted} />
 
                     <Text style={styles.workDetail}>
-                      {t.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                      {t.consumedParts
+                        .map((p) => `${p.nombre} ×${formatUnitQty(p.cantidad, p.unidad)}`)
+                        .join(" · ")}
                     </Text>
                   </View>
                 )}

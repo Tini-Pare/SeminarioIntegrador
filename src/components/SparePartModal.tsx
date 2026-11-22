@@ -1,16 +1,25 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { createSparePart, updateSparePart, type SparePartInput } from "../lib/queries/spareParts";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { UNIDADES, UNIT_INFO, unitShort } from "../lib/units";
 import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 const ESTADO_OPTIONS: RadioOption<Repuesto["rep_estado"]>[] = [
   { value: "activo", label: "Activo" },
   { value: "inactivo", label: "Inactivo" },
 ];
+
+// "Litro (L)": the name says what it is, the symbol is how it shows next
+// to every quantity. Word units ("Caja") show as themselves, so no symbol.
+const UNIDAD_OPTIONS: RadioOption<Repuesto["rep_unidad"]>[] = UNIDADES.map((u) => ({
+  value: u,
+  label: UNIT_INFO[u].plural ? UNIT_INFO[u].name : `${UNIT_INFO[u].name} (${UNIT_INFO[u].short})`,
+}));
 
 // Empty string -> null; anything else -> a non-negative integer (or null when
 // it doesn't parse, so the caller's validation catches it).
@@ -39,19 +48,25 @@ export function SparePartModal({
   const [stockMin, setStockMin] = useState("");
   const [stockMax, setStockMax] = useState("");
   const [estado, setEstado] = useState<Repuesto["rep_estado"]>("activo");
+  // A new repuesto starts with no unit on purpose: a preselected "unidad" let
+  // an aceite be saved in u by just not looking.
+  const [unidad, setUnidad] = useState<Repuesto["rep_unidad"] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  // " (L)" once a unit is picked; nothing while it's still unset.
+  const unitSuffix = unidad ? ` (${unitShort(unidad)})` : "";
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setName(sparePart?.rep_nombre ?? "");
     setStockMin(sparePart ? String(sparePart.rep_stock_minimo) : "");
     setStockMax(sparePart?.rep_stock_maximo != null ? String(sparePart.rep_stock_maximo) : "");
     setEstado(sparePart?.rep_estado ?? "activo");
+    setUnidad(sparePart?.rep_unidad ?? null);
     setError(null);
-  }, [visible, sparePart]);
+  }, [sparePart]);
 
   async function handleSave() {
     const trimmedName = name.trim();
@@ -86,8 +101,18 @@ export function SparePartModal({
       setError("El stock máximo no puede ser menor que el mínimo.");
       return;
     }
+    if (!unidad) {
+      setError("Elegí la unidad de medida del repuesto.");
+      return;
+    }
 
-    const payload: SparePartInput = { name: trimmedName, stockMin: min, stockMax: max, estado };
+    const payload: SparePartInput = {
+      name: trimmedName,
+      stockMin: min,
+      stockMax: max,
+      estado,
+      unidad,
+    };
 
     setSaving(true);
     setError(null);
@@ -129,9 +154,18 @@ export function SparePartModal({
             maxLength={100}
           />
 
+          <Text style={styles.label}>Unidad de medida</Text>
+
+          <RadioGroup
+            name="spare-part-unidad"
+            value={unidad}
+            onChange={setUnidad}
+            options={UNIDAD_OPTIONS}
+          />
+
           <View style={styles.row}>
             <View style={styles.rowItem}>
-              <Text style={styles.label}>Stock mínimo</Text>
+              <Text style={styles.label}>Stock mínimo{unitSuffix}</Text>
               <TextInput
                 style={styles.input}
                 value={stockMin}
@@ -143,7 +177,7 @@ export function SparePartModal({
             </View>
 
             <View style={styles.rowItem}>
-              <Text style={styles.label}>Stock máximo</Text>
+              <Text style={styles.label}>Stock máximo{unitSuffix}</Text>
               <TextInput
                 style={styles.input}
                 value={stockMax}

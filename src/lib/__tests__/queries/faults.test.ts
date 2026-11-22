@@ -1,11 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-    auth: { getSession: jest.fn() },
-    rpc: jest.fn(),
-  },
-}));
-
 import {
   addTaskToOrder,
   closeSolicitud,
@@ -13,10 +5,13 @@ import {
   finishTask,
   generateOrder,
   getSolicitudById,
+  getWorkOrderById,
+  getWorkOrderOrigin,
   listActiveTaskCountsByTechnician,
   listAllRequests,
   listMyRequests,
   listMyTasks,
+  listWorkOrders,
   reassignTaskTechnician,
   resumeTask,
   startTask,
@@ -28,8 +23,19 @@ import {
 } from "../../queries/faults";
 import { supabase } from "../../supabase";
 
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+    auth: { getSession: jest.fn() },
+    rpc: jest.fn(),
+  },
+}));
+
 const SOLICITUD_SELECT =
-  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
+  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad)))), solicitud_foto(*)";
+
+const WORK_ORDER_SELECT =
+  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)), plan_mantenimiento(pm_nombre_plan)";
 
 beforeEach(() => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
@@ -455,6 +461,146 @@ describe("closeSolicitud", () => {
   });
 });
 
+const ordenRow = {
+  ot_id_orden: 9,
+  sol_id_solicitud: 2,
+  eq_id_equipo: 6,
+  ot_tipo_orden: "correctivo",
+  ot_estado: "in_progress",
+  ot_prioridad: "high",
+  ot_fecha_inicio: "2026-01-03",
+  ot_fecha_fin: null,
+  ot_fecha_estimada_fin: "2026-01-10",
+  ot_observacion: null,
+  fallo_por_orden: [{ fallo: { fa_nombre: "Falla eléctrica" } }],
+  tareas_realizadas_orden: [
+    {
+      taro_id_tarea_orden: 12,
+      tag_id_tarea: 3,
+      p_id_tecnico: "tec1",
+      taro_fecha_inicio: "2026-01-04",
+      taro_fecha_fin: null,
+      taro_diagnostico: null,
+      taro_fecha_suspension: null,
+      taro_fecha_fin_suspension: null,
+      tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
+      repuesto_para_tarea: [],
+    },
+  ],
+  solicitudes: {
+    sol_id_solicitud: 2,
+    sol_descripcion: "no enfría",
+    p_legajo_solicitante: "u2",
+    sol_fecha_hora: "2026-01-02T00:00:00Z",
+    sol_foto_url: null,
+    solicitud_foto: [
+      { sf_foto_url: "b.jpg", sf_orden: 1 },
+      { sf_foto_url: "a.jpg", sf_orden: 0 },
+    ],
+  },
+};
+
+describe("listWorkOrders", () => {
+  it("lists every orden_de_trabajo, newest first, mapped with its tareas and solicitud", async () => {
+    const order = jest.fn().mockResolvedValue({ data: [ordenRow], error: null });
+    const select = jest.fn().mockReturnValue({ order });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const result = await listWorkOrders();
+
+    expect(supabase.from).toHaveBeenCalledWith("orden_de_trabajo");
+    expect(select).toHaveBeenCalledWith(WORK_ORDER_SELECT);
+    expect(order).toHaveBeenCalledWith("ot_id_orden", { ascending: false });
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 9,
+        equipment_id: 6,
+        type: "correctivo",
+        status: "in_progress",
+        priority: "high",
+        start_date: "2026-01-03",
+        planned_end_date: "2026-01-10",
+        fault_type_name: "Falla eléctrica",
+        tasks: [
+          expect.objectContaining({ id: 12, taskName: "Cambio de gas", technicianId: "tec1" }),
+        ],
+        solicitud: {
+          id: 2,
+          reported_by: "u2",
+          description: "no enfría",
+          created_at: "2026-01-02T00:00:00Z",
+          photo_urls: ["a.jpg", "b.jpg"],
+        },
+      }),
+    ]);
+  });
+});
+
+describe("getWorkOrderOrigin", () => {
+  it("tells solicitud, plan, instalación and unknown OTs apart", () => {
+    expect(getWorkOrderOrigin({ sol_id_solicitud: 3, type: "correctivo" })).toBe("solicitud");
+    expect(getWorkOrderOrigin({ plan_id_manequipo: 7, type: "preventivo" })).toBe("plan");
+    expect(getWorkOrderOrigin({ type: "instalacion" })).toBe("instalacion");
+    expect(getWorkOrderOrigin({ type: "correctivo" })).toBe("none");
+  });
+});
+
+describe("getWorkOrderById", () => {
+  it("loads one OT by ot_id_orden, for the OT full-screen page", async () => {
+    const single = jest.fn().mockResolvedValue({ data: ordenRow, error: null });
+    const eq = jest.fn().mockReturnValue({ single });
+    const select = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const result = await getWorkOrderById(9);
+
+    expect(supabase.from).toHaveBeenCalledWith("orden_de_trabajo");
+    expect(select).toHaveBeenCalledWith(WORK_ORDER_SELECT);
+    expect(eq).toHaveBeenCalledWith("ot_id_orden", 9);
+    expect(result).toEqual(expect.objectContaining({ id: 9, priority: "high" }));
+  });
+
+  it("maps an OT that didn't come from a solicitud with solicitud null", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: {
+        ...ordenRow,
+        sol_id_solicitud: null,
+        ot_tipo_orden: "preventivo",
+        ot_observacion: "Plan mensual de heladeras",
+        solicitudes: null,
+        plan_mantenimiento: { pm_nombre_plan: "Heladeras mensual" },
+      },
+      error: null,
+    });
+    const eq = jest.fn().mockReturnValue({ single });
+    const select = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const result = await getWorkOrderById(9);
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        type: "preventivo",
+        observation: "Plan mensual de heladeras",
+        plan_name: "Heladeras mensual",
+        solicitud: null,
+      }),
+    );
+  });
+
+  it("returns null when no OT matches that id", async () => {
+    const single = jest.fn().mockResolvedValue({
+      data: null,
+      error: { code: "PGRST116", message: "no rows" },
+    });
+    const eq = jest.fn().mockReturnValue({ single });
+    const select = jest.fn().mockReturnValue({ eq });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    await expect(getWorkOrderById(999)).resolves.toBeNull();
+  });
+});
+
 describe("generateOrder", () => {
   function mockGenerate(solEstado = "pendiente") {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
@@ -466,7 +612,11 @@ describe("generateOrder", () => {
     });
     const selectEq = jest.fn().mockReturnValue({ single: selectSingle });
     const select = jest.fn().mockReturnValue({ eq: selectEq });
-    const insertOrden = jest.fn().mockResolvedValue({ error: null });
+    const insertOrdenSingle = jest
+      .fn()
+      .mockResolvedValue({ data: { ot_id_orden: 27 }, error: null });
+    const insertOrdenSelect = jest.fn().mockReturnValue({ single: insertOrdenSingle });
+    const insertOrden = jest.fn().mockReturnValue({ select: insertOrdenSelect });
     const insertTareas = jest.fn().mockResolvedValue({ error: null });
     const insertFallo = jest.fn().mockResolvedValue({ error: null });
     const updateEq = jest.fn().mockResolvedValue({ error: null });
@@ -486,7 +636,7 @@ describe("generateOrder", () => {
   it("crea la OT vacía (sin tareas ni falla) con la prioridad elegida, marca la solicitud en_proceso y loguea historial", async () => {
     const m = mockGenerate();
 
-    await generateOrder(1, { priority: "high" });
+    await expect(generateOrder(1, { priority: "high" })).resolves.toBe(27);
 
     expect(m.selectEq).toHaveBeenCalledWith("sol_id_solicitud", 1);
     expect(m.insertOrden).toHaveBeenCalledWith({
@@ -520,7 +670,7 @@ describe("generateOrder", () => {
 });
 
 describe("updateOrderPriority", () => {
-  it("actualiza ot_prioridad de la OT de la solicitud y loguea historial", async () => {
+  it("actualiza ot_prioridad de la OT y loguea historial", async () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "admin1" } } },
     });
@@ -533,10 +683,10 @@ describe("updateOrderPriority", () => {
       table === "historial" ? { insert: insertHistorial } : { update },
     );
 
-    await updateOrderPriority(1, "low");
+    await updateOrderPriority(7, "low");
 
     expect(update).toHaveBeenCalledWith({ ot_prioridad: "low" });
-    expect(eq).toHaveBeenCalledWith("sol_id_solicitud", 1);
+    expect(eq).toHaveBeenCalledWith("ot_id_orden", 7);
     expect(insertHistorial).toHaveBeenCalledWith(
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
     );
@@ -548,9 +698,7 @@ describe("updateOrderFaultType", () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "admin1" } } },
     });
-    const ordenSingle = jest
-      .fn()
-      .mockResolvedValue({ data: { ot_id_orden: 7, eq_id_equipo: 5 }, error: null });
+    const ordenSingle = jest.fn().mockResolvedValue({ data: { eq_id_equipo: 5 }, error: null });
     const ordenEq = jest.fn().mockReturnValue({ single: ordenSingle });
     const ordenSelect = jest.fn().mockReturnValue({ eq: ordenEq });
     const deleteEq = jest.fn().mockResolvedValue({ error: null });
@@ -568,9 +716,9 @@ describe("updateOrderFaultType", () => {
   it("reemplaza el fallo vinculado a la OT por el nuevo", async () => {
     const m = mockFault();
 
-    await updateOrderFaultType(1, 9);
+    await updateOrderFaultType(7, 9);
 
-    expect(m.ordenEq).toHaveBeenCalledWith("sol_id_solicitud", 1);
+    expect(m.ordenEq).toHaveBeenCalledWith("ot_id_orden", 7);
     expect(m.deleteEq).toHaveBeenCalledWith("ot_id_orden", 7);
     expect(m.insertFallo).toHaveBeenCalledWith({
       fa_id_fallo: 9,
@@ -585,7 +733,7 @@ describe("updateOrderFaultType", () => {
   it("con null solo quita el fallo, sin insertar otro", async () => {
     const m = mockFault();
 
-    await updateOrderFaultType(1, null);
+    await updateOrderFaultType(7, null);
 
     expect(m.deleteEq).toHaveBeenCalledWith("ot_id_orden", 7);
     expect(m.insertFallo).not.toHaveBeenCalled();
@@ -597,9 +745,7 @@ describe("addTaskToOrder", () => {
     (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: { user: { id: "admin1" } } },
     });
-    const ordenSingle = jest
-      .fn()
-      .mockResolvedValue({ data: { ot_id_orden: 7, eq_id_equipo: 5 }, error: null });
+    const ordenSingle = jest.fn().mockResolvedValue({ data: { eq_id_equipo: 5 }, error: null });
     const ordenEq = jest.fn().mockReturnValue({ single: ordenSingle });
     const ordenSelect = jest.fn().mockReturnValue({ eq: ordenEq });
 
@@ -618,9 +764,9 @@ describe("addTaskToOrder", () => {
       return { select: ordenSelect };
     });
 
-    await addTaskToOrder(1, { taskId: 4, technicianId: "tec2" });
+    await addTaskToOrder(7, { taskId: 4, technicianId: "tec2" });
 
-    expect(ordenEq).toHaveBeenCalledWith("sol_id_solicitud", 1);
+    expect(ordenEq).toHaveBeenCalledWith("ot_id_orden", 7);
     expect(insertTask).toHaveBeenCalledWith({
       ot_id_orden: 7,
       tag_id_tarea: 4,
@@ -699,10 +845,10 @@ describe("updateOrderStartDate", () => {
       table === "historial" ? { insert: insertHistorial } : { update },
     );
 
-    await updateOrderStartDate(1, "2026-02-01");
+    await updateOrderStartDate(7, "2026-02-01");
 
     expect(update).toHaveBeenCalledWith({ ot_fecha_inicio: "2026-02-01" });
-    expect(eq).toHaveBeenCalledWith("sol_id_solicitud", 1);
+    expect(eq).toHaveBeenCalledWith("ot_id_orden", 7);
     expect(insertHistorial).toHaveBeenCalledWith(
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
     );
@@ -742,9 +888,10 @@ describe("updateOrderPlannedEndDate", () => {
       table === "historial" ? { insert: insertHistorial } : { update },
     );
 
-    await updateOrderPlannedEndDate(1, "2026-02-01");
+    await updateOrderPlannedEndDate(7, "2026-02-01");
 
     expect(update).toHaveBeenCalledWith({ ot_fecha_estimada_fin: "2026-02-01" });
+    expect(eq).toHaveBeenCalledWith("ot_id_orden", 7);
     expect(insertHistorial).toHaveBeenCalledWith(
       expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
     );
@@ -788,7 +935,11 @@ describe("listMyTasks", () => {
           taro_fecha_fin: null,
           tareas_generales: { tag_nombre_tarea: "Cambio de gas" },
           repuesto_para_tarea: [
-            { rep_id: 4, repta_canti_usada: 2, repuestos: { rep_nombre: "Filtro de aire" } },
+            {
+              rep_id: 4,
+              repta_canti_usada: 2,
+              repuestos: { rep_nombre: "Aceite 15W40", rep_unidad: "litro" },
+            },
           ],
           orden_de_trabajo: {
             ot_estado: "assigned",
@@ -813,6 +964,11 @@ describe("listMyTasks", () => {
     const result = await listMyTasks();
 
     expect(supabase.from).toHaveBeenCalledWith("tareas_realizadas_orden");
+    expect(select).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad))",
+      ),
+    );
     expect(eqFn).toHaveBeenCalledWith("p_id_tecnico", "tec1");
     expect(result).toEqual([
       {
@@ -830,11 +986,58 @@ describe("listMyTasks", () => {
         photoUrl: null,
         photoUrls: [],
         faultTypeName: "Pérdida de gas",
-        consumedParts: [{ repId: 4, nombre: "Filtro de aire", cantidad: 2 }],
+        consumedParts: [{ repId: 4, nombre: "Aceite 15W40", cantidad: 2, unidad: "litro" }],
         suspension: null,
         lastSuspension: null,
+        orderType: "correctivo",
+        fromSolicitud: true,
       },
     ]);
+  });
+
+  it("uses the OT's observación and fecha de inicio for a tarea that didn't come from a solicitud", async () => {
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { user: { id: "tec1" } } },
+    });
+    const eqFn = jest.fn().mockResolvedValue({
+      data: [
+        {
+          taro_id_tarea_orden: 12,
+          ot_id_orden: 8,
+          tag_id_tarea: 20,
+          p_id_tecnico: "tec1",
+          taro_fecha_inicio: null,
+          taro_fecha_fin: null,
+          tareas_generales: { tag_nombre_tarea: "Instalación de equipo" },
+          repuesto_para_tarea: [],
+          orden_de_trabajo: {
+            ot_estado: "assigned",
+            ot_prioridad: "medium",
+            ot_tipo_orden: "instalacion",
+            ot_fecha_inicio: "2026-10-24",
+            ot_observacion: "Instalación y puesta en marcha del equipo nuevo.",
+            eq_id_equipo: 6,
+            fallo_por_orden: [],
+            solicitudes: null,
+          },
+        },
+      ],
+      error: null,
+    });
+    const select = jest.fn().mockReturnValue({ eq: eqFn });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    const [task] = await listMyTasks();
+
+    expect(task).toEqual(
+      expect.objectContaining({
+        description: "Instalación y puesta en marcha del equipo nuevo.",
+        createdAt: "2026-10-24",
+        reportedBy: "",
+        orderType: "instalacion",
+        fromSolicitud: false,
+      }),
+    );
   });
 });
 

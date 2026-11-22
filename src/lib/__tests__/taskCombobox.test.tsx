@@ -69,4 +69,21 @@ describe("TaskCombobox", () => {
     expect(getByText("➕ Usar tarea manual:")).toBeTruthy();
     expect(getByText('"Tarea manual especial"')).toBeTruthy();
   });
+
+  it("offers no manual option when allowManual is false", async () => {
+    const { getByText, queryByText } = await render(
+      <ThemeProvider>
+        <TaskCombobox
+          value="Tarea manual especial"
+          onChangeText={() => {}}
+          options={options}
+          open={true}
+          allowManual={false}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(queryByText("➕ Usar tarea manual:")).toBeNull();
+    expect(getByText("Ninguna tarea del catálogo coincide.")).toBeTruthy();
+  });
 });

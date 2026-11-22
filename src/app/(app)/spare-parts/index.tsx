@@ -1,3 +1,4 @@
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,11 +11,13 @@ import {
 } from "react-native";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { SparePartModal } from "../../../components/SparePartModal";
 import { StockBadge } from "../../../components/StockBadge";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { getProfile } from "../../../lib/auth";
+import { lowStockParts } from "../../../lib/queries/alerts";
 import {
   deleteSparePart,
   listSpareParts,
@@ -28,18 +31,29 @@ import { useConfirm } from "../../../lib/useConfirm";
 import { usePagination } from "../../../lib/usePagination";
 import { normalizeSearch, startsWithSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
+import { formatUnitQty } from "../../../lib/units";
 import type { Repuesto } from "../../../types/database";
+import { NUMERIC_COL_GAP } from "../../../constants";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 const STOCK_RANK: Record<StockStatus, number> = { sin_stock: 0, bajo: 1, ok: 2 };
 
 export default function SparePartsScreen() {
-  const [loading, setLoading] = useState(true);
+  // ?buscar= comes from a stock notification on the bell, to land on that repuesto.
+  const params = useLocalSearchParams<{ buscar?: string }>();
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [parts, setParts] = useState<Repuesto[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(params.buscar ?? "");
+
+  // A new ?buscar= while the screen is already open replaces the search.
+  const [prevBuscar, setPrevBuscar] = useState(params.buscar);
+  if (params.buscar !== prevBuscar) {
+    setPrevBuscar(params.buscar);
+    if (params.buscar !== undefined) setSearch(params.buscar);
+  }
   const [stockFilter, setStockFilter] = useState("");
   const [estadoFilter, setEstadoFilter] = useState("");
 
@@ -61,9 +75,7 @@ export default function SparePartsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     const channel = supabase
@@ -123,10 +135,8 @@ export default function SparePartsScreen() {
     8,
   );
 
-  const lowCount = useMemo(
-    () => parts.filter((p) => p.rep_estado === "activo" && stockStatus(p) !== "ok").length,
-    [parts],
-  );
+  // Same rule as Inicio's stock alerts and the nav badge (alerts.ts).
+  const lowCount = useMemo(() => lowStockParts(parts).length, [parts]);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
@@ -223,89 +233,101 @@ export default function SparePartsScreen() {
         <Text style={styles.empty}>
           {parts.length === 0
             ? "Todavía no hay repuestos cargados."
-            : "Nada coincide con la búsqueda."}
+            : "No hay repuestos que coincidan con la búsqueda o los filtros."}
         </Text>
       ) : (
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <SortHeaderCell
-              label="Repuesto"
-              field="nombre"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 2.4 }}
-            />
+          <ScrollableTable minWidth={isAdmin ? 700 : 560}>
+            <View style={styles.tableHeader}>
+              <SortHeaderCell
+                label="Repuesto"
+                field="nombre"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(2.2)}
+              />
 
-            <SortHeaderCell
-              label="Cantidad"
-              field="cantidad"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 0.9 }}
-            />
+              <SortHeaderCell
+                label="Cantidad"
+                field="cantidad"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={[tableCol(1.1), styles.qtyHeaderCell]}
+              />
 
-            <SortHeaderCell
-              label="Stock"
-              field="stock"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1.2 }}
-            />
+              <SortHeaderCell
+                label="Stock"
+                field="stock"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1.2)}
+              />
 
-            <SortHeaderCell
-              label="Estado"
-              field="estado"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1 }}
-            />
+              <SortHeaderCell
+                label="Estado"
+                field="estado"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1)}
+              />
 
-            {isAdmin && <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>}
-          </View>
-
-          {pageItems.map((p, i) => (
-            <View key={p.rep_id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-              <View style={styles.rowMain}>
-                <View style={{ flex: 2.4, justifyContent: "center", paddingRight: 12 }}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {p.rep_nombre}
-                  </Text>
-
-                  <Text style={styles.sub}>
-                    Mín. {p.rep_stock_minimo}
-                    {p.rep_stock_maximo != null ? ` · Máx. ${p.rep_stock_maximo}` : ""}
-                  </Text>
-                </View>
-
-                <View style={{ flex: 0.9, justifyContent: "center" }}>
-                  <Text style={styles.qty}>{p.rep_cantidad_actual}</Text>
-                </View>
-
-                <View style={{ flex: 1.2, justifyContent: "center", alignItems: "flex-start" }}>
-                  <StockBadge status={stockStatus(p)} />
-                </View>
-
-                <View style={{ flex: 1, justifyContent: "center", alignItems: "flex-start" }}>
-                  <ActiveBadge active={p.rep_estado === "activo"} />
-                </View>
-              </View>
-
-              {isAdmin && (
-                <View style={styles.actionsCol}>
-                  <RowActions
-                    onEdit={() => setEditing(p)}
-                    onDelete={() => handleDelete(p)}
-                    editTooltip="Editar repuesto"
-                    deleteTooltip="Eliminar repuesto"
-                  />
-                </View>
-              )}
+              {isAdmin && <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>}
             </View>
-          ))}
+
+            {pageItems.map((p, i) => (
+              <View key={p.rep_id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                <View style={styles.rowMain}>
+                  <View style={[tableCol(2.2), styles.cell]}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {p.rep_nombre}
+                    </Text>
+
+                    <Text style={styles.sub}>
+                      Mín. {formatUnitQty(p.rep_stock_minimo, p.rep_unidad)}
+                      {p.rep_stock_maximo != null
+                        ? ` · Máx. ${formatUnitQty(p.rep_stock_maximo, p.rep_unidad)}`
+                        : ""}
+                    </Text>
+                  </View>
+
+                  <View style={[tableCol(1.1), styles.cell, styles.qtyCol]}>
+                    <Text style={styles.qty}>
+                      {formatUnitQty(p.rep_cantidad_actual, p.rep_unidad)}
+                    </Text>
+                  </View>
+
+                  <View style={[tableCol(1.2), styles.cell, styles.badgeCell]}>
+                    <StockBadge status={stockStatus(p)} />
+                  </View>
+
+                  <View style={[tableCol(1), styles.cell, styles.badgeCell]}>
+                    <ActiveBadge active={p.rep_estado === "activo"} />
+                  </View>
+                </View>
+
+                {isAdmin && (
+                  <View style={styles.actionsCol}>
+                    <RowActions
+                      onView={() =>
+                        router.push(
+                          `/stock-movements?buscar=${encodeURIComponent(p.rep_nombre)}` as never,
+                        )
+                      }
+                      onEdit={() => setEditing(p)}
+                      onDelete={() => handleDelete(p)}
+                      viewTooltip="Ver movimientos de stock"
+                      editTooltip="Editar repuesto"
+                      deleteTooltip="Eliminar repuesto"
+                    />
+                  </View>
+                )}
+              </View>
+            ))}
+          </ScrollableTable>
         </View>
       )}
 
@@ -340,15 +362,16 @@ function makeStyles(c: ThemeColors) {
     container: { backgroundColor: c.bg },
     content: { padding: 20 },
     center: { flex: 1 },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     header: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },
@@ -395,7 +418,7 @@ function makeStyles(c: ThemeColors) {
       color: "#fff",
       fontFamily: "monospace",
     },
-    actionsCol: { width: 86, flexShrink: 0, alignItems: "flex-start" },
+    actionsCol: { width: 128, flexShrink: 0, alignItems: "flex-start" },
     row: {
       flexDirection: "row",
       alignItems: "center",
@@ -406,9 +429,22 @@ function makeStyles(c: ThemeColors) {
     },
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    cell: { justifyContent: "center" },
+    badgeCell: { alignItems: "flex-start" },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     sub: { marginTop: 3, fontSize: 13, color: c.textMuted },
-    qty: { fontSize: 14.5, fontWeight: "700", color: c.text, fontFamily: "monospace" },
+    // Right-aligned so the digits line up by place value. The padding is
+    // tighter than Compras' because this table also renders on phones, where
+    // the column is narrow.
+    qtyCol: { paddingRight: NUMERIC_COL_GAP },
+    qtyHeaderCell: { justifyContent: "flex-end", paddingRight: NUMERIC_COL_GAP },
+    qty: {
+      fontSize: 14.5,
+      fontWeight: "700",
+      color: c.text,
+      fontFamily: "monospace",
+      textAlign: "right",
+    },
     statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
     statusDot: { width: 7, height: 7, borderRadius: 4 },
     statusText: { fontSize: 12.5, fontWeight: "500" },

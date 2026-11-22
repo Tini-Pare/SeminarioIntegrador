@@ -152,8 +152,11 @@ export function makePurchaseDocumentStyles(c: ThemeColors) {
     },
     tableRowRaised: { zIndex: 50 },
     colNum: { width: 22, fontSize: 13, color: c.textMuted, fontVariant: ["tabular-nums"] },
-    colRepFlex: { flex: 2.2, minWidth: 150 },
-    colCant: { width: 76 },
+    colRepFlex: { flex: 2.2, minWidth: 110 },
+    // Without flexShrink a Text cell collapses to its content on phones, where
+    // the row overflows: the width is lost and right-aligned figures stop
+    // lining up, so "29" and "283" start at the same x instead of ending there.
+    colCant: { width: 76, flexShrink: 0 },
     colCosto: { flex: 1, minWidth: 100 },
     colTotal: { flex: 1, minWidth: 90 },
     colRemove: { width: 34 },

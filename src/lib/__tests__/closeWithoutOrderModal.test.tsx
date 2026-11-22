@@ -40,7 +40,7 @@ describe("CloseWithoutOrderModal", () => {
     const onConfirm = jest.fn();
     const onClose = jest.fn();
 
-    const { getByText, getAllByRole, getByPlaceholderText, queryByPlaceholderText } =
+    const { getByText, queryByText, getAllByRole, getByPlaceholderText, queryByPlaceholderText } =
       await render(
         <CloseWithoutOrderModal
           visible={true}
@@ -59,17 +59,19 @@ describe("CloseWithoutOrderModal", () => {
       expect(getAllByRole("radio")[3].props.accessibilityState.checked).toBe(true);
       expect(getByText("Detalle del motivo *")).toBeTruthy();
       expect(getByPlaceholderText("Explicá brevemente el motivo")).toBeTruthy();
-      expect(getByText("Escribí el motivo para continuar.")).toBeTruthy();
+      // Not before the técnico has had a chance to write it.
+      expect(queryByText("Escribí el motivo para continuar.")).toBeNull();
     });
 
     // Confirm button remains disabled with empty comment
     const confirmBtn = getByText("Confirmar");
     expect(confirmBtn.parent?.props.accessibilityState?.disabled).toBe(true);
 
-    // Whitespace only is not valid
+    // Whitespace only is not valid; the warning shows once the field is left
     const input = getByPlaceholderText("Explicá brevemente el motivo");
     await act(async () => {
       fireEvent.changeText(input, "   ");
+      fireEvent(input, "blur");
     });
     expect(getByText("Escribí el motivo para continuar.")).toBeTruthy();
     expect(confirmBtn.parent?.props.accessibilityState?.disabled).toBe(true);

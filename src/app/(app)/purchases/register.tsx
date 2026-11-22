@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { BackIcon, TrashIcon } from "../../../components/icons";
+import { Tooltip } from "../../../components/Tooltip";
 import {
   CustomDatePicker,
   getTodayDateString,
@@ -28,6 +29,7 @@ import { makePurchaseDocumentStyles } from "../../../lib/purchaseDocumentStyles"
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { FACTURA_LETRAS } from "../../../lib/comprobante";
+import { unitShort } from "../../../lib/units";
 import type { ComprobanteTipo, FacturaLetra, Repuesto } from "../../../types/database";
 
 export type LineDraft = { key: string; repId: number | null; cantidad: string; costo: string };
@@ -212,12 +214,13 @@ function DocTypeCard({
   onPress: () => void;
   styles: ReturnType<typeof makeStyles>;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const [scale] = useState(() => new Animated.Value(1));
 
   function animateTo(value: number) {
     Animated.spring(scale, {
       toValue: value,
-      useNativeDriver: true,
+      // The native driver isn't available on web.
+      useNativeDriver: Platform.OS !== "web",
       speed: 24,
       bounciness: 6,
     }).start();
@@ -259,20 +262,25 @@ function LineDeleteButton({
   const [hovered, setHovered] = useState(false);
 
   return (
-    <Pressable
-      style={[
-        styles.removeBtn,
-        hovered && !disabled && styles.removeBtnHover,
-        disabled && styles.removeBtnDisabled,
-      ]}
-      onPress={onPress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-      disabled={disabled}
-      accessibilityLabel="Quitar línea"
+    <Tooltip
+      text={disabled ? "La compra necesita al menos una línea" : "Quitar línea"}
+      align="right"
     >
-      <TrashIcon size={16} color={disabled ? colors.textMuted : colors.destructive} />
-    </Pressable>
+      <Pressable
+        style={[
+          styles.removeBtn,
+          hovered && !disabled && styles.removeBtnHover,
+          disabled && styles.removeBtnDisabled,
+        ]}
+        onPress={onPress}
+        onHoverIn={() => setHovered(true)}
+        onHoverOut={() => setHovered(false)}
+        disabled={disabled}
+        accessibilityLabel="Quitar línea"
+      >
+        <TrashIcon size={16} color={disabled ? colors.textMuted : colors.destructive} />
+      </Pressable>
+    </Tooltip>
   );
 }
 
@@ -356,6 +364,10 @@ export default function RegisterPurchaseScreen() {
       spareParts
         .filter((p) => p.rep_estado === "activo")
         .map((p) => ({ value: p.rep_id, label: p.rep_nombre })),
+    [spareParts],
+  );
+  const unitByRepId = useMemo(
+    () => new Map(spareParts.map((p) => [p.rep_id, p.rep_unidad])),
     [spareParts],
   );
   const supplierOptions = useMemo(
@@ -537,7 +549,7 @@ export default function RegisterPurchaseScreen() {
 
         <Text style={[styles.tableHeadText, styles.colRepFlex]}>Repuesto</Text>
 
-        <Text style={[styles.tableHeadText, styles.colCant]}>Cantidad</Text>
+        <Text style={[styles.tableHeadText, styles.colCant, styles.textRight]}>Cantidad</Text>
 
         <Text style={[styles.tableHeadText, styles.colCosto, styles.textRight]}>Precio unit.</Text>
 
@@ -565,15 +577,24 @@ export default function RegisterPurchaseScreen() {
             />
           </View>
 
-          <View style={styles.colCant}>
+          <View style={[styles.colCant, styles.qtyWrap]}>
             <TextInput
-              style={[styles.cellInput, cantError(l) && styles.cellInputError]}
+              style={[
+                styles.cellInput,
+                styles.qtyInput,
+                styles.textRight,
+                cantError(l) && styles.cellInputError,
+              ]}
               value={l.cantidad}
               onChangeText={(v) => updateLine(l.key, { cantidad: v })}
               placeholder="0"
               placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
             />
+
+            {l.repId !== null && (
+              <Text style={styles.qtyUnit}>{unitShort(unitByRepId.get(l.repId))}</Text>
+            )}
           </View>
 
           <View style={styles.colCosto}>
@@ -634,7 +655,9 @@ export default function RegisterPurchaseScreen() {
               ? pedidoId
                 ? "Al guardar se ingresa el stock y el pedido queda como recibido."
                 : "Al guardar se suma la cantidad de cada línea al stock del repuesto."
-              : "Al guardar queda pendiente de recepción. El stock se suma después, cargando remitos desde el detalle de la compra."}
+              : conRemito
+                ? "Al guardar se registran la factura y su remito, y lo facturado entra al stock."
+                : "Al guardar queda pendiente de recepción. El stock se suma después, cargando remitos desde el detalle de la compra."}
         </Text>
 
         <StepIndicator
@@ -792,7 +815,7 @@ export default function RegisterPurchaseScreen() {
 
                     <Text style={styles.linesSub}>
                       {conRemito
-                        ? "Se registra el remito junto con la factura: todo lo facturado entra al stock y la compra queda Recibida."
+                        ? "Se registra el remito junto con la factura: todo lo facturado entra al stock y la compra queda recibida."
                         : "La compra queda pendiente de recepción: los remitos se cargan después desde su detalle."}
                     </Text>
                   </View>
@@ -1039,6 +1062,12 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
     },
     addLineText: { fontSize: 13, fontWeight: "700", color: c.textLabel },
+    // Wider than the shared document column so the quantity input fits its
+    // unit suffix; overrides makePurchaseDocumentStyles' colCant here only.
+    colCant: { width: 92, flexShrink: 0 },
+    qtyWrap: { flexDirection: "row", alignItems: "center", gap: 4 },
+    qtyInput: { flex: 1, minWidth: 0, paddingHorizontal: 8 },
+    qtyUnit: { fontSize: 13, color: c.textMuted },
     cellInput: {
       height: 40,
       paddingHorizontal: 12,

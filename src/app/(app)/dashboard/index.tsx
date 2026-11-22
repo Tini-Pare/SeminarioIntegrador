@@ -10,17 +10,30 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { BarList } from "../../../components/charts/BarList";
+import { fromDbDate, getTodayDbDate } from "../../../components/CustomDatePicker";
 import { RequestList } from "../../../components/RequestList";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { StatusBarChart } from "../../../components/StatusBarChart";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
+import { formatOrderNumber } from "../../../lib/orderNumber";
+import { listLowStockParts } from "../../../lib/queries/alerts";
 import { listEquipment } from "../../../lib/queries/equipment";
-import { listAllRequests, summarizeTechnicians } from "../../../lib/queries/faults";
+import {
+  listActiveTaskCountsByTechnician,
+  listAllRequests,
+  listWorkOrders,
+  summarizeTechnicians,
+} from "../../../lib/queries/faults";
 import { listProfiles } from "../../../lib/queries/profiles";
+import { stockStatus } from "../../../lib/queries/spareParts";
+import { daysBetween, overdueOrders } from "../../../lib/statistics";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import type { Equipo, Profile, Solicitud } from "../../../types/database";
+import { formatUnitQty } from "../../../lib/units";
+import { useIsPhone } from "../../../lib/useIsPhone";
+import type { Equipo, Profile, Repuesto, Solicitud, WorkOrder } from "../../../types/database";
 
 type RequestItem = Solicitud & {
   equipment: Pick<Equipo, "code" | "name">;
@@ -33,15 +46,28 @@ type RequestItem = Solicitud & {
 // top-right corner (not center-cropped) to keep it visible on narrow screens.
 const HERO_BG_ASPECT_RATIO = 1516 / 464;
 
+// Rows shown per alert list before "y N más".
+const ALERTS_PREVIEW = 5;
+
+// Inicio is today's summary only: what's broken, late or waiting right now.
+// Analysis over a period lives in Estadísticas.
 export default function DashboardScreen() {
   const [role, setRole] = useState<Profile["role"] | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState<Equipo[]>([]);
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [stockAlerts, setStockAlerts] = useState<Repuesto[]>([]);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [technicians, setTechnicians] = useState<Profile[]>([]);
+  const [openTaskCounts, setOpenTaskCounts] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [heroSize, setHeroSize] = useState({ width: 0, height: 0 });
   const { width } = useWindowDimensions();
   const isWide = width >= BREAKPOINT.tablet;
+  const isPhone = useIsPhone();
+  // On a phone the badge beside a name leaves it ~150px, so long names get
+  // a second line instead of being cut off.
+  const nameLines = isPhone ? 2 : 1;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -52,11 +78,18 @@ export default function DashboardScreen() {
       setRole(profile?.role ?? null);
       if (profile?.role !== "admin") return;
 
-      const [faults, equip, profiles] = await Promise.all([
+      const [faults, equip, profiles, lowStock, workOrders, taskCounts] = await Promise.all([
         listAllRequests(),
         listEquipment(),
         listProfiles(),
+        listLowStockParts(),
+        listWorkOrders(),
+        listActiveTaskCountsByTechnician(),
       ]);
+      setStockAlerts(lowStock);
+      setOrders(workOrders);
+      setOpenTaskCounts(taskCounts);
+      setTechnicians(profiles.filter((p) => p.role === "technician" && p.active));
       const equipmentById = new Map(equip.map((e) => [e.id, e]));
       const profileById = new Map(profiles.map((p) => [p.id, p]));
       setEquipment(equip);
@@ -88,6 +121,7 @@ export default function DashboardScreen() {
       operational: byStatus("operational"),
       waiting: byStatus("waiting"),
       repair: byStatus("repair"),
+      pendingInstall: byStatus("pending_install"),
       reqNew: requests.filter((r) => r.status === "new").length,
     };
   }, [equipment, requests]);
@@ -101,10 +135,28 @@ export default function DashboardScreen() {
     return `${weekday} ${now.getDate()} · ${time}`;
   }, []);
 
-  const recentRequests = useMemo(
+  // Solicitudes nobody has turned into an OT (or rejected) yet, oldest
+  // first: the ones that have waited longest go on top.
+  const pendingRequests = useMemo(
     () =>
-      [...requests].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 4),
+      requests
+        .filter((r) => r.status === "new")
+        .sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)),
     [requests],
+  );
+
+  const today = getTodayDbDate();
+  const overdue = useMemo(() => overdueOrders(orders, today), [orders, today]);
+  const equipmentById = useMemo(() => new Map(equipment.map((e) => [e.id, e])), [equipment]);
+
+  // Every active técnico, the ones with the most open tareas first — a
+  // técnico with none shows too, so the admin sees who's free.
+  const technicianLoad = useMemo(
+    () =>
+      technicians
+        .map((t) => ({ id: t.id, name: t.name, open: openTaskCounts[t.id] ?? 0 }))
+        .sort((a, b) => b.open - a.open || a.name.localeCompare(b.name)),
+    [technicians, openTaskCounts],
   );
 
   if (role === undefined || (role === "admin" && loading)) {
@@ -118,10 +170,18 @@ export default function DashboardScreen() {
     { label: "Funcionando", value: stats.operational, color: colors.eqOperational.dot },
     { label: "En espera", value: stats.waiting, color: colors.eqWaiting.dot },
     { label: "En reparación", value: stats.repair, color: colors.eqRepair.dot },
+    {
+      label: "Pendiente de instalación",
+      value: stats.pendingInstall,
+      color: colors.eqPendingInstall.dot,
+    },
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, isPhone && styles.contentPhone]}
+    >
       <View style={styles.pageHeader}>
         <Text style={styles.title}>Inicio</Text>
         <Text style={styles.subtitle}>Resumen del estado de mantenimiento</Text>
@@ -129,7 +189,10 @@ export default function DashboardScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <View style={styles.hero} onLayout={(e) => setHeroSize(e.nativeEvent.layout)}>
+      <View
+        style={[styles.hero, isPhone && styles.heroPhone]}
+        onLayout={(e) => setHeroSize(e.nativeEvent.layout)}
+      >
         <Image
           source={require("../../../../assets/images/dashboard-hero-bg.png")}
           style={[
@@ -139,7 +202,7 @@ export default function DashboardScreen() {
                   width: Math.max(heroSize.width, heroSize.height * HERO_BG_ASPECT_RATIO),
                   height: heroSize.height,
                 }
-              : StyleSheet.absoluteFillObject,
+              : StyleSheet.absoluteFill,
           ]}
           resizeMode="cover"
         />
@@ -152,8 +215,8 @@ export default function DashboardScreen() {
               : `${attention.length} ${attention.length === 1 ? "equipo" : "equipos"} fuera de servicio`}
           </Text>
           <Text style={styles.heroCopy}>
-            {stats.waiting} en espera · {stats.repair} en reparación · {stats.reqNew} solicitudes
-            sin asignar
+            {stats.waiting} en espera · {stats.repair} en reparación · {stats.reqNew}{" "}
+            {stats.reqNew === 1 ? "solicitud" : "solicitudes"} sin asignar
           </Text>
 
           <View style={styles.heroActions}>
@@ -170,11 +233,63 @@ export default function DashboardScreen() {
 
       <StatusBarChart title="Equipos por estado" data={equipmentBars} totalLabel="en total" />
 
-      <View style={isWide ? styles.columns : undefined}>
-        <View style={styles.column}>
+      {/* SCRUM-43: stock alerts. */}
+      {stockAlerts.length > 0 && (
+        <View style={[styles.panel, styles.alertsPanel]}>
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>Stock mínimo de repuestos</Text>
+
+            <Pressable onPress={() => router.push("/spare-parts")}>
+              <Text style={styles.panelLink}>Ver repuestos</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.alertsStack}>
+            {stockAlerts.slice(0, ALERTS_PREVIEW).map((p) => {
+              const empty = stockStatus(p) === "sin_stock";
+              const tone = empty ? colors.urgencyHigh : colors.urgencyMedium;
+              return (
+                <Pressable
+                  key={p.rep_id}
+                  style={styles.attentionRow}
+                  onPress={() => router.push("/spare-parts")}
+                >
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.attentionName} numberOfLines={nameLines}>
+                      {p.rep_nombre}
+                    </Text>
+
+                    <Text style={styles.attentionMeta} numberOfLines={1}>
+                      Stock {formatUnitQty(p.rep_cantidad_actual, p.rep_unidad)} · Mín.{" "}
+                      {formatUnitQty(p.rep_stock_minimo, p.rep_unidad)}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.alertBadge, { backgroundColor: tone.bg }]}>
+                    <Text style={[styles.alertBadgeText, { color: tone.fg }]}>
+                      {empty ? "Sin stock" : "Stock bajo"}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+
+            {stockAlerts.length > ALERTS_PREVIEW && (
+              <Text style={styles.alertsMore}>y {stockAlerts.length - ALERTS_PREVIEW} más</Text>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Stacked (phone/tablet) columns must not use flex: 1: in a vertical
+          ScrollView that means flexBasis 0, so a column ends up shorter
+          than its panels and the next one draws on top of them. */}
+      <View style={isWide ? styles.columns : styles.stack}>
+        <View style={isWide ? styles.column : styles.stack}>
           <View style={styles.panel}>
             <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Requieren atención</Text>
+              <Text style={styles.panelTitle}>Equipos sin funcionar hoy</Text>
+
               <Pressable onPress={() => router.push("/equipment")}>
                 <Text style={styles.panelLink}>Ver equipos</Text>
               </Pressable>
@@ -190,7 +305,7 @@ export default function DashboardScreen() {
                   onPress={() => router.push(`/equipment/${e.id}`)}
                 >
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.attentionName} numberOfLines={1}>
+                    <Text style={styles.attentionName} numberOfLines={nameLines}>
                       {e.name}
                     </Text>
                     <Text style={styles.attentionMeta} numberOfLines={1}>
@@ -203,26 +318,104 @@ export default function DashboardScreen() {
               ))
             )}
           </View>
-        </View>
 
-        <View style={styles.column}>
           <View style={styles.panel}>
             <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Solicitudes recientes</Text>
+              <Text style={styles.panelTitle}>OT vencidas</Text>
+
+              <Pressable onPress={() => router.push("/work-orders")}>
+                <Text style={styles.panelLink}>Ver órdenes</Text>
+              </Pressable>
+            </View>
+
+            {overdue.length === 0 ? (
+              <Text style={styles.panelEmpty}>
+                No hay órdenes abiertas con la fecha estimada vencida.
+              </Text>
+            ) : (
+              <>
+                {overdue.slice(0, ALERTS_PREVIEW).map((o) => {
+                  const e = equipmentById.get(o.equipment_id);
+                  const lateDays = daysBetween(o.planned_end_date!, today);
+                  return (
+                    <Pressable
+                      key={o.id}
+                      style={styles.attentionRow}
+                      onPress={() => router.push(`/work-orders/${o.id}` as never)}
+                    >
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.attentionName} numberOfLines={nameLines}>
+                          {formatOrderNumber(o.id)} · {e?.name ?? "Equipo desconocido"}
+                        </Text>
+
+                        <Text style={styles.attentionMeta} numberOfLines={1}>
+                          Estimada para el {fromDbDate(o.planned_end_date)}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.alertBadge, { backgroundColor: colors.urgencyHigh.bg }]}>
+                        <Text style={[styles.alertBadgeText, { color: colors.urgencyHigh.fg }]}>
+                          {lateDays} {lateDays === 1 ? "día" : "días"} de atraso
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+
+                {overdue.length > ALERTS_PREVIEW && (
+                  <Text style={styles.alertsMore}>y {overdue.length - ALERTS_PREVIEW} más</Text>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+
+        <View style={isWide ? styles.column : styles.stack}>
+          <View style={styles.panel}>
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelTitle}>
+                Solicitudes a atender
+                {pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ""}
+              </Text>
+
               <Pressable onPress={() => router.push("/requests")}>
                 <Text style={styles.panelLink}>Ver todas</Text>
               </Pressable>
             </View>
 
-            <RequestList items={recentRequests} />
+            {pendingRequests.length === 0 ? (
+              <Text style={styles.panelEmpty}>No hay solicitudes esperando una OT.</Text>
+            ) : (
+              <>
+                <RequestList items={pendingRequests.slice(0, ALERTS_PREVIEW)} />
+
+                {pendingRequests.length > ALERTS_PREVIEW && (
+                  <Text style={styles.alertsMore}>
+                    y {pendingRequests.length - ALERTS_PREVIEW} más
+                  </Text>
+                )}
+              </>
+            )}
           </View>
 
-          <View style={styles.placeholderPanel}>
-            <Text style={styles.panelTitle}>Plan de la semana</Text>
-            <Text style={styles.placeholderText}>
-              Los planes de mantenimiento preventivo y el calendario semanal llegan en una próxima
-              entrega.
-            </Text>
+          <View style={styles.panel}>
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelTitle}>Carga actual por técnico</Text>
+            </View>
+
+            {technicianLoad.length === 0 ? (
+              <Text style={styles.panelEmpty}>No hay técnicos activos.</Text>
+            ) : (
+              <BarList
+                series={[{ key: "open", label: "Tareas abiertas", color: colors.accent }]}
+                rows={technicianLoad.map((t) => ({
+                  key: t.id,
+                  label: t.name,
+                  values: { open: t.open },
+                  detail: `${t.open} ${t.open === 1 ? "tarea abierta" : "tareas abiertas"} (pendientes, en curso o suspendidas)`,
+                }))}
+              />
+            )}
           </View>
         </View>
       </View>
@@ -234,6 +427,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 24, paddingBottom: 48 },
+    contentPhone: { padding: 20, paddingBottom: 48 },
     center: { flex: 1 },
     error: { color: c.destructive, marginBottom: 12 },
     pageHeader: { marginBottom: 20 },
@@ -248,6 +442,8 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 20,
       overflow: "hidden",
     },
+    // Leaves room for both hero buttons on one line on a phone.
+    heroPhone: { padding: 18 },
     heroBgImage: {
       position: "absolute",
       top: 0,
@@ -290,6 +486,7 @@ function makeStyles(c: ThemeColors) {
     ghostButtonText: { color: c.text, fontWeight: "600", fontSize: 14 },
     columns: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
     column: { flex: 1, gap: 16, minWidth: 0 },
+    stack: { gap: 16 },
     panel: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -301,9 +498,11 @@ function makeStyles(c: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+      gap: 12,
       marginBottom: 12,
     },
-    panelTitle: { fontSize: 15.5, fontWeight: "600", color: c.text },
+    // Shrinks so the "Ver …" link stays inside a narrow (phone) panel.
+    panelTitle: { flexShrink: 1, minWidth: 0, fontSize: 15.5, fontWeight: "600", color: c.text },
     panelLink: { fontSize: 13.5, fontWeight: "500", color: c.accent },
     panelEmpty: { fontSize: 13.5, color: c.textMuted, paddingVertical: 8 },
     attentionRow: {
@@ -316,15 +515,37 @@ function makeStyles(c: ThemeColors) {
     },
     attentionName: { fontSize: 14.5, fontWeight: "600", color: c.text },
     attentionMeta: { fontSize: 13, color: c.textMuted, marginTop: 2 },
-    placeholderPanel: {
-      backgroundColor: c.bgNested,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderStyle: "dashed",
-      borderRadius: 14,
-      padding: 16,
+    alertsPanel: { marginBottom: 20 },
+    alertsStack: { gap: 16 },
+    alertsSubHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       gap: 8,
+      marginBottom: 4,
     },
-    placeholderText: { fontSize: 13.5, color: c.textMuted, lineHeight: 19 },
+    alertsSubTitle: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: c.textMuted,
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
+    alertsMore: { fontSize: 12.5, color: c.textMuted, paddingTop: 8 },
+    bellWrap: { position: "relative", padding: 2 },
+    bellBadge: {
+      position: "absolute",
+      top: -6,
+      right: -9,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 5,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    bellBadgeText: { color: "#fff", fontSize: 10.5, fontWeight: "700" },
+    alertBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
+    alertBadgeText: { fontSize: 12, fontWeight: "600" },
   });
 }

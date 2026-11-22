@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -9,8 +9,11 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import type { TextInputInstance, ViewInstance } from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
+import { overlayPosition } from "../lib/webStyles";
 
 export type SelectOption<T extends number | string = number> = { value: T; label: string };
 
@@ -24,6 +27,8 @@ export type SelectOption<T extends number | string = number> = { value: T; label
 // self-managed.
 // `inline` keeps the options in the document flow when a modal ScrollView
 // would otherwise clip or cover an absolute dropdown.
+// `searchable={false}` drops the search box, for short fixed lists (e.g.
+// the 24 hours) where it only takes up room.
 export function Select<T extends number | string = number>({
   value,
   onChange,
@@ -31,6 +36,7 @@ export function Select<T extends number | string = number>({
   placeholder = "Elegí una opción",
   disabled = false,
   inline = false,
+  searchable = true,
   open: openProp,
   onOpenChange,
   hasError = false,
@@ -41,6 +47,7 @@ export function Select<T extends number | string = number>({
   placeholder?: string;
   disabled?: boolean;
   inline?: boolean;
+  searchable?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hasError?: boolean;
@@ -58,8 +65,8 @@ export function Select<T extends number | string = number>({
 
   const [query, setQuery] = useState("");
   const [flipVertical, setFlipVertical] = useState(false);
-  const searchRef = useRef<TextInput>(null);
-  const controlRef = useRef<View>(null);
+  const searchRef = useRef<TextInputInstance>(null);
+  const controlRef = useRef<ViewInstance>(null);
 
   const { colors } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
@@ -67,9 +74,13 @@ export function Select<T extends number | string = number>({
 
   const selected = options.find((o) => o.value === value) ?? null;
 
-  useEffect(() => {
+  // Each open starts with an empty search.
+  useResetOnOpen(open, () => setQuery(""));
+
+  // Measure before paint so the dropdown opens already flipped when it
+  // wouldn't fit below (React's measure-then-setState pattern).
+  useLayoutEffect(() => {
     if (open) {
-      setQuery("");
       const t = setTimeout(() => searchRef.current?.focus(), 50);
 
       if (
@@ -117,20 +128,26 @@ export function Select<T extends number | string = number>({
           <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
 
           <View style={[styles.dropdown, inline && styles.dropdownInline]}>
-            <TextInput
-              ref={searchRef}
-              style={styles.search}
-              placeholder="Buscar…"
-              placeholderTextColor={colors.textMuted}
-              value={query}
-              onChangeText={setQuery}
-              autoCorrect={false}
-            />
+            {searchable && (
+              <TextInput
+                ref={searchRef}
+                style={styles.search}
+                placeholder="Buscar…"
+                placeholderTextColor={colors.textMuted}
+                value={query}
+                onChangeText={setQuery}
+                autoCorrect={false}
+              />
+            )}
 
             {filtered.length === 0 ? (
               <Text style={styles.noResults}>Sin resultados</Text>
             ) : (
-              <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
+              <ScrollView
+                style={searchable ? styles.optionsListSearchable : styles.optionsList}
+                keyboardShouldPersistTaps="always"
+                nestedScrollEnabled
+              >
                 {filtered.map((opt) => (
                   <Pressable
                     key={opt.value}
@@ -185,7 +202,7 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
     placeholderText: { flex: 1, fontSize: 14, color: c.textMuted },
     chevron: { fontSize: 10, color: c.textMuted },
     backdrop: {
-      position: Platform.OS === "web" ? "fixed" : "absolute",
+      position: overlayPosition,
       top: Platform.OS === "web" ? 0 : -1000,
       left: Platform.OS === "web" ? 0 : -1000,
       right: Platform.OS === "web" ? 0 : -1000,
@@ -220,6 +237,8 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
     },
     search: {
       height: 40,
+      minHeight: 40,
+      flexShrink: 0,
       paddingHorizontal: 12,
       margin: 6,
       borderWidth: 1,
@@ -229,6 +248,14 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
       fontSize: 13.5,
       color: c.text,
       ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
+    },
+    optionsList: {
+      maxHeight: 228,
+      flexGrow: 0,
+    },
+    optionsListSearchable: {
+      maxHeight: 176,
+      flexGrow: 0,
     },
     noResults: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 13, color: c.textMuted },
     option: { paddingHorizontal: 14, paddingVertical: 10 },

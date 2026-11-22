@@ -1,11 +1,13 @@
 import { getTodayDbDate } from "../../components/CustomDatePicker";
 import { supabase } from "../supabase";
-import type { Database } from "../../types/database";
 import type {
+  Database,
   PastTaskSuspension,
+  Repuesto,
   Solicitud,
   SolicitudTask,
   TaskSuspension,
+  WorkOrder,
 } from "../../types/database";
 
 type SolicitudRow = Database["public"]["Tables"]["solicitudes"]["Row"];
@@ -23,7 +25,9 @@ type TareaRow = Database["public"]["Tables"]["tareas_realizadas_orden"]["Row"];
 // its own técnico. Rows with pe_cuit_cuil (external provider) instead of
 // p_id_tecnico are filtered out below — no UI yet to manage those.
 type RepuestoParaTareaRow = { rep_id: number; repta_canti_usada: number };
-type ConsumedPartRow = RepuestoParaTareaRow & { repuestos: { rep_nombre: string } | null };
+type ConsumedPartRow = RepuestoParaTareaRow & {
+  repuestos: Pick<Repuesto, "rep_nombre" | "rep_unidad"> | null;
+};
 
 // A tarea's 0029 columns hold its last suspension; since 0030 resuming
 // only sets taro_fecha_fin_suspension instead of clearing them. So it's
@@ -63,6 +67,8 @@ function mapConsumedParts(rows: ConsumedPartRow[] | undefined) {
     repId: r.rep_id,
     nombre: r.repuestos?.rep_nombre ?? `Repuesto ${r.rep_id}`,
     cantidad: r.repta_canti_usada,
+    // Shown next to the quantity ("Aceite ×2 L"); null if the repuesto is gone.
+    unidad: r.repuestos?.rep_unidad ?? null,
   }));
 }
 
@@ -86,7 +92,7 @@ export type SolicitudWithOrden = SolicitudRow & {
 // tarea added to it (with the técnico's id and the tarea's name), and
 // every photo attached to the solicitud.
 export const SOLICITUD_SELECT =
-  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)))), solicitud_foto(*)";
+  "*, orden_de_trabajo(*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad)))), solicitud_foto(*)";
 
 function resolvePhotoUrls(
   fotos: SolicitudFotoRow[] | undefined,
@@ -102,28 +108,34 @@ function resolvePhotoUrls(
   return photoUrls.length > 0 ? photoUrls : legacyUrl ? [legacyUrl] : [];
 }
 
+function mapTasks(rows: TareaWithGeneral[] | undefined): SolicitudTask[] {
+  return (
+    (rows ?? [])
+      .filter((t): t is TareaWithGeneral & { p_id_tecnico: string } => t.p_id_tecnico !== null)
+      .map((t) => ({
+        id: t.taro_id_tarea_orden,
+        taskId: t.tag_id_tarea,
+        taskName: t.tareas_generales?.tag_nombre_tarea ?? "Tarea",
+        technicianId: t.p_id_tecnico,
+        startDate: t.taro_fecha_inicio,
+        endDate: t.taro_fecha_fin,
+        consumedParts: mapConsumedParts(t.repuesto_para_tarea),
+        diagnosis: t.taro_diagnostico,
+        suspension: mapSuspension(t),
+        lastSuspension: mapLastSuspension(t),
+      }))
+      // PostgREST doesn't guarantee the order of embedded rows (an updated
+      // row can come back in a different position), so sort by id: tareas
+      // always show in the order they were added, new ones at the end.
+      .sort((a, b) => a.id - b.id)
+  );
+}
+
 // Maps solicitud+orden_de_trabajo onto the old flat "Fault" shape (id,
 // status, tasks, etc.) so screens/components barely change.
 export function mapSolicitudRow(row: SolicitudWithOrden): Solicitud {
   const orden = row.orden_de_trabajo[0] ?? null;
-  const tasks: SolicitudTask[] = (orden?.tareas_realizadas_orden ?? [])
-    .filter((t): t is TareaWithGeneral & { p_id_tecnico: string } => t.p_id_tecnico !== null)
-    .map((t) => ({
-      id: t.taro_id_tarea_orden,
-      taskId: t.tag_id_tarea,
-      taskName: t.tareas_generales?.tag_nombre_tarea ?? "Tarea",
-      technicianId: t.p_id_tecnico,
-      startDate: t.taro_fecha_inicio,
-      endDate: t.taro_fecha_fin,
-      consumedParts: mapConsumedParts(t.repuesto_para_tarea),
-      diagnosis: t.taro_diagnostico,
-      suspension: mapSuspension(t),
-      lastSuspension: mapLastSuspension(t),
-    }))
-    // PostgREST doesn't guarantee the order of embedded rows (an updated
-    // row can come back in a different position), so sort by id: tareas
-    // always show in the order they were added, new ones at the end.
-    .sort((a, b) => a.id - b.id);
+  const tasks = mapTasks(orden?.tareas_realizadas_orden);
   let status: Solicitud["status"] = "new";
   if (row.sol_estado === "rechazada") {
     status = "rejected";
@@ -275,8 +287,8 @@ export async function listAllRequests(): Promise<Solicitud[]> {
   return (data as SolicitudWithOrden[]).map(mapSolicitudRow);
 }
 
-// The OT full-screen page (work-orders/[id]) loads one solicitud/OT by id
-// instead of the whole list.
+// Loads one solicitud (with its OT, if it has one) by id instead of the
+// whole list.
 export async function getSolicitudById(solicitudId: number): Promise<Solicitud | null> {
   const { data, error } = await supabase
     .from("solicitudes")
@@ -288,6 +300,99 @@ export async function getSolicitudById(solicitudId: number): Promise<Solicitud |
     throw new Error(error.message);
   }
   return mapSolicitudRow(data as SolicitudWithOrden);
+}
+
+type WorkOrderWithDetail = OrdenWithTasks & {
+  solicitudes:
+    | (Pick<
+        SolicitudRow,
+        | "sol_id_solicitud"
+        | "sol_descripcion"
+        | "p_legajo_solicitante"
+        | "sol_fecha_hora"
+        | "sol_foto_url"
+      > & { solicitud_foto?: SolicitudFotoRow[] })
+    | null;
+  plan_mantenimiento?: { pm_nombre_plan: string } | null;
+};
+
+// The OT screens' select: the orden_de_trabajo with its falla, its tareas,
+// the solicitud it came from — if any (null on an OT generated without
+// one, e.g. preventivo) — and, on a preventivo, the plan that generated it.
+export const WORK_ORDER_SELECT =
+  "*, fallo_por_orden(fallo(*)), tareas_realizadas_orden(*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad))), solicitudes(sol_id_solicitud, sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)), plan_mantenimiento(pm_nombre_plan)";
+
+export function mapWorkOrderRow(row: WorkOrderWithDetail): WorkOrder {
+  const sol = row.solicitudes;
+  return {
+    id: row.ot_id_orden,
+    equipment_id: row.eq_id_equipo,
+    sol_id_solicitud: row.sol_id_solicitud ?? null,
+    plan_id_manequipo: row.plan_id_manequipo ?? null,
+    type: row.ot_tipo_orden,
+    status: row.ot_estado,
+    priority: row.ot_prioridad,
+    start_date: row.ot_fecha_inicio,
+    end_date: row.ot_fecha_fin,
+    planned_end_date: row.ot_fecha_estimada_fin,
+    created_at: row.ot_creada_en ?? null,
+    observation: row.ot_observacion,
+    plan_name: row.plan_mantenimiento?.pm_nombre_plan ?? null,
+    fault_type_name: row.fallo_por_orden?.[0]?.fallo?.fa_nombre ?? null,
+    tasks: mapTasks(row.tareas_realizadas_orden),
+    solicitud: sol
+      ? {
+          id: sol.sol_id_solicitud,
+          reported_by: sol.p_legajo_solicitante,
+          description: sol.sol_descripcion,
+          created_at: sol.sol_fecha_hora,
+          photo_urls: resolvePhotoUrls(sol.solicitud_foto, sol.sol_foto_url),
+        }
+      : null,
+  };
+}
+
+export type WorkOrderOrigin = "solicitud" | "plan" | "instalacion" | "none";
+
+export function getWorkOrderOrigin(order: {
+  sol_id_solicitud?: number | null;
+  plan_id_manequipo?: number | null;
+  solicitud?: { id: number } | null;
+  plan_name?: string | null;
+  type?: string;
+}): WorkOrderOrigin {
+  const hasSolicitud = Boolean(order.sol_id_solicitud != null || order.solicitud);
+  const hasPlan = Boolean(order.plan_id_manequipo != null || order.plan_name);
+
+  if (hasSolicitud && !hasPlan) return "solicitud";
+  if (!hasSolicitud && hasPlan) return "plan";
+  // Installation OTs (0033) carry neither: they come from registering the equipo.
+  if (!hasSolicitud && !hasPlan && order.type === "instalacion") return "instalacion";
+  return "none";
+}
+
+// Every OT, whatever it came from — the "Órdenes de trabajo" screen.
+export async function listWorkOrders(): Promise<WorkOrder[]> {
+  const { data, error } = await supabase
+    .from("orden_de_trabajo")
+    .select(WORK_ORDER_SELECT)
+    .order("ot_id_orden", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data as unknown as WorkOrderWithDetail[]).map(mapWorkOrderRow);
+}
+
+// The OT full-screen page (work-orders/[id]) loads one OT by its own id.
+export async function getWorkOrderById(orderId: number): Promise<WorkOrder | null> {
+  const { data, error } = await supabase
+    .from("orden_de_trabajo")
+    .select(WORK_ORDER_SELECT)
+    .eq("ot_id_orden", orderId)
+    .single();
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw new Error(error.message);
+  }
+  return mapWorkOrderRow(data as unknown as WorkOrderWithDetail);
 }
 
 // SCRUM-27: el admin puede cerrar una solicitud pendiente sin generar una
@@ -342,10 +447,11 @@ export async function closeSolicitud(
 // falla genérica se cargan después desde la pantalla de la OT
 // (work-orders/[id]), no desde Solicitudes. A 0-tarea OT is valid in the
 // DB: sync_orden_estado (0017) leaves it 'assigned' until a tarea starts.
+// Returns the new OT's id, so the caller can open its screen.
 export async function generateOrder(
   solicitudId: number,
   input: { priority: Exclude<Solicitud["priority"], null> },
-): Promise<void> {
+): Promise<number> {
   if (!input?.priority) throw new Error("Elegí una prioridad.");
 
   const { data: sol, error: solError } = await supabase
@@ -359,11 +465,15 @@ export async function generateOrder(
     throw new Error("Esta solicitud ya no está pendiente.");
   }
 
-  const { error: insertError } = await supabase.from("orden_de_trabajo").insert({
-    sol_id_solicitud: solicitudId,
-    eq_id_equipo: sol.eq_id_equipo,
-    ot_prioridad: input.priority,
-  });
+  const { data: orden, error: insertError } = await supabase
+    .from("orden_de_trabajo")
+    .insert({
+      sol_id_solicitud: solicitudId,
+      eq_id_equipo: sol.eq_id_equipo,
+      ot_prioridad: input.priority,
+    })
+    .select("ot_id_orden")
+    .single();
   if (insertError) throw new Error(insertError.message);
 
   const { error: updateError } = await supabase
@@ -378,6 +488,7 @@ export async function generateOrder(
     "Asignada",
     `Orden de trabajo generada: ${sol.sol_descripcion}`,
   );
+  return orden.ot_id_orden;
 }
 
 const PRIORITY_HIST_LABELS: Record<Exclude<Solicitud["priority"], null>, string> = {
@@ -388,13 +499,13 @@ const PRIORITY_HIST_LABELS: Record<Exclude<Solicitud["priority"], null>, string>
 
 // Changes the OT's prioridad from the OT screen.
 export async function updateOrderPriority(
-  solicitudId: number,
+  orderId: number,
   priority: Exclude<Solicitud["priority"], null>,
 ): Promise<void> {
   const { data: orden, error: updateError } = await supabase
     .from("orden_de_trabajo")
     .update({ ot_prioridad: priority })
-    .eq("sol_id_solicitud", solicitudId)
+    .eq("ot_id_orden", orderId)
     .select("eq_id_equipo")
     .single();
   if (updateError) throw new Error(updateError.message);
@@ -410,26 +521,26 @@ export async function updateOrderPriority(
 // links one fallo per order through fallo_por_orden (see the comment at
 // the top of this file), so changing it replaces the existing link.
 export async function updateOrderFaultType(
-  solicitudId: number,
+  orderId: number,
   faultTypeId: number | null,
 ): Promise<void> {
   const { data: orden, error: selectError } = await supabase
     .from("orden_de_trabajo")
-    .select("ot_id_orden, eq_id_equipo")
-    .eq("sol_id_solicitud", solicitudId)
+    .select("eq_id_equipo")
+    .eq("ot_id_orden", orderId)
     .single();
   if (selectError) throw new Error(selectError.message);
 
   const { error: deleteError } = await supabase
     .from("fallo_por_orden")
     .delete()
-    .eq("ot_id_orden", orden.ot_id_orden);
+    .eq("ot_id_orden", orderId);
   if (deleteError) throw new Error(deleteError.message);
 
   if (faultTypeId != null) {
     const { error: insertError } = await supabase.from("fallo_por_orden").insert({
       fa_id_fallo: faultTypeId,
-      ot_id_orden: orden.ot_id_orden,
+      ot_id_orden: orderId,
       fpo_fecha_deteccion: getTodayDbDate(),
     });
     if (insertError) throw new Error(insertError.message);
@@ -447,20 +558,20 @@ export async function updateOrderFaultType(
 // Adds one more tarea to an OT that already exists — e.g. the admin
 // realizes mid-repair that another tarea genérica is needed.
 export async function addTaskToOrder(
-  solicitudId: number,
+  orderId: number,
   input: { taskId: number; technicianId: string },
 ): Promise<void> {
   const { data: orden, error: selectError } = await supabase
     .from("orden_de_trabajo")
-    .select("ot_id_orden, eq_id_equipo")
-    .eq("sol_id_solicitud", solicitudId)
+    .select("eq_id_equipo")
+    .eq("ot_id_orden", orderId)
     .single();
   if (selectError) throw new Error(selectError.message);
 
   const { data: task, error: insertError } = await supabase
     .from("tareas_realizadas_orden")
     .insert({
-      ot_id_orden: orden.ot_id_orden,
+      ot_id_orden: orderId,
       tag_id_tarea: input.taskId,
       p_id_tecnico: input.technicianId,
     })
@@ -512,11 +623,11 @@ export async function listActiveTaskCountsByTechnician(): Promise<Record<string,
 
 // SCRUM-28: reprogramar cuándo arranca la orden en su conjunto (planificación
 // del admin) — independiente de cuándo cada técnico arranca su propia tarea.
-export async function updateOrderStartDate(solicitudId: number, newDate: string): Promise<void> {
+export async function updateOrderStartDate(orderId: number, newDate: string): Promise<void> {
   const { data: orden, error: updateError } = await supabase
     .from("orden_de_trabajo")
     .update({ ot_fecha_inicio: newDate })
-    .eq("sol_id_solicitud", solicitudId)
+    .eq("ot_id_orden", orderId)
     .select("eq_id_equipo")
     .single();
   if (updateError) {
@@ -540,13 +651,13 @@ export async function updateOrderStartDate(solicitudId: number, newDate: string)
 // sync_orden_estado) so planning never fights the automatic calculation.
 // Passing null clears the estimate.
 export async function updateOrderPlannedEndDate(
-  solicitudId: number,
+  orderId: number,
   newDate: string | null,
 ): Promise<void> {
   const { data: orden, error: updateError } = await supabase
     .from("orden_de_trabajo")
     .update({ ot_fecha_estimada_fin: newDate })
-    .eq("sol_id_solicitud", solicitudId)
+    .eq("ot_id_orden", orderId)
     .select("eq_id_equipo")
     .single();
   if (updateError) {
@@ -587,10 +698,15 @@ export type MyTask = {
   photoUrl: string | null;
   photoUrls: string[];
   faultTypeName: string | null;
-  consumedParts: { repId: number; nombre: string; cantidad: number }[];
+  consumedParts: SolicitudTask["consumedParts"];
   diagnosis: string | null;
   suspension: TaskSuspension | null;
   lastSuspension: PastTaskSuspension | null;
+  // ot_tipo_orden. Only a correctivo comes from a solicitud; on the others
+  // (instalación, preventivo) description is the OT's observación,
+  // createdAt its fecha de inicio, and reportedBy is empty.
+  orderType: string;
+  fromSolicitud: boolean;
 };
 
 type MyTaskRow = TareaRow & {
@@ -614,7 +730,7 @@ export async function listMyTasks(): Promise<MyTask[]> {
   const { data, error } = await supabase
     .from("tareas_realizadas_orden")
     .select(
-      "*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre)), orden_de_trabajo(*, fallo_por_orden(fallo(*)), solicitudes(sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)))",
+      "*, tareas_generales(tag_nombre_tarea), repuesto_para_tarea(rep_id, repta_canti_usada, repuestos(rep_nombre, rep_unidad)), orden_de_trabajo(*, fallo_por_orden(fallo(*)), solicitudes(sol_descripcion, p_legajo_solicitante, sol_fecha_hora, sol_foto_url, solicitud_foto(*)))",
     )
     .eq("p_id_tecnico", userId);
   if (error) throw new Error(error.message);
@@ -632,9 +748,9 @@ export async function listMyTasks(): Promise<MyTask[]> {
       startDate: row.taro_fecha_inicio,
       endDate: row.taro_fecha_fin,
       equipmentId: orden?.eq_id_equipo ?? 0,
-      description: sol?.sol_descripcion ?? "",
+      description: sol?.sol_descripcion ?? orden?.ot_observacion ?? "",
       reportedBy: sol?.p_legajo_solicitante ?? "",
-      createdAt: sol?.sol_fecha_hora ?? "",
+      createdAt: sol?.sol_fecha_hora ?? orden?.ot_fecha_inicio ?? "",
       photoUrl: photoUrls[0] ?? null,
       photoUrls,
       faultTypeName: orden?.fallo_por_orden?.[0]?.fallo?.fa_nombre ?? null,
@@ -642,6 +758,8 @@ export async function listMyTasks(): Promise<MyTask[]> {
       diagnosis: row.taro_diagnostico,
       suspension: mapSuspension(row),
       lastSuspension: mapLastSuspension(row),
+      orderType: orden?.ot_tipo_orden ?? "correctivo",
+      fromSolicitud: !!sol,
     };
   });
 }

@@ -1,7 +1,10 @@
 import { supabase } from "../supabase";
-import type { LineaPedido, PedidoCompra } from "../../types/database";
+import type { LineaPedido, PedidoCompra, Repuesto } from "../../types/database";
 
-export type PurchaseOrderLine = LineaPedido & { repuesto: { rep_nombre: string } | null };
+// rep_unidad is embedded so each line quantity can show its unit.
+type PurchaseOrderLineRepuesto = Pick<Repuesto, "rep_nombre" | "rep_unidad">;
+
+export type PurchaseOrderLine = LineaPedido & { repuesto: PurchaseOrderLineRepuesto | null };
 
 export type PurchaseOrderWithLines = PedidoCompra & {
   linea_pedido: PurchaseOrderLine[];
@@ -20,7 +23,7 @@ async function currentUserId(): Promise<string> {
 export async function listPurchaseOrders(scope: "mine" | "all"): Promise<PurchaseOrderWithLines[]> {
   let query = supabase
     .from("pedido_compra")
-    .select("*, linea_pedido(*, repuestos(rep_nombre))")
+    .select("*, linea_pedido(*, repuestos(rep_nombre, rep_unidad))")
     .order("ped_fecha_solicitud", { ascending: false })
     .order("ped_id_ped_compra", { ascending: false });
 
@@ -33,7 +36,7 @@ export async function listPurchaseOrders(scope: "mine" | "all"): Promise<Purchas
 
   return (
     data as (PedidoCompra & {
-      linea_pedido: (LineaPedido & { repuestos: { rep_nombre: string } | null })[];
+      linea_pedido: (LineaPedido & { repuestos: PurchaseOrderLineRepuesto | null })[];
     })[]
   ).map((row) => ({
     ...row,

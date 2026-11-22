@@ -13,6 +13,8 @@
 // rest of the schema (planes de mantenimiento, catalogo de fallas, etc., see
 // supabase/migrations/0003_reemplazo_gestion_mantenimiento.sql) has no UI yet
 // and nothing here queries it.
+import type { UnidadRepuesto } from "../lib/units";
+
 export type Database = {
   public: {
     Views: Record<string, never>;
@@ -67,6 +69,34 @@ export type Database = {
         Args: { p_rc_id: number };
         Returns: void;
       };
+      registrar_movimiento_stock: {
+        Args: {
+          p_rep_id: number;
+          p_tipo: "ingreso" | "egreso";
+          p_cantidad: number;
+          p_motivo: string;
+          p_comentario?: string | null;
+        };
+        Returns: number;
+      };
+      alta_equipo: {
+        Args: {
+          p_codigo: string;
+          p_nombre: string;
+          p_te_id: number;
+          p_lu_codigo: number;
+          p_modelo: string | null;
+          p_pendiente: boolean;
+          p_fecha_instalacion?: string | null;
+          p_tecnico?: string | null;
+          p_prioridad?: "low" | "medium" | "high" | null;
+        };
+        Returns: { eq_id: number; ot_id: number | null };
+      };
+      generar_ots_preventivas: {
+        Args: { p_pm_id?: number | null };
+        Returns: number;
+      };
       finalizar_tarea: {
         Args: {
           p_taro_id_tarea_orden: number;
@@ -74,6 +104,38 @@ export type Database = {
           p_diagnostico?: string | null;
         };
         Returns: void;
+      };
+      crear_plan_mantenimiento: {
+        Args: {
+          p_te_id: number;
+          p_nombre: string;
+          p_descripcion: string | null;
+          p_frecuencia: number;
+          p_estado: string;
+          p_tareas: number[];
+          p_equipos: { eq_id: number; fecha_ult_mant: string }[];
+          p_hora_emision?: number;
+        };
+        Returns: number;
+      };
+      editar_plan_mantenimiento: {
+        Args: {
+          p_pm_id: number;
+          p_nombre: string;
+          p_descripcion: string | null;
+          p_frecuencia: number;
+          p_estado: string;
+          p_tareas: number[];
+          p_equipos: { eq_id: number; fecha_ult_mant: string }[];
+          p_hora_emision?: number;
+        };
+        Returns: void;
+      };
+      eliminar_plan_mantenimiento: {
+        Args: {
+          p_pm_id: number;
+        };
+        Returns: boolean;
       };
     };
     Enums: Record<string, never>;
@@ -127,6 +189,8 @@ export type Database = {
           tag_nombre_tarea: string;
           tag_descripcion_tarea: string | null;
           tag_estado: "activo" | "inactivo";
+          // Set only on system tareas the app relies on (0032): 'instalacion'.
+          tag_codigo_sistema: string | null;
         };
         Insert: {
           tag_id_tarea?: number;
@@ -177,6 +241,7 @@ export type Database = {
           eq_modelo: string | null;
           eq_fecha_instalacion: string | null;
           eq_estado_registro: "activo" | "inactivo";
+          eq_pendiente_instalacion: boolean;
         };
         Insert: {
           eq_id_equipo?: number;
@@ -188,6 +253,7 @@ export type Database = {
           eq_modelo?: string | null;
           eq_fecha_instalacion?: string | null;
           eq_estado_registro?: "activo" | "inactivo";
+          eq_pendiente_instalacion?: boolean;
         };
         Update: {
           eq_id_equipo?: number;
@@ -199,6 +265,7 @@ export type Database = {
           eq_modelo?: string | null;
           eq_fecha_instalacion?: string | null;
           eq_estado_registro?: "activo" | "inactivo";
+          eq_pendiente_instalacion?: boolean;
         };
         Relationships: [
           {
@@ -353,6 +420,8 @@ export type Database = {
           ot_observacion: string | null;
           ot_estado: "assigned" | "in_progress" | "resolved";
           ot_prioridad: "low" | "medium" | "high";
+          // When the OT was created (0039); ot_fecha_inicio is only a date.
+          ot_creada_en: string;
         };
         Insert: {
           ot_id_orden?: number;
@@ -367,6 +436,7 @@ export type Database = {
           ot_observacion?: string | null;
           ot_estado?: "assigned" | "in_progress" | "resolved";
           ot_prioridad: "low" | "medium" | "high";
+          ot_creada_en?: string;
         };
         Update: {
           ot_id_orden?: number;
@@ -381,6 +451,7 @@ export type Database = {
           ot_observacion?: string | null;
           ot_estado?: "assigned" | "in_progress" | "resolved";
           ot_prioridad?: "low" | "medium" | "high";
+          ot_creada_en?: string;
         };
         Relationships: [
           {
@@ -519,7 +590,8 @@ export type Database = {
           eq_id_equipo: number;
           hi_tipo: string;
           hi_nota: string;
-          hi_autor_id: string;
+          // null on events written by the system itself (0035)
+          hi_autor_id: string | null;
           hi_fecha_hora: string;
         };
         Insert: {
@@ -527,7 +599,7 @@ export type Database = {
           eq_id_equipo: number;
           hi_tipo: string;
           hi_nota: string;
-          hi_autor_id: string;
+          hi_autor_id?: string | null;
           hi_fecha_hora?: string;
         };
         Update: {
@@ -548,6 +620,8 @@ export type Database = {
           rep_stock_minimo: number;
           rep_stock_maximo: number | null;
           rep_estado: "activo" | "inactivo";
+          // Migration 0049; see src/lib/units.ts.
+          rep_unidad: UnidadRepuesto;
         };
         Insert: {
           rep_id?: number;
@@ -556,6 +630,7 @@ export type Database = {
           rep_stock_minimo?: number;
           rep_stock_maximo?: number | null;
           rep_estado?: "activo" | "inactivo";
+          rep_unidad?: UnidadRepuesto;
         };
         Update: {
           rep_id?: number;
@@ -564,8 +639,52 @@ export type Database = {
           rep_stock_minimo?: number;
           rep_stock_maximo?: number | null;
           rep_estado?: "activo" | "inactivo";
+          rep_unidad?: UnidadRepuesto;
         };
         Relationships: [];
+      };
+      // Ingresos/egresos externos (migration 0048): only written through
+      // registrar_movimiento_stock, never edited or deleted.
+      movimiento_stock: {
+        Row: {
+          ms_id: number;
+          rep_id: number;
+          ms_tipo: "ingreso" | "egreso";
+          ms_cantidad: number;
+          ms_motivo: string;
+          ms_comentario: string | null;
+          ms_p_id_registrador: string | null;
+          ms_creado_en: string;
+        };
+        Insert: {
+          ms_id?: number;
+          rep_id: number;
+          ms_tipo: "ingreso" | "egreso";
+          ms_cantidad: number;
+          ms_motivo: string;
+          ms_comentario?: string | null;
+          ms_p_id_registrador?: string | null;
+          ms_creado_en?: string;
+        };
+        Update: {
+          ms_id?: number;
+          rep_id?: number;
+          ms_tipo?: "ingreso" | "egreso";
+          ms_cantidad?: number;
+          ms_motivo?: string;
+          ms_comentario?: string | null;
+          ms_p_id_registrador?: string | null;
+          ms_creado_en?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "movimiento_stock_rep_id_fkey";
+            columns: ["rep_id"];
+            isOneToOne: false;
+            referencedRelation: "repuestos";
+            referencedColumns: ["rep_id"];
+          },
+        ];
       };
       tipos_proveedores: {
         Row: { tp_id: number; tp_nombre_rubro: string; tp_descripcion: string | null };
@@ -839,6 +958,185 @@ export type Database = {
           },
         ];
       };
+      plan_mantenimiento: {
+        Row: {
+          pm_id_plan: number;
+          te_id: number;
+          pm_nombre_plan: string;
+          pm_descripcion_plan: string | null;
+          pm_frecuencia: number;
+          pm_estado: "activo" | "inactivo";
+          // Hour (Argentina, 0–23) its preventive OTs are emitted at (0039).
+          pm_hora_emision: number;
+        };
+        Insert: {
+          pm_id_plan?: number;
+          te_id: number;
+          pm_nombre_plan: string;
+          pm_descripcion_plan?: string | null;
+          pm_frecuencia: number;
+          pm_estado?: "activo" | "inactivo";
+          pm_hora_emision?: number;
+        };
+        Update: {
+          pm_id_plan?: number;
+          te_id?: number;
+          pm_nombre_plan?: string;
+          pm_descripcion_plan?: string | null;
+          pm_frecuencia?: number;
+          pm_estado?: "activo" | "inactivo";
+          pm_hora_emision?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "plan_mantenimiento_te_id_fkey";
+            columns: ["te_id"];
+            isOneToOne: false;
+            referencedRelation: "tipos_de_equipos";
+            referencedColumns: ["te_id"];
+          },
+        ];
+      };
+      mantenimiento_equipo: {
+        Row: {
+          pm_id_plan: number;
+          eq_id_equipo: number;
+          me_fecha_ult_mant: string | null;
+        };
+        Insert: {
+          pm_id_plan: number;
+          eq_id_equipo: number;
+          me_fecha_ult_mant: string;
+        };
+        Update: {
+          pm_id_plan?: number;
+          eq_id_equipo?: number;
+          me_fecha_ult_mant?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mantenimiento_equipo_pm_id_plan_fkey";
+            columns: ["pm_id_plan"];
+            isOneToOne: false;
+            referencedRelation: "plan_mantenimiento";
+            referencedColumns: ["pm_id_plan"];
+          },
+          {
+            foreignKeyName: "mantenimiento_equipo_eq_id_equipo_fkey";
+            columns: ["eq_id_equipo"];
+            isOneToOne: false;
+            referencedRelation: "equipo";
+            referencedColumns: ["eq_id_equipo"];
+          },
+        ];
+      };
+      tarea_prevista_plan: {
+        Row: {
+          tag_id_tarea: number;
+          pm_id_plan: number;
+        };
+        Insert: {
+          tag_id_tarea: number;
+          pm_id_plan: number;
+        };
+        Update: {
+          tag_id_tarea?: number;
+          pm_id_plan?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tarea_prevista_plan_tag_id_tarea_fkey";
+            columns: ["tag_id_tarea"];
+            isOneToOne: false;
+            referencedRelation: "tareas_generales";
+            referencedColumns: ["tag_id_tarea"];
+          },
+          {
+            foreignKeyName: "tarea_prevista_plan_pm_id_plan_fkey";
+            columns: ["pm_id_plan"];
+            isOneToOne: false;
+            referencedRelation: "plan_mantenimiento";
+            referencedColumns: ["pm_id_plan"];
+          },
+        ];
+      };
+      // The admin's bell (0040): one row per notification per recipient,
+      // written only by triggers; the app just reads and marks no_leida.
+      notificacion: {
+        Row: {
+          no_id: number;
+          user_id: string;
+          no_tipo: "ot_preventiva" | "stock_bajo" | "sin_stock" | "falla_critica";
+          ot_id_orden: number | null;
+          rep_id: number | null;
+          no_cantidad: number | null;
+          no_minimo: number | null;
+          no_leida: boolean;
+          // Set by a trigger when no_leida turns true (0041); read rows are
+          // deleted 7 days after it, any row 30 days after no_creada_en.
+          no_leida_en: string | null;
+          no_creada_en: string;
+        };
+        Insert: never;
+        Update: {
+          no_leida?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notificacion_ot_id_orden_fkey";
+            columns: ["ot_id_orden"];
+            isOneToOne: false;
+            referencedRelation: "orden_de_trabajo";
+            referencedColumns: ["ot_id_orden"];
+          },
+          {
+            foreignKeyName: "notificacion_rep_id_fkey";
+            columns: ["rep_id"];
+            isOneToOne: false;
+            referencedRelation: "repuestos";
+            referencedColumns: ["rep_id"];
+          },
+        ];
+      };
+      v_planes_mantenimiento: {
+        Row: {
+          pm_id_plan: number;
+          te_id: number;
+          te_nombre: string;
+          pm_nombre_plan: string;
+          pm_descripcion_plan: string | null;
+          pm_frecuencia: number;
+          pm_estado: "activo" | "inactivo";
+          task_count: number;
+          equipment_count: number;
+          prox_vencimiento: string | null;
+        };
+        Insert: {
+          pm_id_plan?: number;
+          te_id: number;
+          te_nombre: string;
+          pm_nombre_plan: string;
+          pm_descripcion_plan?: string | null;
+          pm_frecuencia: number;
+          pm_estado?: "activo" | "inactivo";
+          task_count?: number;
+          equipment_count?: number;
+          prox_vencimiento?: string | null;
+        };
+        Update: {
+          pm_id_plan?: number;
+          te_id?: number;
+          te_nombre?: string;
+          pm_nombre_plan?: string;
+          pm_descripcion_plan?: string | null;
+          pm_frecuencia?: number;
+          pm_estado?: "activo" | "inactivo";
+          task_count?: number;
+          equipment_count?: number;
+          prox_vencimiento?: string | null;
+        };
+        Relationships: [];
+      };
     };
   };
 };
@@ -847,8 +1145,14 @@ export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Lugar = Database["public"]["Tables"]["lugares"]["Row"];
 export type TipoEquipo = Database["public"]["Tables"]["tipos_de_equipos"]["Row"];
 export type TareaGeneral = Database["public"]["Tables"]["tareas_generales"]["Row"];
+export type PlanMantenimiento = Database["public"]["Tables"]["plan_mantenimiento"]["Row"];
+export type MantenimientoEquipo = Database["public"]["Tables"]["mantenimiento_equipo"]["Row"];
+export type TareaPrevistaPlan = Database["public"]["Tables"]["tarea_prevista_plan"]["Row"];
+export type PlanMantenimientoItem = Database["public"]["Tables"]["v_planes_mantenimiento"]["Row"];
 export type Fallo = Database["public"]["Tables"]["fallo"]["Row"];
 export type Repuesto = Database["public"]["Tables"]["repuestos"]["Row"];
+export type MovimientoStock = Database["public"]["Tables"]["movimiento_stock"]["Row"];
+export type MovimientoStockTipo = MovimientoStock["ms_tipo"];
 export type TipoProveedor = Database["public"]["Tables"]["tipos_proveedores"]["Row"];
 export type Proveedor = Database["public"]["Tables"]["proveedores"]["Row"];
 export type ComprobanteTipo = "factura" | "remito" | "tique";
@@ -874,7 +1178,10 @@ export type Equipo = {
   typeId: number;
   location: string;
   locationId: number;
-  status: "operational" | "waiting" | "repair";
+  // "pending_install" isn't an eq_estado value: it's eq_pendiente_instalacion
+  // (0032) taking precedence over the automatic estado until the
+  // installation tarea is finished.
+  status: "operational" | "waiting" | "repair" | "pending_install";
   // Registration state, separate from the automatic operational `status`.
   active: boolean;
   model: string | null;
@@ -893,7 +1200,13 @@ export type SolicitudTask = {
   endDate: string | null; // taro_fecha_fin — null until the técnico finishes it
   // What the técnico registered as used on this tarea (finalizar_tarea,
   // migration 0021) — empty until finished, and stays empty if none was used.
-  consumedParts: { repId: number; nombre: string; cantidad: number }[];
+  // unidad: the repuesto's rep_unidad, null if the embed came back empty.
+  consumedParts: {
+    repId: number;
+    nombre: string;
+    cantidad: number;
+    unidad: Repuesto["rep_unidad"] | null;
+  }[];
   // The técnico's diagnóstico/observación written when finishing the tarea
   // (finalizar_tarea, migration 0023) — null if none was written.
   diagnosis: string | null;
@@ -946,6 +1259,38 @@ export type Solicitud = {
   photo_url: string | null;
   photo_urls: string[];
   created_at: string;
+};
+
+// An orden_de_trabajo on its own, keyed by ot_id_orden — what the OT screens
+// work with. Unlike Solicitud it also covers OTs that don't come from a
+// solicitud (preventivo, instalación): `solicitud` is null for those.
+export type WorkOrder = {
+  id: number;
+  equipment_id: number;
+  sol_id_solicitud?: number | null;
+  plan_id_manequipo?: number | null;
+  type: string;
+  status: "assigned" | "in_progress" | "resolved";
+  priority: "low" | "medium" | "high";
+  start_date: string;
+  end_date: string | null;
+  planned_end_date: string | null;
+  // ot_creada_en (0039): when the OT was created, with time of day — what
+  // Estadísticas measures a solicitud's tiempo de atención against.
+  // Optional so hand-built WorkOrders (tests, fixtures) don't need it.
+  created_at?: string | null;
+  observation: string | null;
+  // The plan de mantenimiento that generated it (preventivo only, 0035).
+  plan_name: string | null;
+  fault_type_name: string | null;
+  tasks: SolicitudTask[];
+  solicitud: {
+    id: number;
+    reported_by: string;
+    description: string;
+    created_at: string;
+    photo_urls: string[];
+  } | null;
 };
 
 export type HistorialEntry = {

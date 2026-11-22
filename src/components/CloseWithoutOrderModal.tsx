@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Sigla } from "./Sigla";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 const MOTIVO_OPTIONS: RadioOption<string>[] = [
   { value: "Duplicada", label: "Duplicada" },
@@ -29,18 +30,22 @@ export function CloseWithoutOrderModal({
 }) {
   const [reason, setReason] = useState<string | null>(null);
   const [comment, setComment] = useState("");
+  // The "write the reason" warning waits until the field is left empty,
+  // instead of showing as soon as "Otro" is picked.
+  const [commentTouched, setCommentTouched] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setReason(null);
     setComment("");
+    setCommentTouched(false);
     setConfirming(false);
     setError(null);
-  }, [visible]);
+  });
 
   const isOtro = reason === "Otro";
   const commentTrimmed = comment.trim();
@@ -75,7 +80,9 @@ export function CloseWithoutOrderModal({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => !confirming && onClose()}
+      onRequestClose={() => {
+        if (!confirming) onClose();
+      }}
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
@@ -97,6 +104,7 @@ export function CloseWithoutOrderModal({
             onChange={(val) => {
               setReason(val);
               if (val !== "Otro") setComment("");
+              setCommentTouched(false);
               if (error) setError(null);
             }}
             options={MOTIVO_OPTIONS}
@@ -118,10 +126,11 @@ export function CloseWithoutOrderModal({
                 multiline
                 numberOfLines={3}
                 maxLength={255}
+                onBlur={() => setCommentTouched(true)}
                 autoFocus
               />
 
-              {!commentTrimmed && (
+              {commentTouched && !commentTrimmed && (
                 <Text style={styles.inlineWarning}>Escribí el motivo para continuar.</Text>
               )}
             </View>

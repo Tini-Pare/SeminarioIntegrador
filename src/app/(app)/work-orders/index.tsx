@@ -1,7 +1,8 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -9,30 +10,35 @@ import {
   View,
 } from "react-native";
 import { fromDbDate } from "../../../components/CustomDatePicker";
+import { EquipmentIcon, RefreshCwIcon, WarningIcon } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { RowActions } from "../../../components/RowActions";
 import { Sigla } from "../../../components/Sigla";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { formatOrderNumber } from "../../../lib/orderNumber";
 import { listEquipment } from "../../../lib/queries/equipment";
-import { listAllRequests } from "../../../lib/queries/faults";
-import { listProfiles } from "../../../lib/queries/profiles";
+import {
+  getWorkOrderOrigin,
+  listWorkOrders,
+  type WorkOrderOrigin,
+} from "../../../lib/queries/faults";
+import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { usePagination } from "../../../lib/usePagination";
-import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
-import type { Equipo, Solicitud } from "../../../types/database";
+import type { Equipo, WorkOrder } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
-type Item = Solicitud & {
+type Item = WorkOrder & {
   equipment: Pick<Equipo, "code" | "name">;
-  reporterName: string;
 };
 
-type OrderStatus = "assigned" | "in_progress" | "resolved";
-type Priority = Exclude<Solicitud["priority"], null>;
+type OrderStatus = WorkOrder["status"];
+type Priority = WorkOrder["priority"];
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   assigned: "Asignada",
@@ -40,14 +46,30 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   resolved: "Resuelta",
 };
 const STATUS_RANK: Record<OrderStatus, number> = { assigned: 0, in_progress: 1, resolved: 2 };
+
+// The priority labels are in Spanish. The 'notranslate' attribute is added in JSX
+// to prevent automated browser translation (e.g. Chrome translating 'Media' to 'Medios de comunicación').
 const PRIORITY_LABELS: Record<Priority, string> = { low: "Baja", medium: "Media", high: "Alta" };
 const PRIORITY_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2 };
 
-// Every solicitud here already has an orden_de_trabajo (order_id != null) —
-// solicitudes still pendiente, or closed without one (SCRUM-27), belong on
-// the "Solicitudes" screen instead, not here.
+// ot_tipo_orden is free text in the DB; anything not listed here shows as is.
+const TYPE_LABELS: Record<string, string> = {
+  correctivo: "Correctivo",
+  preventivo: "Preventivo",
+  instalacion: "Instalación",
+};
+
+function getOriginLabel(item: Item): string {
+  const origin = getWorkOrderOrigin(item);
+  if (origin === "solicitud") return "Solicitud";
+  if (origin === "plan") return "Plan preventivo";
+  if (origin === "instalacion") return "Instalación";
+  return "Sin origen";
+}
+
+// Every orden_de_trabajo, whether it came from a solicitud, maintenance plan, or installation.
 export default function WorkOrdersScreen() {
-  const [loading, setLoading] = useState(true);
+  const params = useLocalSearchParams<{ tipo?: string }>();
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +77,14 @@ export default function WorkOrdersScreen() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState(params.tipo ?? "");
+
+  // A new ?tipo= while the screen is already open replaces the filter.
+  const [prevTipo, setPrevTipo] = useState(params.tipo);
+  if (params.tipo !== prevTipo) {
+    setPrevTipo(params.tipo);
+    if (params.tipo !== undefined) setTypeFilter(params.tipo);
+  }
 
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -73,39 +103,33 @@ export default function WorkOrdersScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [requests, equipment, profiles] = await Promise.all([
-        listAllRequests(),
-        listEquipment(),
-        listProfiles(),
-      ]);
+      const [orders, equipment] = await Promise.all([listWorkOrders(), listEquipment()]);
       const equipmentById = new Map(equipment.map((e) => [e.id, e]));
-      const profileById = new Map(profiles.map((p) => [p.id, p]));
       setItems(
-        requests
-          .filter((r) => r.order_id != null)
-          .map((f) => ({
-            ...f,
-            equipment: equipmentById.get(f.equipment_id) ?? {
-              code: "—",
-              name: "Equipo desconocido",
-            },
-            reporterName: profileById.get(f.reported_by)?.name ?? "Desconocido",
-          })),
+        orders.map((o) => ({
+          ...o,
+          equipment: equipmentById.get(o.equipment_id) ?? {
+            code: "—",
+            name: "Equipo desconocido",
+          },
+        })),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     const channel = supabase
       .channel(`work-orders-changes-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "orden_de_trabajo" }, load)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tareas_realizadas_orden" },
+        load,
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -118,38 +142,50 @@ export default function WorkOrdersScreen() {
     setRefreshing(false);
   }
 
+  // List filtered by search and header dropdown filters.
   const filtered = useMemo(() => {
     const q = normalizeSearch(search.trim());
     return items.filter((r) => {
       const matchSearch =
         !q ||
-        (r.order_id != null && includesSearch(formatOrderNumber(r.order_id), q)) ||
+        includesSearch(formatOrderNumber(r.id), q) ||
         includesSearch(r.equipment.code, q) ||
         includesSearch(r.equipment.name, q) ||
-        includesSearch(r.description, q);
+        includesSearch(r.solicitud?.description ?? "", q) ||
+        includesSearch(r.plan_name ?? "", q) ||
+        includesSearch(r.observation ?? "", q);
       const matchStatus = !statusFilter || r.status === statusFilter;
       const matchPriority = !priorityFilter || r.priority === priorityFilter;
-      return matchSearch && matchStatus && matchPriority;
+      const matchType = !typeFilter || r.type === typeFilter;
+      return matchSearch && matchStatus && matchPriority && matchType;
     });
-  }, [items, search, statusFilter, priorityFilter]);
+  }, [items, search, statusFilter, priorityFilter, typeFilter]);
 
   const { sorted, field, dir, toggle } = useTableSort<Item>(
     filtered,
     {
-      numero: (r) => r.order_id ?? 0,
+      numero: (r) => r.id,
       equipo: (r) => r.equipment.code,
-      estado: (r) => STATUS_RANK[r.status as OrderStatus],
-      prioridad: (r) => (r.priority ? PRIORITY_RANK[r.priority] : -1),
-      inicio: (r) => r.order_start_date ?? "",
+      origen: (r) => getOriginLabel(r),
+      estado: (r) => STATUS_RANK[r.status],
+      prioridad: (r) => PRIORITY_RANK[r.priority],
+      inicio: (r) => r.start_date,
     },
     "estado",
   );
 
   const ordersPage = usePagination(
     sorted,
-    `${search}|${statusFilter}|${priorityFilter}|${field}|${dir}`,
+    `${search}|${statusFilter}|${priorityFilter}|${typeFilter}|${field}|${dir}`,
     8,
   );
+
+  const emptyMessage = useMemo(() => {
+    if (items.length === 0) {
+      return "Todavía no se generó ninguna orden de trabajo.";
+    }
+    return "No hay órdenes que coincidan con la búsqueda o los filtros.";
+  }, [items]);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
 
@@ -162,8 +198,9 @@ export default function WorkOrdersScreen() {
       <View style={styles.pageHeader}>
         <View style={styles.sectionHeadingText}>
           <Text style={styles.title}>Órdenes de trabajo</Text>
+
           <Text style={styles.subtitle}>
-            Todas las <Sigla>OT</Sigla> generadas y su estado actual
+            Todas las <Sigla>OT</Sigla> generadas, por solicitud o por plan de mantenimiento
           </Text>
         </View>
       </View>
@@ -173,7 +210,7 @@ export default function WorkOrdersScreen() {
       <TableFilterBar
         searchValue={search}
         onSearch={setSearch}
-        searchPlaceholder="Buscar por N° de OT, equipo o descripción…"
+        searchPlaceholder="Buscar por N° de OT, equipo, plan o descripción…"
         filters={[
           {
             key: "estado",
@@ -185,6 +222,18 @@ export default function WorkOrdersScreen() {
               { value: "assigned", label: STATUS_LABELS.assigned },
               { value: "in_progress", label: STATUS_LABELS.in_progress },
               { value: "resolved", label: STATUS_LABELS.resolved },
+            ],
+          },
+          {
+            key: "tipo",
+            label: "Tipo",
+            value: typeFilter,
+            onChange: setTypeFilter,
+            options: [
+              { value: "", label: "Todos" },
+              { value: "correctivo", label: TYPE_LABELS.correctivo },
+              { value: "preventivo", label: TYPE_LABELS.preventivo },
+              { value: "instalacion", label: TYPE_LABELS.instalacion },
             ],
           },
           {
@@ -208,123 +257,180 @@ export default function WorkOrdersScreen() {
       />
 
       {sorted.length === 0 ? (
-        <Text style={styles.empty}>
-          {items.length === 0
-            ? "Todavía no se generó ninguna orden de trabajo."
-            : "Nada coincide con la búsqueda."}
-        </Text>
+        <Text style={styles.empty}>{emptyMessage}</Text>
       ) : (
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <SortHeaderCell
-              label="N° OT"
-              field="numero"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 0.9 }}
-            />
+          <ScrollableTable minWidth={900}>
+            <View style={styles.tableHeader}>
+              <SortHeaderCell
+                label="N° OT"
+                field="numero"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(0.85)}
+              />
 
-            <SortHeaderCell
-              label="Equipo"
-              field="equipo"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1.6 }}
-            />
+              <SortHeaderCell
+                label="Equipo"
+                field="equipo"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1.8)}
+              />
 
-            <SortHeaderCell
-              label="Estado"
-              field="estado"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1 }}
-            />
+              <SortHeaderCell
+                label="Origen"
+                field="origen"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1.8)}
+              />
 
-            <SortHeaderCell
-              label="Prioridad"
-              field="prioridad"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 1 }}
-            />
+              <SortHeaderCell
+                label="Estado"
+                field="estado"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(1)}
+              />
 
-            <SortHeaderCell
-              label="Inicio"
-              field="inicio"
-              activeField={field}
-              dir={dir}
-              onSort={toggle}
-              style={{ flex: 0.9 }}
-            />
+              <SortHeaderCell
+                label="Prioridad"
+                field="prioridad"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(0.95)}
+              />
 
-            <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-          </View>
+              <SortHeaderCell
+                label="Inicio"
+                field="inicio"
+                activeField={field}
+                dir={dir}
+                onSort={toggle}
+                style={tableCol(0.85)}
+              />
 
-          {ordersPage.pageItems.map((item, i) => {
-            const status = item.status as OrderStatus;
-            const st = statusColors[status];
-            const prio = item.priority ? priorityColors[item.priority] : null;
-            return (
-              <View key={item.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-                <View style={styles.rowMain}>
-                  <View style={{ flex: 0.9, justifyContent: "center" }}>
-                    <Text style={styles.orderNumber}>
-                      {item.order_id != null ? formatOrderNumber(item.order_id) : "—"}
-                    </Text>
-                  </View>
+              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
+            </View>
 
-                  <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {item.equipment.name}
-                    </Text>
-                    <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
-                  </View>
+            {ordersPage.pageItems.map((item, i) => {
+              const status = item.status;
+              const st = statusColors[status];
+              const prio = priorityColors[item.priority];
+              const origin: WorkOrderOrigin = getWorkOrderOrigin(item);
 
-                  <View style={{ flex: 1, justifyContent: "center" }}>
-                    <View style={[styles.badge, { backgroundColor: st.bg }]}>
-                      <Text style={[styles.badgeText, { color: st.fg }]}>
-                        {item.tasks.length === 0 && status === "assigned"
-                          ? "Sin tareas"
-                          : STATUS_LABELS[status]}
+              let subtitleText = "—";
+              if (origin === "solicitud") {
+                subtitleText = item.solicitud?.description || "Sin descripción";
+              } else if (origin === "plan") {
+                subtitleText = item.plan_name || "Plan de mantenimiento";
+              } else if (item.observation) {
+                subtitleText = item.observation;
+              }
+
+              return (
+                <View key={item.id} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                  <View style={styles.rowMain}>
+                    <View style={[tableCol(0.85), styles.cell]}>
+                      <Text style={styles.orderNumber}>{formatOrderNumber(item.id)}</Text>
+                    </View>
+
+                    <View style={[tableCol(1.8), styles.cell]}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {item.equipment.name}
                       </Text>
+
+                      <Text style={styles.equipmentCode}>{item.equipment.code}</Text>
+                    </View>
+
+                    <View style={[tableCol(1.8), styles.cell]}>
+                      {origin === "solicitud" ? (
+                        <View style={[styles.originChip, styles.originChipSolicitud]}>
+                          <WarningIcon size={12} color="#8a2a22" />
+
+                          <Text style={styles.originChipTextSolicitud}>Solicitud</Text>
+                        </View>
+                      ) : origin === "plan" ? (
+                        <View style={[styles.originChip, styles.originChipPlan]}>
+                          <RefreshCwIcon size={12} color="#2d4a7a" />
+
+                          <Text style={styles.originChipTextPlan}>Plan preventivo</Text>
+                        </View>
+                      ) : origin === "instalacion" ? (
+                        <View style={[styles.originChip, styles.originChipInstalacion]}>
+                          <EquipmentIcon size={12} color="#8a5d12" />
+
+                          <Text style={styles.originChipTextInstalacion}>Instalación</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.originChip, styles.originChipNone]}>
+                          <Text style={styles.originChipTextNone}>Sin origen</Text>
+                        </View>
+                      )}
+
+                      <Text
+                        style={styles.originSubtitle}
+                        numberOfLines={1}
+                        {...(Platform.OS === "web" ? ({ title: subtitleText } as any) : {})}
+                      >
+                        {subtitleText}
+                      </Text>
+                    </View>
+
+                    <View style={[tableCol(1), styles.cell]}>
+                      <View style={[styles.badge, { backgroundColor: st.bg }]}>
+                        <Text style={[styles.badgeText, { color: st.fg }]}>
+                          {item.tasks.length === 0 && status === "assigned"
+                            ? "Sin tareas"
+                            : STATUS_LABELS[status]}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[tableCol(0.95), styles.cell]}>
+                      <View
+                        style={[styles.badge, { backgroundColor: prio.bg }]}
+                        {...(Platform.OS === "web"
+                          ? ({ className: "notranslate", translate: "no" } as any)
+                          : {})}
+                      >
+                        <Text
+                          style={[styles.badgeText, { color: prio.fg }]}
+                          {...(Platform.OS === "web"
+                            ? ({ className: "notranslate", translate: "no" } as any)
+                            : {})}
+                        >
+                          {PRIORITY_LABELS[item.priority]}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[tableCol(0.85), styles.cell]}>
+                      <Text style={styles.cellText}>{fromDbDate(item.start_date) || "—"}</Text>
                     </View>
                   </View>
 
-                  <View style={{ flex: 1, justifyContent: "center" }}>
-                    {prio ? (
-                      <View style={[styles.badge, { backgroundColor: prio.bg }]}>
-                        <Text style={[styles.badgeText, { color: prio.fg }]}>
-                          {PRIORITY_LABELS[item.priority as Priority]}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.cellText}>—</Text>
-                    )}
-                  </View>
-
-                  <View style={{ flex: 0.9, justifyContent: "center" }}>
-                    <Text style={styles.cellText}>{fromDbDate(item.order_start_date) || "—"}</Text>
+                  <View style={styles.actionsCol}>
+                    <RowActions
+                      onView={() =>
+                        router.push({
+                          pathname: "/work-orders/[id]",
+                          params: { id: String(item.id) },
+                        })
+                      }
+                      viewTooltip="Ver orden de trabajo"
+                    />
                   </View>
                 </View>
-
-                <View style={styles.actionsCol}>
-                  <RowActions
-                    onView={() =>
-                      router.push({
-                        pathname: "/work-orders/[id]",
-                        params: { id: String(item.id) },
-                      })
-                    }
-                    viewTooltip="Ver orden de trabajo"
-                  />
-                </View>
-              </View>
-            );
-          })}
+              );
+            })}
+          </ScrollableTable>
         </View>
       )}
 
@@ -356,6 +462,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.destructive, marginBottom: 12 },
     count: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
     empty: { color: c.textMuted, fontSize: 13.5, marginTop: 4 },
+
     table: {
       backgroundColor: c.bgCard,
       borderWidth: 1,
@@ -391,10 +498,57 @@ function makeStyles(c: ThemeColors) {
     },
     rowAlt: { backgroundColor: c.bgRowAlt },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    cell: { justifyContent: "center" },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     orderNumber: { fontFamily: "monospace", fontSize: 13.5, fontWeight: "700", color: c.text },
     equipmentCode: { fontFamily: "monospace", fontSize: 12, color: c.textMuted, marginTop: 2 },
     cellText: { fontSize: 13.5, color: c.textLabel },
+    originChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "flex-start",
+      gap: 5,
+      paddingHorizontal: 9,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    originChipSolicitud: {
+      backgroundColor: "#f6d5d2",
+    },
+    originChipTextSolicitud: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#8a2a22",
+    },
+    originChipPlan: {
+      backgroundColor: "#dbe4f3",
+    },
+    originChipTextPlan: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#2d4a7a",
+    },
+    originChipInstalacion: {
+      backgroundColor: "#f7efdb",
+    },
+    originChipTextInstalacion: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#8a5d12",
+    },
+    originChipNone: {
+      backgroundColor: "#edeadd",
+    },
+    originChipTextNone: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#6e7364",
+    },
+    originSubtitle: {
+      fontSize: 12,
+      color: c.textMuted,
+      marginTop: 3,
+    },
     badge: {
       alignSelf: "flex-start",
       paddingHorizontal: 11,

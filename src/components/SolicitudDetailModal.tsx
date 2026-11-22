@@ -21,6 +21,8 @@ import { closeSolicitud, generateOrder } from "../lib/queries/faults";
 import { listProfiles } from "../lib/queries/profiles";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { formatUnitQty } from "../lib/units";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 import type { Equipo, Profile, Solicitud, SolicitudTask } from "../types/database";
 
 type Item = Solicitud & {
@@ -106,11 +108,19 @@ export function SolicitudDetailModal({
     high: colors.urgencyHigh,
   };
 
+  // A different solicitud (or none) starts with every sub-dialog closed.
+  useResetOnOpen(
+    true,
+    () => {
+      setGenerateOpen(false);
+      setCloseWithoutOtOpen(false);
+      setLightboxUrl(null);
+      setError(null);
+    },
+    [solicitud],
+  );
+
   useEffect(() => {
-    setGenerateOpen(false);
-    setCloseWithoutOtOpen(false);
-    setLightboxUrl(null);
-    setError(null);
     if (solicitud) {
       listProfiles()
         .then((profiles) => setProfileById(new Map(profiles.map((p) => [p.id, p]))))
@@ -157,23 +167,31 @@ export function SolicitudDetailModal({
   }
 
   async function handleGenerate(input: { priority: "low" | "medium" | "high" }) {
-    await generateOrder(s.id, input);
+    const orderId = await generateOrder(s.id, input);
     setGenerateOpen(false);
     closeEverything();
-    goToOrder(true);
+    goToOrder(orderId, true);
   }
 
-  // `created` makes the OT screen confirm "Se generó la OT-XXXX".
-  function goToOrder(created = false) {
+  // The OT screen is keyed by the OT's own id, not the solicitud's.
+  // `created` makes it confirm "Se generó la OT-XXXX".
+  function goToOrder(orderId: number, created = false) {
     router.push({
       pathname: "/work-orders/[id]",
-      params: created ? { id: String(s.id), created: "1" } : { id: String(s.id) },
+      params: created ? { id: String(orderId), created: "1" } : { id: String(orderId) },
     });
   }
 
   return (
     <>
-      <Modal visible transparent animationType="fade" onRequestClose={() => !busy && onClose()}>
+      <Modal
+        visible
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!busy) onClose();
+        }}
+      >
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             <ScrollView
@@ -406,7 +424,9 @@ export function SolicitudDetailModal({
                                   <View key={`${part.repId || pIdx}`} style={styles.partTag}>
                                     <Text style={styles.partTagName}>
                                       {part.nombre}
-                                      <Text style={styles.partTagQty}>{` ×${part.cantidad}`}</Text>
+                                      <Text
+                                        style={styles.partTagQty}
+                                      >{` ×${formatUnitQty(part.cantidad, part.unidad)}`}</Text>
                                     </Text>
                                   </View>
                                 ))}
@@ -432,7 +452,7 @@ export function SolicitudDetailModal({
                     style={styles.goToOrderFullButton}
                     onPress={() => {
                       onClose();
-                      goToOrder();
+                      if (s.order_id != null) goToOrder(s.order_id);
                     }}
                   >
                     <Text style={styles.goToOrderButtonText}>Ver orden de trabajo</Text>

@@ -19,8 +19,10 @@ import {
   toDay,
 } from "../../../components/CustomDatePicker";
 import { EyeIcon, SearchIcon } from "../../../components/icons";
+import { Tooltip } from "../../../components/Tooltip";
 import { Pagination } from "../../../components/Pagination";
 import { PurchaseDetailModal } from "../../../components/PurchaseDetailModal";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { comprobanteRef, comprobanteTipoLabel } from "../../../lib/comprobante";
 import { listProfiles } from "../../../lib/queries/profiles";
@@ -35,10 +37,12 @@ import { listSpareParts } from "../../../lib/queries/spareParts";
 import { listSuppliers, type SupplierWithRubro } from "../../../lib/queries/suppliers";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { useIsPhone } from "../../../lib/useIsPhone";
 import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
 import type { Repuesto } from "../../../types/database";
+import { NUMERIC_COL_GAP } from "../../../constants";
 
 const ESTADO_RANK: Record<ReceiptState, number> = { pendiente: 0, parcial: 1, completa: 2 };
 
@@ -47,19 +51,12 @@ const ESTADO_RANK: Record<ReceiptState, number> = { pendiente: 0, parcial: 1, co
 // cells only and the rows drift right of their headers.
 const COL_FLEX = { numero: 1.5, tipo: 1, proveedor: 1.8, emision: 1.1, total: 1.1, estado: 1.4 };
 function col(key: keyof typeof COL_FLEX) {
-  return { flex: COL_FLEX[key], minWidth: 0, paddingRight: 12 } as const;
+  return tableCol(COL_FLEX[key]);
 }
 
 function formatDate(d: string | null): string {
   if (!d) return "—";
   return new Date(d + "T00:00:00").toLocaleDateString("es-AR");
-}
-
-function itemsSummary(p: PurchaseWithDetail): string {
-  const names = p.linea_compra.map((l) => l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`);
-  if (names.length === 0) return "—";
-  if (names.length <= 2) return names.join(" · ");
-  return `${names.slice(0, 2).join(" · ")} +${names.length - 2}`;
 }
 
 export default function PurchasesScreen() {
@@ -78,6 +75,8 @@ export default function PurchasesScreen() {
   const [estadoFilter, setEstadoFilter] = useState<ReceiptState | "">("");
 
   const { colors } = useTheme();
+  // Phones get the short label so the button fits next to the title.
+  const isPhone = useIsPhone();
   const styles = makeStyles(colors);
 
   const load = useCallback(async () => {
@@ -222,8 +221,11 @@ export default function PurchasesScreen() {
             style={[styles.addButton, !canRegister && styles.addButtonDisabled]}
             onPress={() => router.push("/purchases/register")}
             disabled={!canRegister}
+            accessibilityLabel="Registrar compra"
           >
-            <Text style={styles.addButtonText}>+ Registrar compra</Text>
+            <Text style={styles.addButtonText}>
+              {isPhone ? "+ Registrar" : "+ Registrar compra"}
+            </Text>
           </Pressable>
         </View>
 
@@ -339,135 +341,139 @@ export default function PurchasesScreen() {
           <Text style={styles.empty}>
             {purchases.length === 0
               ? "Todavía no hay compras registradas."
-              : "No hay compras que coincidan con la búsqueda o filtros."}
+              : "No hay compras que coincidan con la búsqueda o los filtros."}
           </Text>
         ) : (
           <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              {/* The comprobante's número leads, like "N° OT" does in the
+            <ScrollableTable minWidth={820}>
+              <View style={styles.tableHeader}>
+                {/* The comprobante's número leads, like "N° OT" does in the
                   work-orders grid, with its tipo right after; the supplier
                   follows, since the same number can repeat across suppliers. */}
-              <SortHeaderCell
-                label="N° de comprobante"
-                field="numero"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("numero")}
-              />
+                <SortHeaderCell
+                  label="N° de comprobante"
+                  field="numero"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("numero")}
+                />
 
-              <SortHeaderCell
-                label="Tipo"
-                field="tipo"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("tipo")}
-              />
+                <SortHeaderCell
+                  label="Tipo"
+                  field="tipo"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("tipo")}
+                />
 
-              <SortHeaderCell
-                label="Proveedor"
-                field="proveedor"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("proveedor")}
-              />
+                <SortHeaderCell
+                  label="Proveedor"
+                  field="proveedor"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("proveedor")}
+                />
 
-              <SortHeaderCell
-                label="Emisión"
-                field="fecha"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("emision")}
-              />
+                <SortHeaderCell
+                  label="Emisión"
+                  field="fecha"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("emision")}
+                />
 
-              <SortHeaderCell
-                label="Total"
-                field="total"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={[col("total"), styles.totalHeaderCell]}
-              />
+                <SortHeaderCell
+                  label="Total"
+                  field="total"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={[col("total"), styles.totalHeaderCell]}
+                />
 
-              <SortHeaderCell
-                label="Estado del envío"
-                field="estado"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={col("estado")}
-              />
+                <SortHeaderCell
+                  label="Estado del envío"
+                  field="estado"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={col("estado")}
+                />
 
-              <View style={styles.actionsCol}>
-                <Text style={styles.headerCell}>VER</Text>
+                <View style={styles.actionsCol}>
+                  <Text style={styles.headerCell}>VER</Text>
+                </View>
               </View>
-            </View>
 
-            {pageItems.map((p, i) => {
-              const estado = estados.get(p.co_id_compra) ?? "completa";
-              const estadoStyle = receiptStateColors(colors)[estado];
-              return (
-                <View key={p.co_id_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
-                  <View style={styles.rowMain}>
-                    <View style={col("numero")}>
-                      <Text style={styles.numberCell} numberOfLines={1}>
-                        {comprobanteRef(p) ?? "—"}
-                      </Text>
-                    </View>
-
-                    <View style={col("tipo")}>
-                      <View style={styles.tipoBadge}>
-                        <Text style={styles.tipoBadgeText}>{comprobanteTipoLabel(p)}</Text>
-                      </View>
-                    </View>
-
-                    <View style={col("proveedor")}>
-                      <Text style={styles.name} numberOfLines={1}>
-                        {p.proveedores?.prov_nombre ?? "Proveedor —"}
-                      </Text>
-                    </View>
-
-                    <View style={col("emision")}>
-                      <Text style={styles.dateCell}>{formatDate(p.co_fecha_compra)}</Text>
-                    </View>
-
-                    <View style={[col("total"), styles.totalCol]}>
-                      <Text style={styles.total}>
-                        {p.co_costo_total != null && Number(p.co_costo_total) > 0
-                          ? `$${Number(p.co_costo_total).toLocaleString("es-AR")}`
-                          : "—"}
-                      </Text>
-                    </View>
-
-                    <View style={col("estado")}>
-                      <View style={[styles.estadoBadge, { backgroundColor: estadoStyle.bg }]}>
-                        <Text style={[styles.estadoBadgeText, { color: estadoStyle.fg }]}>
-                          {RECEIPT_STATE_LABEL[estado]}
+              {pageItems.map((p, i) => {
+                const estado = estados.get(p.co_id_compra) ?? "completa";
+                const estadoStyle = receiptStateColors(colors)[estado];
+                return (
+                  <View key={p.co_id_compra} style={[styles.row, i % 2 === 1 && styles.rowAlt]}>
+                    <View style={styles.rowMain}>
+                      <View style={col("numero")}>
+                        <Text style={styles.numberCell} numberOfLines={1}>
+                          {comprobanteRef(p) ?? "—"}
                         </Text>
                       </View>
+
+                      <View style={col("tipo")}>
+                        <View style={styles.tipoBadge}>
+                          <Text style={styles.tipoBadgeText}>{comprobanteTipoLabel(p)}</Text>
+                        </View>
+                      </View>
+
+                      <View style={col("proveedor")}>
+                        <Text style={styles.name} numberOfLines={1}>
+                          {p.proveedores?.prov_nombre ?? "Proveedor —"}
+                        </Text>
+                      </View>
+
+                      <View style={col("emision")}>
+                        <Text style={styles.dateCell}>{formatDate(p.co_fecha_compra)}</Text>
+                      </View>
+
+                      <View style={[col("total"), styles.totalCol]}>
+                        <Text style={styles.total}>
+                          {p.co_costo_total != null && Number(p.co_costo_total) > 0
+                            ? `$${Number(p.co_costo_total).toLocaleString("es-AR")}`
+                            : "—"}
+                        </Text>
+                      </View>
+
+                      <View style={col("estado")}>
+                        <View style={[styles.estadoBadge, { backgroundColor: estadoStyle.bg }]}>
+                          <Text style={[styles.estadoBadgeText, { color: estadoStyle.fg }]}>
+                            {RECEIPT_STATE_LABEL[estado]}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={styles.actionsCol}>
+                      <Tooltip text="Ver compra" align="right">
+                        <Pressable
+                          style={styles.viewBtn}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/purchases/[id]",
+                              params: { id: String(p.co_id_compra) },
+                            })
+                          }
+                          accessibilityLabel="Ver compra"
+                        >
+                          <EyeIcon size={16} color={colors.accent} />
+                        </Pressable>
+                      </Tooltip>
                     </View>
                   </View>
-
-                  <View style={styles.actionsCol}>
-                    <Pressable
-                      style={styles.viewBtn}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/purchases/[id]",
-                          params: { id: String(p.co_id_compra) },
-                        })
-                      }
-                      accessibilityLabel="Ver compra"
-                    >
-                      <EyeIcon size={16} color={colors.accent} />
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })}
+                );
+              })}
+            </ScrollableTable>
           </View>
         )}
 
@@ -489,15 +495,16 @@ function makeStyles(c: ThemeColors) {
     container: { backgroundColor: c.bg },
     content: { padding: 20 },
     center: { flex: 1 },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     header: {
       flexDirection: "row",
-      flexWrap: "wrap",
       justifyContent: "space-between",
       alignItems: "flex-start",
       gap: 12,
       marginBottom: 16,
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
     error: { color: c.destructive, marginBottom: 12 },
@@ -698,8 +705,8 @@ function makeStyles(c: ThemeColors) {
     // Amounts are right-aligned so the digits line up by place value. The
     // extra right padding keeps them off the "Estado" badge that starts
     // left-aligned right after.
-    totalCol: { paddingRight: 24 },
-    totalHeaderCell: { justifyContent: "flex-end", paddingRight: 24 },
+    totalCol: { paddingRight: NUMERIC_COL_GAP },
+    totalHeaderCell: { justifyContent: "flex-end", paddingRight: NUMERIC_COL_GAP },
     total: {
       fontSize: 14.5,
       color: c.text,

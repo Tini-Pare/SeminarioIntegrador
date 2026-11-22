@@ -21,6 +21,24 @@ export function WarningIcon({ size = 16, color = "currentColor" }: IconProps) {
   );
 }
 
+export function BellIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </Svg>
+  );
+}
+
 export function ChevronDownIcon({ size = 16, color = "currentColor" }: IconProps) {
   return (
     <Svg
@@ -104,6 +122,30 @@ export function UserIcon({ size = 16, color = "currentColor" }: IconProps) {
     >
       <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <Circle cx={12} cy={7} r={4} />
+    </Svg>
+  );
+}
+
+// A person with a two-way arrow: handing a tarea over to another técnico.
+// The pencil means "edit the record", which reassigning isn't.
+export function ReassignIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M14 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <Circle cx={8} cy={7} r={4} />
+      <Path d="M16 7h6" />
+      <Path d="M20 5l2 2-2 2" />
+      <Path d="M22 13h-6" />
+      <Path d="M18 11l-2 2 2 2" />
     </Svg>
   );
 }
@@ -216,6 +258,26 @@ export function HomeIcon({ size = 18, color = "currentColor" }: IconProps) {
   );
 }
 
+export function ChartIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M3 3v18h18" />
+      <Path d="M8 17v-5" />
+      <Path d="M13 17V8" />
+      <Path d="M18 17v-8" />
+    </Svg>
+  );
+}
+
 export function PencilIcon({ size = 16, color = "currentColor" }: IconProps) {
   return (
     <Svg
@@ -250,6 +312,25 @@ export function TrashIcon({ size = 16, color = "currentColor" }: IconProps) {
       <Path d="M8 6V4h8v2" />
       <Path d="M19 6l-1 14H6L5 6" />
       <Path d="M10 11v5M14 11v5" />
+    </Svg>
+  );
+}
+
+export function RefreshCwIcon({ size = 16, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M23 4v6h-6" />
+      <Path d="M1 20v-6h6" />
+      <Path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
     </Svg>
   );
 }
@@ -464,6 +545,27 @@ export function WorkOrderIcon({ size = 18, color = "currentColor" }: IconProps) 
       strokeLinejoin="round"
     >
       <Path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
+    </Svg>
+  );
+}
+
+// Up and down arrows side by side: stock coming in and going out.
+export function StockMovementIcon({ size = 18, color = "currentColor" }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M7 20V4" />
+      <Path d="M3 8l4-4 4 4" />
+      <Path d="M17 4v16" />
+      <Path d="M13 16l4 4 4-4" />
     </Svg>
   );
 }

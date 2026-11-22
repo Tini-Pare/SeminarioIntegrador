@@ -8,6 +8,7 @@ import { Tooltip } from "../../../components/Tooltip";
 import {
   anularRemitoCompra,
   getPurchaseById,
+  type PurchaseLineRepuesto,
   type PurchaseWithDetail,
   type RemitoWithLines,
 } from "../../../lib/queries/purchases";
@@ -25,7 +26,9 @@ import {
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { formatUnitQty } from "../../../lib/units";
 import type { ComprobanteTipo } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
 
 // Badge of the plain (non-factura) layout, same as the one register.tsx
 // shows while loading it. Remito is legacy: new compras can't pick it.
@@ -44,10 +47,12 @@ function money(n: number | null | undefined): string {
   return `$${Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
 }
 
-function remitoItemsSummary(r: RemitoWithLines, names: Map<number, string>): string {
-  const parts = r.lineas.map(
-    (l) => `${names.get(l.rep_id) ?? `Repuesto ${l.rep_id}`} ×${l.rcl_cantidad}`,
-  );
+function remitoItemsSummary(r: RemitoWithLines, reps: Map<number, PurchaseLineRepuesto>): string {
+  const parts = r.lineas.map((l) => {
+    const rep = reps.get(l.rep_id);
+    const name = rep?.rep_nombre ?? `Repuesto ${l.rep_id}`;
+    return `${name} ×${formatUnitQty(l.rcl_cantidad, rep?.rep_unidad)}`;
+  });
   return parts.join(" · ") || "—";
 }
 
@@ -65,7 +70,6 @@ export default function PurchaseDetailScreen() {
 
   const [purchase, setPurchase] = useState<PurchaseWithDetail | null>(null);
   const [registradorNames, setRegistradorNames] = useState<Map<string, string>>(new Map());
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [loadingRemito, setLoadingRemito] = useState(false);
@@ -90,9 +94,7 @@ export default function PurchaseDetailScreen() {
     }
   }, [id, coId]);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     if (!id || Number.isNaN(coId)) return;
@@ -119,11 +121,12 @@ export default function PurchaseDetailScreen() {
     };
   }, [id, coId, load]);
 
-  const repNames = useMemo(() => {
-    const map = new Map<number, string>();
-    purchase?.linea_compra.forEach((l) =>
-      map.set(l.rep_id, l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`),
-    );
+  // Name + unit of each purchased repuesto, for the remito summaries.
+  const repsById = useMemo(() => {
+    const map = new Map<number, PurchaseLineRepuesto>();
+    purchase?.linea_compra.forEach((l) => {
+      if (l.repuesto) map.set(l.rep_id, l.repuesto);
+    });
     return map;
   }, [purchase]);
 
@@ -226,7 +229,7 @@ export default function PurchaseDetailScreen() {
 
         <Text style={[doc.tableHeadText, doc.colRepFlex]}>Repuesto</Text>
 
-        <Text style={[doc.tableHeadText, doc.colCant]}>Cantidad</Text>
+        <Text style={[doc.tableHeadText, doc.colCant, doc.textRight]}>Cantidad</Text>
 
         <Text style={[doc.tableHeadText, doc.colCosto, doc.textRight]}>Precio unit.</Text>
 
@@ -245,7 +248,9 @@ export default function PurchaseDetailScreen() {
               {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
             </Text>
 
-            <Text style={[styles.cellText, doc.cellNum, doc.colCant]}>{qty}</Text>
+            <Text style={[styles.cellText, doc.cellNum, doc.colCant, doc.textRight]}>
+              {formatUnitQty(qty, l.repuesto?.rep_unidad)}
+            </Text>
 
             <Text style={[styles.cellText, doc.cellNum, doc.colCosto, doc.textRight]}>
               {unit != null ? money(unit) : "—"}
@@ -430,9 +435,13 @@ export default function PurchaseDetailScreen() {
                       {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
                     </Text>
 
-                    <Text style={[styles.cell, styles.colCant]}>{qty}</Text>
+                    <Text style={[styles.cell, styles.colCant]}>
+                      {formatUnitQty(qty, l.repuesto?.rep_unidad)}
+                    </Text>
 
-                    <Text style={[styles.cell, styles.colRecibido]}>{recibido}</Text>
+                    <Text style={[styles.cell, styles.colRecibido]}>
+                      {formatUnitQty(recibido, l.repuesto?.rep_unidad)}
+                    </Text>
 
                     <View style={styles.colEstado}>
                       <View style={[styles.lineBadge, { backgroundColor: lineColors.bg }]}>
@@ -484,7 +493,7 @@ export default function PurchaseDetailScreen() {
                       <View style={styles.remitoInfo}>
                         <Text style={styles.remitoDate}>{formatDate(r.rc_fecha)}</Text>
                         <Text style={styles.remitoItems} numberOfLines={2}>
-                          {remitoItemsSummary(r, repNames)}
+                          {remitoItemsSummary(r, repsById)}
                         </Text>
                       </View>
 
@@ -550,9 +559,9 @@ export default function PurchaseDetailScreen() {
         title="Anular remito"
         message={
           anulError ??
-          `Se va a descontar del stock lo que este remito sumó (${anulando ? remitoItemsSummary(anulando, repNames) : ""}).`
+          `Se va a descontar del stock lo que este remito sumó (${anulando ? remitoItemsSummary(anulando, repsById) : ""}).`
         }
-        confirmLabel="ANULAR"
+        confirmLabel="Anular"
         busy={anulBusy}
         onConfirm={handleAnular}
         onCancel={() => setAnulando(null)}
@@ -657,8 +666,8 @@ function makeStyles(c: ThemeColors) {
     },
     cell: { fontSize: 14.5, color: c.textLabel },
     colRep: { flex: 1, minWidth: 0 },
-    colCant: { width: 85, textAlign: "center", fontVariant: ["tabular-nums"] },
-    colRecibido: { width: 85, textAlign: "center", fontVariant: ["tabular-nums"] },
+    colCant: { width: 85, textAlign: "right", fontVariant: ["tabular-nums"] },
+    colRecibido: { width: 85, textAlign: "right", fontVariant: ["tabular-nums"] },
     // Wide enough for "Pendiente en recepción" on a single line.
     colEstado: { width: 165, alignItems: "flex-end", textAlign: "right" },
     lineBadge: { paddingHorizontal: 11, paddingVertical: 3.5, borderRadius: 999 },

@@ -4,12 +4,21 @@ import { updateEquipment } from "../lib/queries/equipment";
 import { listEquipmentTypes } from "../lib/queries/equipmentTypes";
 import { listLocations } from "../lib/queries/locations";
 import { DropdownBackdrop } from "./DropdownBackdrop";
+import { FieldLabel } from "./FieldLabel";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Select } from "./Select";
 import type { Equipo } from "../types/database";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import {
+  CustomDatePicker,
+  fromDbDate,
+  isDateWithinMax,
+  isValidDateString,
+  toDbDate,
+} from "./CustomDatePicker";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 // Registration state, separate from the automatic operational status: an
 // equipment with history can't be deleted, it's marked inactive instead.
@@ -19,13 +28,6 @@ const ESTADO_OPTIONS: RadioOption<"activo" | "inactivo">[] = [
   { value: "activo", label: "Activo" },
   { value: "inactivo", label: "Inactivo" },
 ];
-import {
-  CustomDatePicker,
-  fromDbDate,
-  isDateWithinMax,
-  isValidDateString,
-  toDbDate,
-} from "./CustomDatePicker";
 
 type OpenField = "type" | "location" | "install" | null;
 
@@ -51,27 +53,37 @@ export function EditEquipmentModal({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set by a failed submit: from then on the empty required fields are
+  // outlined in red.
+  const [showMissing, setShowMissing] = useState(false);
   const [types, setTypes] = useState<{ value: number; label: string }[]>([]);
   const [locations, setLocations] = useState<{ value: number; label: string }[]>([]);
   const [openField, setOpenField] = useState<OpenField>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
+  // Its installation date comes from finishing the installation tarea
+  // (0032), so it can't be set by hand until then.
+  const pendingInstall = equipment.status === "pending_install";
   const statusMeta =
     equipment.status === "operational"
       ? colors.eqOperational
       : equipment.status === "waiting"
         ? colors.eqWaiting
-        : colors.eqRepair;
+        : pendingInstall
+          ? colors.eqPendingInstall
+          : colors.eqRepair;
   const statusLabel =
     equipment.status === "operational"
       ? "Funcionando"
       : equipment.status === "waiting"
         ? "En espera"
-        : "En reparación";
+        : pendingInstall
+          ? "Pendiente de instalación"
+          : "En reparación";
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setCode(equipment.code);
     setName(equipment.name);
     setModel(equipment.model ?? "");
@@ -80,7 +92,11 @@ export function EditEquipmentModal({
     setInstallDate(fromDbDate(equipment.installDate));
     setOpenField(null);
     setError(null);
+    setShowMissing(false);
+  }, [equipment]);
 
+  useEffect(() => {
+    if (!visible) return;
     listEquipmentTypes()
       .then((rows) => setTypes(rows.map((t) => ({ value: t.te_id, label: t.te_nombre }))))
       .catch(() => {});
@@ -91,23 +107,27 @@ export function EditEquipmentModal({
       .catch(() => {});
   }, [visible, equipment]);
 
+  const missing = {
+    code: !code.trim(),
+    model: !model.trim(),
+    name: !name.trim(),
+    type: typeId == null,
+    location: locationId == null,
+    installDate: !pendingInstall && !installDate.trim(),
+  };
+  const isMissing = (field: keyof typeof missing) => showMissing && missing[field];
+
   async function handleSubmit() {
-    if (
-      !code.trim() ||
-      !model.trim() ||
-      !name.trim() ||
-      typeId == null ||
-      locationId == null ||
-      !installDate.trim()
-    ) {
-      setError("Todos los campos son obligatorios.");
+    if (Object.values(missing).some(Boolean)) {
+      setShowMissing(true);
+      setError("Completá los campos marcados.");
       return;
     }
-    if (!isValidDateString(installDate.trim())) {
+    if (!pendingInstall && !isValidDateString(installDate.trim())) {
       setError("Ingresá una fecha de instalación válida (dd/mm/aaaa).");
       return;
     }
-    if (!isDateWithinMax(installDate.trim(), new Date())) {
+    if (!pendingInstall && !isDateWithinMax(installDate.trim(), new Date())) {
       setError("La fecha de instalación no puede ser posterior a hoy.");
       return;
     }
@@ -117,10 +137,11 @@ export function EditEquipmentModal({
       await updateEquipment(equipment.id, {
         code: code.trim(),
         name: name.trim(),
-        typeId,
-        locationId,
+        // Checked by `missing` above.
+        typeId: typeId!,
+        locationId: locationId!,
         model: model.trim(),
-        installDate: toDbDate(installDate.trim()),
+        installDate: pendingInstall ? null : toDbDate(installDate.trim()),
         active: estado === "activo",
       });
       onSaved();
@@ -142,9 +163,9 @@ export function EditEquipmentModal({
 
           <View style={styles.fieldRow}>
             <View style={styles.field}>
-              <Text style={styles.label}>Código</Text>
+              <FieldLabel text="Código" required style={styles.label} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, isMissing("code") && styles.inputError]}
                 placeholder="Ej: AC-015"
                 placeholderTextColor={colors.textMuted}
                 value={code}
@@ -154,9 +175,9 @@ export function EditEquipmentModal({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Modelo</Text>
+              <FieldLabel text="Modelo" required style={styles.label} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, isMissing("model") && styles.inputError]}
                 placeholder="Ej: Split 3000F"
                 placeholderTextColor={colors.textMuted}
                 value={model}
@@ -165,45 +186,59 @@ export function EditEquipmentModal({
             </View>
           </View>
 
-          <Text style={styles.label}>Nombre</Text>
+          <FieldLabel text="Nombre" required style={styles.label} />
           <TextInput
-            style={styles.input}
+            style={[styles.input, isMissing("name") && styles.inputError]}
             placeholder="Ej: Aire Acondicionado"
             placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
           />
 
-          <Text style={styles.label}>Tipo</Text>
+          <FieldLabel text="Tipo" required style={styles.label} />
           <Select
             value={typeId}
             onChange={setTypeId}
             options={types}
             placeholder="Elegí un tipo de equipo"
+            hasError={isMissing("type")}
             open={openField === "type"}
             onOpenChange={(o) => setOpenField(o ? "type" : null)}
           />
 
-          <Text style={styles.label}>Ubicación</Text>
+          <FieldLabel text="Ubicación" required style={styles.label} />
           <Select
             value={locationId}
             onChange={setLocationId}
             options={locations}
             placeholder="Elegí una ubicación"
+            hasError={isMissing("location")}
             open={openField === "location"}
             onOpenChange={(o) => setOpenField(o ? "location" : null)}
           />
 
           <View style={[styles.fieldRow, openField === "install" && styles.dateRowRaised]}>
             <View style={styles.field}>
-              <Text style={styles.label}>Fecha de instalación</Text>
-              <CustomDatePicker
-                value={installDate}
-                onChange={setInstallDate}
-                open={openField === "install"}
-                onOpenChange={(o) => setOpenField(o ? "install" : null)}
-                maxDate={new Date()}
+              <FieldLabel
+                text="Fecha de instalación"
+                required={!pendingInstall}
+                style={styles.label}
               />
+
+              {pendingInstall ? (
+                <Text style={styles.statusNote}>
+                  Se completa sola cuando el técnico finaliza la tarea de instalación.
+                </Text>
+              ) : (
+                <CustomDatePicker
+                  value={installDate}
+                  onChange={setInstallDate}
+                  open={openField === "install"}
+                  onOpenChange={(o) => setOpenField(o ? "install" : null)}
+                  maxDate={new Date()}
+                  hasError={isMissing("installDate")}
+                />
+              )}
             </View>
           </View>
 
@@ -213,7 +248,11 @@ export function EditEquipmentModal({
               <Text style={[styles.statusBadgeText, { color: statusMeta.fg }]}>{statusLabel}</Text>
             </View>
 
-            <Text style={styles.statusNote}>Automático, según fallas activas</Text>
+            <Text style={styles.statusNote}>
+              {pendingInstall
+                ? "Hasta que se finalice su orden de instalación"
+                : "Automático, según fallas activas"}
+            </Text>
           </View>
 
           <Text style={styles.label}>Estado del registro</Text>
@@ -272,6 +311,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgInput,
       color: c.text,
     },
+    inputError: { borderColor: c.destructive, borderWidth: 1.5 },
     statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
     statusBadge: {
       alignSelf: "flex-start",

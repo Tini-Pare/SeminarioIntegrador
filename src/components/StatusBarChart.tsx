@@ -38,7 +38,7 @@ export function StatusBarChart({
       <View style={styles.rows}>
         {data.map((d) => (
           <View key={d.label} style={styles.row}>
-            <Text style={styles.rowLabel} numberOfLines={1}>
+            <Text style={styles.rowLabel} numberOfLines={2}>
               {d.label}
             </Text>
 
@@ -84,7 +84,7 @@ function makeStyles(c: ThemeColors) {
     total: { fontSize: 13, fontWeight: "500", color: c.textMuted },
     rows: { gap: 14 },
     row: { flexDirection: "row", alignItems: "center", gap: 12 },
-    rowLabel: { width: 104, fontSize: 13, color: c.textSecondary, fontWeight: "500" },
+    rowLabel: { width: 124, fontSize: 13, color: c.textSecondary, fontWeight: "500" },
     track: {
       flex: 1,
       height: 24,

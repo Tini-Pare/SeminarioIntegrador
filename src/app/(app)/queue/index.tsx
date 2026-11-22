@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
@@ -19,6 +19,7 @@ import {
   type ConsumedPart,
   type MyTask,
 } from "../../../lib/queries/faults";
+import { isCriticalTask } from "../../../lib/queries/alerts";
 import { listEquipment } from "../../../lib/queries/equipment";
 import { listProfiles } from "../../../lib/queries/profiles";
 import { supabase } from "../../../lib/supabase";
@@ -32,17 +33,30 @@ import {
   CalendarIcon,
   EquipmentIcon,
   LocationIcon,
+  RefreshCwIcon,
   UserIcon,
   WarningIcon,
+  WorkOrderIcon,
 } from "../../../components/icons";
 import { Pagination } from "../../../components/Pagination";
 import { withSiglas } from "../../../components/Sigla";
+import { fromDbDate } from "../../../components/CustomDatePicker";
 import { formatOrderNumber } from "../../../lib/orderNumber";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
 import { useConfirm } from "../../../lib/useConfirm";
+import { formatUnitQty } from "../../../lib/units";
 import type { Equipo, PastTaskSuspension, Solicitud } from "../../../types/database";
+import { useInitialLoad } from "../../../lib/useInitialLoad";
+
+// ot_tipo_orden of a tarea that didn't come from a solicitud; anything not
+// listed here shows as is.
+const ORDER_TYPE_LABELS: Record<string, string> = {
+  correctivo: "Correctivo",
+  preventivo: "Preventivo",
+  instalacion: "Instalación",
+};
 
 // A técnico's queue is one row per tarea assigned to them — not one row
 // per OT. A solicitud/OT isn't work a técnico "has"; a tarea is (see
@@ -115,15 +129,28 @@ function compareTasks(a: MyTask, b: MyTask): number {
 }
 
 export default function QueueScreen() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actingOn, setActingOn] = useState<number | null>(null);
   const [finishingTask, setFinishingTask] = useState<Item | null>(null);
   const [suspendingTask, setSuspendingTask] = useState<Item | null>(null);
-  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+  // Opened from a "falla crítica" notification: show only prioridad Alta.
+  // Both the initial state and a param change while the queue is already
+  // open apply it (state adjusted during render, not in an effect).
+  const { prioridad } = useLocalSearchParams<{ prioridad?: string }>();
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>(
+    prioridad === "alta" ? "high" : "all",
+  );
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
+  const [prevPrioridad, setPrevPrioridad] = useState(prioridad);
+  if (prioridad !== prevPrioridad) {
+    setPrevPrioridad(prioridad);
+    if (prioridad === "alta") {
+      setPriorityFilter("high");
+      setStatusFilter("all");
+    }
+  }
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const { confirm, dialog } = useConfirm();
@@ -156,9 +183,7 @@ export default function QueueScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
+  const loading = useInitialLoad(load);
 
   useEffect(() => {
     const channel = supabase
@@ -284,6 +309,11 @@ export default function QueueScreen() {
   // listed tareas; finished ones are history, not work the técnico has.
   const pendingCount = visibleItems.filter((t) => !t.endDate).length;
 
+  // SCRUM-59: unfinished tareas on an OT the admin gave prioridad Alta —
+  // counted over every tarea, not just the filtered ones, so the warning
+  // can't be hidden by a filter.
+  const criticalItems = useMemo(() => items.filter(isCriticalTask), [items]);
+
   const priorityColors: Record<Priority, { bg: string; fg: string }> = {
     low: colors.urgencyLow,
     medium: colors.urgencyMedium,
@@ -324,6 +354,43 @@ export default function QueueScreen() {
         </View>
 
         {error && <Text style={styles.error}>{error}</Text>}
+
+        {criticalItems.length > 0 && (
+          <View style={styles.criticalBanner}>
+            <View style={styles.criticalHeader}>
+              <WarningIcon size={18} color={colors.urgencyHigh.fg} />
+
+              <Text style={styles.criticalTitle}>
+                {criticalItems.length === 1
+                  ? "Tenés 1 falla crítica para atender con prioridad"
+                  : `Tenés ${criticalItems.length} fallas críticas para atender con prioridad`}
+              </Text>
+            </View>
+
+            {criticalItems.slice(0, 5).map((item) => (
+              <Text key={item.taskRowId} style={styles.criticalRow}>
+                {withSiglas(formatOrderNumber(item.orderId))} · {item.equipment.name} ·{" "}
+                {item.taskName} ({taskStatusLabel(item).toLowerCase()})
+              </Text>
+            ))}
+
+            {criticalItems.length > 5 && (
+              <Text style={styles.criticalRow}>y {criticalItems.length - 5} más</Text>
+            )}
+
+            {priorityFilter !== "high" && (
+              <Pressable
+                style={styles.criticalButton}
+                onPress={() => {
+                  setPriorityFilter("high");
+                  setStatusFilter("all");
+                }}
+              >
+                <Text style={styles.criticalButtonText}>Ver solo prioridad alta</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
 
         <TableFilterBar
           filters={[
@@ -394,22 +461,38 @@ export default function QueueScreen() {
 
         {visibleItems.length === 0 ? (
           <Text style={styles.empty}>
-            {items.length === 0 ? "No tenés tareas asignadas." : "Nada coincide con este filtro."}
+            {items.length === 0
+              ? "No tenés tareas asignadas."
+              : "No hay tareas que coincidan con los filtros."}
           </Text>
         ) : (
           pageItems.map((item) => {
             const label = actionLabel(item);
             const prio = priorityColors[item.priority];
             const locColor = locationColors.get(item.equipment.location) ?? "#6a7b62";
+            const critical = isCriticalTask(item);
             return (
-              <View key={item.taskRowId} style={styles.card}>
+              <View
+                key={item.taskRowId}
+                style={[
+                  styles.card,
+                  critical && [styles.cardCritical, { borderLeftColor: colors.urgencyHigh.accent }],
+                ]}
+              >
                 <View style={styles.cardTop}>
                   <View style={styles.cardIdentity}>
                     {item.photoUrl ? (
                       <Image source={{ uri: item.photoUrl }} style={styles.photo} />
                     ) : (
                       <View style={[styles.photoPlaceholder, { backgroundColor: prio.bg }]}>
-                        <WarningIcon size={20} color={prio.fg} />
+                        {/* A falla's warning only for correctivos */}
+                        {item.orderType === "preventivo" ? (
+                          <RefreshCwIcon size={20} color={prio.fg} />
+                        ) : item.orderType === "instalacion" ? (
+                          <EquipmentIcon size={20} color={prio.fg} />
+                        ) : (
+                          <WarningIcon size={20} color={prio.fg} />
+                        )}
                       </View>
                     )}
 
@@ -457,6 +540,14 @@ export default function QueueScreen() {
                             Prioridad {PRIORITY_LABELS[item.priority]}
                           </Text>
                         </View>
+
+                        {critical && (
+                          <View
+                            style={[styles.badge, { backgroundColor: colors.urgencyHigh.accent }]}
+                          >
+                            <Text style={[styles.badgeText, { color: "#fff" }]}>Falla crítica</Text>
+                          </View>
+                        )}
                       </View>
 
                       {item.faultTypeName && (
@@ -474,12 +565,18 @@ export default function QueueScreen() {
                       </View>
 
                       <View style={styles.infoContent}>
-                        <Text style={styles.infoLabel}>Fecha de solicitud</Text>
+                        <Text style={styles.infoLabel}>
+                          {item.fromSolicitud ? "Fecha de solicitud" : "Fecha de la orden"}
+                        </Text>
 
                         <Text style={styles.infoValue}>
-                          {item.createdAt
-                            ? new Date(item.createdAt).toLocaleDateString("es-AR")
-                            : "—"}
+                          {!item.createdAt
+                            ? "—"
+                            : item.fromSolicitud
+                              ? new Date(item.createdAt).toLocaleDateString("es-AR")
+                              : // A date-only column: new Date() would read it as
+                                // UTC midnight and could show the day before.
+                                fromDbDate(item.createdAt)}
                         </Text>
                       </View>
                     </View>
@@ -488,14 +585,22 @@ export default function QueueScreen() {
 
                     <View style={styles.infoRow}>
                       <View style={styles.infoIconWrap}>
-                        <UserIcon size={15} color={colors.accent} />
+                        {item.fromSolicitud ? (
+                          <UserIcon size={15} color={colors.accent} />
+                        ) : (
+                          <WorkOrderIcon size={15} color={colors.accent} />
+                        )}
                       </View>
 
                       <View style={styles.infoContent}>
-                        <Text style={styles.infoLabel}>Reportó</Text>
+                        <Text style={styles.infoLabel}>
+                          {item.fromSolicitud ? "Reportó" : "Tipo de orden"}
+                        </Text>
 
                         <Text style={styles.infoValue} numberOfLines={2}>
-                          {item.reporterName}
+                          {item.fromSolicitud
+                            ? item.reporterName
+                            : (ORDER_TYPE_LABELS[item.orderType] ?? item.orderType)}
                         </Text>
                       </View>
                     </View>
@@ -548,7 +653,9 @@ export default function QueueScreen() {
                     {item.consumedParts.length > 0 && (
                       <Text style={styles.consumedText}>
                         Repuestos usados:{" "}
-                        {item.consumedParts.map((p) => `${p.nombre} ×${p.cantidad}`).join(" · ")}
+                        {item.consumedParts
+                          .map((p) => `${p.nombre} ×${formatUnitQty(p.cantidad, p.unidad)}`)
+                          .join(" · ")}
                       </Text>
                     )}
 
@@ -692,6 +799,28 @@ function makeStyles(c: ThemeColors) {
       padding: 16,
       marginBottom: 12,
     },
+    cardCritical: { borderLeftWidth: 4 },
+    criticalBanner: {
+      backgroundColor: c.urgencyHigh.bg,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 16,
+      gap: 4,
+    },
+    criticalHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+    criticalTitle: { flexShrink: 1, fontSize: 14, fontWeight: "700", color: c.urgencyHigh.fg },
+    criticalRow: { fontSize: 13, color: c.text, lineHeight: 19 },
+    criticalButton: {
+      alignSelf: "flex-start",
+      marginTop: 8,
+      paddingHorizontal: 14,
+      height: 34,
+      borderRadius: 8,
+      backgroundColor: c.urgencyHigh.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    criticalButtonText: { color: "#fff", fontSize: 13, fontWeight: "600" },
     cardTop: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: 12 },
     cardIdentity: { flex: 1, minWidth: 240, flexDirection: "row", gap: 12 },
     cardMain: { flex: 1, minWidth: 0, gap: 6 },

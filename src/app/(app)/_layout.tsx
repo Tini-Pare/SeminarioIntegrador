@@ -1,9 +1,17 @@
-import { Slot, router, usePathname } from "expo-router";
-import { useEffect, useRef, useState, type ComponentType } from "react";
+import { Redirect, Slot, router, usePathname } from "expo-router";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
 import {
   ActivityIndicator,
   Animated,
   Easing,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,9 +21,13 @@ import {
   type LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { AccountMenu } from "../../components/AccountMenu";
+import { BrandMark } from "../../components/BrandMark";
+import { NotificationsPanel } from "../../components/NotificationsPanel";
 import {
+  BellIcon,
+  CalendarIcon,
+  ChartIcon,
   ChevronDownIcon,
   EquipmentIcon,
   EquipmentTypeIcon,
@@ -26,6 +38,7 @@ import {
   PurchaseOrderIcon,
   RequestsIcon,
   SparePartIcon,
+  StockMovementIcon,
   SupplierIcon,
   UsersIcon,
   WarningIcon,
@@ -33,6 +46,13 @@ import {
 } from "../../components/icons";
 import { BREAKPOINT } from "../../constants";
 import { getProfile, signOut } from "../../lib/auth";
+import { countAlerts } from "../../lib/queries/alerts";
+import {
+  listNotifications,
+  markNotificationsAsRead,
+  type AppNotification,
+} from "../../lib/queries/notifications";
+import { supabase } from "../../lib/supabase";
 import { useTheme } from "../../lib/ThemeContext";
 import type { Profile } from "../../types/database";
 
@@ -71,18 +91,28 @@ function isActiveHref(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-function BrandDot({ colors }: { colors: [string, string] }) {
-  const [from, to] = colors;
+// The nav row that carries each role's count: a técnico's open tareas
+// (any priority), on their queue. The admin's count isn't in the nav — it's the
+// bell on Inicio's alerts panel.
+const ALERT_BADGE_KEY: Partial<Record<Profile["role"], string>> = {
+  technician: "queue",
+};
+
+// Tables whose changes can add or clear an alert (see alerts.ts).
+const ALERT_TABLES = [
+  "repuestos",
+  "orden_de_trabajo",
+  "tareas_realizadas_orden",
+  "mantenimiento_equipo",
+  "plan_mantenimiento",
+];
+
+function AlertBadge({ count, color }: { count: number; color: string }) {
+  if (count <= 0) return null;
   return (
-    <Svg width={10} height={10} viewBox="0 0 10 10">
-      <Defs>
-        <LinearGradient id="brandDotGradient" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor={to} />
-          <Stop offset="1" stopColor={from} />
-        </LinearGradient>
-      </Defs>
-      <Circle cx={5} cy={5} r={5} fill="url(#brandDotGradient)" />
-    </Svg>
+    <View style={[styles.alertBadge, { backgroundColor: color }]}>
+      <Text style={styles.alertBadgeText}>{count > 99 ? "99+" : count}</Text>
+    </View>
   );
 }
 
@@ -105,7 +135,8 @@ export default function AppLayout() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const indicatorOffset = useRef(new Animated.Value(0)).current;
+  // Lazy state, not a ref, so render never reads `.current`.
+  const [indicatorOffset] = useState(() => new Animated.Value(0));
   // Real on-screen y/height per nav row key, filled in as each row lays
   // out — driving the indicator off these avoids drift from assuming every
   // row is exactly the same height (bold active text measures differently).
@@ -114,6 +145,12 @@ export default function AppLayout() {
   const navLayouts = useRef<Record<string, { y: number; height: number; parent?: string }>>({});
   // Only one sidebar group open at a time, so the list stays short.
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [alertCount, setAlertCount] = useState(0);
+
+  // Admin notifications (preventive OTs, stock mínimo) state
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   useEffect(() => {
     getProfile().then((p) => {
@@ -128,6 +165,104 @@ export default function AppLayout() {
 
   const role = profile?.role;
   const isWide = width >= BREAKPOINT.tablet;
+  const alertBadgeKey = role ? ALERT_BADGE_KEY[role] : undefined;
+  // The admin's bell has preventive OTs and stock; a técnico's has the
+  // fallas críticas assigned to them (0045). Usuarios get no notifications.
+  const hasBell = role === "admin" || role === "technician";
+
+  const refreshAlerts = useCallback(() => {
+    if (!role || !ALERT_BADGE_KEY[role]) return;
+    // A failed count just leaves the last one showing; the screens
+    // themselves surface load errors.
+    countAlerts(role)
+      .then(setAlertCount)
+      .catch(() => {});
+  }, [role]);
+
+  // Recounted on every navigation (acting on an alert usually means
+  // visiting another screen) and live on any change that can affect it.
+  useEffect(() => {
+    refreshAlerts();
+  }, [refreshAlerts, pathname]);
+
+  useEffect(() => {
+    if (!role || !ALERT_BADGE_KEY[role]) return;
+    let channel = supabase.channel(`nav-alerts-${Math.random().toString(36).slice(2)}`);
+    for (const table of ALERT_TABLES) {
+      channel = channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table },
+        refreshAlerts,
+      );
+    }
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [role, refreshAlerts]);
+
+  // Load and subscribe to the signed-in user's notifications
+  const loadNotifications = useCallback(() => {
+    if (!hasBell) return;
+    listNotifications()
+      .then(({ notifications: list, unreadCount }) => {
+        setNotifications(list);
+        setUnreadNotifCount(unreadCount);
+      })
+      // Graceful fallback: the bell keeps the last list it had.
+      .catch(() => {});
+  }, [hasBell]);
+
+  useEffect(() => {
+    if (!hasBell) return;
+    loadNotifications();
+  }, [hasBell, loadNotifications, pathname]);
+
+  useEffect(() => {
+    if (!hasBell) return;
+    const channel = supabase
+      .channel(`notifs-${Math.random().toString(36).slice(2)}`)
+      // Rows are added by triggers and marked read here; RLS only lets
+      // each user see their own.
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notificacion" },
+        loadNotifications,
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [hasBell, loadNotifications]);
+
+  const handleMarkAllAsRead = async () => {
+    await markNotificationsAsRead(notifications);
+    loadNotifications();
+  };
+
+  // The ✓ on one notification: the panel stays open.
+  const handleMarkOneAsRead = async (item: AppNotification) => {
+    await markNotificationsAsRead([item]);
+    loadNotifications();
+  };
+
+  // Each kind opens the screen it's about.
+  const handleSelectNotification = async (item: AppNotification) => {
+    await markNotificationsAsRead([item]);
+    loadNotifications();
+    setNotificationsOpen(false);
+    if (item.kind === "stock_minimo") {
+      router.push(`/spare-parts?buscar=${encodeURIComponent(item.partName)}` as never);
+    } else if (item.kind === "falla_critica") {
+      // A técnico works from their queue, not the admin's OT screen.
+      router.push("/queue?prioridad=alta" as never);
+    } else if (!item.isGrouped && item.orderId) {
+      router.push(`/work-orders/${item.orderId}` as never);
+    } else {
+      router.push("/work-orders?tipo=preventivo" as never);
+    }
+  };
 
   const equipmentItem: NavItem = {
     key: "equipment",
@@ -140,6 +275,7 @@ export default function AppLayout() {
   if (role === "admin") {
     navEntries = [
       { key: "dashboard", label: "Inicio", href: "/dashboard", Icon: HomeIcon },
+      { key: "statistics", label: "Estadísticas", href: "/statistics", Icon: ChartIcon },
       { key: "users", label: "Usuarios", href: "/users", Icon: UsersIcon },
       {
         key: "equipment-group",
@@ -171,6 +307,12 @@ export default function AppLayout() {
             href: "/work-orders",
             Icon: WorkOrderIcon,
           },
+          {
+            key: "maintenance-plans",
+            label: "Planes de mantenimiento",
+            href: "/maintenance-plans",
+            Icon: CalendarIcon,
+          },
           { key: "faults", label: "Fallas", href: "/faults", Icon: WarningIcon },
           { key: "tasks", label: "Tareas", href: "/tasks", Icon: GeneralTaskIcon },
         ],
@@ -181,6 +323,12 @@ export default function AppLayout() {
         Icon: SparePartIcon,
         items: [
           { key: "spare-parts", label: "Repuestos", href: "/spare-parts", Icon: SparePartIcon },
+          {
+            key: "stock-movements",
+            label: "Movimientos de stock",
+            href: "/stock-movements",
+            Icon: StockMovementIcon,
+          },
           { key: "suppliers", label: "Proveedores", href: "/suppliers", Icon: SupplierIcon },
           { key: "purchases", label: "Compras", href: "/purchases", Icon: PurchaseIcon },
           {
@@ -217,6 +365,14 @@ export default function AppLayout() {
   const activeGroup = navEntries.find(
     (e): e is NavGroup => isGroup(e) && !!activeItem && e.items.includes(activeItem),
   );
+
+  // Navigating into a group (from a link, the dashboard, a back) opens it.
+  const activeGroupKey = activeGroup?.key;
+  const [prevActiveGroupKey, setPrevActiveGroupKey] = useState<string | undefined>(undefined);
+  if (activeGroupKey !== prevActiveGroupKey) {
+    setPrevActiveGroupKey(activeGroupKey);
+    if (activeGroupKey) setOpenGroup(activeGroupKey);
+  }
   // The indicator sits on the active screen's row, or on its group's header
   // while that group is collapsed.
   const indicatorKey = activeItem
@@ -224,13 +380,6 @@ export default function AppLayout() {
       ? activeGroup.key
       : activeItem.key
     : undefined;
-
-  // Navigating into a group (from a link, the dashboard, a back) opens it.
-  const activeGroupKey = activeGroup?.key;
-  useEffect(() => {
-    if (activeGroupKey) setOpenGroup(activeGroupKey);
-  }, [activeGroupKey]);
-
   function absoluteY(key: string): number | null {
     const layout = navLayouts.current[key];
     if (!layout) return null;
@@ -253,7 +402,8 @@ export default function AppLayout() {
         toValue: y,
         duration: 220,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        // The native driver isn't available on web.
+        useNativeDriver: Platform.OS !== "web",
       }).start();
     } else {
       indicatorOffset.setValue(y);
@@ -268,8 +418,11 @@ export default function AppLayout() {
     syncIndicator(false);
   }
 
+  // Re-placed (animated) only when the indicated row changes; the event
+  // reads the latest layouts without making them effect dependencies.
+  const onIndicatorKeyChange = useEffectEvent(() => syncIndicator(true));
   useEffect(() => {
-    syncIndicator(true);
+    onIndicatorKeyChange();
   }, [indicatorKey]);
 
   if (loading) {
@@ -278,6 +431,17 @@ export default function AppLayout() {
         <ActivityIndicator />
       </View>
     );
+  }
+
+  // Each role only gets the screens in its nav (and their detail routes),
+  // plus Configuración: a técnico typing /users or /work-orders, or an
+  // admin typing /queue, lands on their first screen instead.
+  const allowedHrefs = [
+    ...navEntries.flatMap((e) => (isGroup(e) ? e.items : [e])).map((item) => item.href),
+    "/settings",
+  ];
+  if (profile && !allowedHrefs.some((href) => isActiveHref(pathname, href))) {
+    return <Redirect href={allowedHrefs[0] as never} />;
   }
 
   function goToSettings() {
@@ -316,6 +480,10 @@ export default function AppLayout() {
         >
           {item.label}
         </Text>
+
+        {item.key === alertBadgeKey && (
+          <AlertBadge count={alertCount} color={colors.urgencyHigh.accent} />
+        )}
       </Pressable>
     );
   }
@@ -331,8 +499,27 @@ export default function AppLayout() {
           ]}
         >
           <View style={styles.brandRow}>
-            <BrandDot colors={colors.heroBlobColors} />
-            <Text style={[styles.brandName, { color: colors.textSidebar }]}>Mantia</Text>
+            <View style={styles.brandLeft}>
+              <BrandMark size={30} />
+              <Text style={[styles.brandName, { color: colors.textSidebar }]}>Mantia</Text>
+            </View>
+
+            {hasBell && (
+              <Pressable
+                style={[
+                  styles.bellButton,
+                  notificationsOpen && styles.bellButtonActive,
+                  { backgroundColor: colors.bgCard, borderColor: colors.border },
+                ]}
+                onPress={() => setNotificationsOpen((v) => !v)}
+                accessibilityLabel="Notificaciones"
+                accessibilityRole="button"
+              >
+                <BellIcon size={18} color={colors.text} />
+
+                {unreadNotifCount > 0 && <View style={styles.bellRedDot} />}
+              </Pressable>
+            )}
           </View>
 
           <ScrollView
@@ -437,7 +624,27 @@ export default function AppLayout() {
           <Slot />
         </View>
 
-        {menuOpen && <Pressable style={styles.backdrop} onPress={() => setMenuOpen(false)} />}
+        {(menuOpen || notificationsOpen) && (
+          <Pressable
+            style={styles.backdrop}
+            onPress={() => {
+              setMenuOpen(false);
+              setNotificationsOpen(false);
+            }}
+          />
+        )}
+
+        {hasBell && notificationsOpen && (
+          <View style={styles.desktopNotificationsOverlay}>
+            <NotificationsPanel
+              notifications={notifications}
+              unreadCount={unreadNotifCount}
+              onMarkAllAsRead={handleMarkAllAsRead}
+              onMarkAsRead={handleMarkOneAsRead}
+              onSelectNotification={handleSelectNotification}
+            />
+          </View>
+        )}
       </View>
     );
   }
@@ -451,35 +658,68 @@ export default function AppLayout() {
           menuOpen && styles.elevated,
         ]}
       >
-        <View style={styles.brandRow}>
-          <BrandDot colors={colors.heroBlobColors} />
+        <View style={styles.brandLeft}>
+          <BrandMark size={26} />
+
           <Text style={[styles.brandNameLight, { color: colors.textSidebar }]}>Mantia</Text>
         </View>
 
-        <View style={{ position: "relative" }}>
-          <Pressable style={styles.narrowUserRow} onPress={() => setMenuOpen((v) => !v)}>
-            <View style={[styles.narrowAvatar, { backgroundColor: colors.avatarBg }]}>
-              <Text style={[styles.narrowAvatarText, { color: colors.avatarFg }]}>
-                {initials(profile?.name)}
-              </Text>
-            </View>
-            <View style={{ flexShrink: 1, minWidth: 0 }}>
-              <Text
-                style={[styles.narrowUserName, { color: colors.textSidebar }]}
-                numberOfLines={1}
-              >
-                {profile?.name}
-              </Text>
-              <Text style={[styles.narrowUserRole, { color: colors.textNavInactive }]}>
-                {role ? ROLE_LABELS[role] : ""}
-              </Text>
-            </View>
-          </Pressable>
-          {menuOpen && (
-            <View style={styles.menuAnchorDown}>
-              <AccountMenu onSettings={goToSettings} onLogout={handleLogout} />
-            </View>
+        {/* Bell and account sit together on the right, as one group of
+            controls, with the same card look. */}
+        <View style={styles.narrowTopRight}>
+          {hasBell && (
+            <Pressable
+              style={[
+                styles.bellButton,
+                notificationsOpen && styles.bellButtonActive,
+                { backgroundColor: colors.bgCard, borderColor: colors.border },
+              ]}
+              onPress={() => setNotificationsOpen((v) => !v)}
+              accessibilityLabel="Notificaciones"
+              accessibilityRole="button"
+            >
+              <BellIcon size={18} color={colors.text} />
+
+              {unreadNotifCount > 0 && <View style={styles.bellRedDot} />}
+            </Pressable>
           )}
+
+          <View style={styles.narrowUserWrap}>
+            <Pressable
+              style={[
+                styles.narrowUserRow,
+                { backgroundColor: colors.bgCard, borderColor: colors.border },
+              ]}
+              onPress={() => setMenuOpen((v) => !v)}
+              accessibilityLabel="Menú de la cuenta"
+              accessibilityRole="button"
+            >
+              <View style={[styles.narrowAvatar, { backgroundColor: colors.avatarBg }]}>
+                <Text style={[styles.narrowAvatarText, { color: colors.avatarFg }]}>
+                  {initials(profile?.name)}
+                </Text>
+              </View>
+
+              <View style={styles.narrowUserText}>
+                <Text style={[styles.narrowUserName, { color: colors.text }]} numberOfLines={1}>
+                  {profile?.name}
+                </Text>
+
+                <Text
+                  style={[styles.narrowUserRole, { color: colors.textMuted }]}
+                  numberOfLines={1}
+                >
+                  {role ? ROLE_LABELS[role] : ""}
+                </Text>
+              </View>
+            </Pressable>
+
+            {menuOpen && (
+              <View style={styles.menuAnchorDown}>
+                <AccountMenu onSettings={goToSettings} onLogout={handleLogout} />
+              </View>
+            )}
+          </View>
         </View>
       </View>
 
@@ -527,7 +767,28 @@ export default function AppLayout() {
         <Slot />
       </View>
 
-      {menuOpen && <Pressable style={styles.backdrop} onPress={() => setMenuOpen(false)} />}
+      {(menuOpen || notificationsOpen) && (
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => {
+            setMenuOpen(false);
+            setNotificationsOpen(false);
+          }}
+        />
+      )}
+
+      {hasBell && notificationsOpen && (
+        // Opens right under the top bar, whose height depends on the notch.
+        <View style={[styles.narrowNotificationsOverlay, { top: insets.top + 62 }]}>
+          <NotificationsPanel
+            notifications={notifications}
+            unreadCount={unreadNotifCount}
+            onMarkAllAsRead={handleMarkAllAsRead}
+            onMarkAsRead={handleMarkOneAsRead}
+            onSelectNotification={handleSelectNotification}
+          />
+        </View>
+      )}
 
       <View
         style={[
@@ -554,7 +815,15 @@ export default function AppLayout() {
                 if (!(group && active)) router.push(href as never);
               }}
             >
-              <entry.Icon size={19} color={active ? colors.accent : colors.textMuted} />
+              <View>
+                <entry.Icon size={19} color={active ? colors.accent : colors.textMuted} />
+
+                {entry.key === alertBadgeKey && alertCount > 0 && (
+                  <View style={styles.bottomBadgeAnchor}>
+                    <AlertBadge count={alertCount} color={colors.urgencyHigh.accent} />
+                  </View>
+                )}
+              </View>
               <Text
                 style={[
                   styles.bottomItemText,
@@ -577,8 +846,61 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   wideContainer: { flex: 1, flexDirection: "row", minHeight: 0 },
   sidebar: { width: 250, padding: 16, paddingTop: 20 },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 8 },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+  },
+  brandLeft: { flexDirection: "row", alignItems: "center", gap: 11 },
   brandName: { fontWeight: "600", fontSize: 17 },
+  bellButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    position: "relative",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
+        cursor: "pointer",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 2,
+        elevation: 2,
+      },
+    }),
+  },
+  bellButtonActive: {
+    opacity: 0.85,
+  },
+  bellRedDot: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#ef4444",
+  },
+  desktopNotificationsOverlay: {
+    position: "absolute",
+    top: 58,
+    left: 242,
+    zIndex: 1000,
+  },
+  narrowNotificationsOverlay: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    alignItems: "center",
+    zIndex: 1000,
+  },
   navScroll: { flex: 1 },
   navList: { gap: 3, paddingTop: 16, position: "relative" },
   navItem: {
@@ -635,16 +957,31 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   brandNameLight: { fontWeight: "600", fontSize: 15 },
+  narrowTopRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+    minWidth: 0,
+    marginLeft: 12,
+  },
+  narrowUserWrap: { position: "relative", flexShrink: 1, minWidth: 0 },
+  // Same height, border and card background as the bell next to it.
   narrowUserRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
-    flexShrink: 1,
+    gap: 8,
+    height: 36,
+    paddingLeft: 4,
+    paddingRight: 10,
+    borderRadius: 10,
+    borderWidth: 1,
     minWidth: 0,
   },
+  narrowUserText: { flexShrink: 1, minWidth: 0, maxWidth: 140 },
   narrowAvatar: {
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: 7,
     alignItems: "center",
     justifyContent: "center",
@@ -655,8 +992,19 @@ const styles = StyleSheet.create({
   bottomBar: { flexDirection: "row", borderTopWidth: 1 },
   bottomItem: { flex: 1, alignItems: "center", gap: 3, paddingVertical: 12 },
   bottomItemText: { fontSize: 11.5, fontWeight: "500" },
-  elevated: { zIndex: 50 },
-  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 40 },
+  alertBadge: {
+    marginLeft: "auto",
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  alertBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  bottomBadgeAnchor: { position: "absolute", top: -8, left: 12 },
+  elevated: { zIndex: 200 },
+  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 },
   menuAnchorUp: { position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: 8 },
   menuAnchorDown: { position: "absolute", top: "100%", right: 0, marginTop: 8 },
 });

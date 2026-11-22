@@ -13,11 +13,14 @@ import { getProfile } from "../lib/auth";
 import { createPurchaseOrder } from "../lib/queries/purchaseOrders";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { unitShort } from "../lib/units";
 import type { Repuesto } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { getTodayDateString } from "./CustomDatePicker";
 import { TrashIcon } from "./icons";
+import { Tooltip } from "./Tooltip";
 import { Select } from "./Select";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 type LineDraft = { key: string; repId: number | null; cantidad: string };
 
@@ -46,7 +49,26 @@ export function PurchaseOrderModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  const todayDate = useMemo(() => getTodayDateString(), [visible]);
+  // Re-read on every open (below) so a modal left mounted past midnight
+  // shows the right date.
+  const [todayDate, setTodayDate] = useState(getTodayDateString);
+
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
+    setObservacion("");
+    setLines([newLine()]);
+    setOpenField(null);
+    setError(null);
+    setTodayDate(getTodayDateString());
+    if (techNameProp) setTechName(techNameProp);
+  }, [techNameProp]);
+
+  useEffect(() => {
+    if (!visible || techNameProp) return;
+    getProfile().then((p) => {
+      if (p?.name) setTechName(p.name);
+    });
+  }, [visible, techNameProp]);
 
   const totalItems = useMemo(() => {
     return lines.reduce((acc, l) => {
@@ -63,21 +85,6 @@ export function PurchaseOrderModal({
       .filter((p) => p.rep_estado === "activo" && !selectedOtherIds.has(p.rep_id))
       .map((p) => ({ value: p.rep_id, label: p.rep_nombre }));
   }
-
-  useEffect(() => {
-    if (!visible) return;
-    setObservacion("");
-    setLines([newLine()]);
-    setOpenField(null);
-    setError(null);
-    if (techNameProp) {
-      setTechName(techNameProp);
-    } else {
-      getProfile().then((p) => {
-        if (p?.name) setTechName(p.name);
-      });
-    }
-  }, [visible, techNameProp]);
 
   function updateLine(key: string, patch: Partial<LineDraft>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -168,7 +175,7 @@ export function PurchaseOrderModal({
 
                 <Text style={[styles.tableHeadText, styles.colRepFlex]}>REPUESTO</Text>
 
-                <Text style={[styles.tableHeadText, styles.colCant, styles.textCenter]}>
+                <Text style={[styles.tableHeadText, styles.colCant, styles.textRight]}>
                   CANTIDAD
                 </Text>
 
@@ -200,7 +207,7 @@ export function PurchaseOrderModal({
                     />
                   </View>
 
-                  <View style={styles.colCant}>
+                  <View style={[styles.colCant, styles.qtyWrap]}>
                     <TextInput
                       style={styles.qtyInput}
                       value={l.cantidad}
@@ -212,20 +219,35 @@ export function PurchaseOrderModal({
                       placeholderTextColor={colors.textMuted}
                       keyboardType="numeric"
                     />
+
+                    {l.repId !== null && (
+                      <Text style={styles.qtyUnit}>
+                        {unitShort(spareParts.find((p) => p.rep_id === l.repId)?.rep_unidad)}
+                      </Text>
+                    )}
                   </View>
 
                   <View style={styles.colRemove}>
-                    <Pressable
-                      style={[styles.removeBtn, lines.length === 1 && styles.removeBtnDisabled]}
-                      onPress={() => removeLine(l.key)}
-                      disabled={lines.length === 1}
-                      accessibilityLabel="Quitar línea"
+                    <Tooltip
+                      text={
+                        lines.length === 1
+                          ? "El pedido necesita al menos una línea"
+                          : "Quitar línea"
+                      }
+                      align="right"
                     >
-                      <TrashIcon
-                        size={16}
-                        color={lines.length === 1 ? colors.textMuted : colors.destructive}
-                      />
-                    </Pressable>
+                      <Pressable
+                        style={[styles.removeBtn, lines.length === 1 && styles.removeBtnDisabled]}
+                        onPress={() => removeLine(l.key)}
+                        disabled={lines.length === 1}
+                        accessibilityLabel="Quitar línea"
+                      >
+                        <TrashIcon
+                          size={16}
+                          color={lines.length === 1 ? colors.textMuted : colors.destructive}
+                        />
+                      </Pressable>
+                    </Tooltip>
                   </View>
                 </View>
               ))}
@@ -312,7 +334,6 @@ function makeStyles(c: ThemeColors) {
       color: c.text,
     },
     textRight: { textAlign: "right" },
-    textCenter: { textAlign: "center" },
     linesHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -369,14 +390,19 @@ function makeStyles(c: ThemeColors) {
       fontVariant: ["tabular-nums"],
     },
     colRepFlex: { flex: 1 },
-    colCant: { width: 76 },
+    colCant: { width: 92 },
     colRemove: {
       width: 32,
       alignItems: "center",
       justifyContent: "center",
     },
     cellNum: { color: c.text },
+    // Quantity input + the picked repuesto's unit suffix, side by side.
+    qtyWrap: { flexDirection: "row", alignItems: "center", gap: 4 },
+    qtyUnit: { fontSize: 13, color: c.textMuted },
     qtyInput: {
+      flex: 1,
+      minWidth: 0,
       height: 44,
       paddingHorizontal: 8,
       borderWidth: 1,
@@ -386,7 +412,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: 14,
       fontWeight: "600",
       color: c.text,
-      textAlign: "center",
+      textAlign: "right",
       fontVariant: ["tabular-nums"],
     },
     removeBtn: {

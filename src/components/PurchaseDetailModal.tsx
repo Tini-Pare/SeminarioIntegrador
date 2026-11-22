@@ -3,6 +3,7 @@ import { comprobanteRef, comprobanteTipoLabel } from "../lib/comprobante";
 import type { PurchaseWithDetail } from "../lib/queries/purchases";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
+import { formatUnitQty } from "../lib/units";
 
 function formatDate(d: string | null): string {
   if (!d) return "—";
@@ -70,7 +71,9 @@ export function PurchaseDetailModal({
                   <Text style={[styles.cell, { flex: 2.2 }]} numberOfLines={2}>
                     {l.repuesto?.rep_nombre ?? `Repuesto ${l.rep_id}`}
                   </Text>
-                  <Text style={[styles.cell, styles.num]}>{qty}</Text>
+                  <Text style={[styles.cell, styles.num]}>
+                    {formatUnitQty(qty, l.repuesto?.rep_unidad)}
+                  </Text>
                   {purchase?.co_tipo_comprobante !== "remito" && (
                     <>
                       <Text style={[styles.cell, styles.num]}>

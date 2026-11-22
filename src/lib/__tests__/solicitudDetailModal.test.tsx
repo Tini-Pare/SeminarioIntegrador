@@ -1,5 +1,5 @@
 import React from "react";
-import { render, fireEvent, waitFor } from "@testing-library/react-native";
+import { render, fireEvent } from "@testing-library/react-native";
 import { SolicitudDetailModal } from "../../components/SolicitudDetailModal";
 import { router } from "expo-router";
 import * as profilesQuery from "../queries/profiles";
@@ -63,6 +63,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
             repId: 1,
             nombre: "Burlete de goma EPDM para puerta vidriada",
             cantidad: 2,
+            unidad: "metro" as const,
           },
         ],
         diagnosis: null,
@@ -131,7 +132,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
     expect(getByText("En curso")).toBeTruthy();
     expect(getByText("REPUESTOS")).toBeTruthy();
     expect(getByText(/Burlete de goma EPDM para puerta vidriada/)).toBeTruthy();
-    expect(getByText(/×2/)).toBeTruthy();
+    expect(getByText(/×2 m/)).toBeTruthy();
 
     // Task 2
     expect(getByText("Cambio de filtro")).toBeTruthy();
@@ -179,7 +180,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
     expect(getByText("Termostato descalibrado, se ajustó.")).toBeTruthy();
   });
 
-  it("navigates to work order screen and closes modal on button press", async () => {
+  it("navigates to the OT's own screen (by ot_id_orden) and closes modal on button press", async () => {
     const onClose = jest.fn();
 
     const { getByText } = await render(
@@ -192,7 +193,7 @@ describe("SolicitudDetailModal - Orden de trabajo section", () => {
     expect(onClose).toHaveBeenCalled();
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/work-orders/[id]",
-      params: { id: "10" },
+      params: { id: "101" },
     });
   });
 });

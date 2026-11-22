@@ -1,10 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    from: jest.fn(),
-    rpc: jest.fn(),
-  },
-}));
-
 import {
   anularRemitoCompra,
   editarRemitoCompra,
@@ -13,6 +6,13 @@ import {
   registrarRemitoCompra,
 } from "../../queries/purchases";
 import { supabase } from "../../supabase";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+    rpc: jest.fn(),
+  },
+}));
 
 describe("listPurchases", () => {
   it("renames each line's embedded `repuestos` to `repuesto`", async () => {
@@ -36,6 +36,17 @@ describe("listPurchases", () => {
     const result = await listPurchases();
 
     expect(result[0].linea_compra[0].repuesto).toEqual({ rep_nombre: "Filtro" });
+  });
+
+  it("embeds each line's repuesto unit so quantities can show it", async () => {
+    const secondOrder = jest.fn().mockResolvedValue({ data: [], error: null });
+    const firstOrder = jest.fn().mockReturnValue({ order: secondOrder });
+    const select = jest.fn().mockReturnValue({ order: firstOrder });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    await listPurchases();
+
+    expect(select.mock.calls[0][0]).toContain("linea_compra(*, repuestos(rep_nombre, rep_unidad))");
   });
 
   it("unwraps each remito's embedded `remito_compra_linea` as `lineas`", async () => {

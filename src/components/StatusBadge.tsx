@@ -6,6 +6,7 @@ const LABELS: Record<Equipo["status"], string> = {
   operational: "Funcionando",
   waiting: "En espera",
   repair: "En reparación",
+  pending_install: "Pendiente de instalación",
 };
 
 export function StatusBadge({ status }: { status: Equipo["status"] }) {
@@ -15,7 +16,9 @@ export function StatusBadge({ status }: { status: Equipo["status"] }) {
       ? colors.eqOperational
       : status === "waiting"
         ? colors.eqWaiting
-        : colors.eqRepair;
+        : status === "pending_install"
+          ? colors.eqPendingInstall
+          : colors.eqRepair;
 
   return (
     <View style={[styles.badge, { backgroundColor: c.bg }]}>

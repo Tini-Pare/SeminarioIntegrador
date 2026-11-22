@@ -13,6 +13,8 @@ import { useTheme } from "../lib/ThemeContext";
 export function FormFooter({
   onCancel,
   onConfirm,
+  confirmLabel = "Confirmar",
+  cancelLabel = "Cancelar",
   busy = false,
   busyLabel = "Guardando…",
   disabled = false,
@@ -21,6 +23,8 @@ export function FormFooter({
 }: {
   onCancel: () => void;
   onConfirm: () => void;
+  confirmLabel?: string;
+  cancelLabel?: string;
   busy?: boolean;
   busyLabel?: string;
   disabled?: boolean;
@@ -44,7 +48,7 @@ export function FormFooter({
         accessibilityRole="button"
         aria-disabled={cancelBlocked}
       >
-        <Text style={styles.text}>Cancelar</Text>
+        <Text style={styles.text}>{cancelLabel}</Text>
       </Pressable>
 
       <Pressable
@@ -54,7 +58,7 @@ export function FormFooter({
         accessibilityRole="button"
         aria-disabled={confirmDisabled}
       >
-        <Text style={styles.text}>{busy ? busyLabel : "Confirmar"}</Text>
+        <Text style={styles.text}>{busy ? busyLabel : confirmLabel}</Text>
       </Pressable>
     </View>
   );

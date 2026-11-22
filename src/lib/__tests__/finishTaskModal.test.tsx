@@ -12,6 +12,7 @@ const parts = [
     rep_id: 1,
     rep_nombre: "Cable de acero para tracción 10mm",
     rep_cantidad_actual: 12,
+    rep_unidad: "metro",
     rep_stock_minimo: 0,
     rep_stock_maximo: null,
     rep_estado: "activo",
@@ -20,6 +21,7 @@ const parts = [
     rep_id: 2,
     rep_nombre: "Burlete de goma EPDM 2.0",
     rep_cantidad_actual: 24,
+    rep_unidad: "unidad",
     rep_stock_minimo: 0,
     rep_stock_maximo: null,
     rep_estado: "activo",
@@ -28,6 +30,7 @@ const parts = [
     rep_id: 3,
     rep_nombre: "Cámara frigorífica (panel)",
     rep_cantidad_actual: 0,
+    rep_unidad: "unidad",
     rep_stock_minimo: 0,
     rep_stock_maximo: null,
     rep_estado: "activo",
@@ -36,6 +39,7 @@ const parts = [
     rep_id: 4,
     rep_nombre: "Repuesto dado de baja",
     rep_cantidad_actual: 5,
+    rep_unidad: "unidad",
     rep_stock_minimo: 0,
     rep_stock_maximo: null,
     rep_estado: "inactivo",
@@ -101,6 +105,8 @@ describe("FinishTaskModal", () => {
     // "ca" starts "Cable" and "Cámara".
     await fireEvent.changeText(input, "ca");
     expect(getByText("Cable de acero para tracción 10mm")).toBeTruthy();
+    // Stock comes with the repuesto's unit.
+    expect(getByText("Existencias: 12 m")).toBeTruthy();
     expect(getByText("Cámara frigorífica (panel)")).toBeTruthy();
     expect(queryByText("Burlete de goma EPDM 2.0")).toBeNull();
 
@@ -146,7 +152,9 @@ describe("FinishTaskModal", () => {
     // The search closes after picking; the part is now a grid row.
     expect(queryByPlaceholderText("Buscar repuesto…")).toBeNull();
     expect(getByText("Cable de acero para tracción 10mm")).toBeTruthy();
-    expect(getByText("12")).toBeTruthy();
+    // Stock and the quantity input both show the unit.
+    expect(getByText("12 m")).toBeTruthy();
+    expect(getByText("m")).toBeTruthy();
 
     await fireEvent.press(getByText("+ Repuesto"));
     // Already added: no longer offered.
@@ -202,7 +210,7 @@ describe("FinishTaskModal", () => {
       "13",
     );
     await fireEvent.press(getByText("Confirmar"));
-    expect(getByText("No hay stock suficiente (disponible: 12).")).toBeTruthy();
+    expect(getByText("No hay stock suficiente (disponible: 12 m).")).toBeTruthy();
     expect(onConfirm).not.toHaveBeenCalled();
 
     await fireEvent.press(getByLabelText("Quitar repuesto"));

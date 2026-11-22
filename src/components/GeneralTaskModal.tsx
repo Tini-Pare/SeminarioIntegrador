@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
 import { createGeneralTask, updateGeneralTask } from "../lib/queries/generalTasks";
 import type { TareaGeneral } from "../types/database";
@@ -6,12 +6,13 @@ import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import { FormFooter } from "./FormFooter";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 // Registration state, same shape as repuestos: a task with history can't be
 // deleted, it's marked inactive instead.
 const ESTADO_OPTIONS: RadioOption<TareaGeneral["tag_estado"]>[] = [
-  { value: "activo", label: "Activo" },
-  { value: "inactivo", label: "Inactivo" },
+  { value: "activo", label: "Activa" },
+  { value: "inactivo", label: "Inactiva" },
 ];
 
 export function GeneralTaskModal({
@@ -36,13 +37,13 @@ export function GeneralTaskModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setName(task?.tag_nombre_tarea ?? "");
     setDescription(task?.tag_descripcion_tarea ?? "");
     setEstado(task?.tag_estado ?? "activo");
     setError(null);
-  }, [visible, task]);
+  }, [task]);
 
   async function handleSave() {
     const trimmedName = name.trim();

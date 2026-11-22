@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type ConfirmRequest = {
@@ -16,12 +16,13 @@ export function useConfirm() {
   const [busy, setBusy] = useState(false);
 
   // Keeps the last request around so the text doesn't blank out while the
-  // modal fades away after setRequest(null).
-  const lastRequest = useRef<ConfirmRequest | null>(null);
-  if (request) lastRequest.current = request;
-  const shown = request ?? lastRequest.current;
+  // modal fades away after setRequest(null): only `confirm` ever sets it.
+  const [shown, setShown] = useState<ConfirmRequest | null>(null);
 
-  const confirm = useCallback((next: ConfirmRequest) => setRequest(next), []);
+  const confirm = useCallback((next: ConfirmRequest) => {
+    setRequest(next);
+    setShown(next);
+  }, []);
 
   const cancel = useCallback(() => setRequest(null), []);
 

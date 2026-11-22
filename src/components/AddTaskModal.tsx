@@ -9,6 +9,7 @@ import type { Profile, TareaGeneral } from "../types/database";
 import { FormFooter } from "./FormFooter";
 import { Select } from "./Select";
 import { TaskCombobox } from "./TaskCombobox";
+import { useResetOnOpen } from "../lib/useResetOnOpen";
 
 // Agrega una tarea (genérica del catálogo o escrita a mano, con su propio técnico)
 // a una OT que ya existe.
@@ -35,14 +36,18 @@ export function AddTaskModal({
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
-  useEffect(() => {
-    if (!visible) return;
+  // Reset the form each time the modal opens.
+  useResetOnOpen(visible, () => {
     setTaskId(null);
     setTaskName("");
     setTechnicianId(null);
     setOpenField(null);
     setConfirming(false);
     setError(null);
+  });
+
+  useEffect(() => {
+    if (!visible) return;
     Promise.all([listProfiles(), listActiveTaskCountsByTechnician()])
       .then(([profiles, counts]) => {
         setTechnicians(profiles.filter((p) => p.role === "technician" && p.active));
@@ -52,8 +57,12 @@ export function AddTaskModal({
         setTechnicians([]);
         setWorkload({});
       });
+    // The system installation tarea only goes in an 'instalacion' OT (0032):
+    // offering it here would just get the insert rejected.
     listGeneralTasks()
-      .then((all) => setGeneralTasks(all.filter((t) => t.tag_estado === "activo")))
+      .then((all) =>
+        setGeneralTasks(all.filter((t) => t.tag_estado === "activo" && !t.tag_codigo_sistema)),
+      )
       .catch(() => setGeneralTasks([]));
   }, [visible]);
 
@@ -111,7 +120,9 @@ export function AddTaskModal({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => !confirming && onClose()}
+      onRequestClose={() => {
+        if (!confirming) onClose();
+      }}
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>

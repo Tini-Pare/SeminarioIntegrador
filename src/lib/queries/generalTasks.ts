@@ -1,5 +1,6 @@
 import { supabase } from "../supabase";
 import type { TareaGeneral } from "../../types/database";
+import { includesSearch, normalizeSearch } from "../search";
 
 // 23505 = Postgres unique_violation. It's also raised by a primary-key
 // collision (tareas_generales_pkey) when the tag_id_tarea identity sequence is
@@ -11,10 +12,14 @@ function isDuplicateNameError(error: { code?: string; message?: string } | null)
   return error?.code === "23505" && !!error.message?.includes("tareas_generales_nombre_unico_idx");
 }
 
+// System tareas (tag_codigo_sistema, 0032 — e.g. "Instalación de equipo")
+// are left out of every list: the app adds them on its own, and the admin
+// can't edit, delete or pick them.
 export async function listGeneralTasks(): Promise<TareaGeneral[]> {
   const { data, error } = await supabase
     .from("tareas_generales")
     .select("*")
+    .is("tag_codigo_sistema", null)
     .order("tag_nombre_tarea");
   if (error) throw new Error(error.message);
   return data as TareaGeneral[];
@@ -73,4 +78,33 @@ export async function deleteGeneralTask(id: number): Promise<void> {
     }
     throw new Error(error.message);
   }
+}
+
+// Searches active general tasks matching query in name or description.
+// Performs server-side ilike query with accent-insensitive filtering.
+export async function searchGeneralTasks(query: string, limit = 8): Promise<TareaGeneral[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const sanitized = trimmed.replace(/[%_,()]/g, "");
+  const { data, error } = await supabase
+    .from("tareas_generales")
+    .select("*")
+    .eq("tag_estado", "activo")
+    .is("tag_codigo_sistema", null)
+    .or(`tag_nombre_tarea.ilike.%${sanitized}%,tag_descripcion_tarea.ilike.%${sanitized}%`)
+    .limit(limit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const qNorm = normalizeSearch(trimmed);
+  const items = (data as TareaGeneral[]) ?? [];
+  return items
+    .filter(
+      (t) =>
+        includesSearch(t.tag_nombre_tarea, qNorm) || includesSearch(t.tag_descripcion_tarea, qNorm),
+    )
+    .slice(0, limit);
 }

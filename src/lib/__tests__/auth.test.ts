@@ -1,3 +1,6 @@
+import { getProfile, signIn, signOut } from "../auth";
+import { supabase } from "../supabase";
+
 jest.mock("../supabase", () => ({
   supabase: {
     auth: {
@@ -9,9 +12,6 @@ jest.mock("../supabase", () => ({
     from: jest.fn(),
   },
 }));
-
-import { getProfile, signIn, signOut } from "../auth";
-import { supabase } from "../supabase";
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -72,7 +72,7 @@ describe("signIn", () => {
     const result = await signIn("1234", "pw");
     expect(supabase.auth.signOut).toHaveBeenCalled();
     expect(result.error).toBe(
-      "El usuario se encuentra inhabilitado. Comuníquese con el administrador",
+      "El usuario se encuentra inhabilitado. Comunicate con el administrador",
     );
   });
 
@@ -96,7 +96,7 @@ describe("signIn", () => {
     const result = await signIn("1234", "pw");
     expect(supabase.auth.signOut).toHaveBeenCalled();
     expect(result.error).toBe(
-      "El usuario se encuentra inhabilitado. Comuníquese con el administrador",
+      "El usuario se encuentra inhabilitado. Comunicate con el administrador",
     );
   });
 

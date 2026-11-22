@@ -7,23 +7,24 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
+import { Pagination } from "../../../components/Pagination";
 import { AddEquipmentModal } from "../../../components/AddEquipmentModal";
 import { EditEquipmentModal } from "../../../components/EditEquipmentModal";
+import { ScrollableTable, tableCol } from "../../../components/ScrollableTable";
 import { SortHeaderCell } from "../../../components/SortHeaderCell";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { TableFilterBar } from "../../../components/TableFilterBar";
 import { Tooltip } from "../../../components/Tooltip";
-import { EyeIcon, LocationIcon, PencilIcon, TrashIcon } from "../../../components/icons";
-import { BREAKPOINT } from "../../../constants";
+import { EyeIcon, PencilIcon, TrashIcon } from "../../../components/icons";
 import { getProfile } from "../../../lib/auth";
 import { buildLocationColorMap } from "../../../lib/locationColor";
 import { deleteEquipment, listEquipment } from "../../../lib/queries/equipment";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
+import { useIsPhone } from "../../../lib/useIsPhone";
 import { usePagination } from "../../../lib/usePagination";
 import { includesSearch, normalizeSearch } from "../../../lib/search";
 import { useTableSort } from "../../../lib/useTableSort";
@@ -33,11 +34,13 @@ const STATUS_RANK: Record<Equipo["status"], number> = {
   operational: 0,
   waiting: 1,
   repair: 2,
+  pending_install: 3,
 };
 const STATUS_LABELS: Record<Equipo["status"], string> = {
   operational: "Funcionando",
   waiting: "En espera",
   repair: "En reparación",
+  pending_install: "Pendiente de instalación",
 };
 
 export default function EquipmentScreen() {
@@ -55,8 +58,6 @@ export default function EquipmentScreen() {
   const [locationFilter, setLocationFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
-  const { width } = useWindowDimensions();
-  const isWide = width >= BREAKPOINT.tablet;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -225,6 +226,7 @@ export default function EquipmentScreen() {
                 { value: "operational", label: STATUS_LABELS.operational },
                 { value: "waiting", label: STATUS_LABELS.waiting },
                 { value: "repair", label: STATUS_LABELS.repair },
+                { value: "pending_install", label: STATUS_LABELS.pending_install },
               ],
             },
             {
@@ -269,123 +271,72 @@ export default function EquipmentScreen() {
         />
 
         {sorted.length === 0 ? (
-          <Text style={styles.empty}>No hay equipos que coincidan con el filtro.</Text>
-        ) : isWide ? (
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <SortHeaderCell
-                label="Equipo"
-                field="equipo"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1.6 }}
-              />
-
-              <SortHeaderCell
-                label="Ubicación"
-                field="ubicacion"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1.2 }}
-              />
-
-              <SortHeaderCell
-                label="Estado"
-                field="estado"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1 }}
-              />
-
-              <SortHeaderCell
-                label="Tipo"
-                field="tipo"
-                activeField={field}
-                dir={dir}
-                onSort={toggle}
-                style={{ flex: 1 }}
-              />
-
-              <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
-            </View>
-
-            {pageItems.map((e, index) => (
-              <EquipmentTableRow
-                key={e.id}
-                equipment={e}
-                index={index}
-                isAdmin={isAdmin}
-                locationColor={locationColors.get(e.location) ?? "#6a7b62"}
-                onEdit={() => setEditing(e)}
-                onDelete={() => handleDelete(e)}
-                colors={colors}
-                styles={styles}
-              />
-            ))}
-
-            {pageCount > 1 && (
-              <TablePagination page={page} pageCount={pageCount} onPage={setPage} styles={styles} />
-            )}
-          </View>
+          <Text style={styles.empty}>
+            {equipment.length === 0
+              ? "Todavía no hay equipos cargados."
+              : "No hay equipos que coincidan con la búsqueda o los filtros."}
+          </Text>
         ) : (
-          <View style={styles.cardList}>
-            {pageItems.map((e) => (
-              <View key={e.id} style={styles.card}>
-                <View>
-                  <View style={styles.cardTopRow}>
-                    <Text style={styles.code}>{e.code}</Text>
+          <View style={styles.table}>
+            <ScrollableTable minWidth={720}>
+              <View style={styles.tableHeader}>
+                <SortHeaderCell
+                  label="Equipo"
+                  field="equipo"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1.6)}
+                />
 
-                    <StatusBadge status={e.status} />
-                  </View>
+                <SortHeaderCell
+                  label="Ubicación"
+                  field="ubicacion"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1.2)}
+                />
 
-                  <Text style={styles.cardName}>{e.name}</Text>
+                <SortHeaderCell
+                  label="Estado"
+                  field="estado"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1)}
+                />
 
-                  {!e.active && <Text style={styles.code}>Inactivo</Text>}
+                <SortHeaderCell
+                  label="Tipo"
+                  field="tipo"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1)}
+                />
 
-                  <Text style={styles.typeText}>{e.type}</Text>
-
-                  <View style={styles.cardLocationRow}>
-                    <View
-                      style={[
-                        styles.locationDot,
-                        { backgroundColor: locationColors.get(e.location) ?? "#6a7b62" },
-                      ]}
-                    />
-
-                    <LocationIcon size={14} color={colors.textMuted} />
-
-                    <Text style={styles.locationText}>{e.location}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardActions}>
-                  <EquipmentRowActions
-                    equipment={e}
-                    isAdmin={isAdmin}
-                    onEdit={() => setEditing(e)}
-                    onDelete={() => handleDelete(e)}
-                    colors={colors}
-                    styles={styles}
-                  />
-                </View>
+                <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
               </View>
-            ))}
 
-            {pageCount > 1 && (
-              <View style={styles.mobilePaginationWrap}>
-                <TablePagination
-                  page={page}
-                  pageCount={pageCount}
-                  onPage={setPage}
+              {pageItems.map((e, index) => (
+                <EquipmentTableRow
+                  key={e.id}
+                  equipment={e}
+                  index={index}
+                  isAdmin={isAdmin}
+                  locationColor={locationColors.get(e.location) ?? "#6a7b62"}
+                  onEdit={() => setEditing(e)}
+                  onDelete={() => handleDelete(e)}
+                  colors={colors}
                   styles={styles}
                 />
-              </View>
-            )}
+              ))}
+            </ScrollableTable>
           </View>
         )}
+
+        <Pagination page={page} pageCount={pageCount} onPage={setPage} />
 
         <AddEquipmentModal
           visible={addModalVisible}
@@ -415,7 +366,8 @@ export default function EquipmentScreen() {
               <Text style={styles.confirmTitle}>Eliminar equipo</Text>
 
               <Text style={styles.confirmMessage}>
-                ¿Desea eliminar el equipo "{equipmentToDelete?.name}" ({equipmentToDelete?.code})?
+                ¿Querés eliminar el equipo &quot;{equipmentToDelete?.name}&quot; (
+                {equipmentToDelete?.code})?
               </Text>
 
               <View style={styles.confirmActions}>
@@ -466,14 +418,14 @@ function EquipmentRowActions({
 
   return (
     <View style={styles.actionsWrap}>
-      <Tooltip text="Ver detalle" align={isAdmin ? "center" : "right"}>
+      <Tooltip text="Ver equipo" align={isAdmin ? "center" : "right"}>
         <Pressable
           style={[styles.actionButton, hoverView && styles.actionButtonViewHover]}
           onPress={() => router.push(`/equipment/${e.id}`)}
           onHoverIn={() => setHoverView(true)}
           onHoverOut={() => setHoverView(false)}
           hitSlop={6}
-          accessibilityLabel="Ver detalle"
+          accessibilityLabel="Ver equipo"
         >
           <EyeIcon size={16} color={colors.accent} />
         </Pressable>
@@ -532,6 +484,7 @@ function EquipmentTableRow({
   styles: ReturnType<typeof makeStyles>;
 }) {
   const [hovered, setHovered] = useState(false);
+  const isPhone = useIsPhone();
   const isZebra = index % 2 === 1;
 
   const rowBg = hovered
@@ -543,13 +496,14 @@ function EquipmentTableRow({
   return (
     <View
       style={[styles.row, { backgroundColor: rowBg }]}
-      // @ts-expect-error onMouseEnter and onMouseLeave are supported on Web
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <View style={styles.rowMain}>
-        <View style={{ flex: 1.6, justifyContent: "center", paddingRight: 12 }}>
-          <Text style={styles.name} numberOfLines={1}>
+        <View style={[tableCol(1.6), styles.cell]}>
+          {/* Up to two lines on a phone, where the column is narrow; the
+              eye button opens the full ficha. */}
+          <Text style={styles.name} numberOfLines={isPhone ? 2 : 1}>
             {e.name}
           </Text>
 
@@ -559,7 +513,7 @@ function EquipmentTableRow({
           </Text>
         </View>
 
-        <View style={styles.locationCell}>
+        <View style={[tableCol(1.2), styles.locationCell]}>
           <View style={[styles.locationDot, { backgroundColor: locationColor }]} />
 
           <Text style={styles.locationText} numberOfLines={1}>
@@ -567,11 +521,11 @@ function EquipmentTableRow({
           </Text>
         </View>
 
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "flex-start" }}>
+        <View style={[tableCol(1), styles.cell, styles.badgeCell]}>
           <StatusBadge status={e.status} />
         </View>
 
-        <View style={{ flex: 1, justifyContent: "center" }}>
+        <View style={[tableCol(1), styles.cell]}>
           <Text style={styles.typeText} numberOfLines={1}>
             {e.type || "—"}
           </Text>
@@ -592,131 +546,25 @@ function EquipmentTableRow({
   );
 }
 
-function getPageNumbers(current: number, total: number): (number | string)[] {
-  if (total <= 5) {
-    return Array.from({ length: total }, (_, i) => i + 1);
-  }
-  const pages: (number | string)[] = [1];
-  const start = Math.max(2, current - 1);
-  const end = Math.min(total - 1, current + 1);
-
-  if (start > 2) pages.push("…");
-  for (let i = start; i <= end; i++) {
-    pages.push(i);
-  }
-  if (end < total - 1) pages.push("…");
-  pages.push(total);
-  return pages;
-}
-
-function TablePagination({
-  page,
-  pageCount,
-  onPage,
-  styles,
-}: {
-  page: number;
-  pageCount: number;
-  onPage: (p: number) => void;
-  styles: ReturnType<typeof makeStyles>;
-}) {
-  if (pageCount <= 1) return null;
-
-  const pageNumbers = getPageNumbers(page, pageCount);
-
-  return (
-    <View style={styles.paginationWrap}>
-      <Pressable
-        style={[styles.pageNavBtn, page <= 1 ? styles.pageNavBtnDisabled : styles.pageNavBtnActive]}
-        onPress={() => onPage(page - 1)}
-        disabled={page <= 1}
-        accessibilityLabel="Página anterior"
-      >
-        <Text
-          style={[
-            styles.pageNavBtnText,
-            page <= 1 ? styles.pageNavBtnTextDisabled : styles.pageNavBtnTextActive,
-          ]}
-        >
-          ‹ Anterior
-        </Text>
-      </Pressable>
-
-      <View style={styles.pageNumbersWrap}>
-        {pageNumbers.map((p, idx) =>
-          typeof p === "number" ? (
-            <Pressable
-              key={`page-${p}`}
-              style={[
-                styles.pageNumberBtn,
-                p === page ? styles.pageNumberBtnActive : styles.pageNumberBtnInactive,
-              ]}
-              onPress={() => onPage(p)}
-              accessibilityLabel={`Página ${p}`}
-            >
-              <Text
-                style={[
-                  styles.pageNumberText,
-                  p === page ? styles.pageNumberTextActive : styles.pageNumberTextInactive,
-                ]}
-              >
-                {p}
-              </Text>
-            </Pressable>
-          ) : (
-            <View key={`ellipsis-${idx}`} style={styles.pageEllipsis}>
-              <Text style={styles.pageEllipsisText}>…</Text>
-            </View>
-          ),
-        )}
-      </View>
-
-      <Pressable
-        style={[
-          styles.pageNavBtn,
-          page >= pageCount ? styles.pageNavBtnDisabled : styles.pageNavBtnActive,
-        ]}
-        onPress={() => onPage(page + 1)}
-        disabled={page >= pageCount}
-        accessibilityLabel="Página siguiente"
-      >
-        <Text
-          style={[
-            styles.pageNavBtnText,
-            page >= pageCount ? styles.pageNavBtnTextDisabled : styles.pageNavBtnTextActive,
-          ]}
-        >
-          Siguiente ›
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
-
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16 },
+    content: { padding: 20 },
     center: { flex: 1 },
     error: { padding: 16, color: c.destructive },
+    // No wrapping: on a phone a long subtitle would push the button onto its
+    // own line, on the left. The text wraps instead and the button stays right.
     pageHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
       marginBottom: 12,
       gap: 12,
-      flexWrap: "wrap",
     },
-    headerText: { flexShrink: 1, minWidth: 0 },
-    title: { fontSize: 19, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 2, fontSize: 13, color: c.textSecondary },
-    headerActions: {
-      flexDirection: "row",
-      gap: 10,
-      flexWrap: "wrap",
-      flexShrink: 1,
-      maxWidth: "100%",
-    },
+    headerText: { flex: 1, minWidth: 0 },
+    title: { fontSize: 22, fontWeight: "600", color: c.text },
+    subtitle: { marginTop: 3, fontSize: 13.5, color: c.textSecondary },
+    headerActions: { flexDirection: "row", gap: 10, flexShrink: 0 },
     primaryButton: {
       backgroundColor: c.accent,
       paddingHorizontal: 20,
@@ -802,128 +650,14 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.bgRowHover,
     },
     rowMain: { flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
+    cell: { justifyContent: "center" },
+    badgeCell: { alignItems: "flex-start" },
     name: { fontWeight: "600", fontSize: 14.5, color: c.text },
     code: { fontSize: 13, color: c.textSecondary, marginTop: 2 },
-    locationCell: {
-      flex: 1.2,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
-      paddingRight: 12,
-    },
+    locationCell: { flexDirection: "row", alignItems: "center", gap: 7 },
     locationDot: { width: 7, height: 7, borderRadius: 4 },
     locationText: { fontSize: 14, color: c.textSecondary, flexShrink: 1 },
     typeText: { fontSize: 14, color: c.textSecondary },
-    paginationWrap: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      flexWrap: "wrap",
-      gap: 10,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
-      backgroundColor: c.bgCard,
-    },
-    mobilePaginationWrap: {
-      marginTop: 6,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-      overflow: "hidden",
-    },
-    pageNavBtn: {
-      paddingHorizontal: 14,
-      height: 36,
-      borderRadius: 8,
-      borderWidth: 1,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    pageNavBtnDisabled: {
-      borderColor: c.border,
-      backgroundColor: c.bgCard,
-      opacity: 0.4,
-    },
-    pageNavBtnActive: {
-      borderColor: c.accent,
-      backgroundColor: c.accent,
-    },
-    pageNavBtnText: {
-      fontSize: 13,
-      fontWeight: "600",
-    },
-    pageNavBtnTextDisabled: {
-      color: c.textMuted,
-    },
-    pageNavBtnTextActive: {
-      color: "#fff",
-    },
-    pageNumbersWrap: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    pageNumberBtn: {
-      minWidth: 32,
-      height: 32,
-      paddingHorizontal: 6,
-      borderRadius: 8,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    pageNumberBtnActive: {
-      backgroundColor: c.accent,
-    },
-    pageNumberBtnInactive: {
-      backgroundColor: "transparent",
-    },
-    pageNumberText: {
-      fontSize: 13,
-      fontWeight: "600",
-    },
-    pageNumberTextActive: {
-      color: "#fff",
-    },
-    pageNumberTextInactive: {
-      color: c.textSecondary,
-    },
-    pageEllipsis: {
-      minWidth: 24,
-      height: 32,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    pageEllipsisText: {
-      fontSize: 13,
-      color: c.textMuted,
-    },
-    cardList: { gap: 12, width: "100%" },
-    card: {
-      backgroundColor: c.bgCard,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 14,
-      padding: 18,
-    },
-    cardTopRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 10,
-    },
-    cardName: { fontSize: 18, fontWeight: "600", color: c.text },
-    cardLocationRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 13 },
-    cardActions: {
-      marginTop: 14,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: c.borderRow,
-      flexDirection: "row",
-      justifyContent: "flex-end",
-    },
     overlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.45)",

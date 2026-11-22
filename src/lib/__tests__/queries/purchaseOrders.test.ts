@@ -1,3 +1,10 @@
+import {
+  createPurchaseOrder,
+  listPurchaseOrders,
+  resolvePurchaseOrder,
+} from "../../queries/purchaseOrders";
+import { supabase } from "../../supabase";
+
 jest.mock("../../supabase", () => ({
   supabase: {
     from: jest.fn(),
@@ -5,13 +12,6 @@ jest.mock("../../supabase", () => ({
     auth: { getSession: jest.fn() },
   },
 }));
-
-import {
-  createPurchaseOrder,
-  listPurchaseOrders,
-  resolvePurchaseOrder,
-} from "../../queries/purchaseOrders";
-import { supabase } from "../../supabase";
 
 const session = { data: { session: { user: { id: "tech-1" } } } };
 
@@ -52,6 +52,17 @@ describe("listPurchaseOrders", () => {
     await listPurchaseOrders("all");
 
     expect(supabase.auth.getSession).not.toHaveBeenCalled();
+  });
+
+  it("embeds each line's repuesto unit so quantities can show it", async () => {
+    const order2 = jest.fn().mockResolvedValue({ data: [], error: null });
+    const order1 = jest.fn().mockReturnValue({ order: order2 });
+    const select = jest.fn().mockReturnValue({ order: order1 });
+    (supabase.from as jest.Mock).mockReturnValue({ select });
+
+    await listPurchaseOrders("all");
+
+    expect(select).toHaveBeenCalledWith("*, linea_pedido(*, repuestos(rep_nombre, rep_unidad))");
   });
 });
 
