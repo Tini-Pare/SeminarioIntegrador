@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { StatisticsPdfBlock } from "../../lib/statisticsPdf";
 import type { ThemeColors } from "../../lib/theme";
 import { useTheme } from "../../lib/ThemeContext";
+import { useResetOnOpen } from "../../lib/useResetOnOpen";
 import { FormFooter } from "../FormFooter";
 import { CheckIcon } from "../icons";
 
@@ -26,9 +27,7 @@ export function ExportPdfModal({
   const styles = makeStyles(colors);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (visible) setSelected(new Set(blocks.map((b) => b.key)));
-  }, [visible, blocks]);
+  useResetOnOpen(visible, () => setSelected(new Set(blocks.map((b) => b.key))), [blocks]);
 
   const allSelected = selected.size === blocks.length;
 

@@ -12,6 +12,7 @@ import {
 import type { TextInputInstance, ViewInstance } from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
+import { overlayPosition } from "../lib/webStyles";
 
 export type TaskOption = { value: number; label: string };
 
@@ -241,7 +242,7 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
     },
     chevron: { fontSize: 10, color: c.textMuted },
     backdrop: {
-      position: Platform.OS === "web" ? "fixed" : "absolute",
+      position: overlayPosition,
       top: Platform.OS === "web" ? 0 : -1000,
       left: Platform.OS === "web" ? 0 : -1000,
       right: Platform.OS === "web" ? 0 : -1000,

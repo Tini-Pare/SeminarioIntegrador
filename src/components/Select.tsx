@@ -13,6 +13,7 @@ import type { TextInputInstance, ViewInstance } from "react-native";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 import { useResetOnOpen } from "../lib/useResetOnOpen";
+import { overlayPosition } from "../lib/webStyles";
 
 export type SelectOption<T extends number | string = number> = { value: T; label: string };
 
@@ -201,7 +202,7 @@ function makeStyles(c: ThemeColors, flipVertical: boolean) {
     placeholderText: { flex: 1, fontSize: 14, color: c.textMuted },
     chevron: { fontSize: 10, color: c.textMuted },
     backdrop: {
-      position: Platform.OS === "web" ? "fixed" : "absolute",
+      position: overlayPosition,
       top: Platform.OS === "web" ? 0 : -1000,
       left: Platform.OS === "web" ? 0 : -1000,
       right: Platform.OS === "web" ? 0 : -1000,

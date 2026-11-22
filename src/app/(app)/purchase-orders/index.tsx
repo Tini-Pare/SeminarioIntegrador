@@ -41,6 +41,7 @@ import { includesSearch, normalizeSearch, startsWithSearch } from "../../../lib/
 import { useTableSort } from "../../../lib/useTableSort";
 import type { PedidoCompra, Repuesto } from "../../../types/database";
 import { useInitialLoad } from "../../../lib/useInitialLoad";
+import { overlayPosition } from "../../../lib/webStyles";
 
 const ESTADO_LABELS: Record<PedidoCompra["ped_estado"], string> = {
   pendiente: "Pendiente",
@@ -182,7 +183,7 @@ const dropdownStyles = StyleSheet.create({
   btnText: { fontSize: 13.5, flex: 1 },
   chevron: { fontSize: 10 },
   backdrop: {
-    position: Platform.OS === "web" ? "fixed" : "absolute",
+    position: overlayPosition,
     top: Platform.OS === "web" ? 0 : -1000,
     left: Platform.OS === "web" ? 0 : -1000,
     right: Platform.OS === "web" ? 0 : -1000,

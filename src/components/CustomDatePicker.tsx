@@ -13,6 +13,7 @@ import { CalendarIcon } from "./icons";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
 import { useResetOnOpen } from "../lib/useResetOnOpen";
+import { overlayPosition, type WebPressableState } from "../lib/webStyles";
 
 const MONTH_NAMES = [
   "Enero",
@@ -471,7 +472,7 @@ export function CustomDatePicker({
                 return (
                   <Pressable
                     key={`day-${idx}`}
-                    style={({ hovered }: { hovered?: boolean }) => [
+                    style={({ hovered }: WebPressableState) => [
                       styles.dayCell,
                       hovered && !isDisabled && !isSelected && styles.dayCellHover,
                       isToday && !isSelected && styles.dayCellToday,
@@ -553,7 +554,7 @@ function makeStyles(
       justifyContent: "center",
     },
     backdrop: {
-      position: Platform.OS === "web" ? "fixed" : "absolute",
+      position: overlayPosition,
       top: Platform.OS === "web" ? 0 : -1000,
       left: Platform.OS === "web" ? 0 : -1000,
       right: Platform.OS === "web" ? 0 : -1000,

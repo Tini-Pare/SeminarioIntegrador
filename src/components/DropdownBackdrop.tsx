@@ -1,4 +1,5 @@
 import { Platform, Pressable, StyleSheet } from "react-native";
+import { overlayPosition } from "../lib/webStyles";
 
 // One shared click-catcher for a form that has several dropdowns sharing a
 // single "which field is open" state. Sits below the field controls
@@ -13,7 +14,7 @@ export function DropdownBackdrop({ open, onPress }: { open: boolean; onPress: ()
 
 const styles = StyleSheet.create({
   backdrop: {
-    position: Platform.OS === "web" ? "fixed" : "absolute",
+    position: overlayPosition,
     top: Platform.OS === "web" ? 0 : -1000,
     left: Platform.OS === "web" ? 0 : -1000,
     right: Platform.OS === "web" ? 0 : -1000,
