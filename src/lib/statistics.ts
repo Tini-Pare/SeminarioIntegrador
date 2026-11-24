@@ -1179,11 +1179,23 @@ export function reliabilityByEquipmentType(
 // ---------------------------------------------------------------------------
 // Inicio (today's alerts)
 
-// Open OTs whose fecha estimada already passed, most overdue first.
+// Open OTs whose fecha requerida de cierre already passed, most overdue first.
 export function overdueOrders(orders: WorkOrder[], today: string): WorkOrder[] {
   return orders
-    .filter((o) => o.status !== "resolved" && !!o.planned_end_date && o.planned_end_date < today)
+    .filter((o) => overdueDays(o, today) !== null)
     .sort((a, b) => (a.planned_end_date! < b.planned_end_date! ? -1 : 1));
+}
+
+// Days an open OT is past its fecha requerida de cierre, or null when it
+// isn't late (resolved, no date, or due today or later). Same rule as the
+// Inicio list, so the OT screen and Inicio always agree on "Atrasada".
+export function overdueDays(
+  order: Pick<WorkOrder, "status" | "planned_end_date">,
+  today: string,
+): number | null {
+  if (order.status === "resolved" || !order.planned_end_date) return null;
+  if (order.planned_end_date >= today) return null;
+  return daysBetween(order.planned_end_date, today);
 }
 
 // ---------------------------------------------------------------------------

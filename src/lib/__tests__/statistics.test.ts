@@ -13,6 +13,7 @@ import {
   median,
   orderResolutionRows,
   ordersByBucket,
+  overdueDays,
   overdueOrders,
   partConsumption,
   planCompliance,
@@ -617,6 +618,22 @@ describe("overdueOrders", () => {
       "2026-03-10",
     );
     expect(result.map((o) => o.id)).toEqual([2, 1]);
+  });
+});
+
+describe("overdueDays", () => {
+  it("counts the days an open OT is past its fecha requerida de cierre", () => {
+    expect(overdueDays(order({ planned_end_date: "2026-03-01" }), "2026-03-10")).toBe(9);
+    expect(overdueDays(order({ planned_end_date: "2026-03-09" }), "2026-03-10")).toBe(1);
+  });
+
+  it("is null when the OT isn't late: due today or later, no date, or resolved", () => {
+    expect(overdueDays(order({ planned_end_date: "2026-03-10" }), "2026-03-10")).toBeNull();
+    expect(overdueDays(order({ planned_end_date: "2026-03-15" }), "2026-03-10")).toBeNull();
+    expect(overdueDays(order({}), "2026-03-10")).toBeNull();
+    expect(
+      overdueDays(order({ planned_end_date: "2026-03-01", status: "resolved" }), "2026-03-10"),
+    ).toBeNull();
   });
 });
 
