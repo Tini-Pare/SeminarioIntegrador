@@ -64,6 +64,33 @@ export function median(values: number[]): number | null {
   return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+// A closed correctiva's priority and dates, the data behind the close-time
+// reference shown when generating a new OT (see listClosedCorrectiveDurations).
+export type ClosedOrderDuration = {
+  priority: WorkOrder["priority"];
+  start: string;
+  end: string;
+};
+
+// Backs the fecha requerida de cierre with data instead of a guess: how many
+// days past correctivas of the same priority took from start to close. The
+// median, so one OT stuck for months doesn't skew it.
+export function closeTimeReference(
+  rows: ClosedOrderDuration[],
+  priority: WorkOrder["priority"],
+): { medianDays: number | null; closed: number } {
+  const days = rows
+    .filter((r) => r.priority === priority)
+    .map((r) => Math.max(0, daysBetween(r.start, r.end)));
+  return { medianDays: median(days), closed: days.length };
+}
+
+// The date suggested from that reference: today plus the median, rounded up
+// to whole days (a 2.5-day median needs 3 days to fit).
+export function referenceCloseDate(today: string, medianDays: number | null): string | null {
+  return medianDays === null ? null : addDays(today, Math.ceil(medianDays));
+}
+
 function isAnalyzed(order: Pick<WorkOrder, "type">): order is WorkOrder & { type: AnalyzedType } {
   return order.type === "correctivo" || order.type === "preventivo";
 }
@@ -893,12 +920,19 @@ export function resolutionByPriority(
   });
 }
 
-export type PlanInfo = { pm_id_plan: number; pm_nombre_plan: string; pm_frecuencia: number };
+export type PlanInfo = {
+  pm_id_plan: number;
+  pm_nombre_plan: string;
+  pm_frecuencia: number;
+  pm_plazo_dias: number;
+};
 
 export type PlanCompliance = {
   planId: number | null;
   name: string;
   frequencyDays: number | null;
+  // Plazo de ejecución: days each of its OTs has to be closed in (0051).
+  deadlineDays: number | null;
   total: number;
   onTime: number;
   late: number;
@@ -910,15 +944,16 @@ export type PlanCompliance = {
   compliancePct: number | null;
 };
 
-// Preventive OTs are generated without a fecha estimada (0035/0046). Their
-// deadline is the one the admin set, if any, or else the plan's frequency:
-// it has to be done before the next one of the same plan is due.
+// A preventive OT's deadline is its fecha requerida de cierre, which it's
+// created with (start + the plan's plazo de ejecución, 0051). The plazo
+// fallback only covers an OT that still has no date, e.g. one created
+// before 0050 ran.
 export function preventiveDeadline(
   order: Pick<WorkOrder, "start_date" | "planned_end_date">,
-  frequencyDays: number | null,
+  deadlineDays: number | null,
 ): string | null {
   if (order.planned_end_date) return order.planned_end_date;
-  return frequencyDays ? addDays(order.start_date, frequencyDays) : null;
+  return deadlineDays ? addDays(order.start_date, deadlineDays) : null;
 }
 
 // Cumplimiento de cada plan preventivo: of its OTs started in the period,
@@ -940,6 +975,7 @@ export function planCompliance(
       planId: o.plan_id_manequipo ?? null,
       name: plan?.pm_nombre_plan ?? o.plan_name ?? "Plan eliminado",
       frequencyDays: plan?.pm_frecuencia ?? null,
+      deadlineDays: plan?.pm_plazo_dias ?? null,
       total: 0,
       onTime: 0,
       late: 0,
@@ -947,7 +983,7 @@ export function planCompliance(
       inProgress: 0,
       compliancePct: null,
     };
-    const deadline = preventiveDeadline(o, row.frequencyDays);
+    const deadline = preventiveDeadline(o, row.deadlineDays);
     row.total += 1;
     if (o.end_date) {
       // Without any deadline (plan deleted) a closed OT counts as done.
@@ -1151,11 +1187,23 @@ export function reliabilityByEquipmentType(
 // ---------------------------------------------------------------------------
 // Inicio (today's alerts)
 
-// Open OTs whose fecha estimada already passed, most overdue first.
+// Open OTs whose fecha requerida de cierre already passed, most overdue first.
 export function overdueOrders(orders: WorkOrder[], today: string): WorkOrder[] {
   return orders
-    .filter((o) => o.status !== "resolved" && !!o.planned_end_date && o.planned_end_date < today)
+    .filter((o) => overdueDays(o, today) !== null)
     .sort((a, b) => (a.planned_end_date! < b.planned_end_date! ? -1 : 1));
+}
+
+// Days an open OT is past its fecha requerida de cierre, or null when it
+// isn't late (resolved, no date, or due today or later). Same rule as the
+// Inicio list, so the OT screen and Inicio always agree on "Atrasada".
+export function overdueDays(
+  order: Pick<WorkOrder, "status" | "planned_end_date">,
+  today: string,
+): number | null {
+  if (order.status === "resolved" || !order.planned_end_date) return null;
+  if (order.planned_end_date >= today) return null;
+  return daysBetween(order.planned_end_date, today);
 }
 
 // ---------------------------------------------------------------------------

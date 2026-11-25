@@ -636,13 +636,16 @@ describe("generateOrder", () => {
   it("crea la OT vacía (sin tareas ni falla) con la prioridad elegida, marca la solicitud en_proceso y loguea historial", async () => {
     const m = mockGenerate();
 
-    await expect(generateOrder(1, { priority: "high" })).resolves.toBe(27);
+    await expect(
+      generateOrder(1, { priority: "high", requiredCloseDate: "2099-12-31" }),
+    ).resolves.toBe(27);
 
     expect(m.selectEq).toHaveBeenCalledWith("sol_id_solicitud", 1);
     expect(m.insertOrden).toHaveBeenCalledWith({
       sol_id_solicitud: 1,
       eq_id_equipo: 5,
       ot_prioridad: "high",
+      ot_fecha_estimada_fin: "2099-12-31",
     });
     expect(m.insertTareas).not.toHaveBeenCalled();
     expect(m.insertFallo).not.toHaveBeenCalled();
@@ -656,16 +659,37 @@ describe("generateOrder", () => {
   it("no genera una segunda OT si la solicitud ya no está pendiente", async () => {
     const m = mockGenerate("en_proceso");
 
-    await expect(generateOrder(1, { priority: "low" })).rejects.toThrow(
-      "Esta solicitud ya no está pendiente.",
-    );
+    await expect(
+      generateOrder(1, { priority: "low", requiredCloseDate: "2099-12-31" }),
+    ).rejects.toThrow("Esta solicitud ya no está pendiente.");
     expect(m.insertOrden).not.toHaveBeenCalled();
   });
 
   it("exige elegir una prioridad", async () => {
-    await expect(generateOrder(1, { priority: undefined as unknown as "low" })).rejects.toThrow(
-      "Elegí una prioridad.",
+    await expect(
+      generateOrder(1, {
+        priority: undefined as unknown as "low",
+        requiredCloseDate: "2099-12-31",
+      }),
+    ).rejects.toThrow("Elegí una prioridad.");
+  });
+
+  it("exige la fecha requerida de cierre", async () => {
+    const m = mockGenerate();
+
+    await expect(generateOrder(1, { priority: "medium", requiredCloseDate: "" })).rejects.toThrow(
+      "Elegí la fecha requerida de cierre.",
     );
+    expect(m.insertOrden).not.toHaveBeenCalled();
+  });
+
+  it("rechaza una fecha requerida de cierre anterior a hoy", async () => {
+    const m = mockGenerate();
+
+    await expect(
+      generateOrder(1, { priority: "medium", requiredCloseDate: "2020-01-01" }),
+    ).rejects.toThrow("La fecha requerida de cierre no puede ser anterior a hoy.");
+    expect(m.insertOrden).not.toHaveBeenCalled();
   });
 });
 
@@ -869,7 +893,7 @@ describe("updateOrderStartDate", () => {
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
     await expect(updateOrderStartDate(1, "2026-03-01")).rejects.toThrow(
-      "La fecha de inicio no puede ser posterior a la fecha estimada de resolución.",
+      "La fecha de inicio no puede ser posterior a la fecha requerida de cierre.",
     );
   });
 });
@@ -893,7 +917,11 @@ describe("updateOrderPlannedEndDate", () => {
     expect(update).toHaveBeenCalledWith({ ot_fecha_estimada_fin: "2026-02-01" });
     expect(eq).toHaveBeenCalledWith("ot_id_orden", 7);
     expect(insertHistorial).toHaveBeenCalledWith(
-      expect.objectContaining({ eq_id_equipo: 5, hi_tipo: "Replanificada" }),
+      expect.objectContaining({
+        eq_id_equipo: 5,
+        hi_tipo: "Replanificada",
+        hi_nota: "Fecha requerida de cierre fijada para el 2026-02-01.",
+      }),
     );
   });
 
@@ -914,7 +942,7 @@ describe("updateOrderPlannedEndDate", () => {
     (supabase.from as jest.Mock).mockReturnValue({ update });
 
     await expect(updateOrderPlannedEndDate(1, "2026-01-01")).rejects.toThrow(
-      "La fecha estimada no puede ser anterior a la fecha de inicio de la orden.",
+      "La fecha requerida de cierre no puede ser anterior a la fecha de inicio de la orden.",
     );
   });
 });

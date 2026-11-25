@@ -27,6 +27,7 @@ describe("listMaintenancePlans", () => {
           pm_nombre_plan: "Plan A",
           pm_descripcion_plan: "Desc A",
           pm_frecuencia: 30,
+          pm_plazo_dias: 7,
           pm_estado: "activo",
           task_count: 2,
           equipment_count: 5,
@@ -92,6 +93,7 @@ describe("getMaintenancePlan", () => {
                   pm_nombre_plan: "Plan A",
                   pm_descripcion_plan: null,
                   pm_frecuencia: 30,
+                  pm_plazo_dias: 7,
                   pm_hora_emision: 6,
                   pm_estado: "activo",
                   tipos_de_equipos: { te_nombre: "Aire" },
@@ -115,6 +117,8 @@ describe("getMaintenancePlan", () => {
     expect(mockSelectEquipos).toHaveBeenCalledWith(expect.stringContaining("equipo!inner("));
     expect(mockEqPlan).toHaveBeenCalledWith("pm_id_plan", 5);
     expect(mockEqActive).toHaveBeenCalledWith("equipo.eq_estado_registro", "activo");
+    expect(result.frequency).toBe(30);
+    expect(result.deadlineDays).toBe(7);
     expect(result.equipments).toEqual([
       {
         equipmentId: 1,
@@ -176,6 +180,7 @@ describe("createMaintenancePlan", () => {
       name: "Plan Trimestral",
       description: "Revision y filtros",
       frequency: 90,
+      deadlineDays: 10,
       estado: "activo" as const,
       taskIds: [1, 2],
     };
@@ -187,6 +192,7 @@ describe("createMaintenancePlan", () => {
       p_nombre: "Plan Trimestral",
       p_descripcion: "Revision y filtros",
       p_frecuencia: 90,
+      p_plazo: 10,
       p_estado: "activo",
       p_tareas: [1, 2],
       p_equipos: [],
@@ -206,6 +212,7 @@ describe("createMaintenancePlan", () => {
         typeId: 2,
         name: "Plan Vacío",
         frequency: 30,
+        deadlineDays: 7,
         estado: "activo",
         taskIds: [],
       }),
@@ -225,6 +232,7 @@ describe("updateMaintenancePlan", () => {
       name: "Plan Modificado",
       description: null,
       frequency: 60,
+      deadlineDays: 5,
       estado: "inactivo",
       taskIds: [1],
     });
@@ -234,6 +242,7 @@ describe("updateMaintenancePlan", () => {
       p_nombre: "Plan Modificado",
       p_descripcion: null,
       p_frecuencia: 60,
+      p_plazo: 5,
       p_estado: "inactivo",
       p_tareas: [1],
       p_equipos: [],

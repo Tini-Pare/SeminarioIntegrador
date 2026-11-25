@@ -53,12 +53,19 @@ type EquipmentInput = {
 
 // An equipo is registered either already installed (with its date) or
 // pending installation, which also generates its installation OT for the
-// chosen técnico. Either way alta_equipo (0033) also handles the plans de
-// mantenimiento of its tipo, all in one transaction.
+// chosen técnico, with its fecha requerida de cierre like any other OT.
+// Either way alta_equipo (0033, signature from 0050) also handles the plans
+// de mantenimiento of its tipo, all in one transaction.
 export type NewEquipmentInput = Omit<EquipmentInput, "installDate" | "active"> &
   (
     | { pending: false; installDate: string }
-    | { pending: true; technicianId: string; priority: "low" | "medium" | "high" }
+    | {
+        pending: true;
+        technicianId: string;
+        priority: "low" | "medium" | "high";
+        // yyyy-mm-dd, the installation OT's deadline.
+        requiredCloseDate: string;
+      }
   );
 
 // 23505 = Postgres unique_violation — eq_codigo has a UNIQUE constraint
@@ -75,7 +82,11 @@ export async function createEquipment(
     p_modelo: input.model,
     p_pendiente: input.pending,
     ...(input.pending
-      ? { p_tecnico: input.technicianId, p_prioridad: input.priority }
+      ? {
+          p_tecnico: input.technicianId,
+          p_prioridad: input.priority,
+          p_fecha_requerida: input.requiredCloseDate,
+        }
       : { p_fecha_instalacion: input.installDate }),
   });
   if (error) {
@@ -197,6 +208,27 @@ export function summarizeFaultHistory(faults: Solicitud[]): FaultHistorySummary 
 // author_id of the events the system writes on its own (hi_autor_id null,
 // e.g. the daily preventive OT generation — 0035); shown as "Sistema".
 export const SYSTEM_AUTHOR_ID = "system";
+
+// Every equipo's historial of one event type logged since `since` — Inicio
+// reads today's "Tarea finalizada" rows for the time a tarea was finished
+// (taro_fecha_fin is only a date).
+export async function listHistorySince(since: Date, type: string): Promise<HistorialEntry[]> {
+  const { data, error } = await supabase
+    .from("historial")
+    .select("*")
+    .eq("hi_tipo", type)
+    .gte("hi_fecha_hora", since.toISOString())
+    .order("hi_fecha_hora", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data as Database["public"]["Tables"]["historial"]["Row"][]).map((row) => ({
+    id: row.hi_id,
+    equipment_id: row.eq_id_equipo,
+    type: row.hi_tipo,
+    note: row.hi_nota,
+    author_id: row.hi_autor_id ?? SYSTEM_AUTHOR_ID,
+    created_at: row.hi_fecha_hora,
+  }));
+}
 
 export async function listHistoryByEquipment(equipmentId: number): Promise<HistorialEntry[]> {
   const { data, error } = await supabase

@@ -8,8 +8,6 @@ https://docs.expo.dev/versions/v58.0.0/ before writing any code.
   instance types (`useRef<ViewInstance>`, `TextInputInstance`,
   `ScrollViewInstance`), not the component (`useRef<View>`), and deep imports
   from `react-native/Libraries/*` don't type-check.
-- Expo Go for SDK 58 may not be on the stores yet; until it is, run the app
-  with a development build (`expo-dev-client` + EAS Build).
 - `.npmrc` sets `legacy-peer-deps=true` because
   `@react-native-community/datetimepicker` declares an optional
   `react-native-windows` peer that pins an older React Native.

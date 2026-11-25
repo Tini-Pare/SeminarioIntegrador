@@ -11,10 +11,18 @@ import { RadioGroup, type RadioOption } from "./RadioGroup";
 import { Select } from "./Select";
 import { useTheme } from "../lib/ThemeContext";
 import type { ThemeColors } from "../lib/theme";
-import { CustomDatePicker, isDateWithinMax, isValidDateString, toDbDate } from "./CustomDatePicker";
+import {
+  CustomDatePicker,
+  fromDbDate,
+  getTodayDbDate,
+  isDateWithinMax,
+  isValidDateString,
+  parseDateString,
+  toDbDate,
+} from "./CustomDatePicker";
 import { useResetOnOpen } from "../lib/useResetOnOpen";
 
-type OpenField = "type" | "location" | "install" | "technician" | null;
+type OpenField = "type" | "location" | "install" | "technician" | "requiredClose" | null;
 type Installed = "si" | "no";
 type Priority = "low" | "medium" | "high";
 
@@ -38,6 +46,8 @@ export function AddEquipmentModal({
   const [installed, setInstalled] = useState<Installed | null>(null);
   const [technicianId, setTechnicianId] = useState<string | null>(null);
   const [priority, setPriority] = useState<Priority | null>(null);
+  // The installation OT's deadline: every OT is created with one.
+  const [requiredCloseDate, setRequiredCloseDate] = useState("");
   const [technicians, setTechnicians] = useState<{ value: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +71,7 @@ export function AddEquipmentModal({
     setInstalled(null);
     setTechnicianId(null);
     setPriority(null);
+    setRequiredCloseDate("");
     setOpenField(null);
     setError(null);
     setShowMissing(false);
@@ -111,7 +122,10 @@ export function AddEquipmentModal({
     installDate: installed === "si" && !installDate.trim(),
     technician: installed === "no" && !technicianId,
     priority: installed === "no" && !priority,
+    requiredCloseDate: installed === "no" && !requiredCloseDate.trim(),
   };
+  const today = getTodayDbDate();
+  const todayDate = parseDateString(fromDbDate(today)) ?? undefined;
   const isMissing = (field: keyof typeof missing) => showMissing && missing[field];
 
   async function handleSubmit() {
@@ -129,6 +143,15 @@ export function AddEquipmentModal({
         setError("La fecha de instalación no puede ser posterior a hoy.");
         return;
       }
+    } else {
+      if (!isValidDateString(requiredCloseDate.trim())) {
+        setError("Ingresá una fecha requerida de cierre válida (dd/mm/aaaa).");
+        return;
+      }
+      if (toDbDate(requiredCloseDate.trim()) < today) {
+        setError("La fecha requerida de cierre no puede ser anterior a hoy.");
+        return;
+      }
     }
     setSaving(true);
     setError(null);
@@ -144,7 +167,13 @@ export function AddEquipmentModal({
       await createEquipment(
         installed === "si"
           ? { ...base, pending: false, installDate: toDbDate(installDate.trim()) }
-          : { ...base, pending: true, technicianId: technicianId!, priority: priority! },
+          : {
+              ...base,
+              pending: true,
+              technicianId: technicianId!,
+              priority: priority!,
+              requiredCloseDate: toDbDate(requiredCloseDate.trim()),
+            },
       );
 
       onCreated();
@@ -279,6 +308,26 @@ export function AddEquipmentModal({
                 onChange={setPriority}
                 options={priorityOptions}
               />
+
+              <View
+                style={[styles.fieldRow, openField === "requiredClose" && styles.dateRowRaised]}
+              >
+                <View style={styles.field}>
+                  <FieldLabel
+                    text="Fecha requerida de cierre de la instalación"
+                    required
+                    style={styles.label}
+                  />
+                  <CustomDatePicker
+                    value={requiredCloseDate}
+                    onChange={setRequiredCloseDate}
+                    open={openField === "requiredClose"}
+                    onOpenChange={(o) => setOpenField(o ? "requiredClose" : null)}
+                    minDate={todayDate}
+                    hasError={isMissing("requiredCloseDate")}
+                  />
+                </View>
+              </View>
             </>
           )}
 

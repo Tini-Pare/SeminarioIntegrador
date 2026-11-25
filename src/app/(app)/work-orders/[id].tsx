@@ -15,6 +15,7 @@ import { BackIcon, ReassignIcon } from "../../../components/icons";
 import {
   CustomDatePicker,
   fromDbDate,
+  getTodayDbDate,
   isValidDateString,
   parseDateString,
   toDbDate,
@@ -38,6 +39,7 @@ import {
 } from "../../../lib/queries/faults";
 import { listFaultTypes } from "../../../lib/queries/faultTypes";
 import { listProfiles } from "../../../lib/queries/profiles";
+import { overdueDays } from "../../../lib/statistics";
 import { supabase } from "../../../lib/supabase";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
@@ -77,20 +79,11 @@ function taskStatusLabel(task: SolicitudTask): string {
 
 // The one place where an OT is managed after it's generated (Solicitudes
 // only creates it, empty — see generateOrder): agregar/reasignar tareas,
-// prioridad, falla genérica, fecha de inicio y fecha estimada. Its estado
+// prioridad, falla genérica, fecha de inicio y fecha requerida de cierre. Its estado
 // is still automatic (sync_orden_estado in 0017). Falla genérica comes
 // before the tareas grid on purpose: one diagnosis, then the work for it.
 // The four editable fields share one compact card, side by side, so the
 // tareas grid starts high on the page.
-// Late = the admin's target date passed and the OT still isn't resolved.
-// Derived on the fly, so it needs no column and no manual state change.
-function isOverdue(s: { status: string; planned_end_date: string | null }): boolean {
-  if (s.status === "resolved" || !s.planned_end_date) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(`${s.planned_end_date}T00:00:00`) < today;
-}
-
 export default function WorkOrderDetail() {
   // `created` is set by SolicitudDetailModal right after generating the OT,
   // so this screen can confirm it with its number ("Se generó la OT-0027").
@@ -221,6 +214,15 @@ export default function WorkOrderDetail() {
     [startDateRaw],
   );
 
+  // A deadline can't fall before the OT starts nor before today: rescheduling
+  // it into the past would make the OT overdue the moment it's saved.
+  const plannedMinDate = useMemo(() => {
+    const today = parseDateString(fromDbDate(getTodayDbDate())) ?? undefined;
+    if (!orderStartDate) return today;
+    if (!today) return orderStartDate;
+    return orderStartDate > today ? orderStartDate : today;
+  }, [orderStartDate]);
+
   const plannedEndDateRaw = order?.planned_end_date;
   const orderPlannedEndDate = useMemo(
     () =>
@@ -288,23 +290,30 @@ export default function WorkOrderDetail() {
       return;
     }
     if (order.planned_end_date && toDbDate(dateDraft) > order.planned_end_date) {
-      setError("La fecha de inicio no puede ser posterior a la fecha estimada de resolución.");
+      setError("La fecha de inicio no puede ser posterior a la fecha requerida de cierre.");
       return;
     }
     await save(() => updateOrderStartDate(order.id, toDbDate(dateDraft)));
   }
 
-  async function handleSavePlannedDate(clear = false) {
+  async function handleSavePlannedDate() {
     if (!order) return;
-    if (!clear && !isValidDateString(plannedDraft)) {
+    if (!isValidDateString(plannedDraft)) {
       setError("Ingresá una fecha válida (dd/mm/aaaa).");
       return;
     }
-    if (!clear && order.start_date && toDbDate(plannedDraft) < order.start_date) {
-      setError("La fecha estimada no puede ser anterior a la fecha de inicio de la orden.");
+    const planned = toDbDate(plannedDraft);
+    if (order.start_date && planned < order.start_date) {
+      setError(
+        "La fecha requerida de cierre no puede ser anterior a la fecha de inicio de la orden.",
+      );
       return;
     }
-    await save(() => updateOrderPlannedEndDate(order.id, clear ? null : toDbDate(plannedDraft)));
+    if (planned < getTodayDbDate()) {
+      setError("La fecha requerida de cierre no puede ser anterior a hoy.");
+      return;
+    }
+    await save(() => updateOrderPlannedEndDate(order.id, planned));
   }
 
   if (loading) {
@@ -327,6 +336,9 @@ export default function WorkOrderDetail() {
   const s = order;
   const orderNumber = formatOrderNumber(order.id);
   const isResolved = s.status === "resolved";
+  // Days past the fecha requerida de cierre (null = not late). Derived on the
+  // fly, so it needs no column and no manual state change.
+  const lateDays = overdueDays(s, getTodayDbDate());
   // A just-generated OT has no tareas yet; its DB estado is 'assigned',
   // which would read as if someone were already on it.
   const statusLabel =
@@ -444,7 +456,7 @@ export default function WorkOrderDetail() {
           {s.solicitud && <PhotoCarousel photoUrls={s.solicitud.photo_urls} height={260} />}
         </View>
 
-        {/* Inicio, fecha estimada, prioridad y falla side by side — stacked
+        {/* Inicio, fecha requerida de cierre, prioridad y falla side by side — stacked
             one section each, they pushed the tareas grid far down. The field
             being edited takes the whole row, so its date picker / chips /
             select get room without squeezing the other three. */}
@@ -491,7 +503,7 @@ export default function WorkOrderDetail() {
             </View>
 
             <View style={[styles.planCell, editing === "planned" && styles.planCellEditing]}>
-              <Text style={styles.metaLabel}>Fecha estimada de resolución</Text>
+              <Text style={styles.metaLabel}>Fecha requerida de cierre</Text>
 
               {editing === "planned" ? (
                 <View style={styles.dateEditRow}>
@@ -500,7 +512,7 @@ export default function WorkOrderDetail() {
                     onChange={setPlannedDraft}
                     compact
                     maxWidth={200}
-                    minDate={orderStartDate}
+                    minDate={plannedMinDate}
                   />
 
                   <Pressable
@@ -527,9 +539,9 @@ export default function WorkOrderDetail() {
                     {fromDbDate(s.planned_end_date) || "Sin definir"}
                   </Text>
 
-                  {isOverdue(s) && (
+                  {lateDays !== null && (
                     <Text style={{ color: colors.destructive, fontWeight: "600", fontSize: 13 }}>
-                      Atrasada
+                      Atrasada · {lateDays} {lateDays === 1 ? "día" : "días"}
                     </Text>
                   )}
 

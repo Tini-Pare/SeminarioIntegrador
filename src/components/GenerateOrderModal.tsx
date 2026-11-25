@@ -1,8 +1,23 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal, StyleSheet, Text, View } from "react-native";
+import { listClosedCorrectiveDurations, type GenerateOrderInput } from "../lib/queries/faults";
+import {
+  closeTimeReference,
+  formatDays,
+  referenceCloseDate,
+  type ClosedOrderDuration,
+} from "../lib/statistics";
 import type { ThemeColors } from "../lib/theme";
 import { useTheme } from "../lib/ThemeContext";
 import type { Solicitud } from "../types/database";
+import {
+  CustomDatePicker,
+  fromDbDate,
+  getTodayDbDate,
+  isValidDateString,
+  parseDateString,
+  toDbDate,
+} from "./CustomDatePicker";
 import { FormFooter } from "./FormFooter";
 import { OrderFlowSteps } from "./OrderFlowSteps";
 import { RadioGroup, type RadioOption } from "./RadioGroup";
@@ -17,11 +32,15 @@ const PRIORITY_LABELS: Record<Priority, string> = {
 };
 
 // SCRUM-24: confirmation step before generating una orden_de_trabajo from a
-// solicitud pendiente. The OT is created empty (just the solicitud's data
-// and the prioridad); tareas, técnicos and falla genérica are loaded
-// afterwards on the OT screen, where the caller navigates on confirm.
-// Prioridad is the only thing asked here because ot_prioridad is required
-// and the admin must always pick it explicitly (no default).
+// solicitud pendiente. The OT is created empty (just the solicitud's data,
+// the prioridad and the fecha requerida de cierre); tareas, técnicos and
+// falla genérica are loaded afterwards on the OT screen, where the caller
+// navigates on confirm. Both fields are required and picked explicitly.
+//
+// The fecha requerida de cierre is the deadline the admin sets by
+// availability and workload. To back it with data rather than a guess, the
+// modal shows how long past correctivas of the chosen priority took to close
+// (median) and prefills the date with it; the admin can change it freely.
 export function GenerateOrderModal({
   visible,
   onClose,
@@ -30,14 +49,42 @@ export function GenerateOrderModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onConfirm: (input: { priority: Priority }) => void | Promise<void>;
+  onConfirm: (input: GenerateOrderInput) => void | Promise<void>;
   equipmentLabel: string;
 }) {
   const [priority, setPriority] = useState<Priority | null>(null);
+  // The date the admin typed or picked; null until they touch it. Until then
+  // the field shows the suggestion derived from the priority (below), so a
+  // priority change only moves the date while it hasn't been edited.
+  const [editedCloseDate, setEditedCloseDate] = useState<string | null>(null);
+  const [history, setHistory] = useState<ClosedOrderDuration[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+
+  const today = getTodayDbDate();
+  const minDate = useMemo(() => parseDateString(fromDbDate(today)) ?? undefined, [today]);
+  const reference = priority ? closeTimeReference(history, priority) : null;
+  const suggestedCloseDate = reference ? referenceCloseDate(today, reference.medianDays) : null;
+  const closeDate = editedCloseDate ?? (suggestedCloseDate ? fromDbDate(suggestedCloseDate) : "");
+
+  // The reference is a nice-to-have: if the history can't load, the modal
+  // still works and just shows no reference.
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    listClosedCorrectiveDurations()
+      .then((rows) => {
+        if (!cancelled) setHistory(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setHistory([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
 
   const priorityOptions: RadioOption<Priority>[] = [
     {
@@ -72,19 +119,30 @@ export function GenerateOrderModal({
   // Reset the form each time the modal opens.
   useResetOnOpen(visible, () => {
     setPriority(null);
+    setEditedCloseDate(null);
     setConfirming(false);
     setError(null);
   });
+
+  const closeDateValid = isValidDateString(closeDate) && toDbDate(closeDate) >= today;
 
   async function handleConfirm() {
     if (!priority) {
       setError("Elegí una prioridad.");
       return;
     }
+    if (!isValidDateString(closeDate)) {
+      setError("Elegí la fecha requerida de cierre.");
+      return;
+    }
+    if (toDbDate(closeDate) < today) {
+      setError("La fecha requerida de cierre no puede ser anterior a hoy.");
+      return;
+    }
     setConfirming(true);
     setError(null);
     try {
-      await onConfirm({ priority });
+      await onConfirm({ priority, requiredCloseDate: toDbDate(closeDate) });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -92,7 +150,13 @@ export function GenerateOrderModal({
     }
   }
 
-  const canConfirm = !confirming && priority !== null;
+  const canConfirm = !confirming && priority !== null && closeDateValid;
+
+  const referenceText = !priority
+    ? "Elegí la prioridad para ver una fecha de referencia."
+    : reference && reference.medianDays !== null
+      ? `Como referencia: las OT correctivas de prioridad ${PRIORITY_LABELS[priority]} se cerraron en una mediana de ${formatDays(reference.medianDays)} (${reference.closed} ${reference.closed === 1 ? "cerrada" : "cerradas"}).`
+      : `Todavía no hay OT correctivas cerradas con prioridad ${PRIORITY_LABELS[priority]} para tomar de referencia.`;
 
   return (
     <Modal
@@ -127,6 +191,20 @@ export function GenerateOrderModal({
             options={priorityOptions}
             style={styles.radioGroup}
           />
+
+          <Text style={styles.label}>Fecha requerida de cierre *</Text>
+
+          <CustomDatePicker
+            value={closeDate}
+            onChange={(v) => {
+              setEditedCloseDate(v);
+              if (error) setError(null);
+            }}
+            minDate={minDate}
+            compact
+          />
+
+          <Text style={styles.reference}>{referenceText}</Text>
 
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -173,6 +251,7 @@ function makeStyles(c: ThemeColors) {
     radioGroup: {
       gap: 10,
     },
+    reference: { marginTop: 8, fontSize: 12.5, color: c.textMuted, lineHeight: 17 },
     error: { color: c.destructive, marginTop: 12, fontSize: 13 },
   });
 }

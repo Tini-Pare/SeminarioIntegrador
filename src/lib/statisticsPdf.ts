@@ -95,6 +95,20 @@ const TYPE_FILTER_LABELS: Record<OrderTypeFilter, string> = {
   preventivo: "Preventivas",
 };
 
+// What an export covers, worded once for both the PDF header and the
+// ExportPdfModal shown before it, so the two always say the same: the
+// period, and the OT type only on the tabs that filter by it.
+export function exportScope(
+  tab: StatisticsTabKey,
+  period: StatsPeriod,
+  type: OrderTypeFilter,
+): { period: string; type: string | null } {
+  return {
+    period: `${fromDbDate(period.from)} al ${fromDbDate(period.to)}`,
+    type: TAB_USES_TYPE[tab] ? TYPE_FILTER_LABELS[type] : null,
+  };
+}
+
 const FILE_SLUGS: Record<StatisticsTabKey, string> = {
   orders: "Ordenes-de-trabajo",
   technicians: "Tecnicos",
@@ -189,6 +203,7 @@ export function statisticsPdfBaseName(tab: StatisticsTabKey, period: StatsPeriod
 
 export function buildStatisticsHtml(input: StatisticsPdfInput): string {
   const { tab, period, type } = input;
+  const scope = exportScope(tab, period, type);
   const html = SECTION_BUILDERS[tab](input);
   const selected = new Set(input.blocks ?? STATISTICS_PDF_BLOCKS[tab].map((b) => b.key));
   const body = STATISTICS_PDF_BLOCKS[tab]
@@ -216,8 +231,8 @@ export function buildStatisticsHtml(input: StatisticsPdfInput): string {
   <div class="doc-meta">
     <div class="doc-kicker">Estadísticas</div>
     <div class="doc-title">${esc(STATISTICS_TAB_LABELS[tab])}</div>
-    <div>Período: <strong>${fromDbDate(period.from)} al ${fromDbDate(period.to)}</strong></div>
-    ${TAB_USES_TYPE[tab] ? `<div>Tipo de OT: <strong>${TYPE_FILTER_LABELS[type]}</strong></div>` : ""}
+    <div>Período: <strong>${scope.period}</strong></div>
+    ${scope.type ? `<div>Tipo de OT: <strong>${scope.type}</strong></div>` : ""}
   </div>
 </header>
 <main>
@@ -260,13 +275,13 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
         label: "Cerradas en término",
         value: formatPct(kpis.onTimePct),
         hint: kpis.withPlannedDate
-          ? `Sobre ${kpis.withPlannedDate} con fecha estimada`
-          : "Ninguna cerrada tenía fecha estimada",
+          ? `Sobre ${kpis.withPlannedDate} con fecha requerida de cierre`
+          : "Ninguna cerrada tenía fecha requerida de cierre",
       },
       {
         label: "Desvío promedio",
         value: formatSignedDays(kpis.avgDeviationDays),
-        hint: "Cierre − fecha estimada (+ = tarde)",
+        hint: "Cierre − fecha requerida (+ = tarde)",
       },
     ]),
     panel(
@@ -304,13 +319,14 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
       ? ""
       : panel(
           "Cumplimiento por plan preventivo",
-          "OT preventivas iniciadas en el período. El plazo es la fecha estimada si se cargó; si no, la frecuencia del plan (tiene que hacerse antes de que toque la siguiente). Cumplimiento = a tiempo / (a tiempo + tarde + vencidas).",
+          "OT preventivas iniciadas en el período. El plazo es la fecha requerida de cierre de cada OT: nace con la fecha de inicio más el plazo de ejecución del plan. Cumplimiento = a tiempo / (a tiempo + tarde + vencidas).",
           plans.length === 0
             ? empty("No hay OT preventivas iniciadas en el período.")
             : table(
                 [
                   { label: "Plan" },
                   { label: "Frecuencia" },
+                  { label: "Plazo" },
                   { label: "OT", right: true },
                   { label: "A tiempo", right: true },
                   { label: "Tarde", right: true },
@@ -321,6 +337,7 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
                 plans.map((r) => [
                   esc(r.name),
                   esc(r.frequencyDays ? `Cada ${r.frequencyDays} días` : "—"),
+                  esc(r.deadlineDays ? `${r.deadlineDays} días` : "—"),
                   String(r.total),
                   String(r.onTime),
                   String(r.late),
@@ -332,7 +349,7 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
         ),
     panel(
       "OT del período, de la más demorada a la menos",
-      "Iniciadas en el período. Desvío = cierre (o hoy, si sigue abierta) − fecha estimada. * sigue abierta: cuenta hasta hoy.",
+      "Iniciadas en el período. Desvío = cierre (o hoy, si sigue abierta) − fecha requerida de cierre. * sigue abierta: cuenta hasta hoy.",
       rows.length === 0
         ? empty("No hay órdenes de trabajo iniciadas en el período.")
         : table(

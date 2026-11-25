@@ -3,7 +3,7 @@ import type { PlanMantenimientoItem, TareaGeneral } from "../../types/database";
 
 // Hour (Argentina, 0–23) every plan's preventive OTs are emitted at on each
 // equipo's due date. Not a choice in the form anymore (0047), so it's always
-// sent: the RPCs' own default is still the old 06:00.
+// sent, even though the RPCs default to 8 since 0051.
 const EMISSION_HOUR = 8;
 
 export type MaintenancePlanEquipmentRow = {
@@ -23,6 +23,8 @@ export type MaintenancePlanDetail = {
   name: string;
   description: string | null;
   frequency: number;
+  // Days each preventive OT has to be closed in (0051).
+  deadlineDays: number;
   estado: "activo" | "inactivo";
   tasks: TareaGeneral[];
   equipments: MaintenancePlanEquipmentRow[];
@@ -33,6 +35,9 @@ export type MaintenancePlanInput = {
   name: string;
   description?: string | null;
   frequency: number;
+  // Plazo de ejecución: the OT's fecha requerida de cierre is its start +
+  // this many days. 1..frequency.
+  deadlineDays: number;
   estado: "activo" | "inactivo";
   taskIds: number[];
 };
@@ -104,6 +109,7 @@ export async function getMaintenancePlan(id: number): Promise<MaintenancePlanDet
     name: plan.pm_nombre_plan,
     description: plan.pm_descripcion_plan,
     frequency: plan.pm_frecuencia,
+    deadlineDays: plan.pm_plazo_dias,
     estado: plan.pm_estado,
     tasks,
     equipments,
@@ -150,6 +156,7 @@ export async function createMaintenancePlan(input: MaintenancePlanInput): Promis
     p_nombre: input.name.trim(),
     p_descripcion: input.description?.trim() || null,
     p_frecuencia: input.frequency,
+    p_plazo: input.deadlineDays,
     p_estado: input.estado,
     p_tareas: input.taskIds,
     p_equipos: [],
@@ -175,6 +182,7 @@ export async function updateMaintenancePlan(
     p_nombre: input.name.trim(),
     p_descripcion: input.description?.trim() || null,
     p_frecuencia: input.frequency,
+    p_plazo: input.deadlineDays,
     p_estado: input.estado,
     p_tareas: input.taskIds,
     p_equipos: [],

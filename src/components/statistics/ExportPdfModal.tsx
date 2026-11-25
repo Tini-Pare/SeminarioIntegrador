@@ -10,15 +10,25 @@ import { CheckIcon } from "../icons";
 // Before exporting a tab to PDF the admin picks which of its blocks go in,
 // for when only one or two of them matter. Every block starts checked, so
 // confirming right away exports the whole tab as before.
+//
+// The section stands out on its own (larger, in the accent color) and the
+// period and OT type sit right under it, worded exactly as the PDF header
+// will print them (statisticsPdf.ts exportScope), so it's clear what's about
+// to be exported before generating it.
 export function ExportPdfModal({
   visible,
   tabLabel,
+  periodLabel,
+  typeLabel,
   blocks,
   onClose,
   onConfirm,
 }: {
   visible: boolean;
   tabLabel: string;
+  periodLabel: string;
+  // null on tabs that don't filter by OT type.
+  typeLabel: string | null;
   blocks: StatisticsPdfBlock[];
   onClose: () => void;
   onConfirm: (keys: string[]) => void;
@@ -46,11 +56,18 @@ export function ExportPdfModal({
         <View style={styles.sheet}>
           <Text style={styles.title}>Exportar a PDF</Text>
 
-          <Text style={styles.subtitle}>{tabLabel}</Text>
+          <View style={styles.scope}>
+            <Text style={styles.section}>{tabLabel}</Text>
+
+            <Text style={styles.scopeMeta}>
+              Período: {periodLabel}
+              {typeLabel ? ` · Tipo de OT: ${typeLabel}` : ""}
+            </Text>
+          </View>
 
           <View style={styles.listHeader}>
             <Text style={styles.label}>
-              Bloques a incluir ({selected.size} de {blocks.length})
+              Bloques de {tabLabel} a incluir ({selected.size} de {blocks.length})
             </Text>
 
             <Pressable
@@ -119,7 +136,20 @@ function makeStyles(c: ThemeColors) {
       alignSelf: "center",
     },
     title: { fontSize: 18, fontWeight: "600", color: c.text },
-    subtitle: { marginTop: 2, fontSize: 13, color: c.textMuted },
+    // A tinted band with an accent bar on the left: the section reads as the
+    // subject of the export without a label saying so.
+    scope: {
+      marginTop: 14,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderLeftWidth: 4,
+      borderLeftColor: c.accent,
+      borderRadius: 10,
+      backgroundColor: c.bgNested,
+      gap: 3,
+    },
+    section: { fontSize: 17, fontWeight: "700", color: c.accent },
+    scopeMeta: { fontSize: 12.5, color: c.textSecondary, lineHeight: 17 },
     listHeader: {
       flexDirection: "row",
       alignItems: "center",
