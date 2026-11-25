@@ -1,5 +1,3 @@
-jest.mock("../supabase", () => ({ supabase: {} }));
-
 import type { StatisticsData } from "../queries/statistics";
 import {
   STATISTICS_PDF_BLOCKS,
@@ -11,6 +9,8 @@ import {
 } from "../statisticsPdf";
 import { LOGO_MARK_DATA_URI } from "../statisticsPdfLogo";
 import type { Equipo, Repuesto, WorkOrder } from "../../types/database";
+
+jest.mock("../supabase", () => ({ supabase: {} }));
 
 function equipo(overrides: Partial<Equipo>): Equipo {
   return {

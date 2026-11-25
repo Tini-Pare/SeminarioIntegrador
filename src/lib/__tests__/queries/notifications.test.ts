@@ -1,10 +1,3 @@
-jest.mock("../../supabase", () => ({
-  supabase: {
-    auth: { getSession: jest.fn() },
-    from: jest.fn(),
-  },
-}));
-
 import { supabase } from "../../supabase";
 import {
   buildCriticalFaultNotifications,
@@ -18,6 +11,13 @@ import {
   type RawPreventiveOrder,
   type RawStockNotification,
 } from "../../queries/notifications";
+
+jest.mock("../../supabase", () => ({
+  supabase: {
+    auth: { getSession: jest.fn() },
+    from: jest.fn(),
+  },
+}));
 
 // notificationId defaults to the OT id so each order gets its own row.
 function makeOrder(overrides: Partial<RawPreventiveOrder>): RawPreventiveOrder {

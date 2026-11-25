@@ -53,9 +53,10 @@ export function GenerateOrderModal({
   equipmentLabel: string;
 }) {
   const [priority, setPriority] = useState<Priority | null>(null);
-  const [closeDate, setCloseDate] = useState("");
-  // Once the admin touches the date, a priority change stops overwriting it.
-  const [closeDateEdited, setCloseDateEdited] = useState(false);
+  // The date the admin typed or picked; null until they touch it. Until then
+  // the field shows the suggestion derived from the priority (below), so a
+  // priority change only moves the date while it hasn't been edited.
+  const [editedCloseDate, setEditedCloseDate] = useState<string | null>(null);
   const [history, setHistory] = useState<ClosedOrderDuration[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +66,8 @@ export function GenerateOrderModal({
   const today = getTodayDbDate();
   const minDate = useMemo(() => parseDateString(fromDbDate(today)) ?? undefined, [today]);
   const reference = priority ? closeTimeReference(history, priority) : null;
+  const suggestedCloseDate = reference ? referenceCloseDate(today, reference.medianDays) : null;
+  const closeDate = editedCloseDate ?? (suggestedCloseDate ? fromDbDate(suggestedCloseDate) : "");
 
   // The reference is a nice-to-have: if the history can't load, the modal
   // still works and just shows no reference.
@@ -82,13 +85,6 @@ export function GenerateOrderModal({
       cancelled = true;
     };
   }, [visible]);
-
-  // Prefill (or follow the priority) until the admin edits the date by hand.
-  useEffect(() => {
-    if (!priority || closeDateEdited) return;
-    const suggested = referenceCloseDate(today, closeTimeReference(history, priority).medianDays);
-    setCloseDate(suggested ? fromDbDate(suggested) : "");
-  }, [priority, history, closeDateEdited, today]);
 
   const priorityOptions: RadioOption<Priority>[] = [
     {
@@ -123,8 +119,7 @@ export function GenerateOrderModal({
   // Reset the form each time the modal opens.
   useResetOnOpen(visible, () => {
     setPriority(null);
-    setCloseDate("");
-    setCloseDateEdited(false);
+    setEditedCloseDate(null);
     setConfirming(false);
     setError(null);
   });
@@ -202,8 +197,7 @@ export function GenerateOrderModal({
           <CustomDatePicker
             value={closeDate}
             onChange={(v) => {
-              setCloseDate(v);
-              setCloseDateEdited(true);
+              setEditedCloseDate(v);
               if (error) setError(null);
             }}
             minDate={minDate}
