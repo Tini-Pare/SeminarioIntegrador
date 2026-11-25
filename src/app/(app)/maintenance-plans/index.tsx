@@ -324,7 +324,7 @@ export default function MaintenancePlansScreen() {
                   activeField={field}
                   dir={dir}
                   onSort={toggle}
-                  style={tableCol(2.2)}
+                  style={tableCol(3)}
                 />
 
                 <SortHeaderCell
@@ -342,7 +342,7 @@ export default function MaintenancePlansScreen() {
                   activeField={field}
                   dir={dir}
                   onSort={toggle}
-                  style={tableCol(1.2)}
+                  style={tableCol(1)}
                 />
 
                 <SortHeaderCell
@@ -351,7 +351,7 @@ export default function MaintenancePlansScreen() {
                   activeField={field}
                   dir={dir}
                   onSort={toggle}
-                  style={tableCol(1)}
+                  style={tableCol(0.8)}
                 />
 
                 <SortHeaderCell
@@ -378,7 +378,7 @@ export default function MaintenancePlansScreen() {
                   activeField={field}
                   dir={dir}
                   onSort={toggle}
-                  style={tableCol(1.1)}
+                  style={tableCol(1)}
                 />
 
                 <Text style={[styles.headerCell, styles.actionsCol]}>ACCIONES</Text>
@@ -478,7 +478,7 @@ function PlanTableRow({
   return (
     <View style={[styles.tableRow, index % 2 === 1 ? styles.rowAlt : styles.rowNormal]}>
       {/* Plan Column */}
-      <View style={tableCol(2.2)}>
+      <View style={tableCol(3)}>
         <Text style={styles.planNameText} numberOfLines={1}>
           {p.pm_nombre_plan}
         </Text>
@@ -498,14 +498,14 @@ function PlanTableRow({
       </View>
 
       {/* Frecuencia */}
-      <View style={tableCol(1.2)}>
+      <View style={tableCol(1)}>
         <Text style={styles.cellText}>
           Cada {p.pm_frecuencia} {p.pm_frecuencia === 1 ? "día" : "días"}
         </Text>
       </View>
 
       {/* Plazo */}
-      <View style={tableCol(1)}>
+      <View style={tableCol(0.8)}>
         <Text style={styles.cellText}>
           {p.pm_plazo_dias} {p.pm_plazo_dias === 1 ? "día" : "días"}
         </Text>
@@ -522,7 +522,7 @@ function PlanTableRow({
       </View>
 
       {/* Estado */}
-      <View style={tableCol(1.1)}>
+      <View style={tableCol(1)}>
         <ActiveBadge active={p.pm_estado === "activo"} styles={styles} colors={colors} />
       </View>
 
