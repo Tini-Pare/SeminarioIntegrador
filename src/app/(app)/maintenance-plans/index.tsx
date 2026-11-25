@@ -123,6 +123,7 @@ export default function MaintenancePlansScreen() {
       plan: (p) => p.pm_nombre_plan,
       tipo: (p) => p.te_nombre,
       frecuencia: (p) => p.pm_frecuencia,
+      plazo: (p) => p.pm_plazo_dias,
       tareas: (p) => p.task_count,
       equipos: (p) => p.equipment_count,
       vencimiento: (p) => p.prox_vencimiento ?? "9999-12-31",
@@ -315,7 +316,7 @@ export default function MaintenancePlansScreen() {
           </Text>
         ) : (
           <View style={styles.table}>
-            <ScrollableTable minWidth={900}>
+            <ScrollableTable minWidth={980}>
               <View style={styles.tableHeader}>
                 <SortHeaderCell
                   label="PLAN"
@@ -342,6 +343,15 @@ export default function MaintenancePlansScreen() {
                   dir={dir}
                   onSort={toggle}
                   style={tableCol(1.2)}
+                />
+
+                <SortHeaderCell
+                  label="PLAZO"
+                  field="plazo"
+                  activeField={field}
+                  dir={dir}
+                  onSort={toggle}
+                  style={tableCol(1)}
                 />
 
                 <SortHeaderCell
@@ -492,9 +502,12 @@ function PlanTableRow({
         <Text style={styles.cellText}>
           Cada {p.pm_frecuencia} {p.pm_frecuencia === 1 ? "día" : "días"}
         </Text>
+      </View>
 
-        <Text style={styles.planDescText} numberOfLines={1}>
-          Plazo {p.pm_plazo_dias} {p.pm_plazo_dias === 1 ? "día" : "días"}
+      {/* Plazo */}
+      <View style={tableCol(1)}>
+        <Text style={styles.cellText}>
+          {p.pm_plazo_dias} {p.pm_plazo_dias === 1 ? "día" : "días"}
         </Text>
       </View>
 

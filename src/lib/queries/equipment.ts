@@ -209,6 +209,27 @@ export function summarizeFaultHistory(faults: Solicitud[]): FaultHistorySummary 
 // e.g. the daily preventive OT generation — 0035); shown as "Sistema".
 export const SYSTEM_AUTHOR_ID = "system";
 
+// Every equipo's historial of one event type logged since `since` — Inicio
+// reads today's "Tarea finalizada" rows for the time a tarea was finished
+// (taro_fecha_fin is only a date).
+export async function listHistorySince(since: Date, type: string): Promise<HistorialEntry[]> {
+  const { data, error } = await supabase
+    .from("historial")
+    .select("*")
+    .eq("hi_tipo", type)
+    .gte("hi_fecha_hora", since.toISOString())
+    .order("hi_fecha_hora", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data as Database["public"]["Tables"]["historial"]["Row"][]).map((row) => ({
+    id: row.hi_id,
+    equipment_id: row.eq_id_equipo,
+    type: row.hi_tipo,
+    note: row.hi_nota,
+    author_id: row.hi_autor_id ?? SYSTEM_AUTHOR_ID,
+    created_at: row.hi_fecha_hora,
+  }));
+}
+
 export async function listHistoryByEquipment(equipmentId: number): Promise<HistorialEntry[]> {
   const { data, error } = await supabase
     .from("historial")

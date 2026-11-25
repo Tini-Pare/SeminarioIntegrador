@@ -93,15 +93,15 @@ lo rechaza (sirve para mostrar la validación).
 
 ### 8. Plan para el tipo nuevo — Planes de mantenimiento → Nuevo plan
 
-| Campo                     | Valor                                                         |
-| ------------------------- | ------------------------------------------------------------- |
-| Nombre del plan           | Mantenimiento quincenal de freidoras                          |
-| Tipo de equipo            | Freidora industrial                                           |
-| Frecuencia (días)         | 15                                                            |
-| Plazo de ejecución (días) | 2                                                             |
-| Estado                    | Activo                                                        |
-| Descripción               | Cambio de aceite y limpieza de cuba de las freidoras.         |
-| Tareas previstas          | Cambio de aceite de freidora, Limpieza de cuba y resistencias |
+| Campo             | Valor                                                         |
+| ----------------- | ------------------------------------------------------------- |
+| Nombre del plan   | Mantenimiento quincenal de freidoras                          |
+| Tipo de equipo    | Freidora industrial                                           |
+| Frecuencia (días) | 15                                                            |
+| Plazo (días)      | 2                                                             |
+| Estado            | Activo                                                        |
+| Descripción       | Cambio de aceite y limpieza de cuba de las freidoras.         |
+| Tareas previstas  | Cambio de aceite de freidora, Limpieza de cuba y resistencias |
 
 Qué mostrar: FRE-001 entra solo al plan desde su fecha de instalación, y
 como hace 10 días que se instaló, su próximo mantenimiento es en 5 días.
@@ -112,15 +112,15 @@ avisa que no puede.
 
 El autoelevador (AUT-001) es el único equipo de la demo sin plan.
 
-| Campo                     | Valor                                      |
-| ------------------------- | ------------------------------------------ |
-| Nombre del plan           | Revisión mensual del autoelevador          |
-| Tipo de equipo            | Autoelevador                               |
-| Frecuencia (días)         | 30                                         |
-| Plazo de ejecución (días) | 3                                          |
-| Estado                    | Activo                                     |
-| Descripción               | Control de batería, cargador y conectores. |
-| Tareas previstas          | Revisión de batería y cargador             |
+| Campo             | Valor                                      |
+| ----------------- | ------------------------------------------ |
+| Nombre del plan   | Revisión mensual del autoelevador          |
+| Tipo de equipo    | Autoelevador                               |
+| Frecuencia (días) | 30                                         |
+| Plazo (días)      | 3                                          |
+| Estado            | Activo                                     |
+| Descripción       | Control de batería, cargador y conectores. |
+| Tareas previstas  | Revisión de batería y cargador             |
 
 Qué mostrar: como el autoelevador nunca tuvo mantenimiento, al confirmar se
 genera sola la OT preventiva (si son más de las 8:00), con fecha requerida

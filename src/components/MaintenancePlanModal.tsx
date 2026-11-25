@@ -436,7 +436,9 @@ export function MaintenancePlanModal({
                     </View>
                   </View>
 
-                  {/* Row 2: Frecuencia + Plazo de ejecución (días) | Estado del plan */}
+                  {/* Row 2: Frecuencia + Plazo (días) | Estado del plan. The plazo label
+                      stays short: "Plazo de ejecución (días)" wrapped to two lines in the
+                      half column and pushed its input below Frecuencia's. */}
                   <View style={styles.formRow}>
                     <View style={styles.col}>
                       <View style={styles.shortFieldsRow}>
@@ -462,11 +464,7 @@ export function MaintenancePlanModal({
                         </View>
 
                         <View style={styles.shortField}>
-                          <FieldLabel
-                            text="Plazo de ejecución (días)"
-                            required={!isView}
-                            style={styles.label}
-                          />
+                          <FieldLabel text="Plazo (días)" required={!isView} style={styles.label} />
 
                           <TextInput
                             style={[styles.input, isView && styles.inputDisabled]}

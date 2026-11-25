@@ -2,7 +2,6 @@ import { Redirect, router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,64 +9,94 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { BarList } from "../../../components/charts/BarList";
-import { fromDbDate, getTodayDbDate } from "../../../components/CustomDatePicker";
-import { RequestList } from "../../../components/RequestList";
-import { StatusBadge } from "../../../components/StatusBadge";
-import { StatusBarChart } from "../../../components/StatusBarChart";
+import { getTodayDbDate } from "../../../components/CustomDatePicker";
 import { BREAKPOINT } from "../../../constants";
 import { getProfile } from "../../../lib/auth";
-import { formatOrderNumber } from "../../../lib/orderNumber";
 import { listLowStockParts } from "../../../lib/queries/alerts";
-import { listEquipment } from "../../../lib/queries/equipment";
-import {
-  listActiveTaskCountsByTechnician,
-  listAllRequests,
-  listWorkOrders,
-  summarizeTechnicians,
-} from "../../../lib/queries/faults";
+import { listEquipment, listHistorySince } from "../../../lib/queries/equipment";
+import { listAllRequests, listWorkOrders } from "../../../lib/queries/faults";
+import { listNotifications, type StockNotification } from "../../../lib/queries/notifications";
 import { listProfiles } from "../../../lib/queries/profiles";
-import { stockStatus } from "../../../lib/queries/spareParts";
-import { daysBetween, overdueOrders } from "../../../lib/statistics";
+import { overdueOrders } from "../../../lib/statistics";
 import type { ThemeColors } from "../../../lib/theme";
 import { useTheme } from "../../../lib/ThemeContext";
-import { formatUnitQty } from "../../../lib/units";
+import {
+  buildTodayActivity,
+  computeTodayKpis,
+  isOrderWithoutTechnician,
+  preventiveDueToday,
+  type ActivityItem,
+  type ActivityKind,
+} from "../../../lib/todaySummary";
 import { useIsPhone } from "../../../lib/useIsPhone";
-import type { Equipo, Profile, Repuesto, Solicitud, WorkOrder } from "../../../types/database";
+import type {
+  Equipo,
+  HistorialEntry,
+  Profile,
+  Repuesto,
+  Solicitud,
+  WorkOrder,
+} from "../../../types/database";
 
-type RequestItem = Solicitud & {
-  equipment: Pick<Equipo, "code" | "name">;
-  reporterName: string;
-  technicianName: string | null;
+// Activity rows shown before "Ver todo".
+const ACTIVITY_PREVIEW = 8;
+
+const KIND_LABEL: Record<ActivityKind, string> = {
+  solicitud: "Solicitud",
+  preventiva: "Preventiva",
+  ot: "OT",
+  tarea: "Tarea",
+  repuesto: "Repuesto",
+  stock: "Stock",
 };
 
-// Native pixel size of assets/images/dashboard-hero-bg.png — the glow is
-// off-center toward the right, so the image is anchored to the card's
-// top-right corner (not center-cropped) to keep it visible on narrow screens.
-const HERO_BG_ASPECT_RATIO = 1516 / 464;
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
-// Rows shown per alert list before "y N más".
-const ALERTS_PREVIEW = 5;
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
-// Inicio is today's summary only: what's broken, late or waiting right now.
-// Analysis over a period lives in Estadísticas.
+// "Domingo 8 de noviembre"
+function formatLongDate(d: Date): string {
+  const weekday = d.toLocaleDateString("es-AR", { weekday: "long" });
+  const month = d.toLocaleDateString("es-AR", { month: "long" });
+  return `${capitalize(weekday)} ${d.getDate()} de ${month}`;
+}
+
+function formatTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function plural(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
+// Inicio is today only: what happened in the day and what's still waiting
+// for the admin. Analysis over a period lives in Estadísticas.
 export default function DashboardScreen() {
   const [role, setRole] = useState<Profile["role"] | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState<Equipo[]>([]);
-  const [requests, setRequests] = useState<RequestItem[]>([]);
-  const [stockAlerts, setStockAlerts] = useState<Repuesto[]>([]);
+  const [requests, setRequests] = useState<Solicitud[]>([]);
   const [orders, setOrders] = useState<WorkOrder[]>([]);
-  const [technicians, setTechnicians] = useState<Profile[]>([]);
-  const [openTaskCounts, setOpenTaskCounts] = useState<Record<string, number>>({});
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [stockAlerts, setStockAlerts] = useState<Repuesto[]>([]);
+  const [stockEvents, setStockEvents] = useState<StockNotification[]>([]);
+  const [taskFinishLog, setTaskFinishLog] = useState<HistorialEntry[]>([]);
+  const [showAllActivity, setShowAllActivity] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [heroSize, setHeroSize] = useState({ width: 0, height: 0 });
   const { width } = useWindowDimensions();
-  const isWide = width >= BREAKPOINT.tablet;
+  const isWide = width >= BREAKPOINT.desktop;
   const isPhone = useIsPhone();
-  // On a phone the badge beside a name leaves it ~150px, so long names get
-  // a second line instead of being cut off.
-  const nameLines = isPhone ? 2 : 1;
   const { colors } = useTheme();
   const styles = makeStyles(colors);
 
@@ -78,31 +107,26 @@ export default function DashboardScreen() {
       setRole(profile?.role ?? null);
       if (profile?.role !== "admin") return;
 
-      const [faults, equip, profiles, lowStock, workOrders, taskCounts] = await Promise.all([
-        listAllRequests(),
-        listEquipment(),
-        listProfiles(),
-        listLowStockParts(),
-        listWorkOrders(),
-        listActiveTaskCountsByTechnician(),
-      ]);
+      const [faults, equip, people, lowStock, workOrders, finishLog, notifications] =
+        await Promise.all([
+          listAllRequests(),
+          listEquipment(),
+          listProfiles(),
+          listLowStockParts(),
+          listWorkOrders(),
+          listHistorySince(startOfToday(), "Tarea finalizada"),
+          listNotifications(),
+        ]);
+      setRequests(faults);
+      setEquipment(equip);
+      setProfiles(people);
       setStockAlerts(lowStock);
       setOrders(workOrders);
-      setOpenTaskCounts(taskCounts);
-      setTechnicians(profiles.filter((p) => p.role === "technician" && p.active));
-      const equipmentById = new Map(equip.map((e) => [e.id, e]));
-      const profileById = new Map(profiles.map((p) => [p.id, p]));
-      setEquipment(equip);
-      setRequests(
-        faults.map((f) => ({
-          ...f,
-          equipment: equipmentById.get(f.equipment_id) ?? {
-            code: "—",
-            name: "Equipo desconocido",
-          },
-          reporterName: profileById.get(f.reported_by)?.name ?? "Desconocido",
-          technicianName: summarizeTechnicians(f.tasks, profileById),
-        })),
+      setTaskFinishLog(finishLog);
+      setStockEvents(
+        notifications.notifications.filter(
+          (n): n is StockNotification => n.kind === "stock_minimo",
+        ),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -115,49 +139,55 @@ export default function DashboardScreen() {
     }, [load]),
   );
 
-  const stats = useMemo(() => {
-    const byStatus = (s: Equipo["status"]) => equipment.filter((e) => e.status === s).length;
-    return {
-      operational: byStatus("operational"),
-      waiting: byStatus("waiting"),
-      repair: byStatus("repair"),
-      pendingInstall: byStatus("pending_install"),
-      reqNew: requests.filter((r) => r.status === "new").length,
-    };
-  }, [equipment, requests]);
-
-  const attention = useMemo(() => equipment.filter((e) => e.status !== "operational"), [equipment]);
-
-  const eyebrowDate = useMemo(() => {
-    const now = new Date();
-    const weekday = now.toLocaleDateString("es-AR", { weekday: "long" }).toUpperCase();
-    const time = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-    return `${weekday} ${now.getDate()} · ${time}`;
-  }, []);
-
-  // Solicitudes nobody has turned into an OT (or rejected) yet, oldest
-  // first: the ones that have waited longest go on top.
-  const pendingRequests = useMemo(
-    () =>
-      requests
-        .filter((r) => r.status === "new")
-        .sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)),
-    [requests],
-  );
-
   const today = getTodayDbDate();
-  const overdue = useMemo(() => overdueOrders(orders, today), [orders, today]);
-  const equipmentById = useMemo(() => new Map(equipment.map((e) => [e.id, e])), [equipment]);
+  const longDate = useMemo(() => formatLongDate(new Date()), []);
 
-  // Every active técnico, the ones with the most open tareas first — a
-  // técnico with none shows too, so the admin sees who's free.
-  const technicianLoad = useMemo(
+  const kpis = useMemo(() => computeTodayKpis(today, requests, orders), [today, requests, orders]);
+
+  const activity = useMemo(
     () =>
-      technicians
-        .map((t) => ({ id: t.id, name: t.name, open: openTaskCounts[t.id] ?? 0 }))
-        .sort((a, b) => b.open - a.open || a.name.localeCompare(b.name)),
-    [technicians, openTaskCounts],
+      buildTodayActivity({
+        today,
+        requests,
+        orders,
+        equipmentById: new Map(equipment.map((e) => [e.id, e])),
+        technicianNames: new Map(profiles.map((p) => [p.id, p.name])),
+        taskFinishLog,
+        stockEvents,
+      }),
+    [today, requests, orders, equipment, profiles, taskFinishLog, stockEvents],
   );
+
+  const toResolve = useMemo(
+    () => ({
+      unassignedRequests: requests.filter((r) => r.status === "new").length,
+      ordersWithoutTechnician: orders.filter(isOrderWithoutTechnician).length,
+      dueToday: preventiveDueToday(orders, today).length,
+      overdue: overdueOrders(orders, today).length,
+      lowStock: stockAlerts.length,
+    }),
+    [requests, orders, stockAlerts, today],
+  );
+
+  // Only equipos still in use: an inactive one isn't "fuera de servicio".
+  const equipmentState = useMemo(() => {
+    const active = equipment.filter((e) => e.active);
+    const count = (s: Equipo["status"]) => active.filter((e) => e.status === s).length;
+    return {
+      total: active.length,
+      outOfService: active.filter((e) => e.status !== "operational").length,
+      segments: [
+        { label: "Funcionando", value: count("operational"), color: colors.eqOperational.dot },
+        { label: "En espera", value: count("waiting"), color: colors.eqWaiting.dot },
+        { label: "En reparación", value: count("repair"), color: colors.eqRepair.dot },
+        {
+          label: "Pendiente de instalación",
+          value: count("pending_install"),
+          color: colors.eqPendingInstall.dot,
+        },
+      ],
+    };
+  }, [equipment, colors]);
 
   if (role === undefined || (role === "admin" && loading)) {
     return <ActivityIndicator style={styles.center} />;
@@ -166,14 +196,117 @@ export default function DashboardScreen() {
   // Inicio is an admin overview; other roles start on the equipment list.
   if (role !== "admin") return <Redirect href="/equipment" />;
 
-  const equipmentBars = [
-    { label: "Funcionando", value: stats.operational, color: colors.eqOperational.dot },
-    { label: "En espera", value: stats.waiting, color: colors.eqWaiting.dot },
-    { label: "En reparación", value: stats.repair, color: colors.eqRepair.dot },
+  const kindTone: Record<ActivityKind, { bg: string; fg: string }> = {
+    solicitud: colors.eqRepair,
+    preventiva: colors.eqPendingInstall,
+    ot: colors.faultAssigned,
+    tarea: colors.faultInProgress,
+    repuesto: colors.urgencyLow,
+    stock: colors.urgencyMedium,
+  };
+
+  const visibleActivity = showAllActivity ? activity : activity.slice(0, ACTIVITY_PREVIEW);
+
+  const resolveRows: {
+    key: string;
+    count: number;
+    label: string;
+    action: string;
+    href: string;
+    always: boolean;
+  }[] = [
     {
-      label: "Pendiente de instalación",
-      value: stats.pendingInstall,
-      color: colors.eqPendingInstall.dot,
+      key: "requests",
+      count: toResolve.unassignedRequests,
+      label: plural(
+        toResolve.unassignedRequests,
+        "Solicitud sin asignar",
+        "Solicitudes sin asignar",
+      ),
+      action: "Asignar",
+      href: "/requests",
+      always: true,
+    },
+    {
+      key: "no-tech",
+      count: toResolve.ordersWithoutTechnician,
+      label: "OT sin técnico",
+      action: "Asignar",
+      href: "/work-orders",
+      always: true,
+    },
+    {
+      key: "due",
+      count: toResolve.dueToday,
+      label: plural(
+        toResolve.dueToday,
+        "Mantenimiento que vence hoy",
+        "Mantenimientos que vencen hoy",
+      ),
+      action: "Ver",
+      href: "/work-orders?tipo=preventivo",
+      always: true,
+    },
+    {
+      key: "overdue",
+      count: toResolve.overdue,
+      label: plural(toResolve.overdue, "OT vencida", "OT vencidas"),
+      action: "Ver",
+      href: "/work-orders",
+      always: false,
+    },
+    {
+      key: "stock",
+      count: toResolve.lowStock,
+      label: plural(toResolve.lowStock, "Repuesto bajo el mínimo", "Repuestos bajo el mínimo"),
+      action: "Ver",
+      href: "/spare-parts",
+      always: false,
+    },
+  ];
+
+  const kpiTiles = [
+    {
+      key: "requests",
+      label: "Solicitudes nuevas hoy",
+      value: String(kpis.newRequests),
+      hint:
+        kpis.newRequests === 0 ? "ninguna por ahora" : `${kpis.newRequestsUnassigned} sin asignar`,
+    },
+    {
+      key: "preventive",
+      label: "OT preventivas generadas hoy",
+      value: String(kpis.preventiveOrders),
+      hint:
+        kpis.preventiveOrders === 0
+          ? "ninguna generada"
+          : kpis.preventiveWithoutTechnician === 0
+            ? "todas con técnico"
+            : kpis.preventiveWithoutTechnician < kpis.preventiveOrders
+              ? `${kpis.preventiveWithoutTechnician} sin técnico`
+              : kpis.preventiveOrders === 1
+                ? "sin técnico"
+                : kpis.preventiveOrders === 2
+                  ? "ambas sin técnico"
+                  : "todas sin técnico",
+    },
+    {
+      key: "tasks",
+      label: "Tareas finalizadas hoy",
+      value: String(kpis.finishedTasks),
+      hint:
+        kpis.finishedTasks === 0
+          ? "ninguna todavía"
+          : `por ${kpis.finishingTechnicians} ${plural(kpis.finishingTechnicians, "técnico", "técnicos")}`,
+    },
+    {
+      key: "parts",
+      label: "Repuestos usados hoy",
+      value: kpis.partsValue,
+      hint:
+        kpis.tasksWithParts === 0
+          ? "ninguno registrado"
+          : `${kpis.partsMixedUnits ? "repuestos distintos " : ""}en ${kpis.tasksWithParts} ${plural(kpis.tasksWithParts, "tarea", "tareas")}`,
     },
   ];
 
@@ -183,239 +316,140 @@ export default function DashboardScreen() {
       contentContainerStyle={[styles.content, isPhone && styles.contentPhone]}
     >
       <View style={styles.pageHeader}>
-        <Text style={styles.title}>Inicio</Text>
-        <Text style={styles.subtitle}>Resumen del estado de mantenimiento</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Inicio · Hoy</Text>
+
+          <Text style={styles.subtitle}>Lo que pasó y lo que hay que resolver en el día</Text>
+        </View>
+
+        <View style={styles.datePill}>
+          <Text style={styles.datePillText}>{longDate}</Text>
+        </View>
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <View
-        style={[styles.hero, isPhone && styles.heroPhone]}
-        onLayout={(e) => setHeroSize(e.nativeEvent.layout)}
-      >
-        <Image
-          source={require("../../../../assets/images/dashboard-hero-bg.png")}
-          style={[
-            styles.heroBgImage,
-            heroSize.height
-              ? {
-                  width: Math.max(heroSize.width, heroSize.height * HERO_BG_ASPECT_RATIO),
-                  height: heroSize.height,
-                }
-              : StyleSheet.absoluteFill,
-          ]}
-          resizeMode="cover"
-        />
+      <View style={styles.kpiRow}>
+        {kpiTiles.map((k) => (
+          <View key={k.key} style={[styles.kpiTile, isPhone && styles.kpiTilePhone]}>
+            <Text style={styles.kpiLabel} numberOfLines={2}>
+              {k.label}
+            </Text>
 
-        <View style={styles.heroText}>
-          <Text style={styles.heroEyebrow}>{eyebrowDate}</Text>
-          <Text style={styles.heroValue}>
-            {attention.length === 0
-              ? "Todo en orden"
-              : `${attention.length} ${attention.length === 1 ? "equipo" : "equipos"} fuera de servicio`}
-          </Text>
-          <Text style={styles.heroCopy}>
-            {stats.waiting} en espera · {stats.repair} en reparación · {stats.reqNew}{" "}
-            {stats.reqNew === 1 ? "solicitud" : "solicitudes"} sin asignar
-          </Text>
+            <Text style={styles.kpiValue} numberOfLines={1}>
+              {k.value}
+            </Text>
 
-          <View style={styles.heroActions}>
-            <Pressable style={styles.primaryButton} onPress={() => router.push("/equipment")}>
-              <Text style={styles.primaryButtonText}>Ver equipos</Text>
-            </Pressable>
-
-            <Pressable style={styles.ghostButton} onPress={() => router.push("/requests")}>
-              <Text style={styles.ghostButtonText}>Ver solicitudes</Text>
-            </Pressable>
+            <Text style={styles.kpiHint} numberOfLines={1}>
+              {k.hint}
+            </Text>
           </View>
-        </View>
+        ))}
       </View>
-
-      <StatusBarChart title="Equipos por estado" data={equipmentBars} totalLabel="en total" />
-
-      {/* SCRUM-43: stock alerts. */}
-      {stockAlerts.length > 0 && (
-        <View style={[styles.panel, styles.alertsPanel]}>
-          <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>Stock mínimo de repuestos</Text>
-
-            <Pressable onPress={() => router.push("/spare-parts")}>
-              <Text style={styles.panelLink}>Ver repuestos</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.alertsStack}>
-            {stockAlerts.slice(0, ALERTS_PREVIEW).map((p) => {
-              const empty = stockStatus(p) === "sin_stock";
-              const tone = empty ? colors.urgencyHigh : colors.urgencyMedium;
-              return (
-                <Pressable
-                  key={p.rep_id}
-                  style={styles.attentionRow}
-                  onPress={() => router.push("/spare-parts")}
-                >
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.attentionName} numberOfLines={nameLines}>
-                      {p.rep_nombre}
-                    </Text>
-
-                    <Text style={styles.attentionMeta} numberOfLines={1}>
-                      Stock {formatUnitQty(p.rep_cantidad_actual, p.rep_unidad)} · Mín.{" "}
-                      {formatUnitQty(p.rep_stock_minimo, p.rep_unidad)}
-                    </Text>
-                  </View>
-
-                  <View style={[styles.alertBadge, { backgroundColor: tone.bg }]}>
-                    <Text style={[styles.alertBadgeText, { color: tone.fg }]}>
-                      {empty ? "Sin stock" : "Stock bajo"}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-
-            {stockAlerts.length > ALERTS_PREVIEW && (
-              <Text style={styles.alertsMore}>y {stockAlerts.length - ALERTS_PREVIEW} más</Text>
-            )}
-          </View>
-        </View>
-      )}
 
       {/* Stacked (phone/tablet) columns must not use flex: 1: in a vertical
           ScrollView that means flexBasis 0, so a column ends up shorter
           than its panels and the next one draws on top of them. */}
       <View style={isWide ? styles.columns : styles.stack}>
-        <View style={isWide ? styles.column : styles.stack}>
-          <View style={styles.panel}>
-            <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Equipos sin funcionar hoy</Text>
+        <View style={[styles.panel, isWide && styles.mainColumn]}>
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>Actividad de hoy</Text>
 
-              <Pressable onPress={() => router.push("/equipment")}>
-                <Text style={styles.panelLink}>Ver equipos</Text>
+            {activity.length > ACTIVITY_PREVIEW && (
+              <Pressable onPress={() => setShowAllActivity((v) => !v)} hitSlop={8}>
+                <Text style={styles.panelLink}>{showAllActivity ? "Ver menos" : "Ver todo"}</Text>
               </Pressable>
-            </View>
-
-            {attention.length === 0 ? (
-              <Text style={styles.panelEmpty}>No hay equipos fuera de servicio.</Text>
-            ) : (
-              attention.slice(0, 6).map((e) => (
-                <Pressable
-                  key={e.id}
-                  style={styles.attentionRow}
-                  onPress={() => router.push(`/equipment/${e.id}`)}
-                >
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.attentionName} numberOfLines={nameLines}>
-                      {e.name}
-                    </Text>
-                    <Text style={styles.attentionMeta} numberOfLines={1}>
-                      {e.code} · {e.location || "Sin ubicación"}
-                    </Text>
-                  </View>
-
-                  <StatusBadge status={e.status} />
-                </Pressable>
-              ))
             )}
           </View>
 
-          <View style={styles.panel}>
-            <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>OT vencidas</Text>
-
-              <Pressable onPress={() => router.push("/work-orders")}>
-                <Text style={styles.panelLink}>Ver órdenes</Text>
-              </Pressable>
-            </View>
-
-            {overdue.length === 0 ? (
-              <Text style={styles.panelEmpty}>
-                No hay órdenes abiertas con la fecha requerida de cierre vencida.
-              </Text>
-            ) : (
-              <>
-                {overdue.slice(0, ALERTS_PREVIEW).map((o) => {
-                  const e = equipmentById.get(o.equipment_id);
-                  const lateDays = daysBetween(o.planned_end_date!, today);
-                  return (
-                    <Pressable
-                      key={o.id}
-                      style={styles.attentionRow}
-                      onPress={() => router.push(`/work-orders/${o.id}` as never)}
-                    >
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.attentionName} numberOfLines={nameLines}>
-                          {formatOrderNumber(o.id)} · {e?.name ?? "Equipo desconocido"}
-                        </Text>
-
-                        <Text style={styles.attentionMeta} numberOfLines={1}>
-                          Cierre requerido el {fromDbDate(o.planned_end_date)}
-                        </Text>
-                      </View>
-
-                      <View style={[styles.alertBadge, { backgroundColor: colors.urgencyHigh.bg }]}>
-                        <Text style={[styles.alertBadgeText, { color: colors.urgencyHigh.fg }]}>
-                          {lateDays} {lateDays === 1 ? "día" : "días"} de atraso
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-
-                {overdue.length > ALERTS_PREVIEW && (
-                  <Text style={styles.alertsMore}>y {overdue.length - ALERTS_PREVIEW} más</Text>
-                )}
-              </>
-            )}
-          </View>
+          {activity.length === 0 ? (
+            <Text style={styles.panelEmpty}>Todavía no hubo actividad hoy.</Text>
+          ) : (
+            visibleActivity.map((item) => (
+              <ActivityRow
+                key={item.key}
+                item={item}
+                tone={
+                  item.kind === "stock" && item.severe ? colors.urgencyHigh : kindTone[item.kind]
+                }
+                isPhone={isPhone}
+                styles={styles}
+              />
+            ))
+          )}
         </View>
 
-        <View style={isWide ? styles.column : styles.stack}>
+        <View style={isWide ? styles.sideColumn : styles.stack}>
           <View style={styles.panel}>
-            <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>
-                Solicitudes a atender
-                {pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ""}
-              </Text>
+            <Text style={[styles.panelTitle, styles.panelTitleAlone]}>Para resolver hoy</Text>
 
-              <Pressable onPress={() => router.push("/requests")}>
-                <Text style={styles.panelLink}>Ver todas</Text>
-              </Pressable>
-            </View>
+            {resolveRows
+              .filter((r) => r.always || r.count > 0)
+              .map((r) => {
+                const pending = r.count > 0;
+                return (
+                  <Pressable
+                    key={r.key}
+                    style={styles.resolveRow}
+                    onPress={() => router.push(r.href as never)}
+                  >
+                    <View style={[styles.countBadge, !pending && styles.countBadgeDone]}>
+                      <Text style={[styles.countBadgeText, !pending && styles.countBadgeTextDone]}>
+                        {r.count}
+                      </Text>
+                    </View>
 
-            {pendingRequests.length === 0 ? (
-              <Text style={styles.panelEmpty}>No hay solicitudes esperando una OT.</Text>
-            ) : (
-              <>
-                <RequestList items={pendingRequests.slice(0, ALERTS_PREVIEW)} />
+                    <Text
+                      style={[styles.resolveLabel, !pending && styles.resolveLabelDone]}
+                      numberOfLines={2}
+                    >
+                      {r.label}
+                    </Text>
 
-                {pendingRequests.length > ALERTS_PREVIEW && (
-                  <Text style={styles.alertsMore}>
-                    y {pendingRequests.length - ALERTS_PREVIEW} más
-                  </Text>
-                )}
-              </>
-            )}
+                    <Text style={styles.resolveAction}>{pending ? `${r.action} →` : "Al día"}</Text>
+                  </Pressable>
+                );
+              })}
           </View>
 
           <View style={styles.panel}>
-            <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Carga actual por técnico</Text>
+            <Text style={[styles.panelTitle, styles.panelTitleAlone]}>
+              Estado de los equipos ahora
+            </Text>
+
+            <View style={styles.stateBar}>
+              {equipmentState.total === 0 ? (
+                <View style={[styles.stateSegment, { flex: 1, backgroundColor: colors.border }]} />
+              ) : (
+                equipmentState.segments
+                  .filter((s) => s.value > 0)
+                  .map((s) => (
+                    <View
+                      key={s.label}
+                      style={[styles.stateSegment, { flex: s.value, backgroundColor: s.color }]}
+                    />
+                  ))
+              )}
             </View>
 
-            {technicianLoad.length === 0 ? (
-              <Text style={styles.panelEmpty}>No hay técnicos activos.</Text>
-            ) : (
-              <BarList
-                series={[{ key: "open", label: "Tareas abiertas", color: colors.accent }]}
-                rows={technicianLoad.map((t) => ({
-                  key: t.id,
-                  label: t.name,
-                  values: { open: t.open },
-                  detail: `${t.open} ${t.open === 1 ? "tarea abierta" : "tareas abiertas"} (pendientes, en curso o suspendidas)`,
-                }))}
-              />
-            )}
+            <View style={styles.legend}>
+              {equipmentState.segments.map((s) => (
+                <View key={s.label} style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: s.color }]} />
+
+                  <Text style={styles.legendText}>
+                    {s.label} {s.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.stateSummary}>
+              {equipmentState.outOfService} de {equipmentState.total} fuera de servicio ·{" "}
+              <Text style={styles.stateLink} onPress={() => router.push("/equipment")}>
+                Ver equipos →
+              </Text>
+            </Text>
           </View>
         </View>
       </View>
@@ -423,69 +457,99 @@ export default function DashboardScreen() {
   );
 }
 
+function ActivityRow({
+  item,
+  tone,
+  isPhone,
+  styles,
+}: {
+  item: ActivityItem;
+  tone: { bg: string; fg: string };
+  isPhone: boolean;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const text = (
+    <Text style={styles.activityText} numberOfLines={isPhone ? 3 : 2}>
+      {item.segments.map((s, i) => (
+        <Text key={i} style={s.bold ? styles.activityBold : undefined}>
+          {s.text}
+        </Text>
+      ))}
+    </Text>
+  );
+
+  return (
+    <Pressable
+      style={[styles.activityRow, isPhone && styles.activityRowPhone]}
+      onPress={() => router.push(item.href as never)}
+    >
+      <View style={styles.activityMeta}>
+        <Text style={styles.activityTime}>{formatTime(item.at)}</Text>
+
+        <View style={[styles.kindChip, { backgroundColor: tone.bg }]}>
+          <Text style={[styles.kindChipText, { color: tone.fg }]}>{KIND_LABEL[item.kind]}</Text>
+        </View>
+      </View>
+
+      {text}
+    </Pressable>
+  );
+}
+
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 24, paddingBottom: 48 },
+    content: { padding: 24, paddingBottom: 48, gap: 16 },
     contentPhone: { padding: 20, paddingBottom: 48 },
     center: { flex: 1 },
-    error: { color: c.destructive, marginBottom: 12 },
-    pageHeader: { marginBottom: 20 },
+    error: { color: c.destructive },
+    pageHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      flexWrap: "wrap",
+      gap: 12,
+      marginBottom: 4,
+    },
+    headerText: { flexShrink: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "600", color: c.text },
     subtitle: { marginTop: 3, fontSize: 14, color: c.textSecondary },
-    hero: {
-      backgroundColor: c.bgStatCard,
+    datePill: {
       borderWidth: 1,
       borderColor: c.border,
-      borderRadius: 20,
-      padding: 24,
-      marginBottom: 20,
-      overflow: "hidden",
+      backgroundColor: c.bgCard,
+      borderRadius: 999,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
     },
-    // Leaves room for both hero buttons on one line on a phone.
-    heroPhone: { padding: 18 },
-    heroBgImage: {
-      position: "absolute",
-      top: 0,
-      right: 0,
+    datePillText: { fontSize: 13, fontWeight: "500", color: c.text },
+    kpiRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+    kpiTile: {
+      flexGrow: 1,
+      flexBasis: 200,
+      minWidth: 0,
+      backgroundColor: c.bgCard,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
     },
-    heroText: { gap: 8, maxWidth: 460 },
-    heroEyebrow: {
-      fontFamily: "monospace",
-      fontSize: 11,
-      letterSpacing: 1.2,
-      color: c.accent,
-      fontWeight: "600",
-    },
-    heroValue: {
-      fontSize: 30,
+    // Two per row on a phone.
+    kpiTilePhone: { flexBasis: 140 },
+    kpiLabel: { fontSize: 12.5, color: c.textSecondary },
+    kpiValue: {
+      marginTop: 6,
+      fontSize: 26,
       fontWeight: "700",
+      letterSpacing: -0.5,
       color: c.text,
-      letterSpacing: -0.6,
-      lineHeight: 36,
+      fontVariant: ["tabular-nums"],
     },
-    heroCopy: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
-    heroActions: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 8 },
-    primaryButton: {
-      backgroundColor: c.text,
-      paddingHorizontal: 20,
-      height: 42,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    primaryButtonText: { color: c.bg, fontWeight: "600", fontSize: 14 },
-    ghostButton: {
-      backgroundColor: c.heroSecondaryButtonBg,
-      paddingHorizontal: 20,
-      height: 42,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    ghostButtonText: { color: c.text, fontWeight: "600", fontSize: 14 },
+    kpiHint: { marginTop: 4, fontSize: 12.5, color: c.textMuted },
     columns: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
-    column: { flex: 1, gap: 16, minWidth: 0 },
+    mainColumn: { flex: 1.7, minWidth: 0 },
+    sideColumn: { flex: 1, gap: 16, minWidth: 0 },
     stack: { gap: 16 },
     panel: {
       backgroundColor: c.bgCard,
@@ -499,53 +563,75 @@ function makeStyles(c: ThemeColors) {
       alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
-      marginBottom: 12,
+      marginBottom: 8,
     },
-    // Shrinks so the "Ver …" link stays inside a narrow (phone) panel.
     panelTitle: { flexShrink: 1, minWidth: 0, fontSize: 15.5, fontWeight: "600", color: c.text },
-    panelLink: { fontSize: 13.5, fontWeight: "500", color: c.accent },
+    panelTitleAlone: { marginBottom: 8 },
+    panelLink: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
     panelEmpty: { fontSize: 13.5, color: c.textMuted, paddingVertical: 8 },
-    attentionRow: {
+    activityRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
-      paddingVertical: 12,
+      paddingVertical: 10,
       borderTopWidth: 1,
       borderTopColor: c.borderRow,
     },
-    attentionName: { fontSize: 14.5, fontWeight: "600", color: c.text },
-    attentionMeta: { fontSize: 13, color: c.textMuted, marginTop: 2 },
-    alertsPanel: { marginBottom: 20 },
-    alertsStack: { gap: 16 },
-    alertsSubHeader: {
+    activityRowPhone: { flexDirection: "column", alignItems: "flex-start", gap: 6 },
+    activityMeta: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 0 },
+    activityTime: {
+      width: 40,
+      fontSize: 12.5,
+      color: c.textMuted,
+      fontVariant: ["tabular-nums"],
+    },
+    kindChip: {
+      minWidth: 76,
+      alignItems: "center",
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 999,
+    },
+    kindChipText: { fontSize: 11.5, fontWeight: "600" },
+    activityText: { flex: 1, minWidth: 0, fontSize: 13.5, color: c.text, lineHeight: 19 },
+    activityBold: { fontWeight: "700" },
+    resolveRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
-      gap: 8,
-      marginBottom: 4,
+      gap: 10,
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: c.borderRow,
     },
-    alertsSubTitle: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: c.textMuted,
-      letterSpacing: 0.4,
-      textTransform: "uppercase",
-    },
-    alertsMore: { fontSize: 12.5, color: c.textMuted, paddingTop: 8 },
-    bellWrap: { position: "relative", padding: 2 },
-    bellBadge: {
-      position: "absolute",
-      top: -6,
-      right: -9,
-      minWidth: 18,
-      height: 18,
-      paddingHorizontal: 5,
-      borderRadius: 9,
+    countBadge: {
+      minWidth: 22,
+      height: 22,
+      paddingHorizontal: 6,
+      borderRadius: 11,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: c.urgencyHigh.bg,
     },
-    bellBadgeText: { color: "#fff", fontSize: 10.5, fontWeight: "700" },
-    alertBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
-    alertBadgeText: { fontSize: 12, fontWeight: "600" },
+    countBadgeDone: { backgroundColor: c.bgNested },
+    countBadgeText: { fontSize: 12, fontWeight: "700", color: c.urgencyHigh.fg },
+    countBadgeTextDone: { color: c.textMuted },
+    resolveLabel: { flex: 1, minWidth: 0, fontSize: 13.5, color: c.text },
+    resolveLabelDone: { color: c.textMuted },
+    resolveAction: { fontSize: 13, fontWeight: "500", color: c.textSecondary },
+    stateBar: {
+      flexDirection: "row",
+      height: 12,
+      borderRadius: 999,
+      overflow: "hidden",
+      gap: 2,
+      marginTop: 4,
+    },
+    stateSegment: { height: "100%" },
+    legend: { flexDirection: "row", flexWrap: "wrap", columnGap: 14, rowGap: 6, marginTop: 12 },
+    legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+    legendDot: { width: 8, height: 8, borderRadius: 4 },
+    legendText: { fontSize: 12.5, color: c.textSecondary, fontVariant: ["tabular-nums"] },
+    stateSummary: { marginTop: 12, fontSize: 13, color: c.textSecondary },
+    stateLink: { fontWeight: "600", color: c.text },
   });
 }
