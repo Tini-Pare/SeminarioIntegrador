@@ -113,6 +113,7 @@ export type Database = {
           p_nombre: string;
           p_descripcion: string | null;
           p_frecuencia: number;
+          p_plazo: number;
           p_estado: string;
           p_tareas: number[];
           p_equipos: { eq_id: number; fecha_ult_mant: string }[];
@@ -126,6 +127,7 @@ export type Database = {
           p_nombre: string;
           p_descripcion: string | null;
           p_frecuencia: number;
+          p_plazo: number;
           p_estado: string;
           p_tareas: number[];
           p_equipos: { eq_id: number; fecha_ult_mant: string }[];
@@ -967,6 +969,8 @@ export type Database = {
           pm_nombre_plan: string;
           pm_descripcion_plan: string | null;
           pm_frecuencia: number;
+          // Days its preventive OTs have to be closed in (0051), 1..pm_frecuencia.
+          pm_plazo_dias: number;
           pm_estado: "activo" | "inactivo";
           // Hour (Argentina, 0–23) its preventive OTs are emitted at (0039).
           pm_hora_emision: number;
@@ -977,6 +981,7 @@ export type Database = {
           pm_nombre_plan: string;
           pm_descripcion_plan?: string | null;
           pm_frecuencia: number;
+          pm_plazo_dias: number;
           pm_estado?: "activo" | "inactivo";
           pm_hora_emision?: number;
         };
@@ -986,6 +991,7 @@ export type Database = {
           pm_nombre_plan?: string;
           pm_descripcion_plan?: string | null;
           pm_frecuencia?: number;
+          pm_plazo_dias?: number;
           pm_estado?: "activo" | "inactivo";
           pm_hora_emision?: number;
         };
@@ -1112,6 +1118,7 @@ export type Database = {
           task_count: number;
           equipment_count: number;
           prox_vencimiento: string | null;
+          pm_plazo_dias: number;
         };
         Insert: {
           pm_id_plan?: number;
@@ -1124,6 +1131,7 @@ export type Database = {
           task_count?: number;
           equipment_count?: number;
           prox_vencimiento?: string | null;
+          pm_plazo_dias: number;
         };
         Update: {
           pm_id_plan?: number;
@@ -1136,6 +1144,7 @@ export type Database = {
           task_count?: number;
           equipment_count?: number;
           prox_vencimiento?: string | null;
+          pm_plazo_dias?: number;
         };
         Relationships: [];
       };

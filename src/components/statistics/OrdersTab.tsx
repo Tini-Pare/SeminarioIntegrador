@@ -132,6 +132,12 @@ export function OrdersTab({ data, period, type, today, equipmentById, isWide }: 
       flex: 1.1,
       render: (r) => (r.frequencyDays ? `Cada ${r.frequencyDays} días` : "—"),
     },
+    {
+      key: "plazo",
+      label: "Plazo",
+      flex: 0.8,
+      render: (r) => (r.deadlineDays ? `${r.deadlineDays} días` : "—"),
+    },
     { key: "total", label: "OT", flex: 0.6, align: "right", render: (r) => String(r.total) },
     {
       key: "atiempo",
@@ -236,7 +242,7 @@ export function OrdersTab({ data, period, type, today, equipmentById, isWide }: 
       {type !== "correctivo" && (
         <StatPanel
           title="Cumplimiento por plan preventivo"
-          caption="OT preventivas iniciadas en el período. El plazo es la fecha requerida de cierre de cada OT: nace con la fecha de inicio más la frecuencia del plan (tiene que hacerse antes de que toque la siguiente). Cumplimiento = a tiempo / (a tiempo + tarde + vencidas)."
+          caption="OT preventivas iniciadas en el período. El plazo es la fecha requerida de cierre de cada OT: nace con la fecha de inicio más el plazo de ejecución del plan. Cumplimiento = a tiempo / (a tiempo + tarde + vencidas)."
         >
           {plans.length === 0 ? (
             <EmptyChart text="No hay OT preventivas iniciadas en el período." />

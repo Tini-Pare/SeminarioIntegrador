@@ -492,6 +492,10 @@ function PlanTableRow({
         <Text style={styles.cellText}>
           Cada {p.pm_frecuencia} {p.pm_frecuencia === 1 ? "día" : "días"}
         </Text>
+
+        <Text style={styles.planDescText} numberOfLines={1}>
+          Plazo {p.pm_plazo_dias} {p.pm_plazo_dias === 1 ? "día" : "días"}
+        </Text>
       </View>
 
       {/* Tareas */}

@@ -319,13 +319,14 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
       ? ""
       : panel(
           "Cumplimiento por plan preventivo",
-          "OT preventivas iniciadas en el período. El plazo es la fecha requerida de cierre de cada OT: nace con la fecha de inicio más la frecuencia del plan (tiene que hacerse antes de que toque la siguiente). Cumplimiento = a tiempo / (a tiempo + tarde + vencidas).",
+          "OT preventivas iniciadas en el período. El plazo es la fecha requerida de cierre de cada OT: nace con la fecha de inicio más el plazo de ejecución del plan. Cumplimiento = a tiempo / (a tiempo + tarde + vencidas).",
           plans.length === 0
             ? empty("No hay OT preventivas iniciadas en el período.")
             : table(
                 [
                   { label: "Plan" },
                   { label: "Frecuencia" },
+                  { label: "Plazo" },
                   { label: "OT", right: true },
                   { label: "A tiempo", right: true },
                   { label: "Tarde", right: true },
@@ -336,6 +337,7 @@ function ordersSection({ data, period, type, today, equipmentById }: StatisticsP
                 plans.map((r) => [
                   esc(r.name),
                   esc(r.frequencyDays ? `Cada ${r.frequencyDays} días` : "—"),
+                  esc(r.deadlineDays ? `${r.deadlineDays} días` : "—"),
                   String(r.total),
                   String(r.onTime),
                   String(r.late),

@@ -665,11 +665,11 @@ describe("resolutionByPriority", () => {
 
 describe("planCompliance", () => {
   const plans = [
-    { pm_id_plan: 1, pm_nombre_plan: "Heladeras mensual", pm_frecuencia: 30 },
-    { pm_id_plan: 2, pm_nombre_plan: "Hornos semanal", pm_frecuencia: 7 },
+    { pm_id_plan: 1, pm_nombre_plan: "Heladeras mensual", pm_frecuencia: 30, pm_plazo_dias: 15 },
+    { pm_id_plan: 2, pm_nombre_plan: "Hornos semanal", pm_frecuencia: 7, pm_plazo_dias: 5 },
   ];
 
-  it("uses the fecha estimada, or else the plan's frequency, as the deadline", () => {
+  it("uses the fecha requerida de cierre, or else the plan's plazo, as the deadline", () => {
     expect(
       preventiveDeadline({ start_date: "2026-03-01", planned_end_date: "2026-03-05" }, 30),
     ).toBe("2026-03-05");
@@ -704,6 +704,25 @@ describe("planCompliance", () => {
     ]);
     expect(result[0].compliancePct).toBeCloseTo(33.33, 1);
     expect(result[1].compliancePct).toBe(100);
+  });
+
+  it("judges an OT by the plan's plazo, not its frequency", () => {
+    // Monthly plan with 5 days to do it: closed on day 9, so late even though
+    // the next one isn't due yet.
+    const result = planCompliance(
+      [
+        order({
+          type: "preventivo",
+          plan_id_manequipo: 3,
+          start_date: "2026-03-01",
+          end_date: "2026-03-10",
+        }),
+      ],
+      [{ pm_id_plan: 3, pm_nombre_plan: "Cámaras mensual", pm_frecuencia: 30, pm_plazo_dias: 5 }],
+      MARCH,
+      "2026-03-31",
+    );
+    expect(result[0]).toMatchObject({ frequencyDays: 30, deadlineDays: 5, onTime: 0, late: 1 });
   });
 });
 

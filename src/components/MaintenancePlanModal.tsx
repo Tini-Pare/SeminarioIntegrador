@@ -83,6 +83,8 @@ export function MaintenancePlanModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [frequency, setFrequency] = useState("");
+  // Plazo de ejecución: days each preventive OT has to be closed in (0051).
+  const [deadlineDays, setDeadlineDays] = useState("");
   const [typeId, setTypeId] = useState<number | null>(null);
   const [typeName, setTypeName] = useState("");
   const [estado, setEstado] = useState<"activo" | "inactivo">("activo");
@@ -109,6 +111,7 @@ export function MaintenancePlanModal({
     name: string;
     description: string;
     frequency: string;
+    deadlineDays: string;
     typeId: number | null;
     estado: "activo" | "inactivo";
     taskIds: number[];
@@ -116,6 +119,7 @@ export function MaintenancePlanModal({
     name: "",
     description: "",
     frequency: "",
+    deadlineDays: "",
     typeId: null,
     estado: "activo",
     taskIds: [],
@@ -136,6 +140,7 @@ export function MaintenancePlanModal({
     setName("");
     setDescription("");
     setFrequency("");
+    setDeadlineDays("");
     setTypeId(null);
     setTypeName("");
     setEstado("activo");
@@ -147,6 +152,7 @@ export function MaintenancePlanModal({
       name: "",
       description: "",
       frequency: "",
+      deadlineDays: "",
       typeId: null,
       estado: "activo",
       taskIds: [],
@@ -167,6 +173,7 @@ export function MaintenancePlanModal({
           setName(detail.name);
           setDescription(detail.description ?? "");
           setFrequency(String(detail.frequency));
+          setDeadlineDays(String(detail.deadlineDays));
           setTypeId(detail.typeId);
           setTypeName(detail.typeName);
           setEstado(detail.estado);
@@ -190,6 +197,7 @@ export function MaintenancePlanModal({
             name: detail.name,
             description: detail.description ?? "",
             frequency: String(detail.frequency),
+            deadlineDays: String(detail.deadlineDays),
             typeId: detail.typeId,
             estado: detail.estado,
             taskIds: detail.tasks.map((t) => t.tag_id_tarea),
@@ -239,6 +247,7 @@ export function MaintenancePlanModal({
     if (name !== initialSnapshot.name) return true;
     if (description !== initialSnapshot.description) return true;
     if (frequency !== initialSnapshot.frequency) return true;
+    if (deadlineDays !== initialSnapshot.deadlineDays) return true;
     if (typeId !== initialSnapshot.typeId) return true;
     if (estado !== initialSnapshot.estado) return true;
 
@@ -249,7 +258,17 @@ export function MaintenancePlanModal({
     const initIds = initialSnapshot.taskIds.slice().sort().join(",");
     if (currIds !== initIds) return true;
     return false;
-  }, [name, description, frequency, typeId, estado, selectedTasks, initialSnapshot, isView]);
+  }, [
+    name,
+    description,
+    frequency,
+    deadlineDays,
+    typeId,
+    estado,
+    selectedTasks,
+    initialSnapshot,
+    isView,
+  ]);
 
   function handleAttemptClose() {
     if (isDirty) {
@@ -262,13 +281,23 @@ export function MaintenancePlanModal({
   // Form Validation
   const freqNum = parseInt(frequency.trim(), 10);
   const isFrequencyValid = Number.isInteger(freqNum) && freqNum > 0 && freqNum <= 999;
+  const deadlineNum = parseInt(deadlineDays.trim(), 10);
+  const isDeadlineNumber = Number.isInteger(deadlineNum) && deadlineNum > 0;
+  // More time than there is until the next OT is due makes no sense.
+  const isDeadlineWithinFrequency = !isFrequencyValid || deadlineNum <= freqNum;
+  const isDeadlineValid = isDeadlineNumber && isDeadlineWithinFrequency;
   const isNameValid = name.trim().length > 0;
   const isTypeValid = typeId !== null;
   const isDescriptionValid = description.trim().length > 0;
   const isTasksValid = estado === "inactivo" || selectedTasks.length > 0;
 
   const isFormValid =
-    isNameValid && isTypeValid && isFrequencyValid && isDescriptionValid && isTasksValid;
+    isNameValid &&
+    isTypeValid &&
+    isFrequencyValid &&
+    isDeadlineValid &&
+    isDescriptionValid &&
+    isTasksValid;
 
   async function handleSave() {
     if (!isFormValid) {
@@ -276,6 +305,9 @@ export function MaintenancePlanModal({
       else if (!isTypeValid) setError("Seleccioná un tipo de equipo.");
       else if (!isFrequencyValid)
         setError("La frecuencia debe ser un número entero entre 1 y 999.");
+      else if (!isDeadlineNumber) setError("El plazo de ejecución debe ser mayor a 0 días.");
+      else if (!isDeadlineWithinFrequency)
+        setError("El plazo de ejecución no puede ser mayor a la frecuencia.");
       else if (!isDescriptionValid) setError("Ingresá una descripción para el plan.");
       else if (!isTasksValid) setError("Un plan no puede quedar activo sin tareas previstas.");
       return;
@@ -290,6 +322,7 @@ export function MaintenancePlanModal({
         name: name.trim(),
         description: description.trim() || null,
         frequency: freqNum,
+        deadlineDays: deadlineNum,
         estado,
         taskIds: selectedTasks.map((t) => t.tag_id_tarea),
       };
@@ -403,28 +436,51 @@ export function MaintenancePlanModal({
                     </View>
                   </View>
 
-                  {/* Row 2: Frecuencia (días) | Estado del plan */}
+                  {/* Row 2: Frecuencia + Plazo de ejecución (días) | Estado del plan */}
                   <View style={styles.formRow}>
                     <View style={styles.col}>
-                      <View style={styles.shortField}>
-                        <FieldLabel
-                          text="Frecuencia (días)"
-                          required={!isView}
-                          style={styles.label}
-                        />
+                      <View style={styles.shortFieldsRow}>
+                        <View style={styles.shortField}>
+                          <FieldLabel
+                            text="Frecuencia (días)"
+                            required={!isView}
+                            style={styles.label}
+                          />
 
-                        <TextInput
-                          style={[styles.input, isView && styles.inputDisabled]}
-                          value={frequency}
-                          onChangeText={(txt) =>
-                            setFrequency(txt.replace(/[^0-9]/g, "").slice(0, 3))
-                          }
-                          maxLength={3}
-                          placeholder="Ej: 60"
-                          placeholderTextColor={colors.textMuted}
-                          keyboardType="numeric"
-                          editable={!isView}
-                        />
+                          <TextInput
+                            style={[styles.input, isView && styles.inputDisabled]}
+                            value={frequency}
+                            onChangeText={(txt) =>
+                              setFrequency(txt.replace(/[^0-9]/g, "").slice(0, 3))
+                            }
+                            maxLength={3}
+                            placeholder="Ej: 60"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="numeric"
+                            editable={!isView}
+                          />
+                        </View>
+
+                        <View style={styles.shortField}>
+                          <FieldLabel
+                            text="Plazo de ejecución (días)"
+                            required={!isView}
+                            style={styles.label}
+                          />
+
+                          <TextInput
+                            style={[styles.input, isView && styles.inputDisabled]}
+                            value={deadlineDays}
+                            onChangeText={(txt) =>
+                              setDeadlineDays(txt.replace(/[^0-9]/g, "").slice(0, 3))
+                            }
+                            maxLength={3}
+                            placeholder="Ej: 7"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="numeric"
+                            editable={!isView}
+                          />
+                        </View>
                       </View>
 
                       {frequency.trim() !== "" && !isFrequencyValid && (
@@ -433,8 +489,19 @@ export function MaintenancePlanModal({
                         </Text>
                       )}
 
+                      {deadlineDays.trim() !== "" && !isDeadlineNumber && (
+                        <Text style={styles.fieldError}>El plazo debe ser mayor a 0 días</Text>
+                      )}
+
+                      {isDeadlineNumber && !isDeadlineWithinFrequency && (
+                        <Text style={styles.fieldError}>
+                          El plazo no puede ser mayor a la frecuencia
+                        </Text>
+                      )}
+
                       <Text style={styles.hintText}>
-                        El día que vence cada equipo, su OT preventiva se genera sola a las 8:00.
+                        El día que vence cada equipo, su OT preventiva se genera sola a las 8:00 y
+                        tiene el plazo de ejecución para cerrarse.
                       </Text>
                     </View>
 
@@ -703,8 +770,9 @@ export function MaintenancePlanModal({
                       {/* 4. Nota informativa */}
                       <Text style={styles.infoNote}>
                         Próximo vencimiento = último mantenimiento + frecuencia. Ese día, a las
-                        8:00, se genera sola la OT preventiva y cada tarea se asigna al técnico con
-                        menos tareas abiertas; al resolverse, actualiza el último mantenimiento del
+                        8:00, se genera sola la OT preventiva, con fecha requerida de cierre = ese
+                        día + el plazo de ejecución, y cada tarea se asigna al técnico con menos
+                        tareas abiertas; al resolverse, actualiza el último mantenimiento del
                         equipo. Al crear el plan, cada equipo parte de su fecha de instalación; si
                         con esa fecha ya está vencido, queda sin registro y genera su OT el mismo
                         día en que el plan queda activo, a partir de las 8:00. Los equipos inactivos
@@ -896,9 +964,16 @@ function makeStyles(c: ThemeColors) {
     fieldFull: {
       gap: 6,
     },
+    // Frecuencia and plazo side by side, wrapping on a narrow screen.
+    shortFieldsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 12,
+    },
     // A short value (a number of days): narrow instead of taking a whole column.
     shortField: {
-      maxWidth: 150,
+      width: 150,
+      maxWidth: "100%",
       gap: 6,
     },
     fieldRaised: {

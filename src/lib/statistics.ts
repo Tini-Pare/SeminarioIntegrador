@@ -920,12 +920,19 @@ export function resolutionByPriority(
   });
 }
 
-export type PlanInfo = { pm_id_plan: number; pm_nombre_plan: string; pm_frecuencia: number };
+export type PlanInfo = {
+  pm_id_plan: number;
+  pm_nombre_plan: string;
+  pm_frecuencia: number;
+  pm_plazo_dias: number;
+};
 
 export type PlanCompliance = {
   planId: number | null;
   name: string;
   frequencyDays: number | null;
+  // Plazo de ejecución: days each of its OTs has to be closed in (0051).
+  deadlineDays: number | null;
   total: number;
   onTime: number;
   late: number;
@@ -938,15 +945,15 @@ export type PlanCompliance = {
 };
 
 // A preventive OT's deadline is its fecha requerida de cierre, which it's
-// created with since 0050 (start + the plan's frequency: it has to be done
-// before the next one of the same plan is due). The frequency fallback only
-// covers an OT that still has no date, e.g. one created before 0050 ran.
+// created with (start + the plan's plazo de ejecución, 0051). The plazo
+// fallback only covers an OT that still has no date, e.g. one created
+// before 0050 ran.
 export function preventiveDeadline(
   order: Pick<WorkOrder, "start_date" | "planned_end_date">,
-  frequencyDays: number | null,
+  deadlineDays: number | null,
 ): string | null {
   if (order.planned_end_date) return order.planned_end_date;
-  return frequencyDays ? addDays(order.start_date, frequencyDays) : null;
+  return deadlineDays ? addDays(order.start_date, deadlineDays) : null;
 }
 
 // Cumplimiento de cada plan preventivo: of its OTs started in the period,
@@ -968,6 +975,7 @@ export function planCompliance(
       planId: o.plan_id_manequipo ?? null,
       name: plan?.pm_nombre_plan ?? o.plan_name ?? "Plan eliminado",
       frequencyDays: plan?.pm_frecuencia ?? null,
+      deadlineDays: plan?.pm_plazo_dias ?? null,
       total: 0,
       onTime: 0,
       late: 0,
@@ -975,7 +983,7 @@ export function planCompliance(
       inProgress: 0,
       compliancePct: null,
     };
-    const deadline = preventiveDeadline(o, row.frequencyDays);
+    const deadline = preventiveDeadline(o, row.deadlineDays);
     row.total += 1;
     if (o.end_date) {
       // Without any deadline (plan deleted) a closed OT counts as done.

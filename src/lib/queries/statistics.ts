@@ -24,7 +24,7 @@ export type StatisticsData = {
   purchases: PurchaseWithDetail[];
   movements: StockMovement[];
   gravedadByFault: Map<string, Gravedad>;
-  // Each plan's frequency is the deadline of its preventive OTs.
+  // Each plan's plazo de ejecución is the deadline of its preventive OTs.
   plans: PlanInfo[];
   purchaseOrders: PurchaseOrderWithLines[];
 };
